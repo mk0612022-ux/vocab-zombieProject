@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Vocab Zombie: IELTS Survival</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<canvas id="gameCanvas"></canvas>
+
+<!-- ===================== MAIN MENU ===================== -->
+<div id="screen-mainmenu" class="screen">
+  <div class="menu-bg-fog"></div>
+  <div class="menu-panel">
+    <h1 class="game-title">VOCAB <span class="accent">ZOMBIE</span></h1>
+    <p class="game-subtitle">IELTS Survival FPS</p>
+    <div class="menu-btns">
+      <button class="btn btn-primary" id="btn-start-game">Start Game</button>
+      <button class="btn" id="btn-practice">Practice Mode</button>
+      <button class="btn" id="btn-daily">Daily Challenge</button>
+      <button class="btn" id="btn-endless">Endless Mode</button>
+      <button class="btn" id="btn-leaderboard">Leaderboard</button>
+      <button class="btn" id="btn-achievements">Achievements</button>
+      <button class="btn" id="btn-import-vocab">Import Vocabulary</button>
+      <button class="btn" id="btn-howtoplay">How to Play</button>
+      <button class="btn" id="btn-settings">Settings</button>
+    </div>
+  </div>
+  <div class="menu-footer">v0.1 · Made with Three.js</div>
+</div>
+
+<!-- ===================== LEVEL SELECT ===================== -->
+<div id="screen-levelselect" class="screen hidden">
+  <h2 class="screen-title">เลือกด่าน</h2>
+  <div id="level-cards" class="level-cards"></div>
+  <div class="row-center">
+    <button class="btn" id="btn-levelselect-back">กลับเมนูหลัก</button>
+  </div>
+</div>
+
+<!-- ===================== HOW TO PLAY ===================== -->
+<div id="screen-howtoplay" class="screen hidden">
+  <h2 class="screen-title">วิธีเล่น</h2>
+  <div class="howto-content">
+    <p>ด้านบนจอจะแสดง<strong>ความหมายภาษาไทย</strong>ของคำศัพท์ — มองหาซอมบี้ที่มีคำศัพท์ภาษาอังกฤษตรงกับความหมายนั้น แล้วยิงมัน!</p>
+    <ul>
+      <li><b>WASD</b> เดิน, <b>เมาส์</b> หมุนกล้อง, <b>คลิกซ้าย</b> ยิง</li>
+      <li><b>R</b> reload, <b>E</b> ใช้งาน/เก็บของ, <b>Shift</b> วิ่ง</li>
+      <li><b>1</b> มีด (melee ไม่จำกัด), <b>2-5</b> สลับปืนในกระเป๋า</li>
+      <li><b>ESC</b> หยุดเกมชั่วคราว</li>
+      <li>ยิงถูกตัว = ได้คะแนน+เงิน / ยิงผิดตัว = เสียเลือดและซอมบี้ที่เหลือไล่เร็วขึ้น</li>
+      <li>ระหว่างเวฟจะมีร้านค้าให้ซื้ออัปเกรด อาวุธ และไอเทม</li>
+    </ul>
+  </div>
+  <div class="row-center"><button class="btn" id="btn-howtoplay-back">กลับ</button></div>
+</div>
+
+<!-- ===================== SETTINGS ===================== -->
+<div id="screen-settings" class="screen hidden">
+  <h2 class="screen-title">ตั้งค่า</h2>
+  <div class="settings-content" id="settings-content"></div>
+  <div class="row-center"><button class="btn" id="btn-settings-back">กลับ</button></div>
+</div>
+
+<!-- ===================== LEADERBOARD ===================== -->
+<div id="screen-leaderboard" class="screen hidden">
+  <h2 class="screen-title">Leaderboard</h2>
+  <div id="leaderboard-content" class="leaderboard-content"></div>
+  <div class="row-center"><button class="btn" id="btn-leaderboard-back">กลับ</button></div>
+</div>
+
+<!-- ===================== ACHIEVEMENTS ===================== -->
+<div id="screen-achievements" class="screen hidden">
+  <h2 class="screen-title">Achievements</h2>
+  <div id="achievements-content" class="achievements-content"></div>
+  <div class="row-center"><button class="btn" id="btn-achievements-back">กลับ</button></div>
+</div>
+
+<!-- ===================== IMPORT VOCAB ===================== -->
+<div id="screen-import" class="screen hidden">
+  <h2 class="screen-title">นำเข้าคำศัพท์</h2>
+  <div class="import-content">
+    <p>อัปโหลดไฟล์ .csv หรือ .txt รูปแบบ <code>english,ความหมายไทย</code> ต่อบรรทัด</p>
+    <input type="file" id="import-file-input" accept=".csv,.txt">
+    <p style="margin-top:14px">หรือถ่ายรูปหน้าคำศัพท์ (OCR เบื้องต้น ต้องใช้อินเทอร์เน็ตโหลดไลบรารีครั้งแรก):</p>
+    <input type="file" id="import-image-input" accept="image/*">
+    <div id="import-ocr-status" class="import-status"></div>
+    <div id="import-preview" class="import-preview"></div>
+    <div class="row-center">
+      <button class="btn btn-primary" id="btn-import-save" disabled>บันทึกชุดคำศัพท์นี้</button>
+    </div>
+    <h3 style="margin-top:24px">ชุดคำศัพท์ที่นำเข้าแล้ว</h3>
+    <div id="imported-sets-list" class="imported-sets-list"></div>
+  </div>
+  <div class="row-center"><button class="btn" id="btn-import-back">กลับ</button></div>
+</div>
+
+<!-- ===================== PRACTICE MODE SETUP ===================== -->
+<div id="screen-practice-setup" class="screen hidden">
+  <h2 class="screen-title">Practice Mode</h2>
+  <div class="practice-setup-content" id="practice-setup-content"></div>
+  <div class="row-center"><button class="btn" id="btn-practice-back">กลับ</button></div>
+</div>
+
+<!-- ===================== PRACTICE MODE PLAY ===================== -->
+<div id="screen-practice-play" class="screen hidden">
+  <div class="practice-card" id="practice-card">
+    <div class="practice-progress" id="practice-progress"></div>
+    <div class="practice-word" id="practice-word">word</div>
+    <div class="practice-choices" id="practice-choices"></div>
+    <div class="practice-feedback" id="practice-feedback"></div>
+  </div>
+  <div class="row-center"><button class="btn" id="btn-practice-quit">จบการฝึก</button></div>
+</div>
+
+<!-- ===================== HUD (Gameplay) ===================== -->
+<div id="hud" class="hud hidden">
+  <div class="hud-top">
+    <div class="hud-meaning-box">
+      <div class="hud-meaning-label">ยิงคำที่แปลว่า</div>
+      <div class="hud-meaning" id="hud-meaning">-</div>
+    </div>
+    <div class="hud-boss-bar hidden" id="hud-boss-bar">
+      <div class="hud-boss-name" id="hud-boss-name">BOSS</div>
+      <div class="hud-boss-hp-track"><div class="hud-boss-hp-fill" id="hud-boss-hp-fill"></div></div>
+      <div class="hud-boss-word" id="hud-boss-word"></div>
+      <div class="hud-boss-choices" id="hud-boss-choices"></div>
+      <div class="hud-boss-timer-track"><div class="hud-boss-timer-fill" id="hud-boss-timer-fill"></div></div>
+    </div>
+  </div>
+
+  <div class="hud-crosshair" id="hud-crosshair"></div>
+  <div class="hud-interact-prompt hidden" id="hud-interact-prompt">กด E เพื่อโต้ตอบ</div>
+  <div class="hud-challenge-box hidden" id="hud-challenge-box">
+    <div class="hud-challenge-label" id="hud-challenge-label">ตอบคำศัพท์เพื่อปลดล็อก</div>
+    <div class="hud-challenge-meaning" id="hud-challenge-meaning"></div>
+    <div class="hud-boss-choices" id="hud-challenge-choices"></div>
+    <div class="hud-boss-timer-track"><div class="hud-boss-timer-fill" id="hud-challenge-timer-fill"></div></div>
+  </div>
+  <div class="hud-hitmarker hidden" id="hud-hitmarker"></div>
+  <div class="hud-damage-flash" id="hud-damage-flash"></div>
+
+  <div class="hud-bottom">
+    <div class="hud-left">
+      <div class="hud-stat hud-health"><span class="hud-icon">❤</span><div class="bar-track"><div class="bar-fill hp-fill" id="hud-hp-fill"></div></div><span id="hud-hp-text">100</span></div>
+      <div class="hud-stat"><span class="hud-icon">💰</span><span id="hud-money">0</span></div>
+      <div class="hud-stat"><span class="hud-icon">⭐</span><span id="hud-score">0</span></div>
+      <div class="hud-stat"><span id="hud-level-wave">Level 1 - Wave 1</span></div>
+      <div class="hud-stat"><span id="hud-zombies-left">Zombies: 0</span></div>
+    </div>
+    <div class="hud-right">
+      <div class="hud-weapon-name" id="hud-weapon-name">Pistol</div>
+      <div class="hud-ammo" id="hud-ammo">12 / 48</div>
+      <div class="hud-slots" id="hud-slots"></div>
+    </div>
+  </div>
+  <div class="hud-combo hidden" id="hud-combo">COMBO x0</div>
+  <div class="hud-fps-counter hidden" id="hud-fps-counter">0 FPS</div>
+  <div class="hud-achievement-toast hidden" id="hud-achievement-toast"></div>
+</div>
+
+<!-- Touch controls -->
+<div id="touch-controls" class="touch-controls hidden">
+  <div id="touch-joystick" class="touch-joystick"><div id="touch-joystick-knob" class="touch-joystick-knob"></div></div>
+  <div id="touch-lookzone" class="touch-lookzone"></div>
+  <button id="touch-fire" class="touch-btn touch-fire">FIRE</button>
+  <button id="touch-interact" class="touch-btn touch-interact">E</button>
+  <button id="touch-reload" class="touch-btn touch-reload">R</button>
+  <button id="touch-jump" class="touch-btn touch-jump">JUMP</button>
+</div>
+
+<!-- ===================== SHOP (between waves) ===================== -->
+<div id="screen-shop" class="screen hidden">
+  <h2 class="screen-title">ร้านค้า</h2>
+  <div class="shop-timer" id="shop-timer">เริ่มเวฟถัดไปใน 15 วินาที</div>
+  <div class="shop-money">เงินสะสม: <span id="shop-money">0</span></div>
+  <div class="shop-grid" id="shop-grid"></div>
+  <div class="row-center"><button class="btn btn-primary" id="btn-shop-continue">เริ่มเวฟถัดไป</button></div>
+</div>
+
+<!-- ===================== CRATE OPEN ===================== -->
+<div id="screen-crate" class="screen hidden">
+  <div class="crate-open-panel" id="crate-open-panel">
+    <div class="crate-rarity-label" id="crate-rarity-label">RARE</div>
+    <div class="crate-weapon-name" id="crate-weapon-name">Weapon Name</div>
+    <div class="crate-weapon-stats" id="crate-weapon-stats"></div>
+    <button class="btn btn-primary" id="btn-crate-continue">ตกลง</button>
+  </div>
+</div>
+
+<!-- ===================== PAUSE ===================== -->
+<div id="screen-pause" class="screen hidden">
+  <h2 class="screen-title">หยุดเกมชั่วคราว</h2>
+  <div class="menu-btns">
+    <button class="btn btn-primary" id="btn-resume">Resume</button>
+    <button class="btn" id="btn-pause-settings">Settings</button>
+    <button class="btn" id="btn-pause-mainmenu">กลับ Main Menu</button>
+  </div>
+</div>
+
+<!-- ===================== GAME OVER ===================== -->
+<div id="screen-gameover" class="screen hidden">
+  <h2 class="screen-title lose">GAME OVER</h2>
+  <div class="result-stats" id="gameover-stats"></div>
+  <div id="gameover-review" class="review-list"></div>
+  <div class="menu-btns row">
+    <button class="btn btn-primary" id="btn-gameover-retry">Retry</button>
+    <button class="btn" id="btn-gameover-menu">Main Menu</button>
+  </div>
+</div>
+
+<!-- ===================== VICTORY ===================== -->
+<div id="screen-victory" class="screen hidden">
+  <h2 class="screen-title win">VICTORY!</h2>
+  <div class="result-stats" id="victory-stats"></div>
+  <div id="victory-review" class="review-list"></div>
+  <div class="menu-btns row">
+    <button class="btn" id="btn-victory-levelselect">Level Select</button>
+    <button class="btn btn-primary" id="btn-victory-retry">เล่นใหม่</button>
+    <button class="btn" id="btn-victory-menu">Main Menu</button>
+  </div>
+</div>
+
+<div id="loading-overlay" class="loading-overlay">
+  <div class="loading-text">Loading...</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="js/data/words.js"></script>
+<script src="js/core.js"></script>
+<script src="js/entities.js"></script>
+<script src="js/world.js"></script>
+<script src="js/systems.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/game.js"></script>
+</body>
+</html>
