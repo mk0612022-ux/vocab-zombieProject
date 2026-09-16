@@ -759,6 +759,7 @@ G.Game = {
     if (this.weaponViewGroup) {
       const bob = (len > 0 ? Math.sin(performance.now() * 0.012) * 0.015 : 0);
       this.weaponViewGroup.position.y = -0.28 + bob;
+      if (this.weaponViewGroup.userData.rainbowTrim) this.weaponViewGroup.userData.rainbowTrim.rotation.z += dt * 2.4;
     }
 
     // fire input

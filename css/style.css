@@ -211,10 +211,11 @@ html, body {
 .crate-weapon-stats { opacity: 0.85; margin-bottom: 20px; line-height: 1.6; }
 
 /* rarity colors */
-.rarity-common { color: #b9c2c2; } .rarity-uncommon { color: #6bff7a; } .rarity-rare { color: #6bb9ff; }
-.rarity-epic { color: #c76bff; } .rarity-secret { color: #ffd43b; }
-.border-common { border-color: #b9c2c2 !important; } .border-uncommon { border-color: #6bff7a !important; }
-.border-rare { border-color: #6bb9ff !important; } .border-epic { border-color: #c76bff !important; }
+/* Kept in sync with G.RARITY colors in js/entities.js */
+.rarity-common { color: #8fb3c9; } .rarity-uncommon { color: #3ee066; } .rarity-rare { color: #3b82f5; }
+.rarity-epic { color: #d23bef; } .rarity-secret { color: #ffd43b; }
+.border-common { border-color: #8fb3c9 !important; } .border-uncommon { border-color: #3ee066 !important; }
+.border-rare { border-color: #3b82f5 !important; } .border-epic { border-color: #d23bef !important; }
 .border-secret { border-color: #ffd43b !important; box-shadow: 0 0 30px rgba(255,212,59,0.5); }
 
 /* ---------------- Result screens ---------------- */

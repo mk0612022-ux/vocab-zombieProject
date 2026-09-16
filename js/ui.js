@@ -163,7 +163,10 @@ G.UI = {
     wrap.querySelector("#set-quality").onchange = (e) => { s.graphicsQuality = e.target.value; G.persist(); G.Game.applyGraphicsQuality && G.Game.applyGraphicsQuality(); };
     wrap.querySelector("#set-gamespeed").oninput = (e) => { s.gameSpeed = parseFloat(e.target.value); G.persist(); this.renderSettings(); };
     wrap.querySelector("#set-fontsize").onchange = (e) => { s.fontSize = e.target.value; G.persist(); this.applyFontSizeClass(); };
-    wrap.querySelector("#set-colorblind").onchange = (e) => { s.colorblindMode = e.target.checked; G.persist(); };
+    wrap.querySelector("#set-colorblind").onchange = (e) => {
+      s.colorblindMode = e.target.checked; G.persist();
+      if (G.Game.state === "GAMEPLAY" && G.Game.buildWeaponViewModel) G.Game.buildWeaponViewModel();
+    };
     wrap.querySelector("#btn-reset-keybinds").onclick = () => { s.keybinds = G.defaultKeybinds(); G.persist(); this.renderSettings(); };
     wrap.querySelectorAll(".keybind-btn").forEach((btn) => {
       btn.onclick = () => { btn.textContent = "..."; G.Input.rebindingAction = btn.dataset.action; };
