@@ -173,6 +173,15 @@ G.Game = {
       combo: 0, comboTimer: 0, wasHitThisLevel: false,
       fireCooldown: 0, reloadTimeLeft: 0, reloading: false,
     };
+    // Weapons unlocked in previous runs (shop purchases, crate finds) carry over —
+    // G.save.unlockedWeapons is persisted specifically for this, but was never
+    // consulted here, so every run silently reset back to "pistol only".
+    (G.save.unlockedWeapons || []).forEach((wid) => {
+      if (wid === "pistol" || !G.WEAPON_DEFS[wid] || this.player.gunSlots.length >= 4) return;
+      this.player.gunSlots.push(wid);
+      this.player.ammo[wid] = { mag: G.WEAPON_DEFS[wid].magSize, reserve: G.WEAPON_DEFS[wid].magSize * 4 };
+      this.player.weaponLevels[wid] = { dmg: 1, rate: 1, mag: 1 };
+    });
     this.correctCount = 0; this.wrongCount = 0; this.wrongWordsThisRun = {};
     this.zombies.forEach((z) => this.scene.remove(z.mesh));
     this.zombies = [];
@@ -378,10 +387,12 @@ G.Game = {
 
   damageZombie(z, dmg, hitPoint) {
     G.spawnHitParticles(this.scene, hitPoint, 0x8a2a2a, G.save.settings.graphicsQuality);
-    const died = z.takeDamage(dmg);
+    let appliedDmg = dmg;
     if (z.type === "boss" && G.BossFight.active && G.BossFight.zombie === z) {
       // chip damage only; main hp loss comes from correct word answers
+      appliedDmg = Math.min(dmg, z.maxHp * 0.01);
     }
+    const died = z.takeDamage(appliedDmg);
     if (died) this.onZombieDeath(z);
   },
 

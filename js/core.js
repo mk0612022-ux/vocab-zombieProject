@@ -188,7 +188,13 @@ G.Input = {
       this._noteDesktopInput();
       this.keys[e.code] = true;
       if (this.rebindingAction) {
-        G.save.settings.keybinds[this.rebindingAction] = e.code;
+        const action = this.rebindingAction;
+        const kb = G.save.settings.keybinds;
+        // Swap with whatever action currently owns this key instead of letting
+        // two actions silently share one key (which made both fire together).
+        const conflictingAction = Object.keys(kb).find((a) => a !== action && kb[a] === e.code);
+        if (conflictingAction) kb[conflictingAction] = kb[action];
+        kb[action] = e.code;
         G.persist();
         this.rebindingAction = null;
         G.UI.refreshSettingsScreen && G.UI.refreshSettingsScreen();

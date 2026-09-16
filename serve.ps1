@@ -25,6 +25,12 @@ while ($listener.IsListening) {
       $bytes = [System.IO.File]::ReadAllBytes($filePath)
       $res.ContentType = $contentType
       $res.ContentLength64 = $bytes.Length
+      # No cache headers were being sent, so browsers were free to reuse their own
+      # heuristically-cached copy of .js/.css files on a normal refresh -- meaning a
+      # fix saved to disk could still appear "not fixed" in the browser until a hard
+      # refresh. Force revalidation on every request so this dev server always serves
+      # what's actually on disk.
+      $res.Headers.Add("Cache-Control", "no-store, no-cache, must-revalidate")
       $res.OutputStream.Write($bytes, 0, $bytes.Length)
     } else {
       $res.StatusCode = 404
