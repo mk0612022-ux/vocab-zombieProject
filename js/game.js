@@ -697,6 +697,7 @@ G.Game = {
     this.updateDrops(dt);
     this.updateInteractRay();
     this.updateTraps(dt);
+    G.updateFlickerLights(this.world, performance.now() / 1000);
     this.updateChallengeTimer(dt);
     this.updateBossUI(dt);
 
@@ -740,6 +741,13 @@ G.Game = {
     this.yawObject.rotation.y -= dx * 0.0022;
     this.pitchObject.rotation.x -= dy * 0.0022;
     this.pitchObject.rotation.x = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, this.pitchObject.rotation.x));
+    // Three.js only refreshes matrixWorld during renderer.render()'s traversal,
+    // so camera.getWorldDirection()/getWorldPosition() (used by fireWeapon,
+    // meleeAttack, and updateInteractRay -- all called later this same frame,
+    // before the next render) would otherwise read last frame's orientation.
+    // At 60fps that lag is a fraction of a frame and imperceptible, but it's
+    // free to close outright rather than rely on render timing.
+    this.yawObject.updateMatrixWorld(true);
 
     // Move
     let mx = 0, mz = 0;
@@ -772,12 +780,16 @@ G.Game = {
       .addScaledVector(right, mx * speed);
     this.tryMove(moveVec.x, moveVec.z);
 
-    // Jump (cosmetic bob)
+    // Jump (cosmetic bob) + floor height (raised platforms/ramps registered
+    // as height zones -- see G.getFloorHeightAt in world.js). The engine has
+    // no real "standing on geometry" physics, so the player's eye height just
+    // tracks whatever height zone they're currently over, on top of jump gravity.
+    const baseEyeY = 1.7 + G.getFloorHeightAt(this.world, this.yawObject.position.x, this.yawObject.position.z);
     const jumpPressed = (G.Input.mode === "desktop" && G.Input.isDown("jump")) || G.Input.touchJump;
-    if (jumpPressed && this.yawObject.position.y <= 1.71 && this.velocityY === 0) this.velocityY = 4.2;
+    if (jumpPressed && this.yawObject.position.y <= baseEyeY + 0.01 && this.velocityY === 0) this.velocityY = 4.2;
     this.velocityY -= 9.8 * dt;
     this.yawObject.position.y += this.velocityY * dt;
-    if (this.yawObject.position.y < 1.7) { this.yawObject.position.y = 1.7; this.velocityY = 0; }
+    if (this.yawObject.position.y < baseEyeY) { this.yawObject.position.y = baseEyeY; this.velocityY = 0; }
 
     // weapon bob
     if (this.weaponViewGroup) {
@@ -833,6 +845,7 @@ G.Game = {
     for (const z of this.zombies) {
       if (!z.alive) continue;
       const dist = z.update(dt, playerPos, G.save.settings.gameSpeed);
+      z.mesh.position.y = G.getFloorHeightAt(this.world, z.mesh.position.x, z.mesh.position.z);
       if (dist !== undefined && dist < 1.1 && z.attackCooldown <= 0) {
         z.attackCooldown = 1.0;
         const dmg = z.damage * (1 - this.player.armorPct);
@@ -871,7 +884,7 @@ G.Game = {
         if (found.kind === "door") label = found.ref.opened ? "" : "กด E เพื่อลองเปิดประตู (ต้องตอบคำศัพท์)";
         if (found.kind === "button") label = found.ref.pressed ? "กดแล้ว" : "กด E เพื่อกดปุ่ม";
         if (found.kind === "crate") label = found.ref.opened ? "" : "กด E เพื่อเปิดกล่อง";
-        if (found.kind === "trap") label = "";
+        if (found.kind === "trap") label = found.ref.active ? "กด E เพื่อปิดกับดัก (ต้องตอบคำศัพท์)" : "";
         G.UI.setInteractPrompt(!!label, label);
       }
     } else { this._lookedAtInteractable = null; G.UI.setInteractPrompt(false); }
@@ -882,12 +895,36 @@ G.Game = {
     if (!found) return;
     if (found.kind === "door") {
       if (found.ref.opened) return;
-      this.startWordChallenge("ตอบคำศัพท์เพื่อเปิดประตู", () => { found.ref.opened = true; found.ref.locked = false; found.mesh.visible = false; }, () => {});
+      this.startWordChallenge("ตอบคำศัพท์เพื่อเปิดประตู", () => this.clearBlockingObstacle(found.ref, "opened"), () => {});
+    } else if (found.kind === "trap") {
+      if (!found.ref.active) return;
+      this.startWordChallenge("ตอบคำศัพท์เพื่อปิดกับดัก", () => this.clearBlockingObstacle(found.ref, "active", false), () => {});
     } else if (found.kind === "button") {
       found.ref.pressed = true; found.mesh.material.color.set(0x44ff44);
-      this.world.secretZone.unlocked = true;
+      const sz = this.world.secretZone;
+      if (sz && !sz.unlocked) {
+        sz.unlocked = true;
+        if (sz.barricadeMesh) sz.barricadeMesh.visible = false;
+        if (sz.barricadeCollider) {
+          const idx = this.world.colliders.indexOf(sz.barricadeCollider);
+          if (idx >= 0) this.world.colliders.splice(idx, 1);
+        }
+      }
     } else if (found.kind === "crate") {
       this.tryOpenStaticCrate(found.ref);
+    }
+  },
+
+  // Hides an obstacle's mesh AND removes its collider (doors/traps previously
+  // only hid the mesh on "opened"/solved, leaving an invisible wall in place
+  // that still fully blocked movement).
+  clearBlockingObstacle(ref, flagProp, flagValue) {
+    ref[flagProp] = flagValue === undefined ? true : flagValue;
+    if (ref.locked !== undefined) ref.locked = false;
+    ref.mesh.visible = false;
+    if (ref.collider) {
+      const idx = this.world.colliders.indexOf(ref.collider);
+      if (idx >= 0) this.world.colliders.splice(idx, 1);
     }
   },
 
