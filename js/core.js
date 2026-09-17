@@ -168,6 +168,26 @@ G.defaultKeybinds = function () {
 };
 
 // ---------------- Input Manager (keyboard/mouse/touch/gamepad) ----------------
+// ---------------- Three.js resource cleanup ----------------
+// Removing a mesh from the scene does NOT free its GPU-side geometry/material/
+// texture buffers. Zombies and drops are created and destroyed constantly
+// (especially in Endless mode, which can run for hundreds of kills), so
+// without this every kill would leak a handful of buffers -- over a long
+// session that degrades performance and can eventually crash the WebGL
+// context. Call this on any mesh/group right after removing it from a scene.
+G.disposeObject3D = function (obj) {
+  if (!obj) return;
+  obj.traverse((node) => {
+    if (node.isLight) return;
+    if (node.geometry) node.geometry.dispose();
+    const mats = Array.isArray(node.material) ? node.material : (node.material ? [node.material] : []);
+    mats.forEach((m) => {
+      if (m.map) m.map.dispose();
+      m.dispose();
+    });
+  });
+};
+
 G.Input = {
   keys: {},
   mouseDelta: { x: 0, y: 0 },

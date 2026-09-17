@@ -435,7 +435,8 @@ G.spawnHitParticles = function (scene, position, color, quality) {
     geo.attributes.position.needsUpdate = true;
     mat.opacity = Math.max(0, 1 - life * 1.5);
     mat.transparent = true;
-    if (life < 0.7) requestAnimationFrame(anim); else scene.remove(pts);
+    if (life < 0.7) requestAnimationFrame(anim);
+    else { scene.remove(pts); geo.dispose(); mat.dispose(); }
   };
   requestAnimationFrame(anim);
 };

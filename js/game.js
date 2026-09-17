@@ -183,9 +183,9 @@ G.Game = {
       this.player.weaponLevels[wid] = { dmg: 1, rate: 1, mag: 1 };
     });
     this.correctCount = 0; this.wrongCount = 0; this.wrongWordsThisRun = {};
-    this.zombies.forEach((z) => this.scene.remove(z.mesh));
+    this.zombies.forEach((z) => { this.scene.remove(z.mesh); G.disposeObject3D(z.mesh); });
     this.zombies = [];
-    this.drops.forEach((d) => this.scene.remove(d.mesh));
+    this.drops.forEach((d) => { this.scene.remove(d.mesh); G.disposeObject3D(d.mesh); });
     this.drops = [];
     this.targetPair = null;
     this.wave = 0;
@@ -200,8 +200,17 @@ G.Game = {
 
   teardownLevel() {
     if (this.scene) {
-      this.zombies.forEach((z) => this.scene.remove(z.mesh));
-      this.drops.forEach((d) => this.scene.remove(d.mesh));
+      this.zombies.forEach((z) => { this.scene.remove(z.mesh); G.disposeObject3D(z.mesh); });
+      this.drops.forEach((d) => { this.scene.remove(d.mesh); G.disposeObject3D(d.mesh); });
+      // yawObject (camera + weapon view model) is a PERSISTENT rig reused across
+      // every run, not level-specific -- it must be detached before disposing
+      // the rest of the scene, or its geometry/materials get freed too and the
+      // weapon view stays broken until a weapon switch happens to rebuild it.
+      if (this.yawObject.parent === this.scene) this.scene.remove(this.yawObject);
+      // The static level geometry (walls, floors, props, the whole old Scene)
+      // is discarded wholesale on every level start/retry too -- dispose it
+      // here rather than leaking it on each transition.
+      G.disposeObject3D(this.scene);
     }
     this.zombies = []; this.drops = [];
     G.BossFight.stop();
@@ -213,9 +222,17 @@ G.Game = {
   startWave() {
     this.wave++;
     this.spawnedCount = 0;
-    const diff = this.level.difficulty + (this.wave - 1) * 0.18 + (this.mode === "endless" ? (this.wave - 1) * 0.05 : 0);
-    this.requiredKills = Math.round((6 + this.wave * 2) * (this.mode === "endless" ? 1 + this.wave * 0.05 : 1));
-    G.Spawner.reset(this.level, this.wave);
+    // Wave-dependent growth is capped (via effWave) so Endless mode's difficulty
+    // and per-wave kill quota keep climbing but never runs away: the previous
+    // requiredKills formula was `(6+wave*2)*(1+wave*0.05)`, which is quadratic
+    // and unbounded -- by wave 30 that's 165 kills, by wave 100 it's 1236,
+    // making the mode practically unplayable the longer a run went on. Capping
+    // the wave figure fed into both formulas keeps pacing sane indefinitely
+    // while `currentDiff` (fast-zombie chance) still has its own clamp downstream.
+    const effWave = Math.min(this.wave, 40);
+    const diff = this.level.difficulty + (effWave - 1) * 0.18 + (this.mode === "endless" ? (effWave - 1) * 0.05 : 0);
+    this.requiredKills = Math.round(6 + effWave * 2);
+    G.Spawner.reset(this.level, effWave);
     this.zombies.forEach((z) => (z.speedMultiplier = 1));
     this.currentDiff = diff;
   },
@@ -267,7 +284,7 @@ G.Game = {
     if (this.player.gunSlots[idx]) { this.player.currentSlot = slot; this.player.reloading = false; }
   },
   buildWeaponViewModel() {
-    if (this.weaponViewGroup) this.camera.remove(this.weaponViewGroup);
+    if (this.weaponViewGroup) { this.camera.remove(this.weaponViewGroup); G.disposeObject3D(this.weaponViewGroup); }
     const def = this.currentWeaponDef();
     const mesh = def.id === "melee" ? G.buildMeleeMesh() : G.buildWeaponMesh(def);
     mesh.position.set(0.32, -0.28, -0.55);
@@ -398,6 +415,7 @@ G.Game = {
 
   onZombieDeath(z) {
     this.scene.remove(z.mesh);
+    G.disposeObject3D(z.mesh);
     if (z.type === "boss") { this.onBossDefeated(z); return; }
     const wasCorrect = this.targetPair && z.word === this.targetPair[0];
     if (wasCorrect) {
@@ -459,6 +477,7 @@ G.Game = {
 
   collectDrop(drop) {
     this.scene.remove(drop.mesh);
+    G.disposeObject3D(drop.mesh);
     this.drops = this.drops.filter((d) => d !== drop);
     if (drop.kind === "money") this.player.money += 20 + Math.round(G.rng() * 30);
     else if (drop.kind === "ammo") {
@@ -742,7 +761,12 @@ G.Game = {
     const sprinting = G.Input.mode === "desktop" && G.Input.isDown("sprint");
     const speed = (sprinting ? 5.2 : 3.2) * this.player.moveSpeedMult * dt;
     const forward = new THREE.Vector3(-Math.sin(this.yawObject.rotation.y), 0, -Math.cos(this.yawObject.rotation.y));
-    const right = new THREE.Vector3(forward.z, 0, -forward.x);
+    // right = forward rotated -90 deg around Y. (forward.z, 0, -forward.x) was
+    // actually pointing left, which swapped A/D: D (mx=+1) moved the player
+    // left and A (mx=-1) moved them right. Verified against the concrete case
+    // forward=(0,0,-1) (facing the -Z default direction), where world +X is
+    // the true "right": (-forward.z, forward.x) = (1,0) as expected.
+    const right = new THREE.Vector3(-forward.z, 0, forward.x);
     const moveVec = new THREE.Vector3()
       .addScaledVector(forward, -mz * speed)
       .addScaledVector(right, mx * speed);
