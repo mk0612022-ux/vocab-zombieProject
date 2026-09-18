@@ -89,6 +89,7 @@ G.Game = {
     if (this.scene && this.scene.fog && this.level) {
       const pal = G.THEME_PALETTES[this.level.theme];
       this.scene.fog.far = q === "vlow" ? pal.fogFar * 0.5 : q === "low" ? pal.fogFar * 0.7 : pal.fogFar;
+      if (this.world && this.world.fogBase) this.world.fogBase.far = this.scene.fog.far;
     }
   },
 
@@ -165,7 +166,10 @@ G.Game = {
     this.yawObject.rotation.y = 0;
 
     this.player = {
-      hp: 100, maxHp: 100, money: 0, score: 0,
+      // Was 100/100; all player-facing damage values below (zombie contact,
+      // traps, wrong-answer penalties) are scaled by the same 3.75x factor
+      // so relative danger (% of max HP per hit) stays exactly as before.
+      hp: 375, maxHp: 375, money: 0, score: 0,
       gunSlots: ["pistol"], currentSlot: 1,
       ammo: { pistol: { mag: G.WEAPON_DEFS.pistol.magSize, reserve: G.WEAPON_DEFS.pistol.magSize * 4 } },
       weaponLevels: { pistol: { dmg: 1, rate: 1, mag: 1 } },
@@ -183,6 +187,9 @@ G.Game = {
       this.player.weaponLevels[wid] = { dmg: 1, rate: 1, mag: 1 };
     });
     this.correctCount = 0; this.wrongCount = 0; this.wrongWordsThisRun = {};
+    this.totalZombiesKilled = 0; // drives the hospital 2nd-floor unlock (category E3)
+    this.dyingZombies = [];
+    G.UI._tweenState = null; // reset HUD number tweens so a new run's HUD snaps to 0 instead of counting down from the last run
     this.zombies.forEach((z) => { this.scene.remove(z.mesh); G.disposeObject3D(z.mesh); });
     this.zombies = [];
     this.drops.forEach((d) => { this.scene.remove(d.mesh); G.disposeObject3D(d.mesh); });
@@ -261,11 +268,20 @@ G.Game = {
     if (candidates.length === 0) candidates = this.wordPool;
     const pair = G.weightedSample(candidates, 1)[0] || G.pick(this.wordPool);
     const z = new G.Zombie(type, pos, pair);
+    z.speed *= this.waveSpeedMult(); // slower on wave 1 for new players, ramping up on later waves
     this.scene.add(z.mesh);
     this.zombies.push(z);
     this.spawnedCount++;
     this.ensureTargetHasMatch();
     return z;
+  },
+
+  // No wave-based speed scaling existed before this -- zombies always moved
+  // at their flat G.ZOMBIE_TYPES speed regardless of wave. Wave 1 now starts
+  // noticeably slower (65%) so new players can get their bearings, ramping
+  // back up to (and slightly past) full speed by wave ~7.
+  waveSpeedMult() {
+    return Math.min(1.3, 0.65 + (this.wave - 1) * 0.1);
   },
 
   // ---------------- Weapon helpers ----------------
@@ -287,8 +303,14 @@ G.Game = {
     if (this.weaponViewGroup) { this.camera.remove(this.weaponViewGroup); G.disposeObject3D(this.weaponViewGroup); }
     const def = this.currentWeaponDef();
     const mesh = def.id === "melee" ? G.buildMeleeMesh() : G.buildWeaponMesh(def);
-    mesh.position.set(0.32, -0.28, -0.55);
-    mesh.rotation.y = Math.PI;
+    mesh.position.set(0.3, -0.32, -0.75);
+    mesh.rotation.y = -0.06; // slight natural inward cant, typical FPS held-weapon angle
+    // The weapon builders already extend barrels/muzzles toward local -Z,
+    // matching the camera's own forward (-Z) direction -- this extra 180deg
+    // flip inverted that, sending the "barrel" toward the camera instead of
+    // away from it. That put parts of the gun ~0.19 units from the eye
+    // (right up against the 0.1 near-clip plane), which is why it rendered
+    // as a huge, indistinct, wrongly-pointed blob instead of a small held gun.
     this.weaponViewGroup = mesh;
     this.camera.add(mesh);
   },
@@ -414,9 +436,13 @@ G.Game = {
   },
 
   onZombieDeath(z) {
-    this.scene.remove(z.mesh);
-    G.disposeObject3D(z.mesh);
+    // Was an instant scene.remove() -- vanishing with no transition at all.
+    // Now plays a brief "topple over" animation (see updateDyingZombies)
+    // before the mesh is actually removed/disposed.
+    this.startDeathAnimation(z);
     if (z.type === "boss") { this.onBossDefeated(z); return; }
+    this.totalZombiesKilled++;
+    this.checkSecondFloorUnlock();
     const wasCorrect = this.targetPair && z.word === this.targetPair[0];
     if (wasCorrect) {
       this.correctCount++;
@@ -434,7 +460,7 @@ G.Game = {
       G.recordWordResult(z.word, false);
       this.trackWrongWord(z.word, z.meaning);
       this.player.combo = 0;
-      this.player.hp -= 6;
+      this.player.hp -= 22; // was 6, scaled 3.75x with player HP
       this.player.wasHitThisLevel = true;
       G.UI.flashDamage();
       this.zombies.forEach((zz) => { if (zz.alive) zz.speedMultiplier = Math.min(2, zz.speedMultiplier + 0.25); });
@@ -444,6 +470,38 @@ G.Game = {
     this.ensureTargetHasMatch();
     this.checkWaveClear();
     this.checkPlayerDeath();
+  },
+
+  startDeathAnimation(z) {
+    z.mesh.userData.dying = true;
+    z.mesh.userData.deathT = 0;
+    z.mesh.userData.fallSign = G.rng() > 0.5 ? 1 : -1;
+    z.mesh.userData.fallAxis = G.rng() > 0.5 ? "x" : "z"; // falls forward/back or sideways
+    z.mesh.userData.baseY = z.mesh.position.y; // floor height at time of death
+    this.dyingZombies = this.dyingZombies || [];
+    this.dyingZombies.push(z);
+  },
+  // Animates zombies that already died (mesh kept around briefly so they
+  // topple over instead of vanishing), then actually removes/disposes them.
+  updateDyingZombies(dt) {
+    if (!this.dyingZombies || !this.dyingZombies.length) return;
+    const duration = 0.55;
+    for (let i = this.dyingZombies.length - 1; i >= 0; i--) {
+      const z = this.dyingZombies[i];
+      const u = z.mesh.userData;
+      u.deathT += dt;
+      const t = Math.min(1, u.deathT / duration);
+      const eased = 1 - Math.pow(1 - t, 2); // ease-out: fast at first, settles at the end
+      const fallAngle = eased * (Math.PI / 2.1) * u.fallSign;
+      if (u.fallAxis === "x") z.mesh.rotation.x = fallAngle;
+      else z.mesh.rotation.z = (u.baseLean || 0) + fallAngle;
+      z.mesh.position.y = Math.max(0, (u.baseY || 0)) - eased * 0.15; // settle slightly into the floor
+      if (t >= 1) {
+        this.scene.remove(z.mesh);
+        G.disposeObject3D(z.mesh);
+        this.dyingZombies.splice(i, 1);
+      }
+    }
   },
 
   trackWrongWord(word, meaning) {
@@ -469,13 +527,19 @@ G.Game = {
   spawnDrop(kind, pos) {
     const colors = { money: 0xffdd33, ammo: 0x3388ff, health: 0xff3355, crate: G.RARITY[G.rollRarity()].color };
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.3), new THREE.MeshLambertMaterial({ color: colors[kind] }));
-    mesh.position.copy(pos); mesh.position.y = 0.3;
+    // Anchored to the local floor height (not always 0) so drops on a raised
+    // platform or the hospital's 2nd floor don't render sunk into the ground below.
+    const baseY = G.getFloorHeightAt(this.world, pos.x, pos.z);
+    mesh.position.set(pos.x, baseY + 0.3, pos.z);
     this.scene.add(mesh);
     const rarity = kind === "crate" ? G.rollRarity() : null;
-    this.drops.push({ kind, mesh, rarity, t: 0 });
+    this.drops.push({ kind, mesh, rarity, t: 0, baseY });
   },
 
   collectDrop(drop) {
+    const pickupColors = { money: 0xffdd33, ammo: 0x3388ff, health: 0xff3355, crate: 0xffffff };
+    G.spawnHitParticles(this.scene, drop.mesh.position.clone(), pickupColors[drop.kind], G.save.settings.graphicsQuality);
+    if (drop.kind !== "crate") G.UI.pulseHudStat(drop.kind); // crate has its own big reveal screen instead
     this.scene.remove(drop.mesh);
     G.disposeObject3D(drop.mesh);
     this.drops = this.drops.filter((d) => d !== drop);
@@ -483,13 +547,13 @@ G.Game = {
     else if (drop.kind === "ammo") {
       const id = this.currentWeaponId();
       if (id !== "melee") this.player.ammo[id].reserve += G.WEAPON_DEFS[id].magSize * 2;
-    } else if (drop.kind === "health") this.player.hp = Math.min(this.player.maxHp, this.player.hp + 25);
+    } else if (drop.kind === "health") this.player.hp = Math.min(this.player.maxHp, this.player.hp + 94); // was 25, scaled 3.75x with player HP
     else if (drop.kind === "crate") this.openCrate(drop.rarity);
   },
 
   openCrate(rarityKey, guaranteedMin, onClose) {
     if (guaranteedMin && G.RARITY_ORDER.indexOf(rarityKey) < G.RARITY_ORDER.indexOf(guaranteedMin)) rarityKey = guaranteedMin;
-    const pool = Object.values(G.WEAPON_DEFS).filter((w) => w.rarity === rarityKey);
+    const pool = Object.values(G.WEAPON_DEFS).filter((w) => w.rarity === rarityKey && !w.wallExclusive);
     const weaponDef = pool.length ? G.pick(pool) : G.WEAPON_DEFS.pistol;
     this.acquireWeapon(weaponDef.id);
     if (rarityKey === "secret") G.unlockAchievement("secret_crate");
@@ -536,7 +600,7 @@ G.Game = {
       } else {
         this.wrongCount++;
         this.trackWrongWord(G.BossFight.currentWord ? G.BossFight.currentWord[0] : "?", G.BossFight.currentWord ? G.BossFight.currentWord[1] : "");
-        this.player.hp -= 12;
+        this.player.hp -= 45; // was 12, scaled 3.75x with player HP
         G.UI.flashDamage();
       }
       if (z.hp <= 0 || remaining <= 0 && correct) { z.hp = 0; z.alive = false; this.onZombieDeath(z); }
@@ -694,10 +758,13 @@ G.Game = {
     this.updatePlayerMovement(dt);
     this.updateShooting(dt);
     this.updateZombies(dt);
+    this.updateDyingZombies(dt);
     this.updateDrops(dt);
     this.updateInteractRay();
     this.updateTraps(dt);
     G.updateFlickerLights(this.world, performance.now() / 1000);
+    G.updateDriftingFog(this.scene, this.world, performance.now() / 1000);
+    G.updateSparks(this.scene, this.world, dt);
     this.updateChallengeTimer(dt);
     this.updateBossUI(dt);
 
@@ -794,7 +861,7 @@ G.Game = {
     // weapon bob
     if (this.weaponViewGroup) {
       const bob = (len > 0 ? Math.sin(performance.now() * 0.012) * 0.015 : 0);
-      this.weaponViewGroup.position.y = -0.28 + bob;
+      this.weaponViewGroup.position.y = -0.32 + bob;
       if (this.weaponViewGroup.userData.rainbowTrim) this.weaponViewGroup.userData.rainbowTrim.rotation.z += dt * 2.4;
     }
 
@@ -808,7 +875,14 @@ G.Game = {
   tryMove(dx, dz) {
     const pos = this.yawObject.position;
     const radius = 0.35;
-    const box = (x, z) => new THREE.Box3(new THREE.Vector3(x - radius, 0.1, z - radius), new THREE.Vector3(x + radius, 2.6, z + radius));
+    // Collision height range was a fixed [0.1, 2.6] regardless of the
+    // player's current floor -- fine while everything was at height 0, but
+    // the hospital's 2nd floor (category E3) sits at y=4.2 with real walls
+    // up there, and a fixed ground-level test box never overlaps them, so
+    // the player could walk straight through them into empty space. Anchor
+    // the test range to the current floor height instead.
+    const floorY = G.getFloorHeightAt(this.world, pos.x, pos.z);
+    const box = (x, z) => new THREE.Box3(new THREE.Vector3(x - radius, floorY + 0.1, z - radius), new THREE.Vector3(x + radius, floorY + 2.6, z + radius));
     let blockedX = false, blockedZ = false;
     for (const c of this.world.colliders) {
       if (box(pos.x + dx, pos.z).intersectsBox(c)) blockedX = true;
@@ -842,9 +916,38 @@ G.Game = {
 
   updateZombies(dt) {
     const playerPos = this.yawObject.position;
+    // Room-level pathfinding: zombies used to beeline straight at the player
+    // through solid walls (they never tested world.colliders at all). Now,
+    // when a zombie is in a different room/corridor than the player, it walks
+    // the waypoint route between them (see G.findPath in world.js) instead of
+    // cutting through walls; once it's in the player's own region it goes
+    // back to moving directly, same as before.
+    const pRegion = G.getRegionAt(this.world, playerPos.x, playerPos.z);
     for (const z of this.zombies) {
       if (!z.alive) continue;
-      const dist = z.update(dt, playerPos, G.save.settings.gameSpeed);
+      const zRegion = G.getRegionAt(this.world, z.mesh.position.x, z.mesh.position.z);
+      let moveTarget = playerPos;
+      if (zRegion !== pRegion) {
+        if (!z.navPath || z.navTargetRegion !== pRegion || z.navRegion !== zRegion || z.navRepathTimer === undefined || z.navRepathTimer <= 0) {
+          z.navPath = G.findPath(this.world, zRegion, pRegion);
+          z.navIndex = 0;
+          z.navTargetRegion = pRegion;
+          z.navRegion = zRegion;
+          z.navRepathTimer = 1.0 + G.rng() * 0.5;
+        }
+        z.navRepathTimer -= dt;
+        if (z.navPath.length && z.navIndex < z.navPath.length) {
+          const node = this.world.waypointNodes[z.navPath[z.navIndex]];
+          if (Math.hypot(node.x - z.mesh.position.x, node.z - z.mesh.position.z) < 1.3) z.navIndex++;
+        }
+        if (z.navPath.length && z.navIndex < z.navPath.length) {
+          const node = this.world.waypointNodes[z.navPath[z.navIndex]];
+          moveTarget = new THREE.Vector3(node.x, 0, node.z);
+        }
+      } else {
+        z.navPath = null;
+      }
+      const dist = z.update(dt, moveTarget, playerPos, this.world.colliders, G.save.settings.gameSpeed);
       z.mesh.position.y = G.getFloorHeightAt(this.world, z.mesh.position.x, z.mesh.position.z);
       if (dist !== undefined && dist < 1.1 && z.attackCooldown <= 0) {
         z.attackCooldown = 1.0;
@@ -862,8 +965,14 @@ G.Game = {
     for (const d of this.drops.slice()) {
       d.t += dt;
       d.mesh.rotation.y += dt * 2;
-      d.mesh.position.y = 0.3 + Math.sin(d.t * 3) * 0.08;
-      if (d.mesh.position.distanceTo(playerPos) < 1.0) this.collectDrop(d);
+      d.mesh.position.y = (d.baseY || 0) + 0.3 + Math.sin(d.t * 3) * 0.08;
+      // Horizontal-only distance: the player's tracked position is eye height
+      // (~1.7+), while drops float near the floor (~0.3), so the old 3D
+      // distanceTo() carried a built-in ~1.4-unit vertical gap that alone
+      // exceeded the 1.0 pickup radius -- items could never be collected no
+      // matter how close the player walked to them.
+      const dx = d.mesh.position.x - playerPos.x, dz = d.mesh.position.z - playerPos.z;
+      if (Math.hypot(dx, dz) < 1.0) this.collectDrop(d);
     }
   },
 
@@ -885,6 +994,10 @@ G.Game = {
         if (found.kind === "button") label = found.ref.pressed ? "กดแล้ว" : "กด E เพื่อกดปุ่ม";
         if (found.kind === "crate") label = found.ref.opened ? "" : "กด E เพื่อเปิดกล่อง";
         if (found.kind === "trap") label = found.ref.active ? "กด E เพื่อปิดกับดัก (ต้องตอบคำศัพท์)" : "";
+        if (found.kind === "wallweapon") {
+          const wdef = G.WEAPON_DEFS[found.ref.id];
+          label = found.ref.purchased ? "" : `กด E เพื่อซื้อ ${wdef.name} ($${wdef.price}${this.player.money < wdef.price ? " - เงินไม่พอ" : ""})`;
+        }
         G.UI.setInteractPrompt(!!label, label);
       }
     } else { this._lookedAtInteractable = null; G.UI.setInteractPrompt(false); }
@@ -912,7 +1025,19 @@ G.Game = {
       }
     } else if (found.kind === "crate") {
       this.tryOpenStaticCrate(found.ref);
+    } else if (found.kind === "wallweapon") {
+      this.buyWallWeapon(found.ref);
     }
+  },
+
+  buyWallWeapon(ref) {
+    if (ref.purchased || this.player.money < ref.price) return;
+    this.player.money -= ref.price;
+    ref.purchased = true;
+    this.acquireWeapon(ref.id);
+    G.spawnCrateBurst(this.scene, ref.gunMesh.getWorldPosition(new THREE.Vector3()), "secret", G.save.settings.graphicsQuality);
+    G.UI.pulseHudStat("money");
+    G.UI.flashPurchaseBanner(G.WEAPON_DEFS[ref.id].name);
   },
 
   // Hides an obstacle's mesh AND removes its collider (doors/traps previously
@@ -921,11 +1046,42 @@ G.Game = {
   clearBlockingObstacle(ref, flagProp, flagValue) {
     ref[flagProp] = flagValue === undefined ? true : flagValue;
     if (ref.locked !== undefined) ref.locked = false;
-    ref.mesh.visible = false;
     if (ref.collider) {
       const idx = this.world.colliders.indexOf(ref.collider);
       if (idx >= 0) this.world.colliders.splice(idx, 1);
     }
+    // Used to just be mesh.visible=false (an instant cut). Swings the mesh
+    // open on its own Y axis over real elapsed time (not tied to the game's
+    // own dt/FPS cap, since this is a short transient world effect) and
+    // hides it once the swing finishes.
+    this.animateObstacleOpen(ref.mesh);
+  },
+  animateObstacleOpen(mesh) {
+    const startRot = mesh.rotation.y;
+    const targetRot = startRot + Math.PI / 2.1;
+    const durationMs = 420;
+    const t0 = performance.now();
+    const step = () => {
+      const p = Math.min(1, (performance.now() - t0) / durationMs);
+      mesh.rotation.y = startRot + (targetRot - startRot) * (1 - Math.pow(1 - p, 2));
+      if (p < 1) requestAnimationFrame(step);
+      else mesh.visible = false;
+    };
+    requestAnimationFrame(step);
+  },
+
+  // Hospital 2nd floor (category E3): unlocks once the player has at least
+  // one correct answer AND 20+ total zombie kills this run.
+  checkSecondFloorUnlock() {
+    const sf = this.world.secondFloor;
+    if (!sf || sf.unlocked) return;
+    if (this.correctCount < 1 || this.totalZombiesKilled < sf.killsNeeded) return;
+    sf.unlocked = true;
+    sf.barrierMesh.visible = false;
+    const idx = this.world.colliders.indexOf(sf.barrierCollider);
+    if (idx >= 0) this.world.colliders.splice(idx, 1);
+    sf.cratePositions.forEach((p) => this.spawnDrop("crate", p));
+    G.UI.flashPurchaseBanner("ชั้น 2 ปลดล็อกแล้ว!", `ฆ่าซอมบี้ครบ ${sf.killsNeeded} ตัว`);
   },
 
   updateTraps(dt) {

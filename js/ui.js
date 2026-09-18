@@ -11,12 +11,28 @@ G.UI = {
     "screen-mainmenu", "screen-levelselect", "screen-howtoplay", "screen-settings",
     "screen-leaderboard", "screen-achievements", "screen-import", "screen-practice-setup",
     "screen-practice-play", "screen-shop", "screen-crate", "screen-pause",
-    "screen-gameover", "screen-victory",
+    "screen-gameover", "screen-victory", "screen-vocablog", "screen-weaponlog",
   ],
 
   showScreen(id) {
-    this.ALL_SCREENS.forEach((s) => this.el(s).classList.add("hidden"));
-    if (id) this.el(id).classList.remove("hidden");
+    // Crossfade instead of an instant cut: the outgoing screen fades out
+    // briefly before being hidden, the incoming one fades/scales in.
+    const prevId = this._currentScreen;
+    if (prevId && prevId !== id && !this.el(prevId).classList.contains("hidden")) {
+      const prevEl = this.el(prevId);
+      prevEl.classList.add("fade-out");
+      setTimeout(() => { prevEl.classList.add("hidden"); prevEl.classList.remove("fade-out"); }, 150);
+      this.ALL_SCREENS.forEach((s) => { if (s !== id && s !== prevId) this.el(s).classList.add("hidden"); });
+    } else {
+      this.ALL_SCREENS.forEach((s) => { if (s !== id) this.el(s).classList.add("hidden"); });
+    }
+    if (id) {
+      const el = this.el(id);
+      el.classList.remove("hidden", "fade-in");
+      void el.offsetWidth; // restart the animation even if this screen was already showing recently
+      el.classList.add("fade-in");
+    }
+    this._currentScreen = id;
   },
   hideAllScreens() { this.showScreen(null); },
   setHudVisible(v) { this.el("hud").classList.toggle("hidden", !v); },
@@ -34,6 +50,8 @@ G.UI = {
     this.bindSettings();
     this.bindLeaderboard();
     this.bindAchievements();
+    this.bindVocabLog();
+    this.bindWeaponLog();
     this.bindImport();
     this.bindPractice();
     this.bindPause();
@@ -58,6 +76,8 @@ G.UI = {
     this.el("btn-endless").onclick = () => G.Game.startEndless();
     this.el("btn-leaderboard").onclick = () => { this.renderLeaderboard("level1"); this.showScreen("screen-leaderboard"); };
     this.el("btn-achievements").onclick = () => { this.renderAchievements(); this.showScreen("screen-achievements"); };
+    this.el("btn-vocablog").onclick = () => { this._logReturnScreen = "screen-mainmenu"; this.renderVocabLog(1); this.showScreen("screen-vocablog"); };
+    this.el("btn-weaponlog").onclick = () => { this._logReturnScreen = "screen-mainmenu"; this.renderWeaponLog(1); this.showScreen("screen-weaponlog"); };
     this.el("btn-import-vocab").onclick = () => { this.renderImportedSets(); this.showScreen("screen-import"); };
     this.el("btn-howtoplay").onclick = () => this.showScreen("screen-howtoplay");
     this.el("btn-settings").onclick = () => { this.renderSettings(); this.showScreen("screen-settings"); };
@@ -218,6 +238,67 @@ G.UI = {
     this._toastTimer = setTimeout(() => { toast.style.opacity = "0"; toast.style.transform = "translateX(20px)"; setTimeout(() => toast.classList.add("hidden"), 300); }, 3200);
   },
 
+  // ---------------- Vocabulary Log (category F) ----------------
+  bindVocabLog() {
+    this.el("btn-vocablog-back").onclick = () => this.showScreen(this._logReturnScreen || "screen-mainmenu");
+  },
+  renderVocabLog(levelId) {
+    this._vocabLogLevel = levelId;
+    const tabs = this.el("vocablog-tabs");
+    tabs.innerHTML = G.LEVELS.map((l) => `<div class="tab-btn ${l.id === levelId ? "active" : ""}" data-id="${l.id}">ด่าน ${l.id}: ${l.name}</div>`).join("");
+    tabs.querySelectorAll(".tab-btn").forEach((t) => (t.onclick = () => this.renderVocabLog(parseInt(t.dataset.id))));
+    const level = G.getLevel(levelId);
+    const words = G.WORD_SETS[level.wordsKey].words;
+    const items = words.map(([en, th]) => {
+      const stat = G.save.wordStats[en.toLowerCase()];
+      let badge = `<span class="vocab-badge unseen">ยังไม่เคยเจอ</span>`;
+      if (stat && (stat.correct > 0 || stat.wrong > 0)) {
+        badge = stat.correct >= stat.wrong
+          ? `<span class="vocab-badge correct">ถูก ${stat.correct}${stat.wrong ? ` / ผิด ${stat.wrong}` : ""}</span>`
+          : `<span class="vocab-badge wrong">ผิด ${stat.wrong}${stat.correct ? ` / ถูก ${stat.correct}` : ""}</span>`;
+      }
+      return `<div class="vocab-item"><div><div class="vw-en">${en}</div><div class="vw-th">${th}</div></div>${badge}</div>`;
+    }).join("");
+    this.el("vocablog-content").innerHTML = `<div class="vocab-grid">${items}</div>`;
+  },
+
+  // ---------------- Weapon Log (category F) ----------------
+  bindWeaponLog() {
+    this.el("btn-weaponlog-back").onclick = () => this.showScreen(this._logReturnScreen || "screen-mainmenu");
+  },
+  renderWeaponLog(levelId) {
+    this._weaponLogLevel = levelId;
+    const tabs = this.el("weaponlog-tabs");
+    tabs.innerHTML = G.LEVELS.map((l) => `<div class="tab-btn ${l.id === levelId ? "active" : ""}" data-id="${l.id}">ด่าน ${l.id}: ${l.name}</div>`).join("");
+    tabs.querySelectorAll(".tab-btn").forEach((t) => (t.onclick = () => this.renderWeaponLog(parseInt(t.dataset.id))));
+    const level = G.getLevel(levelId);
+    const wallId = { school: "school_wall", hospital: "hospital_wall", bunker: "bunker_wall" }[level.theme];
+    let html = "";
+    G.RARITY_ORDER.forEach((rk) => {
+      const weapons = Object.values(G.WEAPON_DEFS).filter((w) => w.rarity === rk && !w.wallExclusive);
+      if (!weapons.length) return;
+      html += `<div class="weaponlog-section-title rarity-${rk}">${G.RARITY[rk].label}${G.save.settings.colorblindMode ? ` [${rk[0].toUpperCase()}]` : ""}</div>`;
+      html += `<div class="weaponlog-grid">${weapons.map((w) => this.weaponLogCardHtml(w)).join("")}</div>`;
+    });
+    if (wallId) {
+      const w = G.WEAPON_DEFS[wallId];
+      html += `<div class="weaponlog-section-title rarity-secret">🔒 ปืนติดผนังประจำด่านนี้</div>`;
+      html += `<div class="weaponlog-grid">${this.weaponLogCardHtml(w)}</div>`;
+    }
+    this.el("weaponlog-content").innerHTML = html;
+  },
+  weaponLogCardHtml(w) {
+    const unlocked = (G.save.unlockedWeapons || []).includes(w.id);
+    if (!unlocked) {
+      return `<div class="weaponlog-card locked"><div class="wl-icon">🔒</div><div class="wl-name">???</div><div class="wl-stats">ยังไม่ปลดล็อก</div></div>`;
+    }
+    const dps = Math.round(w.damage * (w.pellets || 1) * (1000 / w.fireRate));
+    return `<div class="weaponlog-card border-${w.rarity}" style="border-style:solid">
+      <div class="wl-icon">🔫</div><div class="wl-name rarity-${w.rarity}">${w.name}</div>
+      <div class="wl-stats">ดาเมจ: ${w.damage}${w.pellets ? ` x${w.pellets} นัด` : ""}<br>อัตรายิง: ${(1000 / w.fireRate).toFixed(1)}/วิ<br>แม็กกาซีน: ${w.magSize}<br>DPS โดยประมาณ: ${dps}${w.price ? `<br>ราคา: $${w.price}` : ""}</div>
+    </div>`;
+  },
+
   // ---------------- Import vocabulary ----------------
   _pendingImport: null,
   bindImport() {
@@ -360,6 +441,16 @@ G.UI = {
   // ---------------- Pause ----------------
   bindPause() {
     this.el("btn-resume").onclick = () => G.Game.resume();
+    this.el("btn-pause-vocablog").onclick = () => {
+      this._logReturnScreen = "screen-pause";
+      const lvlId = (G.Game.level && G.Game.level.id) || 1;
+      this.renderVocabLog(lvlId); this.showScreen("screen-vocablog");
+    };
+    this.el("btn-pause-weaponlog").onclick = () => {
+      this._logReturnScreen = "screen-pause";
+      const lvlId = (G.Game.level && G.Game.level.id) || 1;
+      this.renderWeaponLog(lvlId); this.showScreen("screen-weaponlog");
+    };
     this.el("btn-pause-settings").onclick = () => { this.renderSettings(); this.showScreen("screen-settings"); };
     this.el("btn-pause-mainmenu").onclick = () => G.Game.quitToMainMenu();
   },
@@ -425,11 +516,28 @@ G.UI = {
   },
 
   // ---------------- HUD update ----------------
+  // Smoothly eases a displayed number toward its real value over real
+  // elapsed wall-clock time (not tied to the game's own dt/FPS cap) --
+  // money/score/HP used to just snap to the new value instantly.
+  _tweenValue(key, target) {
+    const now = performance.now();
+    this._tweenState = this._tweenState || {};
+    const st = this._tweenState[key] || { val: target, t: now };
+    const dt = Math.min(0.1, (now - st.t) / 1000);
+    const factor = 1 - Math.exp(-7 * dt);
+    let val = st.val + (target - st.val) * factor;
+    if (Math.abs(target - val) < 0.4) val = target;
+    this._tweenState[key] = { val, t: now };
+    return val;
+  },
   updateHud(p) {
-    this.el("hud-hp-fill").style.width = Math.max(0, p.hp) + "%";
-    this.el("hud-hp-text").textContent = Math.max(0, Math.round(p.hp));
-    this.el("hud-money").textContent = p.money;
-    this.el("hud-score").textContent = p.score;
+    const dispHp = this._tweenValue("hp", p.hp);
+    const dispMoney = this._tweenValue("money", p.money);
+    const dispScore = this._tweenValue("score", p.score);
+    this.el("hud-hp-fill").style.width = Math.max(0, dispHp) + "%";
+    this.el("hud-hp-text").textContent = Math.max(0, Math.round(dispHp));
+    this.el("hud-money").textContent = Math.round(dispMoney);
+    this.el("hud-score").textContent = Math.round(dispScore);
     this.el("hud-level-wave").textContent = p.levelLabel;
     this.el("hud-zombies-left").textContent = "Zombies: " + p.zombiesLeft;
     this.el("hud-weapon-name").textContent = p.weaponName;
@@ -451,6 +559,27 @@ G.UI = {
     hm.classList.remove("hidden");
     clearTimeout(this._hmTimer);
     this._hmTimer = setTimeout(() => hm.classList.add("hidden"), 120);
+  },
+  // Big celebratory banner for special one-off moments (buying a wall-mounted
+  // weapon, unlocking the hospital's 2nd floor) -- more prominent than the
+  // achievement toast since these are rarer, deliberate player achievements.
+  flashPurchaseBanner(name, subtitle) {
+    const el = this.el("hud-purchase-banner");
+    el.innerHTML = `<div class="pb-title">${subtitle || "ปลดล็อกแล้ว"}</div><div class="pb-name">${name}</div>`;
+    el.classList.remove("hidden", "showing");
+    void el.offsetWidth;
+    el.classList.add("showing");
+    clearTimeout(this._pbTimer);
+    this._pbTimer = setTimeout(() => el.classList.add("hidden"), 2200);
+  },
+  // Brief pulse on the relevant HUD stat when a drop is collected (item A1's
+  // "ไอเทมเด้งเข้าหา HUD" feedback).
+  pulseHudStat(kind) {
+    const idMap = { money: "hud-money", ammo: "hud-ammo", health: "hud-hp-text" };
+    const el = this.el(idMap[kind]);
+    if (!el) return;
+    el.classList.remove("hud-pulse"); void el.offsetWidth; // restart the animation if it's already running
+    el.classList.add("hud-pulse");
   },
   flashDamage() {
     const f = this.el("hud-damage-flash");

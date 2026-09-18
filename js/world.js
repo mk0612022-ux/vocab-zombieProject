@@ -77,6 +77,70 @@ G.updateFlickerLights = function (world, tSec) {
   }
 };
 
+// Slowly drifts the scene fog's near/far planes so fog reads as a moving
+// haze rather than a static render trick. Anchored to fogBase so quality
+// changes (which rewrite fog.far) keep drifting around the new baseline.
+G.updateDriftingFog = function (scene, world, tSec) {
+  if (!scene || !scene.fog || !world || !world.fogBase) return;
+  const driftFar = Math.sin(tSec * 0.11) * (world.fogBase.far * 0.1);
+  const driftNear = Math.sin(tSec * 0.16 + 1.7) * (world.fogBase.near * 0.2);
+  scene.fog.far = world.fogBase.far + driftFar;
+  scene.fog.near = Math.max(0.4, world.fogBase.near + driftNear);
+};
+
+// Periodic electrical-spark bursts at registered world.sparkPoints (frayed
+// wires / damaged fixtures). Uses a one-shot particle+light burst like
+// G.spawnHitParticles, driven off real elapsed time so it's frame-rate independent.
+G.updateSparks = function (scene, world, dt) {
+  if (!scene || !world || !world.sparkPoints || !world.sparkPoints.length) return;
+  for (const sp of world.sparkPoints) {
+    sp.timer -= dt;
+    if (sp.timer <= 0) {
+      sp.timer = 2 + G.rng() * 3.5;
+      G.spawnSparkBurst(scene, sp);
+    }
+  }
+};
+
+// ---------------- Room-level pathfinding (waypoint graph) ----------------
+// Which region (room/corridor) contains a point. Falls back to the nearest
+// region's center if the point is in a gap (e.g. momentarily inside wall
+// thickness) so callers always get a usable answer.
+G.getRegionAt = function (world, x, z) {
+  if (!world || !world.regions) return null;
+  for (const r of world.regions) {
+    if (x >= r.minX && x <= r.maxX && z >= r.minZ && z <= r.maxZ) return r.name;
+  }
+  let best = null, bestDist = Infinity;
+  for (const r of world.regions) {
+    const cx = (r.minX + r.maxX) / 2, cz = (r.minZ + r.maxZ) / 2;
+    const d = (x - cx) * (x - cx) + (z - cz) * (z - cz);
+    if (d < bestDist) { bestDist = d; best = r.name; }
+  }
+  return best;
+};
+
+// BFS over the (tiny, tree-shaped) waypoint graph -- returns an array of node
+// names from just-after `from` up to and including `to` (empty if from===to).
+G.findPath = function (world, from, to) {
+  if (!world || !world.waypointEdges || from === to) return [];
+  const edges = world.waypointEdges;
+  const queue = [from];
+  const cameFrom = { [from]: null };
+  while (queue.length) {
+    const cur = queue.shift();
+    if (cur === to) break;
+    for (const next of edges[cur] || []) {
+      if (!(next in cameFrom)) { cameFrom[next] = cur; queue.push(next); }
+    }
+  }
+  if (!(to in cameFrom)) return [];
+  const path = [];
+  let node = to;
+  while (node !== from) { path.unshift(node); node = cameFrom[node]; }
+  return path;
+};
+
 // ---------------- Scene (voxel) builder ----------------
 // Layout: a central hub room with four wings (start / east / west / boss),
 // each pair joined by a short corridor with a real doorway gap cut into the
@@ -99,6 +163,7 @@ G.buildLevelScene = function (scene, level, quality) {
   const world = {
     colliders: [], spawnPoints: [], doors: [], buttons: [], crates: [], traps: [],
     lights: [], interactables: [], heightZones: [], secretZone: null,
+    fogBase: { near: pal.fogNear, far: fogFar }, sparkPoints: [],
   };
 
   const wallMat = new THREE.MeshLambertMaterial({ color: pal.wall });
@@ -138,7 +203,8 @@ G.buildLevelScene = function (scene, level, quality) {
   const floorBaseTex = new THREE.CanvasTexture(floorCanvas);
   const floorSideMat = new THREE.MeshLambertMaterial({ color: pal.floorLine });
 
-  function addFloor(cx, cz, w, d) {
+  function addFloor(cx, cz, w, d, baseY) {
+    baseY = baseY || 0; // lets an upper floor (category E3) reuse the same tiled-texture floor
     const tex = floorBaseTex.clone();
     tex.needsUpdate = true;
     tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
@@ -147,8 +213,18 @@ G.buildLevelScene = function (scene, level, quality) {
     // BoxGeometry face order: [px, nx, py, ny, pz, nz] -- only the top (py) gets the tile texture.
     const mats = [floorSideMat, floorSideMat, topMat, floorSideMat, floorSideMat, floorSideMat];
     const m = new THREE.Mesh(new THREE.BoxGeometry(w, 0.4, d), mats);
-    m.position.set(cx, -0.2, cz);
+    m.position.set(cx, baseY - 0.2, cz);
     m.receiveShadow = true;
+    scene.add(m);
+  }
+  // Every room/corridor previously had open sky above the walls (3.4 tall) --
+  // no ceiling at all, which also let light values read as if leaking upward
+  // without bound. A flat ceiling slab closes each space and gives lights a
+  // surface to bounce/occlude against.
+  const ceilingMat = new THREE.MeshLambertMaterial({ color: pal.wall });
+  function addCeiling(cx, cz, w, d) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, 0.3, d), ceilingMat);
+    m.position.set(cx, 3.55, cz);
     scene.add(m);
   }
   function addWallSeg(x, z, w, d, h) {
@@ -298,6 +374,36 @@ G.buildLevelScene = function (scene, level, quality) {
     return { mesh: g, collider };
   }
 
+  // A fallen body lying on the floor -- torso + head + a limb splayed out,
+  // plus a dark blood pool underneath. Never blocks movement (you can step
+  // over a corpse), so it's built with noCollider-equivalent placement: added
+  // directly to the scene rather than through addProp.
+  function addCorpse(x, z, ry, clothColor) {
+    const clothMat = new THREE.MeshLambertMaterial({ color: clothColor });
+    const skinMat = new THREE.MeshLambertMaterial({ color: 0x8a7a6a });
+    const g = new THREE.Group();
+    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.16, 0.28), clothMat);
+    torso.position.set(0, 0.08, 0); g.add(torso);
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.15, 0.2), skinMat);
+    head.position.set(0.42, 0.08, 0); g.add(head);
+    const armOut = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.1, 0.1), skinMat);
+    armOut.position.set(-0.1, 0.07, 0.22); armOut.rotation.y = 0.3; g.add(armOut);
+    const legs = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.14, 0.22), clothMat);
+    legs.position.set(-0.5, 0.07, 0.04); g.add(legs);
+    const pool = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.015, 0.6), new THREE.MeshBasicMaterial({ color: 0x4a0a0a, transparent: true, opacity: 0.8 }));
+    pool.position.set(0, 0.005, 0); g.add(pool);
+    g.position.set(x, 0, z);
+    if (ry) g.rotation.y = ry;
+    scene.add(g);
+  }
+  // A flat blood stain/scuff decal on the floor -- purely cosmetic.
+  function addBloodStain(x, z, size, ry) {
+    const stain = new THREE.Mesh(new THREE.BoxGeometry(size, 0.012, size * (0.6 + G.rng() * 0.4)), new THREE.MeshBasicMaterial({ color: 0x5a0e0e, transparent: true, opacity: 0.75 }));
+    stain.position.set(x, 0.006, z);
+    if (ry) stain.rotation.y = ry;
+    scene.add(stain);
+  }
+
   // ---------------- Room layout (5 rooms, ~1.8x the previous total area) ----------------
   // A: start | B: central hub | C: east wing | D: west wing (behind a barricade
   // the button clears) | E: south/boss wing. Corridors are 4 units wide and
@@ -311,11 +417,11 @@ G.buildLevelScene = function (scene, level, quality) {
   };
   const DOOR_W = 4;
 
-  Object.values(ROOMS).forEach((r) => addFloor(r.cx, r.cz, r.w, r.d));
-  addFloor(0, -6.5, DOOR_W, 3);      // A-B corridor
-  addFloor(7.75, -14.5, 3, DOOR_W);  // B-C corridor
-  addFloor(-8, -14.5, 3, DOOR_W);    // B-D corridor
-  addFloor(0, -22.75, DOOR_W, 3.5);  // B-E corridor
+  Object.values(ROOMS).forEach((r) => { addFloor(r.cx, r.cz, r.w, r.d); addCeiling(r.cx, r.cz, r.w, r.d); });
+  addFloor(0, -6.5, DOOR_W, 3);      addCeiling(0, -6.5, DOOR_W, 3);      // A-B corridor
+  addFloor(7.75, -14.5, 3, DOOR_W);  addCeiling(7.75, -14.5, 3, DOOR_W);  // B-C corridor
+  addFloor(-8, -14.5, 3, DOOR_W);    addCeiling(-8, -14.5, 3, DOOR_W);    // B-D corridor
+  addFloor(0, -22.75, DOOR_W, 3.5);  addCeiling(0, -22.75, DOOR_W, 3.5);  // B-E corridor
 
   // addRoomWalls' "north" = the wall at cz-hd (more-negative Z, deeper into
   // the level); "south" = cz+hd (toward the player's start / less negative Z).
@@ -326,7 +432,11 @@ G.buildLevelScene = function (scene, level, quality) {
     west: { center: -14.5, width: DOOR_W }, // -> D
     north: { center: 0, width: DOOR_W },   // -> E (E sits at more-negative Z)
   });
-  addRoomWalls(ROOMS.C, { west: { center: -14.5, width: DOOR_W } });
+  // Hospital only: room C's east wall gets a second gap for the staircase up
+  // to the 2nd floor (category E3).
+  const cGaps = { west: { center: -14.5, width: DOOR_W } };
+  if (level.theme === "hospital") cGaps.east = { center: -14.5, width: 3 };
+  addRoomWalls(ROOMS.C, cGaps);
   addRoomWalls(ROOMS.D, { east: { center: -14.5, width: DOOR_W } });
   addRoomWalls(ROOMS.E, { south: { center: 0, width: DOOR_W } });
 
@@ -350,6 +460,38 @@ G.buildLevelScene = function (scene, level, quality) {
   // A boss podium in the finale room, with ramps on two sides.
   addPlatform(ROOMS.E.cx, ROOMS.E.cz - 2, 5, 5, 0.45, accentMat, "z", -1, 2);
 
+  // ---------------- Waypoint graph (room-level pathfinding) ----------------
+  // Zombies used to walk straight at the player regardless of walls (they
+  // don't test world.colliders at all -- cheap, but meant they'd cut through
+  // solid walls between rooms). This gives each zombie a room-to-room route:
+  // "regions" are AABBs matching the rooms/corridors above, "waypointNodes"
+  // are their centers, and "waypointEdges" mirrors the actual doorway
+  // topology, so a BFS route only ever crosses connections that really exist.
+  // Built BEFORE the theme decorators run (below) since decorateHospital
+  // extends this graph with its 2nd-floor region/nodes/edges.
+  world.regions = [
+    { name: "A", minX: ROOMS.A.cx - ROOMS.A.w / 2, maxX: ROOMS.A.cx + ROOMS.A.w / 2, minZ: ROOMS.A.cz - ROOMS.A.d / 2, maxZ: ROOMS.A.cz + ROOMS.A.d / 2 },
+    { name: "AB", minX: -DOOR_W / 2, maxX: DOOR_W / 2, minZ: -8, maxZ: -5 },
+    { name: "B", minX: ROOMS.B.cx - ROOMS.B.w / 2, maxX: ROOMS.B.cx + ROOMS.B.w / 2, minZ: ROOMS.B.cz - ROOMS.B.d / 2, maxZ: ROOMS.B.cz + ROOMS.B.d / 2 },
+    { name: "BC", minX: 6.5, maxX: 9, minZ: -16.5, maxZ: -12.5 },
+    { name: "C", minX: ROOMS.C.cx - ROOMS.C.w / 2, maxX: ROOMS.C.cx + ROOMS.C.w / 2, minZ: ROOMS.C.cz - ROOMS.C.d / 2, maxZ: ROOMS.C.cz + ROOMS.C.d / 2 },
+    { name: "BD", minX: -9.5, maxX: -6.5, minZ: -16.5, maxZ: -12.5 },
+    { name: "D", minX: ROOMS.D.cx - ROOMS.D.w / 2, maxX: ROOMS.D.cx + ROOMS.D.w / 2, minZ: ROOMS.D.cz - ROOMS.D.d / 2, maxZ: ROOMS.D.cz + ROOMS.D.d / 2 },
+    { name: "BE", minX: -DOOR_W / 2, maxX: DOOR_W / 2, minZ: -24.5, maxZ: -21 },
+    { name: "E", minX: ROOMS.E.cx - ROOMS.E.w / 2, maxX: ROOMS.E.cx + ROOMS.E.w / 2, minZ: ROOMS.E.cz - ROOMS.E.d / 2, maxZ: ROOMS.E.cz + ROOMS.E.d / 2 },
+  ];
+  world.waypointNodes = {
+    A: { x: ROOMS.A.cx, z: ROOMS.A.cz }, AB: { x: 0, z: -6.5 },
+    B: { x: ROOMS.B.cx, z: ROOMS.B.cz }, BC: { x: 7.75, z: -14.5 },
+    C: { x: ROOMS.C.cx, z: ROOMS.C.cz }, BD: { x: -8, z: -14.5 },
+    D: { x: ROOMS.D.cx, z: ROOMS.D.cz }, BE: { x: 0, z: -22.75 },
+    E: { x: ROOMS.E.cx, z: ROOMS.E.cz - 2 },
+  };
+  world.waypointEdges = {
+    A: ["AB"], AB: ["A", "B"], B: ["AB", "BC", "BD", "BE"],
+    BC: ["B", "C"], C: ["BC"], BD: ["B", "D"], D: ["BD"], BE: ["B", "E"], E: ["BE"],
+  };
+
   const theme = { addProp, addLight, addGlowBox, addCanvasBox, addDecal, addFloatBox, addBarricade, addPlatform, ROOMS, pal };
   const decorators = { school: decorateSchool, hospital: decorateHospital, bunker: decorateBunker };
   (decorators[level.theme] || decorateSchool)(theme);
@@ -371,8 +513,14 @@ G.buildLevelScene = function (scene, level, quality) {
       ctx.strokeStyle = "#eaf2ea"; ctx.lineWidth = 3; ctx.globalAlpha = 0.55;
       ctx.beginPath(); ctx.moveTo(20, 30); ctx.lineTo(120, 20); ctx.lineTo(90, 70); ctx.stroke();
       ctx.font = "italic 26px Georgia"; ctx.fillStyle = "#eaf2ea"; ctx.globalAlpha = 0.5;
-      ctx.fillText("A B C ...", 140, 40); ctx.fillText("help us", 30, 95);
+      ctx.fillText("A B C ...", 140, 40);
+      // hand-scrawled blood warning replaces the old plain "help us" text
+      ctx.globalAlpha = 0.85; ctx.fillStyle = "#7a1414"; ctx.font = "bold italic 30px Georgia";
+      ctx.fillText("THEY'RE INSIDE", 20, 95);
+      ctx.globalAlpha = 0.6; ctx.strokeStyle = "#8a1a1a"; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.moveTo(15, 105); ctx.lineTo(45, 118); ctx.lineTo(20, 122); ctx.stroke(); // drip smear
     }, 0x3a2a1a);
+    addBloodStain(-1, -3.7, 0.5, 0.3); // pooled beneath the chalkboard
     addProp(-2.5, 2, 1.4, 0.9, 0.7, woodMat);
     addProp(2, 2, 1.4, 0.9, 0.7, woodMat);
     addProp(1.6, 3.4, 1.4, 0.7, 0.7, woodMat, 0, 0, Math.PI / 2.1);
@@ -408,6 +556,9 @@ G.buildLevelScene = function (scene, level, quality) {
       ctx.font = "bold 24px sans-serif"; ctx.fillStyle = "#ffe08a"; ctx.textAlign = "center";
       ctx.fillText("STAGE", 128, 70);
     }, 0x1a1608);
+    addCorpse(2, ROOMS.B.cz + 4, 0.6, 0x3a5c8a); // fallen student near the hub entrance
+    addBloodStain(2, ROOMS.B.cz + 4, 0.9, 0.6);
+    addBloodStain(-2.5, ROOMS.B.cz - 3, 0.6, 1.1);
 
     // Room C (east) -- library nook with the striped bookshelf.
     addProp(ROOMS.C.cx + 2.1, ROOMS.C.cz, 0.4, 2.4, 2.4, woodDarkMat);
@@ -455,6 +606,17 @@ G.buildLevelScene = function (scene, level, quality) {
     addFloatBox(ROOMS.A.cx - 3.5, 1.2, ROOMS.A.cz + 3.86, 0.5, 0.5, 0.05, crossRed);
     addGlowBox(-1.8, 2.9, -4.6, 0.6, 0.28, 0.05, 0x33ff66);
     addGlowBox(1.5, 2.9, 4.6, 0.5, 0.25, 0.05, 0xff3333, Math.PI);
+    // Wheeled gurney (bed + small dark wheel blocks at each corner) and a
+    // patient corpse lying beside it, with medical debris scattered nearby.
+    const gurney = addProp(0.5, -2, 1.7, 0.55, 0.8, bedMat);
+    [[-0.75, -0.35], [-0.75, 0.35], [0.75, -0.35], [0.75, 0.35]].forEach(([dx, dz]) => {
+      addFloatBox(0.5 + dx, 0.12, -2 + dz, 0.1, 0.12, 0.1, bedDarkMat);
+    });
+    addCorpse(-3, -3, -0.4, 0xc9d0d0); // patient gown
+    addBloodStain(-3, -3, 0.8, -0.4);
+    addBloodStain(0.5, -1.4, 0.5, 0.2);
+    const debrisMat = new THREE.MeshLambertMaterial({ color: 0xd8dcd8 });
+    for (let i = 0; i < 4; i++) addDecal(-1.5 + i * 0.5, -3.5 + (i % 2) * 0.6, 0.14, 0.05, 0.14, debrisMat, i * 0.5);
 
     // Room B (hub) -- nurse station on the raised platform + medicine cabinets.
     addCanvasBox(ROOMS.B.cx, 1.3, ROOMS.B.cz - 4.2 - 1.55, 1.6, 1.0, 0.08, (ctx, cv) => {
@@ -485,6 +647,75 @@ G.buildLevelScene = function (scene, level, quality) {
     // Room E (final) -- operating theater centerpiece + boss podium.
     addProp(ROOMS.E.cx, ROOMS.E.cz - 2, 2.0, 0.9, 1.0, bedMat, 0, 0, 0, true);
     addGlowBox(ROOMS.E.cx, 3.2, ROOMS.E.cz - 2, 0.8, 0.15, 0.8, 0xbfffe0);
+    addBloodStain(ROOMS.E.cx, ROOMS.E.cz - 2, 1.4, 0);
+    addCorpse(ROOMS.E.cx - 4, ROOMS.E.cz + 4, 1.0, 0x3a6a5c); // surgeon's scrubs
+    addBloodStain(ROOMS.E.cx - 4, ROOMS.E.cz + 4, 0.7, 1.0);
+    addCorpse(ROOMS.B.cx - 3, ROOMS.B.cz + 2, -0.7, 0xc9d0d0);
+    addBloodStain(ROOMS.B.cx - 3, ROOMS.B.cz + 2, 0.7, -0.7);
+
+    // ---------------- 2nd floor (category E3) ----------------
+    // No stacked-floor support in the height-zone system (one XZ point can
+    // only have one height), so the 2nd floor is a real elevated room
+    // reached by climbing a staircase rather than sitting directly overhead
+    // -- functionally identical (locked until earned, distinct area,
+    // rarer rewards), just offset to the east instead of straight up.
+    const floor2Y = 4.2;
+    const stairX0 = 20.2, stairX1 = 24.2;
+    const rampLen = stairX1 - stairX0;
+    const rampMesh = new THREE.Mesh(new THREE.BoxGeometry(rampLen, 0.2, 3), wallMat);
+    rampMesh.position.set((stairX0 + stairX1) / 2, floor2Y / 2, -14.5);
+    rampMesh.rotation.z = -Math.atan2(floor2Y, rampLen);
+    scene.add(rampMesh);
+    world.heightZones.push({ minX: stairX0, maxX: stairX1, minZ: -16, maxZ: -13, ramp: true, axis: "x", h0: 0, h1: floor2Y });
+
+    const F = { cx: 29.7, cz: -14.5, w: 10, d: 10 };
+    // Flat height zone for the room itself -- without this, a player/zombie
+    // walking past the end of the ramp would fall straight back to height 0,
+    // since only the ramp's own XZ range had a height entry.
+    world.heightZones.push({ minX: F.cx - F.w / 2, maxX: F.cx + F.w / 2, minZ: F.cz - F.d / 2, maxZ: F.cz + F.d / 2, height: floor2Y });
+    addFloor(F.cx, F.cz, F.w, F.d, floor2Y);
+    const fh = 3.2;
+    function addUpperWall(x, z, w, d) {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, fh, d), wallMat);
+      m.position.set(x, floor2Y + fh / 2, z);
+      scene.add(m);
+      world.colliders.push(new THREE.Box3().setFromObject(m));
+    }
+    // West wall has a 3-unit gap (matching the ramp/stair width, z=[-16,-13])
+    // where the staircase actually arrives -- a solid wall there sealed the
+    // room's only entrance completely, so the player got stuck right at the
+    // top of the stairs. Room F spans z=[-19.5,-9.5], so the two remaining
+    // wall segments are z=[-19.5,-16] and z=[-13,-9.5].
+    const fWestX = F.cx - F.w / 2;
+    addUpperWall(fWestX, -17.75, 0.4, 3.5);
+    addUpperWall(fWestX, -11.25, 0.4, 3.5);
+    [[F.cx + F.w / 2, F.cz, 0.4, F.d], [F.cx, F.cz - F.d / 2, F.w, 0.4], [F.cx, F.cz + F.d / 2, F.w, 0.4]].forEach(([x, z, w, d]) => addUpperWall(x, z, w, d));
+    const fCeil = new THREE.Mesh(new THREE.BoxGeometry(F.w, 0.3, F.d), ceilingMat);
+    fCeil.position.set(F.cx, floor2Y + fh + 0.15, F.cz);
+    scene.add(fCeil);
+    addLight(F.cx - 2, floor2Y + fh - 0.4, F.cz - 2, 0x7dffc0, 1.3, 1.5);
+    addLight(F.cx + 2, floor2Y + fh - 0.4, F.cz + 2, 0xff6b6b, 1.0, 1.9);
+
+    // ICU/operating-theater dressing, continuing floor 1's theme + more gore.
+    addFloatBox(F.cx - 3, floor2Y, F.cz - 3, 2.0, 0.9, 1.0, bedMat);
+    addFloatBox(F.cx - 3, floor2Y + 0.95, F.cz - 3, 0.15, 0.5, 0.15, cabinetMat);
+    addCorpse(F.cx + 2, F.cz - 2, 0.5, 0xc9d0d0);
+    world.regions.push({ name: "F", minX: F.cx - F.w / 2, maxX: F.cx + F.w / 2, minZ: F.cz - F.d / 2, maxZ: F.cz + F.d / 2 });
+    world.regions.push({ name: "CF", minX: stairX0, maxX: stairX1, minZ: -16, maxZ: -13 });
+    world.waypointNodes.F = { x: F.cx, z: F.cz };
+    world.waypointNodes.CF = { x: (stairX0 + stairX1) / 2, z: -14.5 };
+    world.waypointEdges.C.push("CF"); world.waypointEdges.CF = ["C", "F"]; world.waypointEdges.F = ["CF"];
+
+    const barrier2 = addBarricade(stairX0 - 0.3, -14.5, 3, new THREE.MeshLambertMaterial({ color: 0x555550 }));
+    // Blood-stained floor decal right at the barrier reads as "someone tried
+    // to get up there and didn't make it" -- a small storytelling touch.
+    addBloodStain(stairX0 - 0.3, -14.5, 0.6, 0.5);
+    world.secondFloor = {
+      unlocked: false, barrierMesh: barrier2.mesh, barrierCollider: barrier2.collider,
+      killsNeeded: 20, room: F, floorY: floor2Y,
+      // Fewer, rarer drops than the ground floor -- a special reward, not a farm spot.
+      cratePositions: [new THREE.Vector3(F.cx + 3, floor2Y + 0.3, F.cz + 3), new THREE.Vector3(F.cx - 2, floor2Y + 0.3, F.cz + 3.5)],
+    };
   }
 
   function decorateBunker(t) {
@@ -505,6 +736,9 @@ G.buildLevelScene = function (scene, level, quality) {
     addProp(2, 2.2, 1.4, 0.8, 0.9, crateOlive);
     addGlowBox(-1.8, 2.9, -4.6, 0.6, 0.28, 0.05, 0xffcc33);
     addGlowBox(1.5, 2.9, 4.6, 0.5, 0.25, 0.05, 0xff5533, Math.PI);
+    addCorpse(0.5, -1.5, 0.9, 0x4a5c3a); // fallen soldier, fatigues
+    addBloodStain(0.5, -1.5, 0.7, 0.9);
+    addBloodStain(-2.3, 3.2, 0.5, -0.2); // stain on/near the ammo crates
 
     // Room B (hub) -- watchtower platform + control panel.
     addCanvasBox(ROOMS.B.cx, 1.3, ROOMS.B.cz - 4.2 - 1.55, 1.6, 1.0, 0.08, (ctx, cv) => {
@@ -528,9 +762,26 @@ G.buildLevelScene = function (scene, level, quality) {
     for (let i = 0; i < 3; i++) addProp(ROOMS.D.cx - 1 + i * 0.85, ROOMS.D.cz - 2, 0.8, 0.4, 0.5, sandbagMat);
     addGlowBox(ROOMS.D.cx, 2.6, ROOMS.D.cz - 4.6, 0.5, 0.5, 0.06, 0xffcc33);
 
+    // Damaged hanging cables -- dark dangling wire bundles that periodically
+    // spark (see world.sparkPoints / G.updateSparks), reinforcing the
+    // "backup generator is failing" read of the bunker theme.
+    const cableMat = new THREE.MeshLambertMaterial({ color: 0x1c1c1a });
+    function hangingCable(x, y, z, sparkY) {
+      addFloatBox(x, y, z, 0.06, 0.7, 0.06, cableMat);
+      addFloatBox(x + 0.15, y - 0.05, z, 0.06, 0.5, 0.06, cableMat, 0.3);
+      world.sparkPoints.push({ x, y: sparkY != null ? sparkY : y - 0.35, z, timer: G.rng() * 3 });
+    }
+    hangingCable(ROOMS.B.cx - 4.5, 3.0, ROOMS.B.cz + 2);
+    hangingCable(ROOMS.D.cx + 1.5, 3.0, ROOMS.D.cz + 1);
+    hangingCable(ROOMS.E.cx - 2, 3.0, ROOMS.E.cz - 2.5);
+
     // Room E (final) -- reinforced chamber, sandbag cover, boss podium.
     for (let i = 0; i < 3; i++) addProp(ROOMS.E.cx - 4 + i * 0.85, ROOMS.E.cz + 3, 0.8, 0.4, 0.5, sandbagMat);
     for (let i = 0; i < 3; i++) addProp(ROOMS.E.cx + 3 + i * 0.85, ROOMS.E.cz + 3, 0.8, 0.4, 0.5, sandbagMat);
+    addCorpse(ROOMS.E.cx, ROOMS.E.cz + 5.5, 0, 0x4a5c3a);
+    addBloodStain(ROOMS.E.cx, ROOMS.E.cz + 5.5, 0.8, 0);
+    addCorpse(ROOMS.C.cx - 1, ROOMS.C.cz + 5, 1.3, 0x545c3a);
+    addBloodStain(ROOMS.C.cx - 1, ROOMS.C.cz + 5, 0.6, 1.3);
   }
 
   // ---------------- Spawn points (spread across all 5 rooms) ----------------
@@ -580,8 +831,35 @@ G.buildLevelScene = function (scene, level, quality) {
   // (doInteract had no case for it) -- meaning the corridor was permanently
   // impassable on foot. `collider` is captured so solving it can remove the
   // block, same fix as the door above.
-  world.traps.push({ mesh: trapMesh, active: true, damage: 12, cooldown: 0, collider: world.colliders[world.colliders.length - 1] });
+  world.traps.push({ mesh: trapMesh, active: true, damage: 45, cooldown: 0, collider: world.colliders[world.colliders.length - 1] }); // was 12, scaled 3.75x with player HP
   world.interactables.push({ mesh: trapMesh, kind: "trap", ref: world.traps[world.traps.length - 1] });
+
+  // ---------------- Wall-mounted exclusive weapon (category C3) ----------------
+  // Mounted on room A's solid south wall (no doorway there), off to the +X
+  // side where no theme's starting-room decor reaches, so it's clear in all
+  // three levels. See the wallExclusive weapon defs in entities.js for the
+  // pricing rationale.
+  const wallWeaponId = { school: "school_wall", hospital: "hospital_wall", bunker: "bunker_wall" }[level.theme];
+  if (wallWeaponId) {
+    const wdef = G.WEAPON_DEFS[wallWeaponId];
+    const mountX = 3.5, mountY = 1.7, mountZ = 4.7;
+    const plaque = new THREE.Mesh(new THREE.BoxGeometry(1.3, 1.1, 0.08), new THREE.MeshLambertMaterial({ color: 0x1a1a1a }));
+    plaque.position.set(mountX, mountY, mountZ);
+    scene.add(plaque);
+    const gunMesh = G.buildWeaponMesh(wdef);
+    gunMesh.scale.set(2.6, 2.6, 2.6);
+    gunMesh.position.set(mountX, mountY + 0.15, mountZ - 0.14);
+    gunMesh.rotation.y = Math.PI / 2 - 0.25;
+    scene.add(gunMesh);
+    addCanvasBox(mountX, mountY - 0.68, mountZ - 0.02, 1.1, 0.32, 0.04, (ctx, cv) => {
+      ctx.fillStyle = "#0a0a0a"; ctx.fillRect(0, 0, cv.width, cv.height);
+      ctx.textAlign = "center";
+      ctx.font = "bold 24px sans-serif"; ctx.fillStyle = "#ffd43b"; ctx.fillText(wdef.name, 128, 34);
+      ctx.font = "bold 26px monospace"; ctx.fillStyle = "#6bff7a"; ctx.fillText("$" + wdef.price, 128, 68);
+    }, 0x1a1a1a);
+    world.wallWeapon = { id: wallWeaponId, price: wdef.price, purchased: false, gunMesh };
+    world.interactables.push({ mesh: plaque, kind: "wallweapon", ref: world.wallWeapon });
+  }
 
   world.spawn = { x: 0, z: 3 };
   world.bossRoomCenter = new THREE.Vector3(ROOMS.E.cx, 0, ROOMS.E.cz - 2);

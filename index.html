@@ -23,6 +23,8 @@
       <button class="btn" id="btn-endless">Endless Mode</button>
       <button class="btn" id="btn-leaderboard">Leaderboard</button>
       <button class="btn" id="btn-achievements">Achievements</button>
+      <button class="btn" id="btn-vocablog">คลังคำศัพท์</button>
+      <button class="btn" id="btn-weaponlog">คลังปืน</button>
       <button class="btn" id="btn-import-vocab">Import Vocabulary</button>
       <button class="btn" id="btn-howtoplay">How to Play</button>
       <button class="btn" id="btn-settings">Settings</button>
@@ -76,6 +78,22 @@
   <h2 class="screen-title">Achievements</h2>
   <div id="achievements-content" class="achievements-content"></div>
   <div class="row-center"><button class="btn" id="btn-achievements-back">กลับ</button></div>
+</div>
+
+<!-- ===================== VOCABULARY LOG (category F) ===================== -->
+<div id="screen-vocablog" class="screen hidden">
+  <h2 class="screen-title">คลังคำศัพท์</h2>
+  <div class="leaderboard-tabs" id="vocablog-tabs"></div>
+  <div id="vocablog-content" class="log-content"></div>
+  <div class="row-center"><button class="btn" id="btn-vocablog-back">กลับ</button></div>
+</div>
+
+<!-- ===================== WEAPON LOG (category F) ===================== -->
+<div id="screen-weaponlog" class="screen hidden">
+  <h2 class="screen-title">คลังปืน</h2>
+  <div class="leaderboard-tabs" id="weaponlog-tabs"></div>
+  <div id="weaponlog-content" class="log-content"></div>
+  <div class="row-center"><button class="btn" id="btn-weaponlog-back">กลับ</button></div>
 </div>
 
 <!-- ===================== IMPORT VOCAB ===================== -->
@@ -159,6 +177,7 @@
   <div class="hud-combo hidden" id="hud-combo">COMBO x0</div>
   <div class="hud-fps-counter hidden" id="hud-fps-counter">0 FPS</div>
   <div class="hud-achievement-toast hidden" id="hud-achievement-toast"></div>
+  <div class="hud-purchase-banner hidden" id="hud-purchase-banner"></div>
 </div>
 
 <!-- Touch controls -->
@@ -195,6 +214,8 @@
   <h2 class="screen-title">หยุดเกมชั่วคราว</h2>
   <div class="menu-btns">
     <button class="btn btn-primary" id="btn-resume">Resume</button>
+    <button class="btn" id="btn-pause-vocablog">คลังคำศัพท์</button>
+    <button class="btn" id="btn-pause-weaponlog">คลังปืน</button>
     <button class="btn" id="btn-pause-settings">Settings</button>
     <button class="btn" id="btn-pause-mainmenu">กลับ Main Menu</button>
   </div>

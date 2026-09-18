@@ -50,6 +50,25 @@ G.WEAPON_DEFS = {
     reloadTime: 2000, auto: false, splash: true, splashRadius: 4.5, price: 4600, color: 0xa63bd6, accent: 0x3a1a44 },
   golden_smg: { id: "golden_smg", name: "Golden Vocabulary SMG", rarity: "secret", damage: 55, fireRate: 70, magSize: 50,
     reloadTime: 1000, auto: true, price: 9999, color: 0xffd43b, accent: 0xa87d1a, legendary: true },
+
+  // Wall-mounted exclusives (category C3): one per level, bought with saved-up
+  // money via the level's wall-mount display, never obtainable from the shop's
+  // crate roll (`wallExclusive: true` keeps them out of openCrate's pool).
+  // Each sits clearly above every epic-tier option's sustained DPS (railgun
+  // ~90, grenade launcher ~78) while staying under the 1%-chance golden_smg
+  // jackpot (~785), since these are guaranteed-buyable rather than RNG.
+  // Pricing reasoning: a boss kill alone pays 500, and a full run's normal
+  // kills + wave bonuses realistically net a disciplined player (one who
+  // skips a few shop upgrades) something in the low thousands by the run's
+  // end -- so price scales with how long/hard the level is (5/6/7 waves),
+  // keeping each a real "save up for it" goal without being unreachable in
+  // one normal playthrough.
+  school_wall: { id: "school_wall", name: "Faculty Enforcer", rarity: "secret", damage: 20, fireRate: 90, magSize: 45,
+    reloadTime: 1500, auto: true, price: 1800, color: 0xd4a017, accent: 0x5a3d0a, wallExclusive: true },
+  hospital_wall: { id: "hospital_wall", name: "Trauma Cannon", rarity: "secret", damage: 22, pellets: 8, fireRate: 500, magSize: 10,
+    reloadTime: 1800, auto: false, price: 2400, color: 0xe8e8e0, accent: 0xd6423c, wallExclusive: true },
+  bunker_wall: { id: "bunker_wall", name: "Vault Breaker", rarity: "secret", damage: 140, fireRate: 750, magSize: 6,
+    reloadTime: 2000, auto: false, price: 3200, color: 0x4a5c3a, accent: 0x2a2a26, wallExclusive: true },
 };
 
 G.MELEE_DEF = { id: "melee", name: "Combat Knife", damage: 35, fireRate: 450, range: 2.6 };
@@ -62,7 +81,7 @@ G.makeBoxMat = (color) => new THREE.MeshLambertMaterial({ color });
 // shotguns are short and fat, snipers long and thin, etc. Still pure
 // BoxGeometry throughout to keep the voxel style and stay cheap to render.
 G.WEAPON_BUILDERS = {
-  pistol(g, mat, accentMat) {
+  pistol(g, mat, accentMat, magMat) {
     const body = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.13, 0.3), mat);
     body.position.set(0, 0, -0.16); g.add(body);
     const slide = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.06, 0.32), G.makeBoxMat(0xd8e4ea));
@@ -71,12 +90,16 @@ G.WEAPON_BUILDERS = {
     grip.position.set(0, -0.15, 0.02); grip.rotation.x = -0.15; g.add(grip);
     const barrel = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.045, 0.1), accentMat);
     barrel.position.set(0, 0.02, -0.36); g.add(barrel);
+    const mag = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.09, 0.07), magMat);
+    mag.position.set(0, -0.27, 0.01); g.add(mag); // protrudes below the grip, lightened tint
   },
-  shotgun(g, mat, accentMat) {
+  shotgun(g, mat, accentMat, magMat) {
     const barrel = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.11, 0.62), mat);
     barrel.position.set(0, 0.03, -0.28); g.add(barrel);
     const pump = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.09, 0.16), accentMat);
     pump.position.set(0, -0.02, -0.34); g.add(pump);
+    const shellTube = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.5), magMat);
+    shellTube.position.set(0, -0.06, -0.28); g.add(shellTube); // under-barrel shell tube, lightened tint
     const receiver = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.14, 0.2), accentMat);
     receiver.position.set(0, -0.01, 0.02); g.add(receiver);
     const stock = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.12, 0.22), accentMat);
@@ -84,41 +107,41 @@ G.WEAPON_BUILDERS = {
     const grip = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.18, 0.08), accentMat);
     grip.position.set(0, -0.16, 0.06); grip.rotation.x = -0.2; g.add(grip);
   },
-  smg(g, mat, accentMat) {
+  smg(g, mat, accentMat, magMat) {
     const body = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.13, 0.32), mat);
     body.position.set(0, 0.02, -0.1); g.add(body);
     const barrelShroud = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, 0.16), accentMat);
     barrelShroud.position.set(0, 0.03, -0.34); g.add(barrelShroud);
     // stepped "curved" magazine: two stacked boxes offset forward to fake a curve
-    const magTop = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.12, 0.09), accentMat);
+    const magTop = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.12, 0.09), magMat);
     magTop.position.set(0, -0.1, -0.06); g.add(magTop);
-    const magBottom = new THREE.Mesh(new THREE.BoxGeometry(0.065, 0.14, 0.08), accentMat);
+    const magBottom = new THREE.Mesh(new THREE.BoxGeometry(0.065, 0.14, 0.08), magMat);
     magBottom.position.set(0, -0.24, -0.02); g.add(magBottom);
     const stock = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.05, 0.22), accentMat);
     stock.position.set(0, 0.01, 0.24); g.add(stock);
     const grip = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.18, 0.08), accentMat);
     grip.position.set(0, -0.15, 0.08); grip.rotation.x = -0.2; g.add(grip);
   },
-  rifle(g, mat, accentMat) {
+  rifle(g, mat, accentMat, magMat) {
     const body = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.12, 0.46), mat);
     body.position.set(0, 0.02, -0.14); g.add(body);
     const barrel = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.045, 0.34), accentMat);
     barrel.position.set(0, 0.02, -0.52); g.add(barrel);
     const foregrip = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.05, 0.22), accentMat);
     foregrip.position.set(0, -0.06, -0.4); g.add(foregrip);
-    const mag = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.2, 0.09), accentMat);
+    const mag = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.2, 0.09), magMat);
     mag.position.set(0, -0.17, -0.08); mag.rotation.x = 0.15; g.add(mag);
     const stock = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.14, 0.22), accentMat);
     stock.position.set(0, -0.01, 0.28); g.add(stock);
     const grip = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.18, 0.08), accentMat);
     grip.position.set(0, -0.15, 0.1); grip.rotation.x = -0.2; g.add(grip);
   },
-  lmg(g, mat, accentMat) {
+  lmg(g, mat, accentMat, magMat) {
     const body = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.17, 0.5), mat);
     body.position.set(0, 0.02, -0.12); g.add(body);
     const barrel = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.055, 0.36), accentMat);
     barrel.position.set(0, 0.04, -0.52); g.add(barrel);
-    const ammoBox = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.17, 0.15), accentMat);
+    const ammoBox = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.17, 0.15), magMat);
     ammoBox.position.set(0, -0.16, -0.12); g.add(ammoBox);
     [-0.06, 0.06].forEach((x) => {
       const leg = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.16, 0.02), accentMat);
@@ -132,11 +155,13 @@ G.WEAPON_BUILDERS = {
     const trim = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.015, 0.015), new THREE.MeshBasicMaterial({ color: 0x9fd0ff }));
     trim.position.set(0, 0.11, -0.12); g.add(trim);
   },
-  sniper(g, mat, accentMat) {
+  sniper(g, mat, accentMat, magMat) {
     const body = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.09, 0.4), mat);
     body.position.set(0, 0, -0.1); g.add(body);
     const barrel = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, 0.62), accentMat);
     barrel.position.set(0, 0, -0.6); g.add(barrel);
+    const mag = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.08, 0.06), magMat);
+    mag.position.set(0, -0.09, 0.02); g.add(mag); // small integral box mag under the receiver
     const scopeBody = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.22), accentMat);
     scopeBody.position.set(0, 0.11, -0.2); g.add(scopeBody);
     const scopeLensF = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, 0.02), G.makeBoxMat(0x0a1622));
@@ -148,7 +173,7 @@ G.WEAPON_BUILDERS = {
     const grip = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.16, 0.07), accentMat);
     grip.position.set(0, -0.14, 0.14); grip.rotation.x = -0.2; g.add(grip);
   },
-  railgun(g, mat, accentMat) {
+  railgun(g, mat, accentMat, magMat) {
     const barrel = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, 0.6), mat);
     barrel.position.set(0, 0.02, -0.24); g.add(barrel);
     // square "coil" loop around the barrel, partway along its length
@@ -162,14 +187,18 @@ G.WEAPON_BUILDERS = {
     core.position.set(0, 0.02, loopZ); g.add(core);
     const body = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.12, 0.24), accentMat);
     body.position.set(0, 0, 0.02); g.add(body);
+    const cell = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.1, 0.08), magMat);
+    cell.position.set(0, -0.14, 0.06); g.add(cell); // energy cell, doubles as the "magazine"
     const grip = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.18, 0.08), accentMat);
     grip.position.set(0, -0.15, 0.1); grip.rotation.x = -0.2; g.add(grip);
   },
-  grenadelauncher(g, mat, accentMat) {
+  grenadelauncher(g, mat, accentMat, magMat) {
     const barrel = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.17, 0.36), mat);
     barrel.position.set(0, 0.02, -0.24); g.add(barrel);
     const chamber = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.14), accentMat);
     chamber.position.set(0, 0.02, -0.02); g.add(chamber);
+    const drum = new THREE.Mesh(new THREE.BoxGeometry(0.21, 0.05, 0.15), magMat);
+    drum.position.set(0, 0.02, -0.02); g.add(drum); // drum-magazine highlight band around the chamber
     const sight = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.08, 0.05), accentMat);
     sight.position.set(0, 0.15, -0.2); g.add(sight);
     const stock = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.14, 0.2), accentMat);
@@ -177,7 +206,7 @@ G.WEAPON_BUILDERS = {
     const grip = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.19, 0.09), accentMat);
     grip.position.set(0, -0.17, 0.08); grip.rotation.x = -0.2; g.add(grip);
   },
-  golden_smg(g, mat, accentMat) {
+  golden_smg(g, mat, accentMat, magMat) {
     // A tiered, crown-like silhouette unlike any other weapon in the game.
     const base = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.1, 0.34), mat);
     base.position.set(0, 0, -0.12); g.add(base);
@@ -191,7 +220,7 @@ G.WEAPON_BUILDERS = {
     });
     const barrel = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.22), accentMat);
     barrel.position.set(0, 0.01, -0.4); g.add(barrel);
-    const mag = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.22, 0.09), accentMat);
+    const mag = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.22, 0.09), magMat);
     mag.position.set(0, -0.18, -0.02); mag.rotation.x = 0.12; g.add(mag);
     const grip = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.18, 0.08), accentMat);
     grip.position.set(0, -0.14, 0.1); grip.rotation.x = -0.2; g.add(grip);
@@ -209,6 +238,60 @@ G.WEAPON_BUILDERS = {
     }
     g.add(trim);
     g.userData.rainbowTrim = trim;
+  },
+
+  // ---- Wall-mounted exclusives (category C3) ----
+  school_wall(g, mat, accentMat, magMat) {
+    // A bulky, authoritative double-railed auto-rifle.
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.15, 0.5), mat);
+    body.position.set(0, 0.03, -0.14); g.add(body);
+    [-0.045, 0.045].forEach((x) => {
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 0.4), accentMat);
+      rail.position.set(x, 0.1, -0.5); g.add(rail);
+    });
+    const barrel = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.2), accentMat);
+    barrel.position.set(0, 0.03, -0.62); g.add(barrel);
+    const mag = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.22, 0.1), magMat);
+    mag.position.set(0, -0.19, -0.06); mag.rotation.x = 0.1; g.add(mag);
+    const stock = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.16, 0.24), accentMat);
+    stock.position.set(0, 0, 0.3); g.add(stock);
+    const grip = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.2, 0.09), accentMat);
+    grip.position.set(0, -0.16, 0.12); grip.rotation.x = -0.2; g.add(grip);
+  },
+  hospital_wall(g, mat, accentMat, magMat) {
+    // A large boxy shotgun with a red-cross emblem plate.
+    const barrel = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 0.5), mat);
+    barrel.position.set(0, 0.03, -0.24); g.add(barrel);
+    const drum = new THREE.Mesh(new THREE.BoxGeometry(0.19, 0.19, 0.16), magMat);
+    drum.position.set(0, 0.03, -0.04); g.add(drum);
+    const plate = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.1, 0.1), accentMat);
+    plate.position.set(0.09, 0.1, -0.1); g.add(plate);
+    const receiver = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.15, 0.2), accentMat);
+    receiver.position.set(0, -0.02, 0.14); g.add(receiver);
+    const stock = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.13, 0.22), accentMat);
+    stock.position.set(0, -0.02, 0.34); g.add(stock);
+    const grip = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.19, 0.09), accentMat);
+    grip.position.set(0, -0.17, 0.18); grip.rotation.x = -0.2; g.add(grip);
+  },
+  bunker_wall(g, mat, accentMat, magMat) {
+    // A massive, long anti-materiel rifle -- the most imposing silhouette in the game.
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.11, 0.42), mat);
+    body.position.set(0, 0, -0.1); g.add(body);
+    const barrel = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.75), accentMat);
+    barrel.position.set(0, 0, -0.72); g.add(barrel);
+    const brake = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.09, 0.08), accentMat);
+    brake.position.set(0, 0, -1.11); g.add(brake);
+    const mag = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.1, 0.07), magMat);
+    mag.position.set(0, -0.1, 0.02); g.add(mag);
+    const bipodMat = accentMat;
+    [-0.07, 0.07].forEach((x) => {
+      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.2, 0.02), bipodMat);
+      leg.position.set(x, -0.1, -0.62); leg.rotation.z = x < 0 ? -0.35 : 0.35; g.add(leg);
+    });
+    const stock = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.13, 0.3), accentMat);
+    stock.position.set(0, -0.01, 0.32); g.add(stock);
+    const grip = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.18, 0.08), accentMat);
+    grip.position.set(0, -0.15, 0.16); grip.rotation.x = -0.2; g.add(grip);
   },
 };
 
@@ -246,8 +329,12 @@ G.buildWeaponMesh = function (def) {
   const g = new THREE.Group();
   const mat = G.makeBoxMat(def.color);
   const accentMat = G.makeBoxMat(def.accent != null ? def.accent : new THREE.Color(def.color).multiplyScalar(0.5).getHex());
+  // A lightened tint of the body color, used ONLY for magazines so they read
+  // as a distinct part at a glance instead of blending into the accent-colored
+  // grip/barrel pieces.
+  const magMat = G.makeBoxMat(new THREE.Color(def.color).lerp(new THREE.Color(0xffffff), 0.45).getHex());
   const builder = G.WEAPON_BUILDERS[def.id] || G.WEAPON_BUILDERS.pistol;
-  builder(g, mat, accentMat);
+  builder(g, mat, accentMat, magMat);
 
   if (def.rarity === "epic" || def.rarity === "secret") {
     const glow = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.02, 0.02), new THREE.MeshBasicMaterial({ color: def.color }));
@@ -315,22 +402,84 @@ G.updateWordSprite = function (sprite, text, color) {
 };
 
 // ---------------- Zombie ----------------
+// damage values scaled 3.75x to match player HP going 100 -> 375 (same % dmg/hit)
 G.ZOMBIE_TYPES = {
-  normal: { hp: 34, speed: 1.7, scale: 1.0, color: 0x4c6b3a, damage: 8, scoreValue: 10 },
-  fast:   { hp: 22, speed: 3.1, scale: 0.85, color: 0x8a6a2a, damage: 6, scoreValue: 16 },
-  boss:   { hp: 900, speed: 1.0, scale: 3.0, color: 0x6b1e6b, damage: 22, scoreValue: 500 },
+  normal: { hp: 34, speed: 1.7, scale: 1.0, color: 0x4c6b3a, damage: 30, scoreValue: 10 },
+  fast:   { hp: 22, speed: 3.1, scale: 0.85, color: 0x8a6a2a, damage: 23, scoreValue: 16 },
+  boss:   { hp: 900, speed: 1.0, scale: 3.0, color: 0x6b1e6b, damage: 83, scoreValue: 500 },
 };
+
+// Per-type face language (category D): normal/fast/boss each get a distinct
+// glow color and detail set so they read apart even in silhouette/low light,
+// not just by body color/size.
+const ZOMBIE_FACE = {
+  normal: { eyeColor: 0xff2a1a, eyeSize: 0.045, mouthWidth: 0.14, scars: 2 },
+  fast:   { eyeColor: 0xffe83a, eyeSize: 0.04, mouthWidth: 0.11, scars: 1 },
+  boss:   { eyeColor: 0xff0000, eyeSize: 0.07, mouthWidth: 0.2, scars: 5 },
+};
+
+function addZombieFace(head, type, skinMat) {
+  const f = ZOMBIE_FACE[type] || ZOMBIE_FACE.normal;
+  const eyeMat = new THREE.MeshBasicMaterial({ color: f.eyeColor });
+  [-0.09, 0.09].forEach((x) => {
+    const eye = new THREE.Mesh(new THREE.BoxGeometry(f.eyeSize, f.eyeSize, 0.02), eyeMat);
+    eye.position.set(x, 0.04, 0.175); head.add(eye);
+  });
+  // ears
+  [-0.175, 0.175].forEach((x) => {
+    const ear = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.08, 0.08), skinMat);
+    ear.position.set(x, 0, 0); head.add(ear);
+  });
+  // nose (slightly darker, damaged-looking)
+  const noseMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(skinMat.color).multiplyScalar(0.7).getHex() });
+  const nose = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.04), noseMat);
+  nose.position.set(0, -0.02, 0.18); head.add(nose);
+  // gaping mouth with a blood-red interior showing
+  const mouth = new THREE.Mesh(new THREE.BoxGeometry(f.mouthWidth, 0.06, 0.04), new THREE.MeshBasicMaterial({ color: 0x1a0505 }));
+  mouth.position.set(0, -0.1, 0.175); head.add(mouth);
+  const blood = new THREE.Mesh(new THREE.BoxGeometry(f.mouthWidth * 0.8, 0.025, 0.045), new THREE.MeshBasicMaterial({ color: 0x8a1414 }));
+  blood.position.set(0, -0.14, 0.176); head.add(blood);
+}
+
+function addWounds(torso, count) {
+  const woundColors = [0x6b0f0f, 0x1a1a1a, 0x4a0a0a];
+  for (let i = 0; i < count; i++) {
+    const w = new THREE.Mesh(
+      new THREE.BoxGeometry(0.06 + G.rng() * 0.06, 0.05 + G.rng() * 0.06, 0.02),
+      new THREE.MeshBasicMaterial({ color: woundColors[i % woundColors.length] })
+    );
+    const side = G.rng() > 0.5 ? 1 : -1;
+    w.position.set((G.rng() - 0.5) * 0.35, 0.15 + G.rng() * 0.35, side * 0.151);
+    if (side < 0) w.rotation.y = Math.PI;
+    torso.add(w);
+  }
+}
 
 G.buildZombieMesh = function (type) {
   const def = G.ZOMBIE_TYPES[type];
   const g = new THREE.Group();
   const mat = G.makeBoxMat(def.color);
   const skinMat = G.makeBoxMat(new THREE.Color(def.color).offsetHSL(0, -0.1, 0.08).getHex());
+  const tornMat = G.makeBoxMat(new THREE.Color(def.color).multiplyScalar(0.55).getHex());
   const torso = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.7, 0.3), mat);
   torso.position.y = 1.1; g.add(torso);
+  addWounds(torso, ZOMBIE_FACE[type] ? ZOMBIE_FACE[type].scars : 2);
+  // tattered clothing: a couple of ragged strips hanging off the torso hem
+  [-0.15, 0.1].forEach((x, i) => {
+    const strip = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.18 + i * 0.05, 0.04), tornMat);
+    strip.position.set(x, -0.42, 0.13); strip.rotation.z = (i === 0 ? -1 : 1) * 0.15; g.add(strip);
+  });
   const head = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.35, 0.35), skinMat);
   head.position.y = 1.65; g.add(head);
   head.name = "head";
+  addZombieFace(head, type, skinMat);
+  // boss gets visible shoulder armor plates to look distinctly more dangerous
+  if (type === "boss") {
+    [-0.32, 0.32].forEach((x) => {
+      const plate = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.14, 0.22), tornMat);
+      plate.position.set(x, 1.42, 0); g.add(plate);
+    });
+  }
   const armGeo = new THREE.BoxGeometry(0.18, 0.55, 0.18);
   const armL = new THREE.Mesh(armGeo, skinMat); armL.position.set(-0.38, 1.05, 0); g.add(armL);
   const armR = new THREE.Mesh(armGeo, skinMat); armR.position.set(0.38, 1.05, 0); g.add(armR);
@@ -339,6 +488,10 @@ G.buildZombieMesh = function (type) {
   const legR = new THREE.Mesh(legGeo, mat); legR.position.set(0.15, 0.4, 0); g.add(legR);
   g.userData.limbs = { armL, armR, legL, legR };
   g.scale.setScalar(def.scale);
+  // slight random stagger lean, per instance, so a group of zombies doesn't
+  // look identically posed
+  g.userData.baseLean = (G.rng() - 0.5) * 0.14;
+  g.rotation.z = g.userData.baseLean;
   g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = false; } });
   return g;
 };
@@ -377,17 +530,38 @@ G.Zombie.prototype.takeDamage = function (dmg) {
   if (this.hp <= 0 && this.alive) { this.alive = false; return true; }
   return false;
 };
-G.Zombie.prototype.update = function (dt, playerPos, gameSpeedTimeScale) {
+// moveTarget drives WHERE the zombie walks (the player directly, or the next
+// waypoint when routing around walls -- see game.js updateZombies). attackTarget
+// is always the real player position; the returned distance is measured to
+// THAT (not moveTarget), so an in-transit waypoint never triggers a melee hit
+// from across a wall, and attack range always reflects true player proximity.
+G.Zombie.prototype.update = function (dt, moveTarget, attackTarget, colliders, gameSpeedTimeScale) {
   if (!this.alive) return;
+  attackTarget = attackTarget || moveTarget;
   this.walkT += dt * 6 * this.speed;
-  const dir = new THREE.Vector3().subVectors(playerPos, this.mesh.position);
+  const dir = new THREE.Vector3().subVectors(moveTarget, this.mesh.position);
   dir.y = 0;
-  const dist = dir.length();
-  if (dist > 0.9) {
+  const moveDist = dir.length();
+  if (moveDist > 0.9) {
     dir.normalize();
     const moveSpeed = this.speed * this.speedMultiplier * dt;
-    this.mesh.position.addScaledVector(dir, moveSpeed);
-    this.mesh.rotation.y = Math.atan2(dir.x, dir.z);
+    // Local obstacle avoidance (furniture/props within a room -- the waypoint
+    // graph in game.js already handles routing between rooms through actual
+    // doorways). Cheap: try the direct heading, then +/-40deg/80deg deflections,
+    // and take the first that doesn't walk straight into a collider's footprint.
+    let moveDir = dir;
+    if (colliders && colliders.length) {
+      const testPoint = new THREE.Vector3();
+      const angles = [0, 0.7, -0.7, 1.4, -1.4];
+      for (const a of angles) {
+        const cand = dir.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), a);
+        testPoint.copy(this.mesh.position).addScaledVector(cand, moveSpeed + 0.4);
+        const blocked = colliders.some((c) => testPoint.x >= c.min.x && testPoint.x <= c.max.x && testPoint.z >= c.min.z && testPoint.z <= c.max.z);
+        if (!blocked) { moveDir = cand; break; }
+      }
+    }
+    this.mesh.position.addScaledVector(moveDir, moveSpeed);
+    this.mesh.rotation.y = Math.atan2(moveDir.x, moveDir.z);
   }
   const swing = Math.sin(this.walkT) * 0.4;
   const limbs = this.mesh.userData.limbs;
@@ -396,7 +570,8 @@ G.Zombie.prototype.update = function (dt, playerPos, gameSpeedTimeScale) {
     limbs.legL.rotation.x = -swing; limbs.legR.rotation.x = swing;
   }
   this.attackCooldown -= dt;
-  return dist;
+  const dx = attackTarget.x - this.mesh.position.x, dz = attackTarget.z - this.mesh.position.z;
+  return Math.hypot(dx, dz);
 };
 
 // ---------------- Particles (muzzle flash / blood / crate burst) ----------------
@@ -439,6 +614,47 @@ G.spawnHitParticles = function (scene, position, color, quality) {
     else { scene.remove(pts); geo.dispose(); mat.dispose(); }
   };
   requestAnimationFrame(anim);
+};
+
+// One-shot spark burst for a frayed-wire decor point: a brief white/yellow
+// particle fan plus a quick light flash, using real elapsed time so it plays
+// the same regardless of the FPS cap.
+G.spawnSparkBurst = function (scene, sparkPoint) {
+  const position = new THREE.Vector3(sparkPoint.x, sparkPoint.y, sparkPoint.z);
+  const count = 7;
+  const geo = new THREE.BufferGeometry();
+  const positions = new Float32Array(count * 3);
+  const velocities = [];
+  for (let i = 0; i < count; i++) {
+    positions[i * 3] = position.x; positions[i * 3 + 1] = position.y; positions[i * 3 + 2] = position.z;
+    velocities.push(new THREE.Vector3((G.rng() - 0.5) * 2.4, -G.rng() * 1.5 - 0.5, (G.rng() - 0.5) * 2.4));
+  }
+  geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  const mat = new THREE.PointsMaterial({ color: 0xfff2b0, size: 0.06, transparent: true });
+  const pts = new THREE.Points(geo, mat);
+  scene.add(pts);
+  const light = new THREE.PointLight(0xfff2b0, 3.5, 5);
+  light.position.copy(position);
+  scene.add(light);
+  const t0 = performance.now();
+  const durationMs = 220;
+  const step = () => {
+    const life = (performance.now() - t0) / 1000;
+    const pos = geo.attributes.position.array;
+    for (let i = 0; i < count; i++) {
+      velocities[i].y -= 0.2;
+      pos[i * 3] += velocities[i].x * 0.02;
+      pos[i * 3 + 1] += velocities[i].y * 0.02;
+      pos[i * 3 + 2] += velocities[i].z * 0.02;
+    }
+    geo.attributes.position.needsUpdate = true;
+    const p = (performance.now() - t0) / durationMs;
+    mat.opacity = Math.max(0, 1 - p);
+    light.intensity = Math.max(0, 3.5 * (1 - p));
+    if (p < 1) requestAnimationFrame(step);
+    else { scene.remove(pts); scene.remove(light); geo.dispose(); mat.dispose(); }
+  };
+  requestAnimationFrame(step);
 };
 
 G.spawnCrateBurst = function (scene, position, rarityKey, quality) {
