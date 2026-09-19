@@ -25,7 +25,10 @@ G.Spawner = {
       const sp = G.pick(candidates);
       sp.cooldown = 2.5;
       const fastChance = Math.min(0.55, 0.1 + waveDifficulty * 0.08);
-      const type = sp.types.includes("fast") && G.rng() < fastChance ? "fast" : "normal";
+      const crawlerChance = Math.min(0.22, 0.05 + waveDifficulty * 0.025);
+      let type = "normal";
+      if (sp.types.includes("fast") && G.rng() < fastChance) type = "fast";
+      else if (G.rng() < crawlerChance) type = "crawler";
       spawnFn(type, sp.pos);
     }
     world.spawnPoints.forEach((sp) => { if (sp.cooldown > 0) sp.cooldown -= dt; });

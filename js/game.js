@@ -30,6 +30,9 @@ G.Game = {
   correctCount: 0, wrongCount: 0,
   raycaster: new THREE.Raycaster(),
   velocityY: 0,
+  aimT: 0, // 0-1 ADS blend (category H)
+  baseFov: 75, aimFov: 50,
+  stamina: 100, maxStamina: 100, // category I
   lastFrameTime: 0,
   fpsSmoothed: 60,
   shopTimer: 0,
@@ -177,15 +180,10 @@ G.Game = {
       combo: 0, comboTimer: 0, wasHitThisLevel: false,
       fireCooldown: 0, reloadTimeLeft: 0, reloading: false,
     };
-    // Weapons unlocked in previous runs (shop purchases, crate finds) carry over —
-    // G.save.unlockedWeapons is persisted specifically for this, but was never
-    // consulted here, so every run silently reset back to "pistol only".
-    (G.save.unlockedWeapons || []).forEach((wid) => {
-      if (wid === "pistol" || !G.WEAPON_DEFS[wid] || this.player.gunSlots.length >= 4) return;
-      this.player.gunSlots.push(wid);
-      this.player.ammo[wid] = { mag: G.WEAPON_DEFS[wid].magSize, reserve: G.WEAPON_DEFS[wid].magSize * 4 };
-      this.player.weaponLevels[wid] = { dmg: 1, rate: 1, mag: 1 };
-    });
+    // Every new run/death starts with pistol + melee only. G.save.unlockedWeapons
+    // is a permanent "ever discovered" record used by the Weapon Log (category F)
+    // to show stats for weapons you've found before -- it must NOT be used to
+    // re-equip those weapons into a fresh run's loadout.
     this.correctCount = 0; this.wrongCount = 0; this.wrongWordsThisRun = {};
     this.totalZombiesKilled = 0; // drives the hospital 2nd-floor unlock (category E3)
     this.dyingZombies = [];
@@ -196,6 +194,11 @@ G.Game = {
     this.drops = [];
     this.targetPair = null;
     this.wave = 0;
+    this.aimT = 0;
+    this.camera.fov = this.baseFov;
+    this.camera.updateProjectionMatrix();
+    this.stamina = this.maxStamina;
+    G.UI.setAimingVisual && G.UI.setAimingVisual(false);
 
     G.UI.showScreen(null);
     G.UI.setHudVisible(true);
@@ -442,7 +445,6 @@ G.Game = {
     this.startDeathAnimation(z);
     if (z.type === "boss") { this.onBossDefeated(z); return; }
     this.totalZombiesKilled++;
-    this.checkSecondFloorUnlock();
     const wasCorrect = this.targetPair && z.word === this.targetPair[0];
     if (wasCorrect) {
       this.correctCount++;
@@ -467,6 +469,7 @@ G.Game = {
       this.rollLootDrop(z, false);
     }
     this.zombies = this.zombies.filter((zz) => zz !== z);
+    this.checkSecondFloorUnlock();
     this.ensureTargetHasMatch();
     this.checkWaveClear();
     this.checkPlayerDeath();
@@ -560,6 +563,7 @@ G.Game = {
     G.spawnCrateBurst(this.scene, this.yawObject.position.clone(), rarityKey, G.save.settings.graphicsQuality);
     this.pauseForOverlay(true);
     this._onCrateClose = onClose || null;
+    G.Input.exitPointerLock();
     G.UI.showCrateScreen(rarityKey, weaponDef);
   },
   closeCrateScreen() {
@@ -569,6 +573,7 @@ G.Game = {
     const cb = this._onCrateClose;
     this._onCrateClose = null;
     cb && cb();
+    if (this.state === "GAMEPLAY" && G.Input.mode === "desktop") G.Input.requestPointerLock();
   },
 
   tryOpenStaticCrate(crateRef) {
@@ -678,6 +683,7 @@ G.Game = {
     const allMeanings = G.getAllBuiltinWords().map((p) => p[0]).filter((w) => w !== pair[0]);
     const choices = G.shuffle([pair[0], ...G.shuffle(allMeanings).slice(0, 3)]);
     this.challenge = { pair, choices, timeLeft: 8, timeLimit: 8, onSuccess, onFail };
+    G.Input.exitPointerLock();
     G.UI.setChallengeVisible(true, label);
     G.UI.setChallengeMeaning(pair[1]);
     G.UI.setChallengeChoices(choices);
@@ -691,6 +697,7 @@ G.Game = {
     G.UI.setChallengeVisible(false);
     this.challenge = null;
     if (correct) { this.correctCount++; cb && cb(); } else { this.wrongCount++; this.trackWrongWord(chosen ? this.challenge : "", ""); cb && cb(); }
+    if (this.state === "GAMEPLAY" && G.Input.mode === "desktop") G.Input.requestPointerLock();
   },
 
   // ---------------- Player death / results ----------------
@@ -787,7 +794,7 @@ G.Game = {
     let meaning = this.targetPair ? this.targetPair[1] : (this.zombies.length ? "-" : "รอศัตรูปรากฏตัว...");
     if (this.player.perks.perk_hint && this.targetPair) meaning += `  (ขึ้นต้นด้วย "${this.targetPair[0][0].toUpperCase()}")`;
     return {
-      hp: (this.player.hp / this.player.maxHp) * 100, money: this.player.money, score: this.player.score,
+      hp: (this.player.hp / this.player.maxHp) * 100, stamina: (this.stamina / this.maxStamina) * 100, money: this.player.money, score: this.player.score,
       levelLabel: `${this.level.name} · Wave ${this.wave}${this.mode === "campaign" ? "/" + this.level.waves : ""}`,
       zombiesLeft: this.zombies.length, weaponName: def.name,
       ammoInMag, ammoReserve, currentMeaning: meaning, slots, combo: this.player.combo,
@@ -833,7 +840,13 @@ G.Game = {
     }
     const len = Math.hypot(mx, mz);
     if (len > 1) { mx /= len; mz /= len; }
-    const sprinting = G.Input.mode === "desktop" && G.Input.isDown("sprint");
+    // Sprint is gated by stamina (category I): held sprint only speeds you up
+    // while stamina remains, and only actually drains while you're moving --
+    // holding the key while standing still costs nothing.
+    const wantSprint = G.Input.mode === "desktop" && G.Input.isDown("sprint");
+    const sprinting = wantSprint && this.stamina > 0 && len > 0.05;
+    if (sprinting) this.stamina = Math.max(0, this.stamina - 22 * dt);
+    else this.stamina = Math.min(this.maxStamina, this.stamina + 14 * dt);
     const speed = (sprinting ? 5.2 : 3.2) * this.player.moveSpeedMult * dt;
     const forward = new THREE.Vector3(-Math.sin(this.yawObject.rotation.y), 0, -Math.cos(this.yawObject.rotation.y));
     // right = forward rotated -90 deg around Y. (forward.z, 0, -forward.x) was
@@ -858,16 +871,32 @@ G.Game = {
     this.yawObject.position.y += this.velocityY * dt;
     if (this.yawObject.position.y < baseEyeY) { this.yawObject.position.y = baseEyeY; this.velocityY = 0; }
 
-    // weapon bob
+    // Aim Down Sights (category H): right mouse button held narrows the FOV
+    // and pulls the weapon toward center, blended over time (not an instant
+    // snap) so it reads as a deliberate aim rather than a jump-cut.
+    const def = this.currentWeaponDef();
+    const wantAim = G.Input.mode === "desktop" && G.Input.aimDown && def.id !== "melee" && !this.challenge;
+    const aimSpeed = 10;
+    this.aimT += ((wantAim ? 1 : 0) - this.aimT) * Math.min(1, aimSpeed * dt);
+    if (Math.abs(this.aimT) < 0.002) this.aimT = 0;
+    if (Math.abs(this.aimT - 1) < 0.002) this.aimT = 1;
+    this.camera.fov = this.baseFov + (this.aimFov - this.baseFov) * this.aimT;
+    this.camera.updateProjectionMatrix();
+    if (G.UI.setAimingVisual) G.UI.setAimingVisual(this.aimT > 0.5);
+
+    // weapon bob (reduced while aiming, and the weapon itself is pulled
+    // toward center the same way real ADS lines the sights up with the eye)
     if (this.weaponViewGroup) {
-      const bob = (len > 0 ? Math.sin(performance.now() * 0.012) * 0.015 : 0);
-      this.weaponViewGroup.position.y = -0.32 + bob;
+      const bob = (len > 0 ? Math.sin(performance.now() * 0.012) * 0.015 * (1 - this.aimT * 0.8) : 0);
+      this.weaponViewGroup.position.y = -0.32 + bob + 0.02 * this.aimT;
+      this.weaponViewGroup.position.x = 0.3 - 0.26 * this.aimT;
+      this.weaponViewGroup.position.z = -0.75 + 0.1 * this.aimT;
+      this.weaponViewGroup.rotation.y = -0.06 * (1 - this.aimT);
       if (this.weaponViewGroup.userData.rainbowTrim) this.weaponViewGroup.userData.rainbowTrim.rotation.z += dt * 2.4;
     }
 
-    // fire input
-    const wantFire = (G.Input.mode === "desktop" && G.Input.mouseDown) || G.Input.touchFire;
-    const def = this.currentWeaponDef();
+    // fire input (suppressed while a word-challenge popup wants the click for its answer buttons)
+    const wantFire = !this.challenge && ((G.Input.mode === "desktop" && G.Input.mouseDown) || G.Input.touchFire);
     if (wantFire && (def.auto || def.id === "melee" || this._fireEdge)) this.fireWeapon();
     this._fireEdge = false;
   },
@@ -1075,7 +1104,12 @@ G.Game = {
   checkSecondFloorUnlock() {
     const sf = this.world.secondFloor;
     if (!sf || sf.unlocked) return;
-    if (this.correctCount < 1 || this.totalZombiesKilled < sf.killsNeeded) return;
+    if (this.correctCount < 1) return;
+    // School's 2nd floor (category E, this round) only counts kills that came
+    // from answering the target word correctly -- Hospital's earlier design
+    // counts any kill, so this stays per-level rather than a global rule change.
+    const killTally = sf.countMode === "correct" ? this.correctCount : this.totalZombiesKilled;
+    if (killTally < sf.killsNeeded) return;
     sf.unlocked = true;
     sf.barrierMesh.visible = false;
     const idx = this.world.colliders.indexOf(sf.barrierCollider);
@@ -1107,6 +1141,7 @@ G.Game = {
       G.UI.setChallengeVisible(false);
       this.challenge = null;
       cb && cb();
+      if (this.state === "GAMEPLAY" && G.Input.mode === "desktop") G.Input.requestPointerLock();
     }
   },
 
@@ -1184,7 +1219,7 @@ G.onKeyDown = function (e) {
 G.onKeyUp = function () {};
 G.onMouseDown = function (e) {
   const Game = G.Game;
-  if (Game.state === "GAMEPLAY" && !Game.paused) Game._fireEdge = true;
+  if (Game.state === "GAMEPLAY" && !Game.paused && !Game.challenge) Game._fireEdge = true;
 };
 G.onInteractPress = function () { if (G.Game.state === "GAMEPLAY") G.Game.doInteract(); };
 G.onReloadPress = function () { if (G.Game.state === "GAMEPLAY") G.Game.reload(); };

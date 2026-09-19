@@ -192,6 +192,7 @@ G.Input = {
   keys: {},
   mouseDelta: { x: 0, y: 0 },
   mouseDown: false,
+  aimDown: false, // right mouse button held -- ADS (category H)
   pointerLocked: false,
   mode: "desktop", // desktop | touch
   touchMove: { x: 0, y: 0, active: false },
@@ -235,11 +236,21 @@ G.Input = {
     document.addEventListener("mousedown", (e) => {
       this._noteDesktopInput();
       if (e.button === 0) this.mouseDown = true;
+      if (e.button === 2) this.aimDown = true;
       G.onMouseDown && G.onMouseDown(e);
     });
-    document.addEventListener("mouseup", (e) => { if (e.button === 0) this.mouseDown = false; });
+    document.addEventListener("mouseup", (e) => {
+      if (e.button === 0) this.mouseDown = false;
+      if (e.button === 2) this.aimDown = false;
+    });
+    // Right-click drives ADS (category H) instead of the browser context menu.
+    document.getElementById("gameCanvas").addEventListener("contextmenu", (e) => e.preventDefault());
     document.addEventListener("pointerlockchange", () => {
       this.pointerLocked = document.pointerLockElement === document.getElementById("gameCanvas");
+      // Losing the lock (Escape, alt-tab, a popup opening) never delivers a
+      // mouseup, so without this a button held at that moment would stay
+      // "stuck" down (firing or aiming forever) once control returns.
+      if (!this.pointerLocked) { this.mouseDown = false; this.aimDown = false; }
     });
 
     window.addEventListener("touchstart", () => this._noteTouchInput(), { passive: true });

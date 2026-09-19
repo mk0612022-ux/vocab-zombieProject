@@ -404,41 +404,64 @@ G.updateWordSprite = function (sprite, text, color) {
 // ---------------- Zombie ----------------
 // damage values scaled 3.75x to match player HP going 100 -> 375 (same % dmg/hit)
 G.ZOMBIE_TYPES = {
-  normal: { hp: 34, speed: 1.7, scale: 1.0, color: 0x4c6b3a, damage: 30, scoreValue: 10 },
-  fast:   { hp: 22, speed: 3.1, scale: 0.85, color: 0x8a6a2a, damage: 23, scoreValue: 16 },
-  boss:   { hp: 900, speed: 1.0, scale: 3.0, color: 0x6b1e6b, damage: 83, scoreValue: 500 },
+  normal:  { hp: 34, speed: 1.7, scale: 1.0, color: 0x4c6b3a, damage: 30, scoreValue: 10 },
+  fast:    { hp: 22, speed: 3.1, scale: 0.85, color: 0x8a6a2a, damage: 23, scoreValue: 16 },
+  crawler: { hp: 26, speed: 1.3, scale: 0.9, color: 0x5c5449, damage: 26, scoreValue: 14 },
+  boss:    { hp: 900, speed: 1.0, scale: 3.0, color: 0x6b1e6b, damage: 83, scoreValue: 500 },
 };
 
 // Per-type face language (category D): normal/fast/boss each get a distinct
 // glow color and detail set so they read apart even in silhouette/low light,
 // not just by body color/size.
 const ZOMBIE_FACE = {
-  normal: { eyeColor: 0xff2a1a, eyeSize: 0.045, mouthWidth: 0.14, scars: 2 },
-  fast:   { eyeColor: 0xffe83a, eyeSize: 0.04, mouthWidth: 0.11, scars: 1 },
-  boss:   { eyeColor: 0xff0000, eyeSize: 0.07, mouthWidth: 0.2, scars: 5 },
+  normal:  { eyeColor: 0xff2a1a, eyeSize: 0.045, mouthWidth: 0.14, scars: 2 },
+  fast:    { eyeColor: 0xffe83a, eyeSize: 0.04, mouthWidth: 0.11, scars: 1 },
+  crawler: { eyeColor: 0xff8a1a, eyeSize: 0.05, mouthWidth: 0.16, scars: 3 },
+  boss:    { eyeColor: 0xff0000, eyeSize: 0.07, mouthWidth: 0.2, scars: 5 },
 };
 
-function addZombieFace(head, type, skinMat) {
+// Category C: per-instance random variation so zombies of the same type don't
+// look identical -- mixes face jitter, clothing damage, and optional mouth
+// blood, combined independently so many distinct-looking results are possible
+// from the same handful of building blocks.
+G.randomZombieVariation = function () {
+  return {
+    eyeSizeMult: 0.75 + G.rng() * 0.6,
+    eyeJitterX: (G.rng() - 0.5) * 0.02,
+    eyeJitterY: (G.rng() - 0.5) * 0.025,
+    earSizeMult: 0.75 + G.rng() * 0.5,
+    noseJitterX: (G.rng() - 0.5) * 0.025,
+    mouthBlood: G.rng() < 0.55,
+    tatterAmount: G.rng(), // 0 = barely torn, 1 = shredded
+    extraWounds: Math.floor(G.rng() * 3), // 0-2 extra scars beyond the type base
+  };
+}
+
+function addZombieFace(head, type, skinMat, variation) {
   const f = ZOMBIE_FACE[type] || ZOMBIE_FACE.normal;
+  const v = variation || G.randomZombieVariation();
   const eyeMat = new THREE.MeshBasicMaterial({ color: f.eyeColor });
+  const eyeSize = f.eyeSize * v.eyeSizeMult;
   [-0.09, 0.09].forEach((x) => {
-    const eye = new THREE.Mesh(new THREE.BoxGeometry(f.eyeSize, f.eyeSize, 0.02), eyeMat);
-    eye.position.set(x, 0.04, 0.175); head.add(eye);
+    const eye = new THREE.Mesh(new THREE.BoxGeometry(eyeSize, eyeSize, 0.02), eyeMat);
+    eye.position.set(x + v.eyeJitterX, 0.04 + v.eyeJitterY, 0.175); head.add(eye);
   });
   // ears
   [-0.175, 0.175].forEach((x) => {
-    const ear = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.08, 0.08), skinMat);
+    const ear = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.08 * v.earSizeMult, 0.08 * v.earSizeMult), skinMat);
     ear.position.set(x, 0, 0); head.add(ear);
   });
   // nose (slightly darker, damaged-looking)
   const noseMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(skinMat.color).multiplyScalar(0.7).getHex() });
   const nose = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.04), noseMat);
-  nose.position.set(0, -0.02, 0.18); head.add(nose);
+  nose.position.set(v.noseJitterX, -0.02, 0.18); head.add(nose);
   // gaping mouth with a blood-red interior showing
   const mouth = new THREE.Mesh(new THREE.BoxGeometry(f.mouthWidth, 0.06, 0.04), new THREE.MeshBasicMaterial({ color: 0x1a0505 }));
   mouth.position.set(0, -0.1, 0.175); head.add(mouth);
-  const blood = new THREE.Mesh(new THREE.BoxGeometry(f.mouthWidth * 0.8, 0.025, 0.045), new THREE.MeshBasicMaterial({ color: 0x8a1414 }));
-  blood.position.set(0, -0.14, 0.176); head.add(blood);
+  if (v.mouthBlood) {
+    const blood = new THREE.Mesh(new THREE.BoxGeometry(f.mouthWidth * 0.8, 0.025, 0.045), new THREE.MeshBasicMaterial({ color: 0x8a1414 }));
+    blood.position.set(0, -0.14, 0.176); head.add(blood);
+  }
 }
 
 function addWounds(torso, count) {
@@ -455,38 +478,76 @@ function addWounds(torso, count) {
   }
 }
 
-G.buildZombieMesh = function (type) {
+// Ragged clothing strips off the torso hem -- count/size driven by
+// variation.tatterAmount so some zombies look barely torn and others shredded.
+function addTatteredClothing(g, tornMat, tatterAmount, anchorY, anchorZ) {
+  const stripCount = 1 + Math.round(tatterAmount * 3); // 1-4 strips
+  for (let i = 0; i < stripCount; i++) {
+    const x = -0.18 + (i / Math.max(1, stripCount - 1)) * 0.36 + (G.rng() - 0.5) * 0.06;
+    const h = 0.12 + tatterAmount * 0.16 + G.rng() * 0.06;
+    const strip = new THREE.Mesh(new THREE.BoxGeometry(0.08, h, 0.04), tornMat);
+    strip.position.set(x, anchorY - h / 2, anchorZ);
+    strip.rotation.z = (G.rng() - 0.5) * 0.4 * (0.4 + tatterAmount);
+    g.add(strip);
+  }
+}
+
+G.buildZombieMesh = function (type, variation) {
   const def = G.ZOMBIE_TYPES[type];
+  const v = variation || G.randomZombieVariation();
   const g = new THREE.Group();
   const mat = G.makeBoxMat(def.color);
   const skinMat = G.makeBoxMat(new THREE.Color(def.color).offsetHSL(0, -0.1, 0.08).getHex());
   const tornMat = G.makeBoxMat(new THREE.Color(def.color).multiplyScalar(0.55).getHex());
-  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.7, 0.3), mat);
-  torso.position.y = 1.1; g.add(torso);
-  addWounds(torso, ZOMBIE_FACE[type] ? ZOMBIE_FACE[type].scars : 2);
-  // tattered clothing: a couple of ragged strips hanging off the torso hem
-  [-0.15, 0.1].forEach((x, i) => {
-    const strip = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.18 + i * 0.05, 0.04), tornMat);
-    strip.position.set(x, -0.42, 0.13); strip.rotation.z = (i === 0 ? -1 : 1) * 0.15; g.add(strip);
-  });
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.35, 0.35), skinMat);
-  head.position.y = 1.65; g.add(head);
-  head.name = "head";
-  addZombieFace(head, type, skinMat);
-  // boss gets visible shoulder armor plates to look distinctly more dangerous
-  if (type === "boss") {
-    [-0.32, 0.32].forEach((x) => {
-      const plate = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.14, 0.22), tornMat);
-      plate.position.set(x, 1.42, 0); g.add(plate);
-    });
+  const woundCount = (ZOMBIE_FACE[type] ? ZOMBIE_FACE[type].scars : 2) + v.extraWounds;
+
+  if (type === "crawler") {
+    // Legless crawler: body dragged low and near-horizontal instead of
+    // standing upright, forelimbs reaching forward for the pull stroke.
+    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.32, 0.75), mat);
+    torso.position.set(0, 0.32, -0.05); torso.rotation.x = -0.12; g.add(torso);
+    addWounds(torso, woundCount);
+    addTatteredClothing(g, tornMat, v.tatterAmount, 0.3, 0.15);
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.3, 0.32), skinMat);
+    head.position.set(0, 0.38, 0.42); head.rotation.x = 0.35; g.add(head);
+    head.name = "head";
+    addZombieFace(head, type, skinMat, v);
+    const armGeo = new THREE.BoxGeometry(0.15, 0.5, 0.15);
+    const armL = new THREE.Mesh(armGeo, skinMat); armL.position.set(-0.22, 0.28, 0.35); armL.rotation.x = -0.9; g.add(armL);
+    const armR = new THREE.Mesh(armGeo, skinMat); armR.position.set(0.22, 0.28, 0.35); armR.rotation.x = -0.9; g.add(armR);
+    // stumps where the legs used to be -- short, dragging, non-animated
+    const stumpGeo = new THREE.BoxGeometry(0.16, 0.16, 0.22);
+    const stumpL = new THREE.Mesh(stumpGeo, tornMat); stumpL.position.set(-0.13, 0.18, -0.4); g.add(stumpL);
+    const stumpR = new THREE.Mesh(stumpGeo, tornMat); stumpR.position.set(0.13, 0.18, -0.4); g.add(stumpR);
+    g.userData.limbs = { armL, armR, legL: null, legR: null };
+    g.userData.crawler = true;
+    g.userData.torso = torso;
+    g.userData.torsoBaseY = torso.position.y;
+  } else {
+    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.7, 0.3), mat);
+    torso.position.y = 1.1; g.add(torso);
+    addWounds(torso, woundCount);
+    addTatteredClothing(g, tornMat, v.tatterAmount, 0.75, 0.13);
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.35, 0.35), skinMat);
+    head.position.y = 1.65; g.add(head);
+    head.name = "head";
+    addZombieFace(head, type, skinMat, v);
+    // boss gets visible shoulder armor plates to look distinctly more dangerous
+    if (type === "boss") {
+      [-0.32, 0.32].forEach((x) => {
+        const plate = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.14, 0.22), tornMat);
+        plate.position.set(x, 1.42, 0); g.add(plate);
+      });
+    }
+    const armGeo = new THREE.BoxGeometry(0.18, 0.55, 0.18);
+    const armL = new THREE.Mesh(armGeo, skinMat); armL.position.set(-0.38, 1.05, 0); g.add(armL);
+    const armR = new THREE.Mesh(armGeo, skinMat); armR.position.set(0.38, 1.05, 0); g.add(armR);
+    const legGeo = new THREE.BoxGeometry(0.2, 0.6, 0.2);
+    const legL = new THREE.Mesh(legGeo, mat); legL.position.set(-0.15, 0.4, 0); g.add(legL);
+    const legR = new THREE.Mesh(legGeo, mat); legR.position.set(0.15, 0.4, 0); g.add(legR);
+    g.userData.limbs = { armL, armR, legL, legR };
   }
-  const armGeo = new THREE.BoxGeometry(0.18, 0.55, 0.18);
-  const armL = new THREE.Mesh(armGeo, skinMat); armL.position.set(-0.38, 1.05, 0); g.add(armL);
-  const armR = new THREE.Mesh(armGeo, skinMat); armR.position.set(0.38, 1.05, 0); g.add(armR);
-  const legGeo = new THREE.BoxGeometry(0.2, 0.6, 0.2);
-  const legL = new THREE.Mesh(legGeo, mat); legL.position.set(-0.15, 0.4, 0); g.add(legL);
-  const legR = new THREE.Mesh(legGeo, mat); legR.position.set(0.15, 0.4, 0); g.add(legR);
-  g.userData.limbs = { armL, armR, legL, legR };
+
   g.scale.setScalar(def.scale);
   // slight random stagger lean, per instance, so a group of zombies doesn't
   // look identically posed
@@ -563,9 +624,16 @@ G.Zombie.prototype.update = function (dt, moveTarget, attackTarget, colliders, g
     this.mesh.position.addScaledVector(moveDir, moveSpeed);
     this.mesh.rotation.y = Math.atan2(moveDir.x, moveDir.z);
   }
-  const swing = Math.sin(this.walkT) * 0.4;
   const limbs = this.mesh.userData.limbs;
-  if (limbs) {
+  if (limbs && this.mesh.userData.crawler) {
+    // Dragging crawl: forelimbs pull alternately (breast-stroke-like reach)
+    // and the torso bobs with each pull instead of a standing leg-swing.
+    const crawlSwing = Math.sin(this.walkT) * 0.5;
+    limbs.armL.rotation.x = -0.9 + crawlSwing;
+    limbs.armR.rotation.x = -0.9 - crawlSwing;
+    if (this.mesh.userData.torso) this.mesh.userData.torso.position.y = this.mesh.userData.torsoBaseY + Math.abs(Math.sin(this.walkT * 0.5)) * 0.05;
+  } else if (limbs) {
+    const swing = Math.sin(this.walkT) * 0.4;
     limbs.armL.rotation.x = swing; limbs.armR.rotation.x = -swing;
     limbs.legL.rotation.x = -swing; limbs.legR.rotation.x = swing;
   }

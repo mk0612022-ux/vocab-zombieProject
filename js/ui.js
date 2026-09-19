@@ -536,6 +536,7 @@ G.UI = {
     const dispScore = this._tweenValue("score", p.score);
     this.el("hud-hp-fill").style.width = Math.max(0, dispHp) + "%";
     this.el("hud-hp-text").textContent = Math.max(0, Math.round(dispHp));
+    this.el("hud-stamina-fill").style.width = Math.max(0, p.stamina) + "%";
     this.el("hud-money").textContent = Math.round(dispMoney);
     this.el("hud-score").textContent = Math.round(dispScore);
     this.el("hud-level-wave").textContent = p.levelLabel;
@@ -554,6 +555,7 @@ G.UI = {
     if (p.combo > 1) { this.el("hud-combo").classList.remove("hidden"); this.el("hud-combo").textContent = "COMBO x" + p.combo; }
     else this.el("hud-combo").classList.add("hidden");
   },
+  setAimingVisual(v) { this.el("hud-crosshair").classList.toggle("aiming", !!v); },
   showHitmarker() {
     const hm = this.el("hud-hitmarker");
     hm.classList.remove("hidden");
@@ -612,7 +614,10 @@ G.UI = {
   setChallengeMeaning(meaning) { this.el("hud-challenge-meaning").textContent = meaning || ""; },
   setChallengeChoices(choices) {
     const wrap = this.el("hud-challenge-choices");
-    wrap.innerHTML = (choices || []).map((c, i) => `<div class="hud-boss-choice"><b>[${i + 1}]</b>${c}</div>`).join("");
+    wrap.innerHTML = (choices || []).map((c, i) => `<div class="hud-boss-choice" data-idx="${i}"><b>[${i + 1}]</b>${c}</div>`).join("");
+    wrap.querySelectorAll(".hud-boss-choice").forEach((el) => {
+      el.onclick = () => G.Game.answerChallenge(parseInt(el.dataset.idx, 10));
+    });
   },
   setChallengeTimer(pct) { this.el("hud-challenge-timer-fill").style.width = Math.max(0, pct * 100) + "%"; },
   updateFpsCounter(fps) {

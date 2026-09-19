@@ -432,10 +432,10 @@ G.buildLevelScene = function (scene, level, quality) {
     west: { center: -14.5, width: DOOR_W }, // -> D
     north: { center: 0, width: DOOR_W },   // -> E (E sits at more-negative Z)
   });
-  // Hospital only: room C's east wall gets a second gap for the staircase up
-  // to the 2nd floor (category E3).
+  // Hospital and School: room C's east wall gets a second gap for the
+  // staircase up to their 2nd floor.
   const cGaps = { west: { center: -14.5, width: DOOR_W } };
-  if (level.theme === "hospital") cGaps.east = { center: -14.5, width: 3 };
+  if (level.theme === "hospital" || level.theme === "school") cGaps.east = { center: -14.5, width: 3 };
   addRoomWalls(ROOMS.C, cGaps);
   addRoomWalls(ROOMS.D, { east: { center: -14.5, width: DOOR_W } });
   addRoomWalls(ROOMS.E, { south: { center: 0, width: DOOR_W } });
@@ -506,6 +506,11 @@ G.buildLevelScene = function (scene, level, quality) {
     const lockerBlue = new THREE.MeshLambertMaterial({ color: 0x2f6fb0 });
     const lockerBlueDark = new THREE.MeshLambertMaterial({ color: 0x1f4d80 });
     const paperMat = new THREE.MeshLambertMaterial({ color: 0xe8e0c8 });
+    // Category F (this round): the school theme's wall/floor/wood tones are
+    // all muted olive-brown, so a few saturated accent colors are reused
+    // across lockers/posters/backpacks to keep the level from reading flat.
+    const lockerColors = [0x2f6fb0, 0xc9433c, 0xd9b23c, 0x3f9e5c].map((c) => new THREE.MeshLambertMaterial({ color: c }));
+    const posterColors = [0xd94f4f, 0x4f8fd9, 0xe0c23c, 0x4fd97a, 0xd97ad9];
 
     // Room A -- classroom: chalkboard + desks/chairs (upright and knocked over).
     addCanvasBox(-1, 2.1, -4.85, 3.2, 1.5, 0.12, (ctx, cv) => {
@@ -533,6 +538,12 @@ G.buildLevelScene = function (scene, level, quality) {
     addDecal(-0.6, 0.9, 0.28, 0.02, 0.36, paperMat, -0.6);
     addDecal(0.4, -1.2, 0.3, 0.02, 0.4, paperMat, 1.1);
     addDecal(3.5, 3.5, 0.3, 0.02, 0.4, paperMat, -0.3);
+    // Colorful torn posters/bulletin-board pages scattered on the floor --
+    // a plain cream color everywhere read as flat, these pop against the
+    // olive-brown classroom tones.
+    addDecal(-2.8, 3.2, 0.26, 0.02, 0.34, new THREE.MeshLambertMaterial({ color: posterColors[0] }), 0.8);
+    addDecal(2.9, -0.8, 0.28, 0.02, 0.3, new THREE.MeshLambertMaterial({ color: posterColors[1] }), -0.4);
+    addDecal(-0.2, 3.9, 0.24, 0.02, 0.32, new THREE.MeshLambertMaterial({ color: posterColors[2] }), 0.2);
 
     // Room B (hub) -- locker-lined hallway + the raised watch-stage platform.
     // Confined to z <= -17.5, well clear of the west doorway's opening
@@ -540,12 +551,15 @@ G.buildLevelScene = function (scene, level, quality) {
     // it and made that doorway physically unwalkable.
     for (let i = 0; i < 4; i++) {
       const lz = ROOMS.B.cz - 5.8 + i * 1.0; // -20.3 .. -17.3, inside the room and north of the gap
-      addProp(-5.9, lz, 0.5, 2.2, 0.85, i % 2 === 0 ? lockerBlue : lockerBlueDark);
+      addProp(-5.9, lz, 0.5, 2.2, 0.85, lockerColors[i % lockerColors.length]);
     }
+    // A couple of colorful dropped backpacks along the locker row.
+    addDecal(-5.3, ROOMS.B.cz - 5.5, 0.3, 0.16, 0.22, new THREE.MeshLambertMaterial({ color: 0xc9433c }), 0.5);
+    addDecal(-5.2, ROOMS.B.cz - 18.3, 0.3, 0.16, 0.22, new THREE.MeshLambertMaterial({ color: 0xd9b23c }), -0.3);
     const doorPivot = new THREE.Group();
     const openLockerZ = ROOMS.B.cz - 5.8 + 1 * 1.0; // matches locker index 1 above
     doorPivot.position.set(-5.65, 1.1, openLockerZ - 0.42);
-    const doorMesh = new THREE.Mesh(new THREE.BoxGeometry(0.42, 2.0, 0.04), lockerBlueDark);
+    const doorMesh = new THREE.Mesh(new THREE.BoxGeometry(0.42, 2.0, 0.04), lockerColors[1 % lockerColors.length]);
     doorMesh.position.set(0.21, 0, 0);
     doorPivot.add(doorMesh);
     doorPivot.rotation.y = -1.1;
@@ -585,6 +599,76 @@ G.buildLevelScene = function (scene, level, quality) {
       ctx.font = "bold 52px monospace"; ctx.fillStyle = "#ff3b3b";
       ctx.fillText("00 : 00", 128, 92);
     }, 0x1a1a1a);
+
+    // ---------------- 2nd floor (category E, this round) ----------------
+    // Library / staff meeting room / teachers' lounge, continuing the school
+    // theme. Same staircase-and-offset-room pattern as the hospital's 2nd
+    // floor (the height-zone system can't stack two floors at one XZ point).
+    const floor2Y = 4.2;
+    const stairX0 = 20.2, stairX1 = 24.2;
+    const rampLen = stairX1 - stairX0;
+    const rampMesh = new THREE.Mesh(new THREE.BoxGeometry(rampLen, 0.2, 3), wallMat);
+    rampMesh.position.set((stairX0 + stairX1) / 2, floor2Y / 2, -14.5);
+    rampMesh.rotation.z = -Math.atan2(floor2Y, rampLen);
+    scene.add(rampMesh);
+    world.heightZones.push({ minX: stairX0, maxX: stairX1, minZ: -16, maxZ: -13, ramp: true, axis: "x", h0: 0, h1: floor2Y });
+
+    const F = { cx: 29.7, cz: -14.5, w: 10, d: 10 };
+    world.heightZones.push({ minX: F.cx - F.w / 2, maxX: F.cx + F.w / 2, minZ: F.cz - F.d / 2, maxZ: F.cz + F.d / 2, height: floor2Y });
+    addFloor(F.cx, F.cz, F.w, F.d, floor2Y);
+    const fh = 3.2;
+    function addUpperWall(x, z, w, d) {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, fh, d), wallMat);
+      m.position.set(x, floor2Y + fh / 2, z);
+      scene.add(m);
+      world.colliders.push(new THREE.Box3().setFromObject(m));
+    }
+    // West wall keeps a 3-unit gap (z=[-16,-13]) matching the stair/ramp width.
+    const fWestX = F.cx - F.w / 2;
+    addUpperWall(fWestX, -17.75, 0.4, 3.5);
+    addUpperWall(fWestX, -11.25, 0.4, 3.5);
+    [[F.cx + F.w / 2, F.cz, 0.4, F.d], [F.cx, F.cz - F.d / 2, F.w, 0.4], [F.cx, F.cz + F.d / 2, F.w, 0.4]].forEach(([x, z, w, d]) => addUpperWall(x, z, w, d));
+    const fCeil = new THREE.Mesh(new THREE.BoxGeometry(F.w, 0.3, F.d), ceilingMat);
+    fCeil.position.set(F.cx, floor2Y + fh + 0.15, F.cz);
+    scene.add(fCeil);
+    addLight(F.cx - 2, floor2Y + fh - 0.4, F.cz - 2, 0xd8c98c, 1.2, 1.4);
+    addLight(F.cx + 2, floor2Y + fh - 0.4, F.cz + 2, 0xffe08a, 1.0, 1.8);
+
+    // Library nook -- more striped bookshelves, continuing room C's look.
+    [0.55, 1.2, 1.85].forEach((y, row) => {
+      for (let i = 0; i < 6; i++) {
+        const z = F.cz - 3.9 + i * 0.2;
+        addFloatBox(F.cx - 3.9, floor2Y + y, z, 0.06, 0.5, 0.15, new THREE.MeshLambertMaterial({ color: stripeColors[(i + row) % stripeColors.length] }));
+      }
+    });
+    // Staff meeting room -- long table with a corpse slumped over it.
+    addFloatBox(F.cx + 1, floor2Y + 0.45, F.cz - 1, 2.4, 0.1, 1.0, woodMat);
+    addFloatBox(F.cx + 1, floor2Y + 0.22, F.cz - 1.7, 0.4, 0.4, 0.4, woodDarkMat);
+    addFloatBox(F.cx + 1, floor2Y + 0.22, F.cz - 0.3, 0.4, 0.4, 0.4, woodDarkMat);
+    addCorpse(F.cx + 1.5, F.cz - 1, 0.8, 0xd9a83c);
+    addBloodStain(F.cx + 1.5, F.cz - 1, 0.7, 0.8);
+    // Teachers' lounge -- lockers + a second corpse.
+    addFloatBox(F.cx - 2, floor2Y + 0.9, F.cz + 3, 0.5, 1.8, 0.7, lockerBlue);
+    addFloatBox(F.cx - 1.3, floor2Y + 0.9, F.cz + 3, 0.5, 1.8, 0.7, lockerBlueDark);
+    addCorpse(F.cx + 3, F.cz + 3, 1.6, 0x8a3fb0);
+    addBloodStain(F.cx + 3, F.cz + 3, 0.6, 1.6);
+
+    world.regions.push({ name: "F", minX: F.cx - F.w / 2, maxX: F.cx + F.w / 2, minZ: F.cz - F.d / 2, maxZ: F.cz + F.d / 2 });
+    world.regions.push({ name: "CF", minX: stairX0, maxX: stairX1, minZ: -16, maxZ: -13 });
+    world.waypointNodes.F = { x: F.cx, z: F.cz };
+    world.waypointNodes.CF = { x: (stairX0 + stairX1) / 2, z: -14.5 };
+    world.waypointEdges.C.push("CF"); world.waypointEdges.CF = ["C", "F"]; world.waypointEdges.F = ["CF"];
+
+    const barrier2 = addBarricade(stairX0 - 0.3, -14.5, 3, new THREE.MeshLambertMaterial({ color: 0x5c5438 }));
+    addBloodStain(stairX0 - 0.3, -14.5, 0.6, 0.5);
+    world.secondFloor = {
+      unlocked: false, barrierMesh: barrier2.mesh, barrierCollider: barrier2.collider,
+      // Category E (this round): School's 2nd floor counts ONLY kills scored
+      // by answering the target word correctly, unlike Hospital's "any kill"
+      // rule -- see countMode in checkSecondFloorUnlock (game.js).
+      killsNeeded: 20, countMode: "correct", room: F, floorY: floor2Y,
+      cratePositions: [new THREE.Vector3(F.cx + 3, floor2Y + 0.3, F.cz + 3), new THREE.Vector3(F.cx - 2, floor2Y + 0.3, F.cz + 3.5)],
+    };
   }
 
   function decorateHospital(t) {
@@ -801,8 +885,15 @@ G.buildLevelScene = function (scene, level, quality) {
   ].map((sp) => Object.assign(sp, { cooldown: 0 }));
 
   // ---------------- Interactions ----------------
-  // Word-locked door blocking a direct look at the east wing's landmark.
-  const lockedDoor = addProp(ROOMS.C.cx - 3.3, ROOMS.C.cz - 5.4, 0.3, 3, 3.4, new THREE.MeshLambertMaterial({ color: 0x995533 }));
+  // Word-locked door blocking a direct look at the east wing's landmark. Its
+  // color reads too close to the surrounding wall in every theme's dim
+  // lighting, so it also gets a bright self-lit frame (never used for walls)
+  // that makes it obvious at a glance which panel is the interactive door.
+  const lockedDoorX = ROOMS.C.cx - 3.3, lockedDoorZ = ROOMS.C.cz - 5.4;
+  const lockedDoor = addProp(lockedDoorX, lockedDoorZ, 0.3, 3, 3.4, new THREE.MeshLambertMaterial({ color: 0xb2452f }));
+  addGlowBox(lockedDoorX, 3.05, lockedDoorZ, 0.34, 0.1, 3.5, 0xffcc33);
+  addGlowBox(lockedDoorX, 1.5, lockedDoorZ - 1.75, 0.34, 3.1, 0.08, 0xffcc33);
+  addGlowBox(lockedDoorX, 1.5, lockedDoorZ + 1.75, 0.34, 3.1, 0.08, 0xffcc33);
   // `collider` is captured so opening the door can remove it from world.colliders --
   // hiding the mesh alone (the previous behavior) left an invisible wall in place.
   world.doors.push({ mesh: lockedDoor, locked: true, kind: "word", opened: false, collider: world.colliders[world.colliders.length - 1] });
