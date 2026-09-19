@@ -32,7 +32,10 @@ G.Game = {
   velocityY: 0,
   aimT: 0, // 0-1 ADS blend (category H)
   baseFov: 75, aimFov: 50,
-  stamina: 100, maxStamina: 100, // category I
+  stamina: 100, maxStamina: 100, staminaExhausted: false, // category I
+  // category E: weapon switch / reload / recoil animation state
+  weaponAnim: { switchT: 0, switchDur: 0.42, pendingRebuild: false, reloadT: 0, reloadDur: 0, recoilPos: 0, recoilRot: 0 },
+  recoilRecover: 0,
   lastFrameTime: 0,
   fpsSmoothed: 60,
   shopTimer: 0,
@@ -195,9 +198,13 @@ G.Game = {
     this.targetPair = null;
     this.wave = 0;
     this.aimT = 0;
+    this._mysteryHand = null; this._mysteryPick = null;
+    this.weaponAnim = { switchT: 0, switchDur: 0.42, pendingRebuild: false, reloadT: 0, reloadDur: 0, recoilPos: 0, recoilRot: 0 };
+    this.recoilRecover = 0;
     this.camera.fov = this.baseFov;
     this.camera.updateProjectionMatrix();
     this.stamina = this.maxStamina;
+    this.staminaExhausted = false;
     G.UI.setAimingVisual && G.UI.setAimingVisual(false);
 
     G.UI.showScreen(null);
@@ -342,6 +349,9 @@ G.Game = {
     if (this.player.reloading || ammo.mag >= magSize || ammo.reserve <= 0) return;
     this.player.reloading = true;
     this.player.reloadTimeLeft = def.reloadTime / 1000;
+    // Animation runs for exactly this weapon's reload time (category E2).
+    this.weaponAnim.reloadDur = def.reloadTime / 1000;
+    this.weaponAnim.reloadT = this.weaponAnim.reloadDur;
   },
 
   // ---------------- Shooting ----------------
@@ -361,7 +371,8 @@ G.Game = {
     const origin = new THREE.Vector3();
     this.camera.getWorldPosition(origin);
     G.spawnMuzzleFlash(this.scene, origin.clone().addScaledVector(dir, 0.6), G.save.settings.graphicsQuality);
-    this.recoilKick();
+    this.recoilKick(def);
+    G.spawnShellEject(this.scene, this.camera, G.save.settings.graphicsQuality);
 
     const shots = def.pellets || 1;
     let anyHit = false;
@@ -421,10 +432,86 @@ G.Game = {
     if (best) { G.UI.showHitmarker(); this.damageZombie(best, def.damage, best.mesh.position); }
   },
 
-  recoilKick() {
+  // Category E3: a real kick -- the gun punches back and tilts up, the view
+  // itself gets a small punch, and both spring back over the next few frames
+  // (the old version nudged the model 6cm for 60ms and that was it). Strength
+  // scales with each weapon's own `recoil`, so a Meteor Detention throws the
+  // gun far harder than a Scrap Spitter.
+  recoilKick(def) {
+    const strength = (def && def.recoil) || Math.min(2.2, 0.35 + (def ? def.damage : 20) / 45);
+    const a = this.weaponAnim;
+    a.recoilPos = Math.min(0.26, a.recoilPos + 0.05 + strength * 0.055);
+    a.recoilRot = Math.min(0.5, a.recoilRot + 0.05 + strength * 0.075);
+    const kick = strength * 0.013;
+    this.pitchObject.rotation.x += kick; // view punches upward...
+    this.recoilRecover += kick;          // ...and is pulled back down over the next moments
+  },
+  updateWeaponAnim(dt) {
+    const a = this.weaponAnim;
+    // recoil spring
+    const springed = Math.exp(-16 * dt);
+    a.recoilPos *= springed;
+    a.recoilRot *= springed;
+    if (a.recoilPos < 0.0005) a.recoilPos = 0;
+    if (a.recoilRot < 0.0005) a.recoilRot = 0;
+    if (this.recoilRecover > 0) {
+      const back = Math.min(this.recoilRecover, this.recoilRecover * 9 * dt + 0.0008);
+      this.pitchObject.rotation.x -= back;
+      this.recoilRecover -= back;
+    }
+    // weapon switch: lower the old gun, swap models at the bottom, raise the new one
+    if (a.switchT > 0) {
+      a.switchT = Math.max(0, a.switchT - dt);
+      const p = 1 - a.switchT / a.switchDur;
+      if (p >= 0.5 && a.pendingRebuild) { a.pendingRebuild = false; this.buildWeaponViewModel(); }
+    }
+    // reload: tilt the gun over, drop the spent mag, slap a new one in
+    if (a.reloadT > 0) {
+      const prev = a.reloadT;
+      a.reloadT = Math.max(0, a.reloadT - dt);
+      const p = 1 - a.reloadT / a.reloadDur;
+      const prevP = 1 - prev / a.reloadDur;
+      if (prevP < 0.22 && p >= 0.22) this.dropSpentMagazine();
+    }
+  },
+  switchOffset() {
+    const a = this.weaponAnim;
+    if (a.switchT <= 0) return 0;
+    const p = 1 - a.switchT / a.switchDur;
+    return -0.62 * (1 - Math.abs(2 * p - 1)); // down at the swap point, level at both ends
+  },
+  reloadPose() {
+    const a = this.weaponAnim;
+    if (a.reloadT <= 0) return null;
+    const p = 1 - a.reloadT / a.reloadDur;
+    const inT = Math.min(1, p / 0.18);                    // tilt out
+    const outT = Math.min(1, Math.max(0, (p - 0.86) / 0.14)); // settle back
+    const hold = inT * (1 - outT);
+    // sharp jolt as the fresh mag locks home
+    const jolt = p > 0.82 && p < 0.92 ? Math.sin((p - 0.82) / 0.1 * Math.PI) * 0.055 : 0;
+    return { drop: -0.16 * hold + jolt, roll: -0.55 * hold, pitch: 0.28 * hold };
+  },
+  dropSpentMagazine() {
     if (!this.weaponViewGroup) return;
-    this.weaponViewGroup.position.z += 0.06;
-    setTimeout(() => { if (this.weaponViewGroup) this.weaponViewGroup.position.z -= 0.06; }, 60);
+    const def = this.currentWeaponDef();
+    const magColor = new THREE.Color(def.color || 0x888888).lerp(new THREE.Color(0xffffff), 0.45).getHex();
+    const mag = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.14, 0.08), new THREE.MeshLambertMaterial({ color: magColor }));
+    const start = this.weaponViewGroup.getWorldPosition(new THREE.Vector3());
+    mag.position.copy(start);
+    this.scene.add(mag);
+    const vel = new THREE.Vector3((G.rng() - 0.5) * 0.4, 0.6, (G.rng() - 0.5) * 0.4);
+    const spin = new THREE.Vector3(G.rng() * 6, G.rng() * 6, G.rng() * 6);
+    const t0 = performance.now();
+    const step = () => {
+      const el = (performance.now() - t0) / 1000;
+      const d = 1 / 60;
+      vel.y -= 9.8 * d;
+      mag.position.addScaledVector(vel, d);
+      mag.rotation.x += spin.x * d; mag.rotation.y += spin.y * d; mag.rotation.z += spin.z * d;
+      if (el < 1.4) requestAnimationFrame(step);
+      else { this.scene.remove(mag); G.disposeObject3D(mag); }
+    };
+    requestAnimationFrame(step);
   },
 
   damageZombie(z, dmg, hitPoint) {
@@ -556,7 +643,7 @@ G.Game = {
 
   openCrate(rarityKey, guaranteedMin, onClose) {
     if (guaranteedMin && G.RARITY_ORDER.indexOf(rarityKey) < G.RARITY_ORDER.indexOf(guaranteedMin)) rarityKey = guaranteedMin;
-    const pool = Object.values(G.WEAPON_DEFS).filter((w) => w.rarity === rarityKey && !w.wallExclusive);
+    const pool = Object.values(G.WEAPON_DEFS).filter((w) => w.rarity === rarityKey && !w.wallExclusive && !w.boxOnly);
     const weaponDef = pool.length ? G.pick(pool) : G.WEAPON_DEFS.pistol;
     this.acquireWeapon(weaponDef.id);
     if (rarityKey === "secret") G.unlockAchievement("secret_crate");
@@ -769,6 +856,7 @@ G.Game = {
     this.updateDrops(dt);
     this.updateInteractRay();
     this.updateTraps(dt);
+    this.updateRoomDoors(dt);
     G.updateFlickerLights(this.world, performance.now() / 1000);
     G.updateDriftingFog(this.scene, this.world, performance.now() / 1000);
     G.updateSparks(this.scene, this.world, dt);
@@ -794,7 +882,8 @@ G.Game = {
     let meaning = this.targetPair ? this.targetPair[1] : (this.zombies.length ? "-" : "รอศัตรูปรากฏตัว...");
     if (this.player.perks.perk_hint && this.targetPair) meaning += `  (ขึ้นต้นด้วย "${this.targetPair[0][0].toUpperCase()}")`;
     return {
-      hp: (this.player.hp / this.player.maxHp) * 100, stamina: (this.stamina / this.maxStamina) * 100, money: this.player.money, score: this.player.score,
+      hp: (this.player.hp / this.player.maxHp) * 100, stamina: (this.stamina / this.maxStamina) * 100,
+      staminaExhausted: this.staminaExhausted, money: this.player.money, score: this.player.score,
       levelLabel: `${this.level.name} · Wave ${this.wave}${this.mode === "campaign" ? "/" + this.level.waves : ""}`,
       zombiesLeft: this.zombies.length, weaponName: def.name,
       ammoInMag, ammoReserve, currentMeaning: meaning, slots, combo: this.player.combo,
@@ -844,7 +933,14 @@ G.Game = {
     // while stamina remains, and only actually drains while you're moving --
     // holding the key while standing still costs nothing.
     const wantSprint = G.Input.mode === "desktop" && G.Input.isDown("sprint");
-    const sprinting = wantSprint && this.stamina > 0 && len > 0.05;
+    // A3: at exactly 0 stamina the old check (stamina > 0) flipped back on the
+    // very next frame, because the non-sprint branch regenerates -- so holding
+    // sprint at empty alternated drain/regen frames and still moved you at
+    // roughly sprint speed forever. Now running out latches an exhausted state
+    // that only clears once stamina is back above 20%.
+    if (this.stamina <= 0) this.staminaExhausted = true;
+    else if (this.staminaExhausted && this.stamina >= this.maxStamina * 0.2) this.staminaExhausted = false;
+    const sprinting = wantSprint && !this.staminaExhausted && len > 0.05;
     if (sprinting) this.stamina = Math.max(0, this.stamina - 22 * dt);
     else this.stamina = Math.min(this.maxStamina, this.stamina + 14 * dt);
     const speed = (sprinting ? 5.2 : 3.2) * this.player.moveSpeedMult * dt;
@@ -884,19 +980,26 @@ G.Game = {
     this.camera.updateProjectionMatrix();
     if (G.UI.setAimingVisual) G.UI.setAimingVisual(this.aimT > 0.5);
 
-    // weapon bob (reduced while aiming, and the weapon itself is pulled
-    // toward center the same way real ADS lines the sights up with the eye)
+    // Weapon view transform: bob + ADS pull-in, then the category-E animation
+    // offsets (switch dip, reload tilt, recoil kick) layered on top of it.
+    this.updateWeaponAnim(dt);
     if (this.weaponViewGroup) {
+      const a = this.weaponAnim;
+      const rl = this.reloadPose();
       const bob = (len > 0 ? Math.sin(performance.now() * 0.012) * 0.015 * (1 - this.aimT * 0.8) : 0);
-      this.weaponViewGroup.position.y = -0.32 + bob + 0.02 * this.aimT;
+      this.weaponViewGroup.position.y = -0.32 + bob + 0.02 * this.aimT + this.switchOffset() + (rl ? rl.drop : 0);
       this.weaponViewGroup.position.x = 0.3 - 0.26 * this.aimT;
-      this.weaponViewGroup.position.z = -0.75 + 0.1 * this.aimT;
+      this.weaponViewGroup.position.z = -0.75 + 0.1 * this.aimT + a.recoilPos;
       this.weaponViewGroup.rotation.y = -0.06 * (1 - this.aimT);
+      this.weaponViewGroup.rotation.x = -a.recoilRot + (rl ? rl.pitch : 0);
+      this.weaponViewGroup.rotation.z = rl ? rl.roll : 0;
       if (this.weaponViewGroup.userData.rainbowTrim) this.weaponViewGroup.userData.rainbowTrim.rotation.z += dt * 2.4;
     }
 
-    // fire input (suppressed while a word-challenge popup wants the click for its answer buttons)
-    const wantFire = !this.challenge && ((G.Input.mode === "desktop" && G.Input.mouseDown) || G.Input.touchFire);
+    // fire input (suppressed while a word-challenge popup wants the click for
+    // its answer buttons, and while a weapon swap is still in progress)
+    const wantFire = !this.challenge && this.weaponAnim.switchT <= 0
+      && ((G.Input.mode === "desktop" && G.Input.mouseDown) || G.Input.touchFire);
     if (wantFire && (def.auto || def.id === "melee" || this._fireEdge)) this.fireWeapon();
     this._fireEdge = false;
   },
@@ -937,8 +1040,22 @@ G.Game = {
         }
       }
     }
-    if (!this.weaponViewGroup || this._lastWeaponId !== this.currentWeaponId()) {
+    // Category E1: a swap no longer snaps the new model in instantly -- the
+    // old gun drops out of frame, the model is swapped at the bottom of that
+    // dip, and the new one rises into place (firing is locked out until it's
+    // finished, see the wantFire gate in updatePlayerMovement).
+    if (this._lastWeaponId !== this.currentWeaponId()) {
+      const first = !this.weaponViewGroup;
       this._lastWeaponId = this.currentWeaponId();
+      if (first) { this.buildWeaponViewModel(); }
+      else {
+        this.weaponAnim.switchDur = 0.42;
+        this.weaponAnim.switchT = this.weaponAnim.switchDur;
+        this.weaponAnim.pendingRebuild = true;
+        this.weaponAnim.reloadT = 0;
+        this.player.reloading = false;
+      }
+    } else if (!this.weaponViewGroup) {
       this.buildWeaponViewModel();
     }
   },
@@ -1014,8 +1131,11 @@ G.Game = {
     const targets = this.world.interactables.map((i) => i.mesh);
     const hits = this.raycaster.intersectObjects(targets, true);
     if (hits.length) {
-      let obj = hits[0].object;
-      const found = this.world.interactables.find((i) => i.mesh === obj || i.mesh === obj.parent);
+      // Walk the whole parent chain: interactables are groups now (doors have
+      // a panel + handle under a hinge pivot), so a single .parent hop isn't
+      // always enough to get back to the registered mesh.
+      let obj = hits[0].object, found = null;
+      while (obj && !found) { found = this.world.interactables.find((i) => i.mesh === obj); obj = obj.parent; }
       this._lookedAtInteractable = found;
       if (found) {
         let label = "กด E เพื่อโต้ตอบ";
@@ -1024,6 +1144,10 @@ G.Game = {
         if (found.kind === "crate") label = found.ref.opened ? "" : "กด E เพื่อเปิดกล่อง";
         if (found.kind === "trap") label = found.ref.active ? "กด E เพื่อปิดกับดัก (ต้องตอบคำศัพท์)" : "";
         if (found.kind === "hatch") label = found.ref.opened ? "" : "กด E เพื่อเปิดฝาปิด (ต้องตอบคำศัพท์)";
+        if (found.kind === "roomdoor") label = found.ref.open ? "กด E เพื่อปิดประตู" : "กด E เพื่อเปิดประตู";
+        if (found.kind === "mysterybox") {
+          label = `กด E เพื่อสุ่มปืน ($${G.MYSTERY_BOX_COST})` + (this.player.money < G.MYSTERY_BOX_COST ? " - เงินไม่พอ" : "");
+        }
         if (found.kind === "wallweapon") {
           const wdef = G.WEAPON_DEFS[found.ref.id];
           label = found.ref.purchased ? "" : `กด E เพื่อซื้อ ${wdef.name} ($${wdef.price}${this.player.money < wdef.price ? " - เงินไม่พอ" : ""})`;
@@ -1060,6 +1184,91 @@ G.Game = {
       this.tryOpenStaticCrate(found.ref);
     } else if (found.kind === "wallweapon") {
       this.buyWallWeapon(found.ref);
+    } else if (found.kind === "roomdoor") {
+      this.toggleRoomDoor(found.ref);
+    } else if (found.kind === "mysterybox") {
+      this.openMysteryBox();
+    }
+  },
+
+  // ---------------- Mystery weapon box (category C) ----------------
+  openMysteryBox() {
+    if (this._mysteryHand) return;
+    if (this.player.money < G.MYSTERY_BOX_COST) {
+      G.UI.flashPurchaseBanner("เงินไม่พอ",
+        `ต้องใช้ $${G.MYSTERY_BOX_COST} · มีอยู่ $${Math.floor(this.player.money)}`);
+      return;
+    }
+    this.player.money -= G.MYSTERY_BOX_COST;
+    G.UI.pulseHudStat("money");
+    this._mysteryHand = G.rollMysteryHand();
+    this._mysteryPick = null;
+    // Freeze everything (zombies, timers, player) and hand the mouse back --
+    // same overlay pattern the crate/word popups use.
+    this.pauseForOverlay(true);
+    G.Input.exitPointerLock();
+    G.UI.setHudVisible(false);
+    G.UI.showMysteryCards(this._mysteryHand, (idx) => this.pickMysteryCard(idx));
+  },
+  pickMysteryCard(idx) {
+    if (!this._mysteryHand || this._mysteryPick !== null) return;
+    this._mysteryPick = idx;
+    const picked = this._mysteryHand[idx];
+    G.UI.revealMysteryCards(this._mysteryHand, idx);
+    G.spawnCrateBurst(this.scene, this.yawObject.position.clone(), picked.rarity, G.save.settings.graphicsQuality);
+  },
+  confirmMysteryPick() {
+    if (!this._mysteryHand || this._mysteryPick === null) return;
+    const picked = this._mysteryHand[this._mysteryPick];
+    this._mysteryHand = null; this._mysteryPick = null;
+    this.acquireWeapon(picked.id);
+    if (this.world.mysteryBox) this.world.mysteryBox.uses++;
+    G.UI.showScreen(null);
+    G.UI.setHudVisible(true);
+    this.pauseForOverlay(false);
+    if (this.state === "GAMEPLAY" && G.Input.mode === "desktop") G.Input.requestPointerLock();
+  },
+
+  // ---------------- Room doors (category B) ----------------
+  toggleRoomDoor(ref, forceOpen) {
+    const willOpen = forceOpen === undefined ? !ref.open : forceOpen;
+    if (willOpen === ref.open && ref.animT >= 1) return;
+    ref.open = willOpen;
+    ref.bashTimer = 0;
+    const idx = this.world.colliders.indexOf(ref.collider);
+    if (willOpen) { if (idx >= 0) this.world.colliders.splice(idx, 1); }
+    else if (idx < 0) this.world.colliders.push(ref.collider);
+    // The swing is stepped by updateRoomDoors from the game loop's own dt.
+    // A requestAnimationFrame chain would keep running while the game is
+    // paused and, worse, stall out entirely if the tab is backgrounded --
+    // which left the door stuck half-open and un-interactable.
+    ref.fromRot = ref.mesh.rotation.y;
+    ref.toRot = willOpen ? (ref.axis === "x" ? -Math.PI / 2 : Math.PI / 2) : 0;
+    ref.animT = 0;
+  },
+  // A closed door blocks zombies too, so one held up against it leans on it
+  // until it gives way -- without this, shutting every door would strand a
+  // wave's remaining zombies and the level could never be cleared.
+  updateRoomDoors(dt) {
+    const doors = this.world.roomDoors;
+    if (!doors || !doors.length) return;
+    for (const d of doors) {
+      if (d.animT < 1) {
+        d.animT = Math.min(1, d.animT + dt / 0.34);
+        const e = 1 - Math.pow(1 - d.animT, 3);
+        d.mesh.rotation.y = d.fromRot + (d.toRot - d.fromRot) * e;
+      }
+      if (d.open) continue;
+      let pressed = false;
+      for (const z of this.zombies) {
+        if (!z.alive) continue;
+        if (Math.hypot(z.mesh.position.x - d.x, z.mesh.position.z - d.z) < 1.6) { pressed = true; break; }
+      }
+      if (!pressed) { d.bashTimer = 0; continue; }
+      d.bashTimer += dt;
+      // shudder while being pushed on, so it reads as under attack
+      d.mesh.rotation.y = Math.sin(d.bashTimer * 22) * 0.05;
+      if (d.bashTimer >= 2.0) { d.mesh.rotation.y = 0; this.toggleRoomDoor(d, true); }
     }
   },
 

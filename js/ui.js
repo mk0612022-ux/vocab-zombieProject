@@ -12,6 +12,7 @@ G.UI = {
     "screen-leaderboard", "screen-achievements", "screen-import", "screen-practice-setup",
     "screen-practice-play", "screen-shop", "screen-crate", "screen-pause",
     "screen-gameover", "screen-victory", "screen-vocablog", "screen-weaponlog",
+    "screen-mystery",
   ],
 
   showScreen(id) {
@@ -58,6 +59,7 @@ G.UI = {
     this.bindGameOverVictory();
     this.bindShop();
     this.bindCrate();
+    this.bindMystery();
     this.applyFontSizeClass();
   },
 
@@ -275,7 +277,7 @@ G.UI = {
     const wallId = { school: "school_wall", hospital: "hospital_wall", bunker: "bunker_wall" }[level.theme];
     let html = "";
     G.RARITY_ORDER.forEach((rk) => {
-      const weapons = Object.values(G.WEAPON_DEFS).filter((w) => w.rarity === rk && !w.wallExclusive);
+      const weapons = Object.values(G.WEAPON_DEFS).filter((w) => w.rarity === rk && !w.wallExclusive && !w.boxOnly);
       if (!weapons.length) return;
       html += `<div class="weaponlog-section-title rarity-${rk}">${G.RARITY[rk].label}${G.save.settings.colorblindMode ? ` [${rk[0].toUpperCase()}]` : ""}</div>`;
       html += `<div class="weaponlog-grid">${weapons.map((w) => this.weaponLogCardHtml(w)).join("")}</div>`;
@@ -285,17 +287,28 @@ G.UI = {
       html += `<div class="weaponlog-section-title rarity-secret">🔒 ปืนติดผนังประจำด่านนี้</div>`;
       html += `<div class="weaponlog-grid">${this.weaponLogCardHtml(w)}</div>`;
     }
+    const boxGuns = Object.values(G.WEAPON_DEFS).filter((w) => w.boxOnly);
+    if (boxGuns.length) {
+      const eliteTotal = boxGuns.filter((w) => w.boxTier === "elite").reduce((s, w) => s + w.boxWeight, 0);
+      const stdTotal = boxGuns.filter((w) => w.boxTier === "standard").reduce((s, w) => s + w.boxWeight, 0);
+      html += `<div class="weaponlog-section-title rarity-epic">🎴 กล่องสุ่มปืน ($${G.MYSTERY_BOX_COST} ต่อครั้ง)</div>`;
+      html += `<div class="weaponlog-grid">${boxGuns.map((w) => {
+        const pct = w.boxTier === "elite" ? (100 / 6) * (w.boxWeight / eliteTotal) : (500 / 6) * (w.boxWeight / stdTotal);
+        return this.weaponLogCardHtml(w, pct.toFixed(2) + "%");
+      }).join("")}</div>`;
+    }
     this.el("weaponlog-content").innerHTML = html;
   },
-  weaponLogCardHtml(w) {
+  weaponLogCardHtml(w, dropChance) {
     const unlocked = (G.save.unlockedWeapons || []).includes(w.id);
+    const odds = dropChance ? `<br>โอกาสออก: ${dropChance}` : "";
     if (!unlocked) {
-      return `<div class="weaponlog-card locked"><div class="wl-icon">🔒</div><div class="wl-name">???</div><div class="wl-stats">ยังไม่ปลดล็อก</div></div>`;
+      return `<div class="weaponlog-card locked"><div class="wl-icon">🔒</div><div class="wl-name">???</div><div class="wl-stats">ยังไม่ปลดล็อก${odds}</div></div>`;
     }
     const dps = Math.round(w.damage * (w.pellets || 1) * (1000 / w.fireRate));
     return `<div class="weaponlog-card border-${w.rarity}" style="border-style:solid">
       <div class="wl-icon">🔫</div><div class="wl-name rarity-${w.rarity}">${w.name}</div>
-      <div class="wl-stats">ดาเมจ: ${w.damage}${w.pellets ? ` x${w.pellets} นัด` : ""}<br>อัตรายิง: ${(1000 / w.fireRate).toFixed(1)}/วิ<br>แม็กกาซีน: ${w.magSize}<br>DPS โดยประมาณ: ${dps}${w.price ? `<br>ราคา: $${w.price}` : ""}</div>
+      <div class="wl-stats">ดาเมจ: ${w.damage}${w.pellets ? ` x${w.pellets} นัด` : ""}<br>อัตรายิง: ${(1000 / w.fireRate).toFixed(1)}/วิ<br>แม็กกาซีน: ${w.magSize}<br>DPS โดยประมาณ: ${dps}${w.price ? `<br>ราคา: $${w.price}` : ""}${odds}</div>
     </div>`;
   },
 
@@ -536,7 +549,9 @@ G.UI = {
     const dispScore = this._tweenValue("score", p.score);
     this.el("hud-hp-fill").style.width = Math.max(0, dispHp) + "%";
     this.el("hud-hp-text").textContent = Math.max(0, Math.round(dispHp));
-    this.el("hud-stamina-fill").style.width = Math.max(0, p.stamina) + "%";
+    const staminaEl = this.el("hud-stamina-fill");
+    staminaEl.style.width = Math.max(0, p.stamina) + "%";
+    staminaEl.classList.toggle("exhausted", !!p.staminaExhausted);
     this.el("hud-money").textContent = Math.round(dispMoney);
     this.el("hud-score").textContent = Math.round(dispScore);
     this.el("hud-level-wave").textContent = p.levelLabel;
@@ -556,6 +571,69 @@ G.UI = {
     else this.el("hud-combo").classList.add("hidden");
   },
   setAimingVisual(v) { this.el("hud-crosshair").classList.toggle("aiming", !!v); },
+
+  // ---------------- Mystery weapon box (category C3) ----------------
+  bindMystery() {
+    this.el("btn-mystery-take").onclick = () => G.Game.confirmMysteryPick();
+  },
+  showMysteryCards(hand, onPick) {
+    const wrap = this.el("mystery-cards");
+    this.el("mystery-result").classList.add("hidden");
+    this.el("mystery-title").textContent = "เลือกการ์ด 1 ใบ";
+    this.el("mystery-sub").textContent = "มี 1 ใบเป็นปืนระดับโหด — เสี่ยงดวงเลย";
+    // Face-down colours are deliberately NOT the weapon's rarity colour, so
+    // the backs can't be read as a hint about which card is the elite one.
+    const backs = ["#3dff9e", "#ff4fd8", "#4fd2ff", "#3dff9e", "#ff4fd8", "#4fd2ff"];
+    wrap.innerHTML = hand.map((w, i) => `
+      <div class="mcard" data-idx="${i}" style="--mc:${backs[i % backs.length]}; animation-delay:${i * 70}ms">
+        <div class="mc-back">?</div>
+        <div class="mc-face"></div>
+      </div>`).join("");
+    wrap.querySelectorAll(".mcard").forEach((el) => {
+      el.onclick = () => { if (!el.classList.contains("revealed")) onPick(parseInt(el.dataset.idx, 10)); };
+    });
+    this.showScreen("screen-mystery");
+  },
+  revealMysteryCards(hand, pickedIdx) {
+    const wrap = this.el("mystery-cards");
+    this.el("mystery-title").textContent = "เปิดการ์ดทั้งหมด";
+    this.el("mystery-sub").textContent = "ดูสิว่าพลาดใบไหนไปบ้าง";
+    wrap.querySelectorAll(".mcard").forEach((el, i) => {
+      const w = hand[i];
+      const col = G.RARITY[w.rarity].color;
+      const hex = "#" + col.toString(16).padStart(6, "0");
+      el.style.setProperty("--mc", hex);
+      el.classList.add("revealed");
+      if (w.boxTier === "elite") el.classList.add("elite");
+      if (i === pickedIdx) el.classList.add("picked");
+      el.style.animationDelay = (i * 60) + "ms";
+      const dps = Math.round(w.damage * (w.pellets || 1) * (1000 / w.fireRate));
+      el.querySelector(".mc-face").innerHTML =
+        `<div class="mc-name" style="color:${hex}">${w.name}</div>
+         <div class="mc-tier">${G.RARITY[w.rarity].label}${w.boxTier === "elite" ? " ★" : ""}</div>
+         <div class="mc-dps">DPS ~${dps}</div>
+         ${i === pickedIdx ? '<div class="mc-tier" style="margin-top:6px;color:#fff">← ที่เลือก</div>' : ""}`;
+    });
+    const picked = hand[pickedIdx];
+    const pcol = "#" + G.RARITY[picked.rarity].color.toString(16).padStart(6, "0");
+    const res = this.el("mystery-result");
+    res.classList.remove("hidden");
+    this.el("mystery-result-rarity").textContent = G.RARITY[picked.rarity].label + (picked.boxTier === "elite" ? "  ★ ELITE" : "");
+    this.el("mystery-result-rarity").style.color = pcol;
+    this.el("mystery-result-name").textContent = picked.name;
+    const dps = Math.round(picked.damage * (picked.pellets || 1) * (1000 / picked.fireRate));
+    this.el("mystery-result-stats").innerHTML =
+      `ดาเมจ: ${picked.damage}${picked.pellets ? ` x${picked.pellets} นัด` : ""} · อัตรายิง: ${(1000 / picked.fireRate).toFixed(1)}/วิ<br>
+       แม็กกาซีน: ${picked.magSize} · รีโหลด: ${(picked.reloadTime / 1000).toFixed(1)} วิ · แรงดีด: ${picked.recoil.toFixed(1)}<br>
+       DPS โดยประมาณ: ${dps}${picked.pierce ? " · ทะลุเป้า" : ""}${picked.splash ? " · ระเบิดเป็นวงกว้าง" : ""}`;
+    // rarer pull = bigger screen flash
+    const flash = this.el("mystery-flash");
+    const strength = { common: 0, uncommon: 0, rare: 1, epic: 1, secret: 1 }[picked.rarity];
+    if (strength) {
+      flash.style.setProperty("--mc", pcol);
+      flash.classList.remove("go"); void flash.offsetWidth; flash.classList.add("go");
+    }
+  },
   showHitmarker() {
     const hm = this.el("hud-hitmarker");
     hm.classList.remove("hidden");

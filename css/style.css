@@ -200,6 +200,48 @@ html, body {
 .bar-fill { height: 100%; }
 .hp-fill { background: linear-gradient(90deg,#ff3b3b,#ff8a2b); width: 100%; transition: width .15s; }
 .stamina-fill { background: linear-gradient(90deg,#2b8aff,#6bd4ff); width: 100%; transition: width .1s; }
+/* A3: drained stamina reads clearly as "can't sprint until this recovers". */
+.stamina-fill.exhausted { background: linear-gradient(90deg,#7a2b2b,#c2553b); }
+
+/* ---------- Mystery weapon box (category C3) ---------- */
+#screen-mystery { background: radial-gradient(ellipse at center, #1b0f33 0%, #06040d 70%); }
+.mystery-wrap { text-align: center; z-index: 2; }
+.mystery-title { font-size: 1.9rem; font-weight: 900; letter-spacing: 2px; color: #e7d6ff; text-shadow: 0 0 18px rgba(150,90,255,0.8); }
+.mystery-sub { font-size: .9rem; opacity: .75; margin-bottom: 22px; color: #c0a8ff; }
+.mystery-cards { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+.mcard {
+  width: 118px; height: 168px; border-radius: 10px; cursor: pointer; position: relative;
+  background: linear-gradient(160deg, #150a28, #0a0616);
+  border: 2px solid var(--mc); box-shadow: 0 0 18px var(--mc), inset 0 0 22px rgba(0,0,0,0.75);
+  display: flex; align-items: center; justify-content: center;
+  transform: translateY(26px) scale(.9); opacity: 0;
+  animation: mcard-in .45s cubic-bezier(.2,1.2,.3,1) forwards;
+  transition: transform .15s, box-shadow .15s;
+}
+@keyframes mcard-in { to { transform: translateY(0) scale(1); opacity: 1; } }
+.mcard:hover { transform: translateY(-8px) scale(1.04); box-shadow: 0 0 30px var(--mc); }
+.mcard .mc-back { font-size: 2.6rem; color: var(--mc); text-shadow: 0 0 14px var(--mc); }
+/* opacity has to be restated here: the entry animation is what lifted the
+   card from opacity 0, and swapping it for the flip animation (which doesn't
+   touch opacity) would otherwise drop every revealed card back to invisible. */
+.mcard.revealed { cursor: default; opacity: 1; animation: mcard-flip .5s ease-out forwards; }
+@keyframes mcard-flip { 0% { transform: rotateY(0); opacity: 1; } 50% { transform: rotateY(90deg); opacity: 1; } 100% { transform: rotateY(0); opacity: 1; } }
+.mcard.revealed:hover { transform: none; }
+.mcard .mc-face { display: none; padding: 8px; }
+.mcard.revealed .mc-back { display: none; }
+.mcard.revealed .mc-face { display: block; }
+.mcard .mc-name { font-size: .78rem; font-weight: 800; line-height: 1.15; margin-bottom: 6px; }
+.mcard .mc-tier { font-size: .62rem; letter-spacing: 1px; opacity: .8; }
+.mcard .mc-dps { font-size: .68rem; opacity: .85; margin-top: 6px; }
+.mcard.picked { border-width: 3px; box-shadow: 0 0 46px var(--mc), 0 0 90px var(--mc); }
+.mcard.elite.revealed { background: linear-gradient(160deg, #3a1230, #140718); }
+.mystery-result { margin-top: 26px; }
+.mystery-result-rarity { font-size: .85rem; letter-spacing: 3px; font-weight: 800; }
+.mystery-result-name { font-size: 1.7rem; font-weight: 900; color: #fff; margin: 4px 0 8px; }
+.mystery-result-stats { font-size: .9rem; opacity: .85; margin-bottom: 16px; line-height: 1.5; }
+.mystery-flash { position: fixed; inset: 0; pointer-events: none; z-index: 60; opacity: 0; background: radial-gradient(circle at center, var(--mc) 0%, transparent 60%); }
+.mystery-flash.go { animation: mystery-flash-kf 1s ease-out; }
+@keyframes mystery-flash-kf { 0% { opacity: 0; } 12% { opacity: .85; } 100% { opacity: 0; } }
 
 .hud-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; background: rgba(5,10,7,0.6); padding: 10px 14px; border-radius: 8px; }
 .hud-weapon-name { font-weight: 700; }

@@ -32,24 +32,26 @@ G.rollRarity = function (minRarity) {
 // within the weapon's rarity family (see G.RARITY) but differ per weapon so
 // two guns of the same rarity still read as distinct pieces of hardware.
 G.WEAPON_DEFS = {
+  // `recoil` (category E3) scales the per-shot kick: how far the model punches
+  // back, how hard it tilts up, and how much the view itself is thrown.
   pistol: { id: "pistol", name: "Pistol", rarity: "common", damage: 14, fireRate: 320, magSize: 12,
-    reloadTime: 1000, auto: false, price: 0, color: 0x9fb9c9, accent: 0x2b3a42 },
+    reloadTime: 1000, auto: false, recoil: 0.7, price: 0, color: 0x9fb9c9, accent: 0x2b3a42 },
   shotgun: { id: "shotgun", name: "Shotgun", rarity: "common", damage: 9, pellets: 6, fireRate: 750, magSize: 6,
-    reloadTime: 1600, auto: false, price: 400, color: 0x7d97ab, accent: 0x35424c },
+    reloadTime: 1600, auto: false, recoil: 1.7, price: 400, color: 0x7d97ab, accent: 0x35424c },
   smg: { id: "smg", name: "SMG", rarity: "uncommon", damage: 10, fireRate: 110, magSize: 30,
-    reloadTime: 1300, auto: true, price: 900, color: 0x2fae54, accent: 0x1f3d2a },
+    reloadTime: 1300, auto: true, recoil: 0.5, price: 900, color: 0x2fae54, accent: 0x1f3d2a },
   rifle: { id: "rifle", name: "Assault Rifle", rarity: "uncommon", damage: 18, fireRate: 160, magSize: 25,
-    reloadTime: 1500, auto: true, price: 1200, color: 0x39c463, accent: 0x224a2e },
+    reloadTime: 1500, auto: true, recoil: 0.75, price: 1200, color: 0x39c463, accent: 0x224a2e },
   lmg: { id: "lmg", name: "LMG", rarity: "rare", damage: 15, fireRate: 90, magSize: 60,
-    reloadTime: 2200, auto: true, price: 2200, color: 0x2f6fd6, accent: 0x18325e },
+    reloadTime: 2200, auto: true, recoil: 0.6, price: 2200, color: 0x2f6fd6, accent: 0x18325e },
   sniper: { id: "sniper", name: "Sniper", rarity: "rare", damage: 90, fireRate: 950, magSize: 5,
-    reloadTime: 1800, auto: false, price: 2400, color: 0x3b82f5, accent: 0x15234a },
+    reloadTime: 1800, auto: false, recoil: 2.2, price: 2400, color: 0x3b82f5, accent: 0x15234a },
   railgun: { id: "railgun", name: "Piercing Railgun", rarity: "epic", damage: 45, fireRate: 500, magSize: 8,
-    reloadTime: 1700, auto: false, pierce: true, price: 4200, color: 0xc23bef, accent: 0x3d1a4a },
+    reloadTime: 1700, auto: false, pierce: true, recoil: 1.5, price: 4200, color: 0xc23bef, accent: 0x3d1a4a },
   grenadelauncher: { id: "grenadelauncher", name: "Grenade Launcher", rarity: "epic", damage: 70, fireRate: 900, magSize: 4,
-    reloadTime: 2000, auto: false, splash: true, splashRadius: 4.5, price: 4600, color: 0xa63bd6, accent: 0x3a1a44 },
+    reloadTime: 2000, auto: false, splash: true, splashRadius: 4.5, recoil: 2.4, price: 4600, color: 0xa63bd6, accent: 0x3a1a44 },
   golden_smg: { id: "golden_smg", name: "Golden Vocabulary SMG", rarity: "secret", damage: 55, fireRate: 70, magSize: 50,
-    reloadTime: 1000, auto: true, price: 9999, color: 0xffd43b, accent: 0xa87d1a, legendary: true },
+    reloadTime: 1000, auto: true, recoil: 0.65, price: 9999, color: 0xffd43b, accent: 0xa87d1a, legendary: true },
 
   // Wall-mounted exclusives (category C3): one per level, bought with saved-up
   // money via the level's wall-mount display, never obtainable from the shop's
@@ -64,11 +66,72 @@ G.WEAPON_DEFS = {
   // keeping each a real "save up for it" goal without being unreachable in
   // one normal playthrough.
   school_wall: { id: "school_wall", name: "Faculty Enforcer", rarity: "secret", damage: 20, fireRate: 90, magSize: 45,
-    reloadTime: 1500, auto: true, price: 1800, color: 0xd4a017, accent: 0x5a3d0a, wallExclusive: true },
+    reloadTime: 1500, auto: true, recoil: 0.7, price: 1800, color: 0xd4a017, accent: 0x5a3d0a, wallExclusive: true },
   hospital_wall: { id: "hospital_wall", name: "Trauma Cannon", rarity: "secret", damage: 22, pellets: 8, fireRate: 500, magSize: 10,
-    reloadTime: 1800, auto: false, price: 2400, color: 0xe8e8e0, accent: 0xd6423c, wallExclusive: true },
+    reloadTime: 1800, auto: false, recoil: 1.9, price: 2400, color: 0xe8e8e0, accent: 0xd6423c, wallExclusive: true },
   bunker_wall: { id: "bunker_wall", name: "Vault Breaker", rarity: "secret", damage: 140, fireRate: 750, magSize: 6,
-    reloadTime: 2000, auto: false, price: 3200, color: 0x4a5c3a, accent: 0x2a2a26, wallExclusive: true },
+    reloadTime: 2000, auto: false, recoil: 2.5, price: 3200, color: 0x4a5c3a, accent: 0x2a2a26, wallExclusive: true },
+
+  // ---------------- Mystery box pool (category C2) ----------------
+  // Fifteen guns that exist only inside the 1,000-a-pull mystery box
+  // (`boxOnly` keeps them out of crate rolls and the shop). Each pull deals a
+  // hand of 6 cards: exactly one "elite" and five "standard", so the elite
+  // tier lands 1-in-6 no matter what. boxWeight then splits the odds INSIDE
+  // each tier, always weighted against power -- the weakest standard gun is
+  // over five times as likely as the strongest, and the level-ending Meteor
+  // Detention is the rarest thing in the game at 1%.
+  scrap_spitter: { id: "scrap_spitter", name: "Scrap Spitter", rarity: "common", damage: 11, fireRate: 85, magSize: 32,
+    reloadTime: 1600, auto: true, recoil: 0.5, color: 0x8a8f7a, accent: 0x3d4036, boxOnly: true, boxTier: "standard", boxWeight: 16 },
+  nail_driver: { id: "nail_driver", name: "Nail Driver", rarity: "common", damage: 16, fireRate: 150, magSize: 24,
+    reloadTime: 1400, auto: true, recoil: 0.6, color: 0xd2a63c, accent: 0x54401a, boxOnly: true, boxTier: "standard", boxWeight: 15 },
+  hall_sweeper: { id: "hall_sweeper", name: "Hall Sweeper", rarity: "common", damage: 12, pellets: 5, fireRate: 720, magSize: 6,
+    reloadTime: 2000, auto: false, recoil: 1.6, color: 0x6f7d86, accent: 0x2f3940, boxOnly: true, boxTier: "standard", boxWeight: 13 },
+  chalk_burster: { id: "chalk_burster", name: "Chalk Burster", rarity: "uncommon", damage: 21, fireRate: 260, magSize: 21,
+    reloadTime: 1700, auto: true, recoil: 0.8, color: 0x58b5a0, accent: 0x224740, boxOnly: true, boxTier: "standard", boxWeight: 12 },
+  detention_deuce: { id: "detention_deuce", name: "Detention Deuce", rarity: "uncommon", damage: 19, fireRate: 200, magSize: 16,
+    reloadTime: 1200, auto: false, recoil: 0.7, color: 0x9c6bd6, accent: 0x3b2a52, boxOnly: true, boxTier: "standard", boxWeight: 11 },
+  rust_repeater: { id: "rust_repeater", name: "Rust Repeater", rarity: "uncommon", damage: 28, fireRate: 420, magSize: 10,
+    reloadTime: 1500, auto: false, recoil: 1.0, color: 0xa2603a, accent: 0x40261a, boxOnly: true, boxTier: "standard", boxWeight: 10 },
+  gym_grinder: { id: "gym_grinder", name: "Gym Class Grinder", rarity: "rare", damage: 9, fireRate: 55, magSize: 60,
+    reloadTime: 3000, auto: true, recoil: 0.45, color: 0x3f6fb5, accent: 0x1b2c47, boxOnly: true, boxTier: "standard", boxWeight: 9 },
+  copper_coil: { id: "copper_coil", name: "Copper Coil", rarity: "rare", damage: 44, fireRate: 900, magSize: 5,
+    reloadTime: 1900, auto: false, recoil: 1.5, color: 0xc9723f, accent: 0x3f2a1b, boxOnly: true, boxTier: "standard", boxWeight: 7 },
+  locker_lancer: { id: "locker_lancer", name: "Locker Lancer", rarity: "rare", damage: 50, fireRate: 520, magSize: 12,
+    reloadTime: 1800, auto: false, recoil: 1.3, color: 0x2f6fb0, accent: 0x14314f, boxOnly: true, boxTier: "standard", boxWeight: 4 },
+  bus_bulldog: { id: "bus_bulldog", name: "Bus Stop Bulldog", rarity: "rare", damage: 58, fireRate: 650, magSize: 6,
+    reloadTime: 2100, auto: false, recoil: 1.8, color: 0xb0b6bd, accent: 0x3a2f2a, boxOnly: true, boxTier: "standard", boxWeight: 3 },
+  thunder_chalk: { id: "thunder_chalk", name: "Thunder Chalk", rarity: "epic", damage: 72, fireRate: 300, magSize: 18,
+    reloadTime: 2000, auto: true, recoil: 1.1, color: 0x7fe6ff, accent: 0x1d4c63, boxOnly: true, boxTier: "elite", boxWeight: 32 },
+  void_principal: { id: "void_principal", name: "Void Principal", rarity: "epic", damage: 42, fireRate: 95, magSize: 40,
+    reloadTime: 2100, auto: true, recoil: 0.9, color: 0x5b3fa8, accent: 0x211640, boxOnly: true, boxTier: "elite", boxWeight: 28 },
+  prism_lance: { id: "prism_lance", name: "Prism Lance", rarity: "epic", damage: 95, fireRate: 480, magSize: 8,
+    reloadTime: 1800, auto: false, pierce: true, recoil: 1.4, color: 0xef5fd0, accent: 0x4a1a42, boxOnly: true, boxTier: "elite", boxWeight: 20 },
+  final_bell: { id: "final_bell", name: "Final Bell", rarity: "secret", damage: 30, pellets: 8, fireRate: 420, magSize: 10,
+    reloadTime: 2400, auto: true, recoil: 2.0, color: 0xffd43b, accent: 0x6b4a08, boxOnly: true, boxTier: "elite", boxWeight: 14 },
+  meteor_detention: { id: "meteor_detention", name: "Meteor Detention", rarity: "secret", damage: 165, fireRate: 1100, magSize: 4,
+    reloadTime: 2600, auto: false, splash: true, splashRadius: 5, recoil: 2.6, color: 0xff6a2b, accent: 0x5c1f08, boxOnly: true, boxTier: "elite", boxWeight: 6 },
+};
+
+G.MYSTERY_BOX_COST = 1000;
+G.MYSTERY_CARD_COUNT = 6;
+// One elite + five distinct standards, elite slot shuffled to a random index.
+G.rollMysteryHand = function () {
+  const pick = (pool) => {
+    const total = pool.reduce((s, w) => s + w.boxWeight, 0);
+    let r = G.rng() * total;
+    for (const w of pool) { r -= w.boxWeight; if (r <= 0) return w; }
+    return pool[pool.length - 1];
+  };
+  const all = Object.values(G.WEAPON_DEFS).filter((w) => w.boxOnly);
+  const elitePool = all.filter((w) => w.boxTier === "elite");
+  let standardPool = all.filter((w) => w.boxTier === "standard");
+  const hand = [pick(elitePool)];
+  for (let i = 0; i < G.MYSTERY_CARD_COUNT - 1; i++) {
+    const w = pick(standardPool);
+    standardPool = standardPool.filter((s) => s.id !== w.id); // no duplicate faces in one hand
+    hand.push(w);
+  }
+  return G.shuffle(hand);
 };
 
 G.MELEE_DEF = { id: "melee", name: "Combat Knife", damage: 35, fireRate: 450, range: 2.6 };
@@ -292,6 +355,188 @@ G.WEAPON_BUILDERS = {
     stock.position.set(0, -0.01, 0.32); g.add(stock);
     const grip = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.18, 0.08), accentMat);
     grip.position.set(0, -0.15, 0.16); grip.rotation.x = -0.2; g.add(grip);
+  },
+
+  // ---------------- Mystery box silhouettes (category C2) ----------------
+  // Fifteen distinct shapes -- each one differs in body proportion, barrel
+  // treatment and magazine placement so they're told apart at a glance.
+  scrap_spitter(g, mat, accentMat, magMat) { // welded-pipe SMG, mag jutting sideways
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.12, 0.3), mat);
+    body.position.set(0, 0, -0.1); g.add(body);
+    const pipe = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.26), accentMat);
+    pipe.position.set(0, 0.03, -0.36); g.add(pipe);
+    const mag = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.07, 0.08), magMat);
+    mag.position.set(0.13, -0.03, -0.05); g.add(mag); // side-feed, very obvious
+    const grip = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.17, 0.08), accentMat);
+    grip.position.set(0, -0.14, 0.06); g.add(grip);
+  },
+  nail_driver(g, mat, accentMat, magMat) { // boxy nailgun with a top hopper
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.15, 0.26), mat);
+    body.position.set(0, 0, -0.08); g.add(body);
+    const nose = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.18), accentMat);
+    nose.position.set(0, -0.02, -0.29); g.add(nose);
+    const hopper = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.14, 0.1), magMat);
+    hopper.position.set(0, 0.14, -0.02); hopper.rotation.x = 0.25; g.add(hopper);
+    const grip = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.18, 0.09), accentMat);
+    grip.position.set(0, -0.16, 0.05); g.add(grip);
+  },
+  hall_sweeper(g, mat, accentMat, magMat) { // stubby double-tube shotgun
+    [-0.035, 0.035].forEach((x) => {
+      const tube = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.44), accentMat);
+      tube.position.set(x, 0.03, -0.26); g.add(tube);
+    });
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.13, 0.22), mat);
+    body.position.set(0, -0.01, 0.02); g.add(body);
+    const shells = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.06, 0.1), magMat);
+    shells.position.set(0, -0.1, 0.02); g.add(shells);
+    const stock = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.1, 0.2), accentMat);
+    stock.position.set(0, -0.04, 0.22); g.add(stock);
+  },
+  chalk_burster(g, mat, accentMat, magMat) { // slim bullpup, mag behind the grip
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.14, 0.46), mat);
+    body.position.set(0, 0, 0); g.add(body);
+    const barrel = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, 0.3), accentMat);
+    barrel.position.set(0, 0.03, -0.37); g.add(barrel);
+    const carry = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.04, 0.24), accentMat);
+    carry.position.set(0, 0.1, -0.06); g.add(carry);
+    const mag = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.16, 0.09), magMat);
+    mag.position.set(0, -0.13, 0.16); g.add(mag);
+    const grip = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.16, 0.08), accentMat);
+    grip.position.set(0, -0.14, -0.1); g.add(grip);
+  },
+  detention_deuce(g, mat, accentMat, magMat) { // stacked over-under machine pistol
+    [0.04, -0.05].forEach((y, i) => {
+      const body = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.07, 0.28 - i * 0.05), mat);
+      body.position.set(0, y, -0.14); g.add(body);
+    });
+    const mag = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.16, 0.08), magMat);
+    mag.position.set(0, -0.24, 0.02); g.add(mag);
+    const grip = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.16, 0.09), accentMat);
+    grip.position.set(0, -0.14, 0.03); g.add(grip);
+  },
+  rust_repeater(g, mat, accentMat, magMat) { // lever carbine with a tube magazine
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.12, 0.38), mat);
+    body.position.set(0, 0, -0.08); g.add(body);
+    const barrel = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.045, 0.4), accentMat);
+    barrel.position.set(0, 0.02, -0.45); g.add(barrel);
+    const tube = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.36), magMat);
+    tube.position.set(0, -0.06, -0.42); g.add(tube); // under-barrel tube mag
+    const lever = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.1, 0.07), accentMat);
+    lever.position.set(0, -0.12, 0.02); lever.rotation.x = 0.4; g.add(lever);
+    const stock = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.13, 0.26), accentMat);
+    stock.position.set(0, -0.03, 0.22); g.add(stock);
+  },
+  gym_grinder(g, mat, accentMat, magMat) { // rotary barrels + drum
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 0.3), mat);
+    body.position.set(0, 0, -0.04); g.add(body);
+    [[-0.05, 0.05], [0.05, 0.05], [-0.05, -0.05], [0.05, -0.05]].forEach(([x, y]) => {
+      const b = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.035, 0.34), accentMat);
+      b.position.set(x, y, -0.34); g.add(b);
+    });
+    const drum = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.12), magMat);
+    drum.position.set(0.02, -0.16, 0.08); g.add(drum);
+    const grip = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.16, 0.09), accentMat);
+    grip.position.set(0, -0.14, 0.2); g.add(grip);
+  },
+  copper_coil(g, mat, accentMat, magMat) { // coil gun, stacked rings down the barrel
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.13, 0.3), mat);
+    body.position.set(0, 0, -0.06); g.add(body);
+    for (let i = 0; i < 4; i++) {
+      const ring = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.11, 0.05), accentMat);
+      ring.position.set(0, 0.02, -0.28 - i * 0.11); g.add(ring);
+    }
+    const rod = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 0.5), G.makeBoxMat(0xffd9a0));
+    rod.position.set(0, 0.02, -0.42); g.add(rod);
+    const cell = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.12, 0.1), magMat);
+    cell.position.set(0, -0.15, 0.04); g.add(cell);
+  },
+  locker_lancer(g, mat, accentMat, magMat) { // long marksman rifle with a scope
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.11, 0.44), mat);
+    body.position.set(0, 0, -0.1); g.add(body);
+    const barrel = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, 0.46), accentMat);
+    barrel.position.set(0, 0.01, -0.54); g.add(barrel);
+    const scope = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.22), accentMat);
+    scope.position.set(0, 0.12, -0.14); g.add(scope);
+    const mag = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.15, 0.1), magMat);
+    mag.position.set(0, -0.14, -0.04); g.add(mag);
+    const stock = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.14, 0.28), accentMat);
+    stock.position.set(0, -0.02, 0.26); g.add(stock);
+  },
+  bus_bulldog(g, mat, accentMat, magMat) { // heavy revolver, fat cylinder
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.11, 0.24), mat);
+    body.position.set(0, 0, -0.12); g.add(body);
+    const cylinder = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.13, 0.12), magMat);
+    cylinder.position.set(0, -0.01, -0.06); g.add(cylinder); // the "mag" is the cylinder
+    const barrel = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.06, 0.3), accentMat);
+    barrel.position.set(0, 0.01, -0.34); g.add(barrel);
+    const rib = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 0.28), accentMat);
+    rib.position.set(0, 0.06, -0.34); g.add(rib);
+    const grip = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.2, 0.1), accentMat);
+    grip.position.set(0, -0.16, 0.02); grip.rotation.x = -0.2; g.add(grip);
+  },
+  thunder_chalk(g, mat, accentMat, magMat) { // tesla gun with prongs + glowing core
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.14, 0.32), mat);
+    body.position.set(0, 0, -0.1); g.add(body);
+    const core = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.1), new THREE.MeshBasicMaterial({ color: 0xbff4ff }));
+    core.position.set(0, 0.04, -0.06); g.add(core);
+    [[-0.07, 0.06], [0.07, 0.06], [0, -0.06]].forEach(([x, y]) => {
+      const prong = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.025, 0.24), accentMat);
+      prong.position.set(x, y + 0.02, -0.38); g.add(prong);
+    });
+    const cell = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.13, 0.09), magMat);
+    cell.position.set(0, -0.16, -0.02); g.add(cell);
+    const grip = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.16, 0.09), accentMat);
+    grip.position.set(0, -0.13, 0.14); g.add(grip);
+  },
+  void_principal(g, mat, accentMat, magMat) { // heavy AR, twin side drums
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.14, 0.46), mat);
+    body.position.set(0, 0, -0.08); g.add(body);
+    const shroud = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.3), accentMat);
+    shroud.position.set(0, 0.03, -0.44); g.add(shroud);
+    [-0.1, 0.1].forEach((x) => {
+      const drum = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.16, 0.16), magMat);
+      drum.position.set(x, -0.08, -0.02); g.add(drum);
+    });
+    const stock = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.14, 0.24), accentMat);
+    stock.position.set(0, -0.02, 0.26); g.add(stock);
+    const grip = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.17, 0.09), accentMat);
+    grip.position.set(0, -0.15, 0.1); g.add(grip);
+  },
+  prism_lance(g, mat, accentMat, magMat) { // crystal lance, tapering emitter
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.12, 0.34), mat);
+    body.position.set(0, 0, -0.04); g.add(body);
+    [0.16, 0.12, 0.08].forEach((s, i) => {
+      const seg = new THREE.Mesh(new THREE.BoxGeometry(s * 0.6, s * 0.6, 0.16), i === 2 ? new THREE.MeshBasicMaterial({ color: 0xffd0f4 }) : accentMat);
+      seg.position.set(0, 0.02, -0.3 - i * 0.16); g.add(seg);
+    });
+    const fin = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.14, 0.2), accentMat);
+    fin.position.set(0, 0.13, -0.08); g.add(fin);
+    const cell = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.14, 0.1), magMat);
+    cell.position.set(0, -0.15, 0.02); g.add(cell);
+  },
+  final_bell(g, mat, accentMat, magMat) { // auto shotgun with a bell-shaped muzzle
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.15, 0.38), mat);
+    body.position.set(0, 0, -0.06); g.add(body);
+    const throat = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.18), accentMat);
+    throat.position.set(0, 0.02, -0.34); g.add(throat);
+    const bell = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.12), accentMat);
+    bell.position.set(0, 0.02, -0.48); g.add(bell);
+    const drum = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.18, 0.14), magMat);
+    drum.position.set(0, -0.16, -0.04); g.add(drum);
+    const grip = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.16, 0.09), accentMat);
+    grip.position.set(0, -0.14, 0.16); g.add(grip);
+  },
+  meteor_detention(g, mat, accentMat, magMat) { // shoulder launcher with a warhead cluster
+    const tube = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 0.62), mat);
+    tube.position.set(0, 0.02, -0.18); g.add(tube);
+    const muzzle = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.22, 0.1), accentMat);
+    muzzle.position.set(0, 0.02, -0.52); g.add(muzzle);
+    const sight = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.1, 0.1), accentMat);
+    sight.position.set(0.08, 0.14, -0.1); g.add(sight);
+    const rack = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.11, 0.24), magMat);
+    rack.position.set(0, -0.14, 0.04); g.add(rack); // warhead rack under the tube
+    const grip = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.17, 0.09), accentMat);
+    grip.position.set(0, -0.16, 0.2); g.add(grip);
   },
 };
 
@@ -649,6 +894,32 @@ G.spawnMuzzleFlash = function (scene, position, quality) {
   light.position.copy(position);
   scene.add(light);
   setTimeout(() => scene.remove(light), 50);
+};
+
+// Category E3: a brass case flicks out to the right of the view and tumbles
+// away. Skipped entirely on the lower graphics settings, like the other
+// per-shot effects.
+G.spawnShellEject = function (scene, camera, quality) {
+  if (quality === "vlow" || quality === "low") return;
+  const shell = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.022, 0.055), G.makeBoxMat(0xd9b24a));
+  const origin = new THREE.Vector3(0.28, -0.18, -0.5).applyMatrix4(camera.matrixWorld);
+  shell.position.copy(origin);
+  scene.add(shell);
+  const right = new THREE.Vector3(1, 0, 0).transformDirection(camera.matrixWorld);
+  const up = new THREE.Vector3(0, 1, 0);
+  const vel = right.multiplyScalar(1.4 + G.rng() * 0.8).addScaledVector(up, 1.6 + G.rng() * 0.6);
+  const spin = new THREE.Vector3(8 + G.rng() * 8, G.rng() * 8, G.rng() * 8);
+  const t0 = performance.now();
+  const step = () => {
+    const life = (performance.now() - t0) / 1000;
+    const d = 1 / 60;
+    vel.y -= 9.8 * d;
+    shell.position.addScaledVector(vel, d);
+    shell.rotation.x += spin.x * d; shell.rotation.y += spin.y * d; shell.rotation.z += spin.z * d;
+    if (life < 1.1) requestAnimationFrame(step);
+    else { scene.remove(shell); G.disposeObject3D(shell); }
+  };
+  requestAnimationFrame(step);
 };
 
 G.spawnHitParticles = function (scene, position, color, quality) {
