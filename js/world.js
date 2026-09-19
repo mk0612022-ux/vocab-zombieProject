@@ -27,10 +27,14 @@ G.getLevel = (id) => G.LEVELS.find((l) => l.id === id);
 // Each theme keeps its own recognizable hue family but now carries a couple of
 // accent tones too, used for lighting variety and small color-coded landmarks.
 G.THEME_PALETTES = {
+  // Layout redesign item 4: shifted from a wood/olive-brown school to a
+  // modern institutional building -- pale concrete/quartz walls and floor,
+  // red brick as the accent color, cooler quartz-white main light. Still
+  // dim/desaturated enough (not literally white) to keep the horror mood.
   school: {
-    floor: 0x2f2b1e, floorLine: 0x1f1c14, floorStain: 0x3d3624, wall: 0x3d3826, accent: 0x5c5438,
-    fog: 0x1a170f, fogNear: 3, fogFar: 30, light: 0xd8c98c, ambient: 0x36311f,
-    roomLight: [0xd8c98c, 0x8fa0c9, 0xe8dca0, 0xc9a86b, 0xffe08a],
+    floor: 0x4a4740, floorLine: 0x2e2c27, floorStain: 0x3d3624, wall: 0x8a8578, accent: 0x8a3a2e,
+    fog: 0x181814, fogNear: 3, fogFar: 30, light: 0xdadad0, ambient: 0x3a3a34,
+    roomLight: [0xdadad0, 0xcfe8ff, 0xe8dca0, 0x8a3a2e, 0xffe08a],
   },
   hospital: {
     floor: 0x18261d, floorLine: 0x0e1811, floorStain: 0x24352a, wall: 0x203024, accent: 0x3d6b52,
@@ -417,7 +421,13 @@ G.buildLevelScene = function (scene, level, quality) {
   };
   const DOOR_W = 4;
 
-  Object.values(ROOMS).forEach((r) => { addFloor(r.cx, r.cz, r.w, r.d); addCeiling(r.cx, r.cz, r.w, r.d); });
+  Object.values(ROOMS).forEach((r) => {
+    addFloor(r.cx, r.cz, r.w, r.d);
+    // School's room E (layout redesign item 2) gets its own taller enclosure
+    // + custom ceiling built in decorateSchool instead of the standard one,
+    // to read as an open double-height hall with a mezzanine.
+    if (!(level.theme === "school" && r === ROOMS.E)) addCeiling(r.cx, r.cz, r.w, r.d);
+  });
   addFloor(0, -6.5, DOOR_W, 3);      addCeiling(0, -6.5, DOOR_W, 3);      // A-B corridor
   addFloor(7.75, -14.5, 3, DOOR_W);  addCeiling(7.75, -14.5, 3, DOOR_W);  // B-C corridor
   addFloor(-8, -14.5, 3, DOOR_W);    addCeiling(-8, -14.5, 3, DOOR_W);    // B-D corridor
@@ -425,7 +435,11 @@ G.buildLevelScene = function (scene, level, quality) {
 
   // addRoomWalls' "north" = the wall at cz-hd (more-negative Z, deeper into
   // the level); "south" = cz+hd (toward the player's start / less negative Z).
-  addRoomWalls(ROOMS.A, { north: { center: 0, width: DOOR_W } });
+  // School only: room A's east wall gets a gap leading to the annex wing
+  // (layout redesign item 1).
+  const aGaps = { north: { center: 0, width: DOOR_W } };
+  if (level.theme === "school") aGaps.east = { center: 0, width: 3 };
+  addRoomWalls(ROOMS.A, aGaps);
   addRoomWalls(ROOMS.B, {
     south: { center: 0, width: DOOR_W },   // -> A (A sits at less-negative Z)
     east: { center: -14.5, width: DOOR_W }, // -> C
@@ -433,11 +447,16 @@ G.buildLevelScene = function (scene, level, quality) {
     north: { center: 0, width: DOOR_W },   // -> E (E sits at more-negative Z)
   });
   // Hospital and School: room C's east wall gets a second gap for the
-  // staircase up to their 2nd floor.
+  // staircase up to their 2nd floor. School also gets a north gap for a
+  // small restroom nook (layout redesign item 3).
   const cGaps = { west: { center: -14.5, width: DOOR_W } };
   if (level.theme === "hospital" || level.theme === "school") cGaps.east = { center: -14.5, width: 3 };
+  if (level.theme === "school") cGaps.north = { center: 14.5, width: 2 };
   addRoomWalls(ROOMS.C, cGaps);
-  addRoomWalls(ROOMS.D, { east: { center: -14.5, width: DOOR_W } });
+  // School: room D gets a south gap for a small supply-closet nook (item 3).
+  const dGaps = { east: { center: -14.5, width: DOOR_W } };
+  if (level.theme === "school") dGaps.south = { center: -14.5, width: 2 };
+  addRoomWalls(ROOMS.D, dGaps);
   addRoomWalls(ROOMS.E, { south: { center: 0, width: DOOR_W } });
 
   // Per-room lighting variety (item 2): each wing gets its own color/height/
@@ -511,6 +530,36 @@ G.buildLevelScene = function (scene, level, quality) {
     // across lockers/posters/backpacks to keep the level from reading flat.
     const lockerColors = [0x2f6fb0, 0xc9433c, 0xd9b23c, 0x3f9e5c].map((c) => new THREE.MeshLambertMaterial({ color: c }));
     const posterColors = [0xd94f4f, 0x4f8fd9, 0xe0c23c, 0x4fd97a, 0xd97ad9];
+    // Layout redesign item 4: literal brick + glass focal points, not just a
+    // palette shift -- patches of exposed brick where the concrete has
+    // crumbled, and glass partitions reading as "modern institutional".
+    const brickMat = new THREE.MeshLambertMaterial({ color: 0x8a3a2e });
+    const glassMat = new THREE.MeshBasicMaterial({ color: 0xbfe0ff, transparent: true, opacity: 0.32 });
+    function addExposedBrick(x, y, z, w, h, ry) {
+      addFloatBox(x, y, z, w, h, 0.06, brickMat, ry);
+    }
+    function addGlassPanel(x, y, z, w, h, ry) {
+      addFloatBox(x, y, z, w, h, 0.04, glassMat, ry);
+    }
+    // Floor hatch (layout redesign item 5): word-locked, hinges open flat on
+    // the ground via game.js's animateHatchOpen, revealing a bonus drop.
+    const hatchMat = new THREE.MeshLambertMaterial({ color: 0x4a4740 });
+    function addHatch(x, z, dropKind) {
+      const pivot = new THREE.Group();
+      pivot.position.set(x, 0.05, z - 0.55);
+      const panel = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.08, 1.1), hatchMat);
+      panel.position.set(0, 0, 0.55);
+      pivot.add(panel);
+      scene.add(pivot);
+      // Hazard-yellow frame outline so it reads as interactive, same visual
+      // language as the level's word-locked doors.
+      addGlowBox(x, 0.09, z - 0.55, 1.15, 0.02, 0.06, 0xffcc33);
+      addGlowBox(x, 0.09, z + 0.55, 1.15, 0.02, 0.06, 0xffcc33);
+      addGlowBox(x - 0.55, 0.09, z, 0.06, 0.02, 1.15, 0xffcc33);
+      addGlowBox(x + 0.55, 0.09, z, 0.06, 0.02, 1.15, 0xffcc33);
+      world.doors.push({ mesh: pivot, locked: true, kind: "hatch", opened: false, dropKind });
+      world.interactables.push({ mesh: pivot, kind: "hatch", ref: world.doors[world.doors.length - 1] });
+    }
 
     // Room A -- classroom: chalkboard + desks/chairs (upright and knocked over).
     addCanvasBox(-1, 2.1, -4.85, 3.2, 1.5, 0.12, (ctx, cv) => {
@@ -534,6 +583,7 @@ G.buildLevelScene = function (scene, level, quality) {
     addProp(-3.6, 1, 0.45, 0.75, 0.45, woodDarkMat);
     addGlowBox(-1.8, 2.9, -4.6, 0.6, 0.28, 0.05, 0x33ff66);
     addGlowBox(1.5, 2.9, 4.6, 0.5, 0.25, 0.05, 0xff3333, Math.PI);
+    addExposedBrick(-4.9, 1.5, 2, 1.5, 2, Math.PI / 2); // crumbled concrete revealing brick underneath
     addDecal(-1.1, 0.4, 0.3, 0.02, 0.4, paperMat, 0.4);
     addDecal(-0.6, 0.9, 0.28, 0.02, 0.36, paperMat, -0.6);
     addDecal(0.4, -1.2, 0.3, 0.02, 0.4, paperMat, 1.1);
@@ -549,13 +599,22 @@ G.buildLevelScene = function (scene, level, quality) {
     // Confined to z <= -17.5, well clear of the west doorway's opening
     // (z=[-16.5,-12.5] at x=-6.5) -- an earlier version spanned right across
     // it and made that doorway physically unwalkable.
+    const lockerMeshes = [];
     for (let i = 0; i < 4; i++) {
       const lz = ROOMS.B.cz - 5.8 + i * 1.0; // -20.3 .. -17.3, inside the room and north of the gap
-      addProp(-5.9, lz, 0.5, 2.2, 0.85, lockerColors[i % lockerColors.length]);
+      lockerMeshes.push(addProp(-5.9, lz, 0.5, 2.2, 0.85, lockerColors[i % lockerColors.length]));
     }
+    // A couple of the lockers are actually openable loot containers (layout
+    // redesign item 3), reusing the existing static-crate interaction --
+    // press E to pop them open just like a crate.
+    [0, 2].forEach((i) => {
+      world.crates.push({ mesh: lockerMeshes[i], opened: false, locked: false });
+      world.interactables.push({ mesh: lockerMeshes[i], kind: "crate", ref: world.crates[world.crates.length - 1] });
+    });
     // A couple of colorful dropped backpacks along the locker row.
     addDecal(-5.3, ROOMS.B.cz - 5.5, 0.3, 0.16, 0.22, new THREE.MeshLambertMaterial({ color: 0xc9433c }), 0.5);
     addDecal(-5.2, ROOMS.B.cz - 18.3, 0.3, 0.16, 0.22, new THREE.MeshLambertMaterial({ color: 0xd9b23c }), -0.3);
+    addHatch(ROOMS.B.cx + 3, ROOMS.B.cz + 2, "crate");
     const doorPivot = new THREE.Group();
     const openLockerZ = ROOMS.B.cz - 5.8 + 1 * 1.0; // matches locker index 1 above
     doorPivot.position.set(-5.65, 1.1, openLockerZ - 0.42);
@@ -584,6 +643,10 @@ G.buildLevelScene = function (scene, level, quality) {
       }
     });
     addProp(ROOMS.C.cx - 2, ROOMS.C.cz + 3, 1.4, 0.9, 0.9, woodMat);
+    // A modern glass partition standing between the reading area and the
+    // rest of the library -- literal glass accent, not just a palette tint.
+    addGlassPanel(ROOMS.C.cx - 2.8, 1.4, ROOMS.C.cz + 0.5, 2.0, 2.4, 0.3);
+    addExposedBrick(ROOMS.C.cx + 5.4, 1.5, ROOMS.C.cz - 2, 1.2, 2, Math.PI / 2);
 
     // Room D (west, behind the barricade) -- art-room supply nook.
     addProp(ROOMS.D.cx, ROOMS.D.cz - 2, 1.6, 1.1, 0.8, woodDarkMat);
@@ -591,7 +654,7 @@ G.buildLevelScene = function (scene, level, quality) {
     addDecal(ROOMS.D.cx + 0.6, ROOMS.D.cz - 2, 0.25, 0.02, 0.25, new THREE.MeshLambertMaterial({ color: 0x4f8fd9 }));
 
     // Room E (final) -- gym scoreboard + the boss podium.
-    addCanvasBox(ROOMS.E.cx, 2.6, ROOMS.E.cz - 7.35, 2.4, 1.1, 0.12, (ctx, cv) => {
+    addCanvasBox(ROOMS.E.cx, 3.6, ROOMS.E.cz - 7.35, 2.4, 1.1, 0.12, (ctx, cv) => {
       ctx.fillStyle = "#111"; ctx.fillRect(0, 0, cv.width, cv.height);
       ctx.textAlign = "center";
       ctx.font = "bold 20px monospace"; ctx.fillStyle = "#ffcc55";
@@ -599,6 +662,43 @@ G.buildLevelScene = function (scene, level, quality) {
       ctx.font = "bold 52px monospace"; ctx.fillStyle = "#ff3b3b";
       ctx.fillText("00 : 00", 128, 92);
     }, 0x1a1a1a);
+
+    // ---------------- Open double-height hall + mezzanine (layout redesign item 2) ----------------
+    // Room E keeps its normal walls up to y=3.4 (built by the shared
+    // addRoomWalls call above) but gets extra risers on top of those, up to
+    // a much taller custom ceiling, instead of the standard low one -- reads
+    // as a gym with a running-track balcony rather than a flat box.
+    const riserH = 3.4, riserY = 3.4 + riserH / 2;
+    function addRiserWall(x, z, w, d) {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, riserH, d), wallMat);
+      m.position.set(x, riserY, z);
+      scene.add(m);
+      world.colliders.push(new THREE.Box3().setFromObject(m));
+    }
+    addRiserWall(ROOMS.E.cx - ROOMS.E.w / 2, ROOMS.E.cz, 0.4, ROOMS.E.d);
+    addRiserWall(ROOMS.E.cx + ROOMS.E.w / 2, ROOMS.E.cz, 0.4, ROOMS.E.d);
+    addRiserWall(ROOMS.E.cx, ROOMS.E.cz - ROOMS.E.d / 2, ROOMS.E.w, 0.4);
+    addRiserWall(ROOMS.E.cx, ROOMS.E.cz + ROOMS.E.d / 2, ROOMS.E.w, 0.4); // solid above the south doorway is fine -- the doorway itself is well under 3.4
+    const eCeilY = 3.4 + riserH;
+    const eCeil = new THREE.Mesh(new THREE.BoxGeometry(ROOMS.E.w, 0.3, ROOMS.E.d), ceilingMat);
+    eCeil.position.set(ROOMS.E.cx, eCeilY + 0.15, ROOMS.E.cz);
+    scene.add(eCeil);
+    addLight(ROOMS.E.cx, eCeilY - 0.6, ROOMS.E.cz, 0xffe08a, 1.0, 1.6);
+
+    // A running-track-style mezzanine along the east wall, reachable by a
+    // ramp from the gym floor, overlooking the court toward the scoreboard
+    // and boss podium -- a real height/sightline advantage for combat, not
+    // just a cosmetic ledge. Kept along the entrance-side east wall (well
+    // south of the boss spawn points at z=-37/-34) so it never overlaps
+    // where zombies/the boss actually spawn.
+    const mezzMat = new THREE.MeshLambertMaterial({ color: 0x4a3220 });
+    const mezzCx = ROOMS.E.cx + ROOMS.E.w / 2 - 1.5, mezzCz = -28;
+    addPlatform(mezzCx, mezzCz, 3, 6, 2.2, mezzMat, "x", -1, 2.4);
+    // Railing along the mezzanine's open (west-facing) edge.
+    const railMat = new THREE.MeshLambertMaterial({ color: 0x2a2015 });
+    const railX = mezzCx - 1.5;
+    for (let z = mezzCz - 2.5; z <= mezzCz + 2.5; z += 2) addFloatBox(railX, 2.2 + 0.5, z, 0.08, 1.0, 0.08, railMat);
+    addFloatBox(railX, 2.2 + 0.95, mezzCz, 0.08, 0.08, 5.2, railMat);
 
     // ---------------- 2nd floor (category E, this round) ----------------
     // Library / staff meeting room / teachers' lounge, continuing the school
@@ -669,6 +769,76 @@ G.buildLevelScene = function (scene, level, quality) {
       killsNeeded: 20, countMode: "correct", room: F, floorY: floor2Y,
       cratePositions: [new THREE.Vector3(F.cx + 3, floor2Y + 0.3, F.cz + 3), new THREE.Vector3(F.cx - 2, floor2Y + 0.3, F.cz + 3.5)],
     };
+
+    // ---------------- Annex wing (layout redesign item 1: organic footprint) ----------------
+    // A narrow branch off the main block, ending in a small room, instead of
+    // another compact room flush against the core -- reads as an irregular
+    // extension rather than the same rectangle repeated. Gated by a second
+    // word-locked door (mirrors the existing Room C door mechanic) so it
+    // plugs into the interaction system already in place.
+    const wingDoorX = 5.15, wingDoorZ = 0;
+    const wingDoor = addProp(wingDoorX, wingDoorZ, 0.3, 3, 2.6, new THREE.MeshLambertMaterial({ color: 0xb2452f }));
+    addGlowBox(wingDoorX, 3.05, wingDoorZ, 0.34, 0.1, 2.7, 0xffcc33);
+    addGlowBox(wingDoorX, 1.5, wingDoorZ - 1.35, 0.34, 3.1, 0.08, 0xffcc33);
+    addGlowBox(wingDoorX, 1.5, wingDoorZ + 1.35, 0.34, 3.1, 0.08, 0xffcc33);
+    world.doors.push({ mesh: wingDoor, locked: true, kind: "word", opened: false, collider: world.colliders[world.colliders.length - 1] });
+    world.interactables.push({ mesh: wingDoor, kind: "door", ref: world.doors[world.doors.length - 1] });
+
+    const corridorCx = 8.25, corridorLen = 6.5; // spans x=[5, 11.5]
+    addFloor(corridorCx, 0, corridorLen, 3); addCeiling(corridorCx, 0, corridorLen, 3);
+    addWallSeg(corridorCx, -1.5, corridorLen, 0.4);
+    addWallSeg(corridorCx, 1.5, corridorLen, 0.4);
+    addLight(corridorCx, 3.0, 0, 0xd8c98c, 0.9, 1.7);
+
+    const WING = { cx: 15, cz: 0, w: 7, d: 6 };
+    addFloor(WING.cx, WING.cz, WING.w, WING.d); addCeiling(WING.cx, WING.cz, WING.w, WING.d);
+    addRoomWalls(WING, { west: { center: 0, width: 3 } });
+    addLight(WING.cx, 3.1, WING.cz, 0xffe08a, 1.1, 1.3);
+    // Bonus-loot dressing so exploring the wing already pays off; item 3
+    // (more small rooms/puzzle nooks) subdivides this further later.
+    addProp(WING.cx + 2, WING.cz - 2, 0.9, 1.0, 0.6, woodDarkMat);
+    addCorpse(WING.cx - 1, WING.cz + 1.5, 0.4, 0x6b4a2f);
+    addBloodStain(WING.cx - 1, WING.cz + 1.5, 0.6, 0.4);
+    addHatch(WING.cx - 2, WING.cz, "crate");
+
+    world.regions.push({ name: "AWing", minX: 5, maxX: 11.5, minZ: -1.5, maxZ: 1.5 });
+    world.regions.push({ name: "Wing", minX: WING.cx - WING.w / 2, maxX: WING.cx + WING.w / 2, minZ: WING.cz - WING.d / 2, maxZ: WING.cz + WING.d / 2 });
+    world.waypointNodes.AWing = { x: corridorCx, z: 0 };
+    world.waypointNodes.Wing = { x: WING.cx, z: WING.cz };
+    world.waypointEdges.A.push("AWing"); world.waypointEdges.AWing = ["A", "Wing"]; world.waypointEdges.Wing = ["AWing"];
+
+    // ---------------- Small side rooms (layout redesign item 3) ----------------
+    // Two tiny rooms branching off the main rooms, each with its own doorway
+    // and a bit of bonus loot -- rewards for checking every corner instead of
+    // just following the main corridors.
+    const REST = { cx: 14.5, cz: -21.5, w: 3, d: 3 };
+    addRoomWalls(REST, { south: { center: 14.5, width: 2 } });
+    addFloor(REST.cx, REST.cz, REST.w, REST.d); addCeiling(REST.cx, REST.cz, REST.w, REST.d);
+    addLight(REST.cx, 3.0, REST.cz, 0xd8c98c, 0.8, 1.5);
+    const tileMat = new THREE.MeshLambertMaterial({ color: 0xbcd6d0 });
+    addProp(REST.cx - 0.9, REST.cz - 0.9, 0.5, 0.9, 0.4, tileMat);
+    addProp(REST.cx + 0.9, REST.cz - 0.9, 0.5, 0.9, 0.4, tileMat);
+    addBloodStain(REST.cx, REST.cz, 0.6, 0);
+
+    const CLOSET = { cx: -14.5, cz: -8.25, w: 3, d: 2.5 };
+    addRoomWalls(CLOSET, { north: { center: -14.5, width: 2 } });
+    addFloor(CLOSET.cx, CLOSET.cz, CLOSET.w, CLOSET.d); addCeiling(CLOSET.cx, CLOSET.cz, CLOSET.w, CLOSET.d);
+    addLight(CLOSET.cx, 3.0, CLOSET.cz, 0xffe08a, 0.8, 1.7);
+    // Both props pushed to the back wall (away from the z=-9.5 doorway) so
+    // neither one blocks the only path in -- the closet is only 2.5 deep.
+    addProp(CLOSET.cx - 0.7, CLOSET.cz + 0.8, 1.0, 1.6, 0.5, woodDarkMat);
+    // A crate in the closet -- bonus loot for finding it, word-locked like
+    // the level's other big-ticket containers.
+    const closetCrateMesh = addProp(CLOSET.cx + 0.7, CLOSET.cz + 0.7, 0.7, 0.7, 0.7, new THREE.MeshLambertMaterial({ color: 0x8a6a2a }));
+    world.crates.push({ mesh: closetCrateMesh, opened: false, locked: true });
+    world.interactables.push({ mesh: closetCrateMesh, kind: "crate", ref: world.crates[world.crates.length - 1] });
+
+    world.regions.push({ name: "Rest", minX: REST.cx - REST.w / 2, maxX: REST.cx + REST.w / 2, minZ: REST.cz - REST.d / 2, maxZ: REST.cz + REST.d / 2 });
+    world.regions.push({ name: "Closet", minX: CLOSET.cx - CLOSET.w / 2, maxX: CLOSET.cx + CLOSET.w / 2, minZ: CLOSET.cz - CLOSET.d / 2, maxZ: CLOSET.cz + CLOSET.d / 2 });
+    world.waypointNodes.Rest = { x: REST.cx, z: REST.cz };
+    world.waypointNodes.Closet = { x: CLOSET.cx, z: CLOSET.cz };
+    world.waypointEdges.C.push("Rest"); world.waypointEdges.Rest = ["C"];
+    world.waypointEdges.D.push("Closet"); world.waypointEdges.Closet = ["D"];
   }
 
   function decorateHospital(t) {

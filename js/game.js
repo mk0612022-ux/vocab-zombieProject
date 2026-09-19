@@ -1023,6 +1023,7 @@ G.Game = {
         if (found.kind === "button") label = found.ref.pressed ? "กดแล้ว" : "กด E เพื่อกดปุ่ม";
         if (found.kind === "crate") label = found.ref.opened ? "" : "กด E เพื่อเปิดกล่อง";
         if (found.kind === "trap") label = found.ref.active ? "กด E เพื่อปิดกับดัก (ต้องตอบคำศัพท์)" : "";
+        if (found.kind === "hatch") label = found.ref.opened ? "" : "กด E เพื่อเปิดฝาปิด (ต้องตอบคำศัพท์)";
         if (found.kind === "wallweapon") {
           const wdef = G.WEAPON_DEFS[found.ref.id];
           label = found.ref.purchased ? "" : `กด E เพื่อซื้อ ${wdef.name} ($${wdef.price}${this.player.money < wdef.price ? " - เงินไม่พอ" : ""})`;
@@ -1041,6 +1042,9 @@ G.Game = {
     } else if (found.kind === "trap") {
       if (!found.ref.active) return;
       this.startWordChallenge("ตอบคำศัพท์เพื่อปิดกับดัก", () => this.clearBlockingObstacle(found.ref, "active", false), () => {});
+    } else if (found.kind === "hatch") {
+      if (found.ref.opened) return;
+      this.startWordChallenge("ตอบคำศัพท์เพื่อเปิดฝาปิด", () => this.openHatch(found.ref), () => {});
     } else if (found.kind === "button") {
       found.ref.pressed = true; found.mesh.material.color.set(0x44ff44);
       const sz = this.world.secretZone;
@@ -1095,6 +1099,29 @@ G.Game = {
       mesh.rotation.y = startRot + (targetRot - startRot) * (1 - Math.pow(1 - p, 2));
       if (p < 1) requestAnimationFrame(step);
       else mesh.visible = false;
+    };
+    requestAnimationFrame(step);
+  },
+
+  // Floor hatches (layout redesign item 5): a word-locked panel that hinges
+  // open flat on the ground (rotates around X, not Y like a door) and spawns
+  // a bonus item where it sat -- same interaction pattern as the existing
+  // word-locked door/trap, just revealing loot instead of a passage.
+  openHatch(ref) {
+    ref.opened = true;
+    const pos = ref.mesh.position.clone();
+    this.animateHatchOpen(ref.mesh);
+    setTimeout(() => this.spawnDrop(ref.dropKind || "crate", pos), 350);
+  },
+  animateHatchOpen(mesh) {
+    const startRot = mesh.rotation.x;
+    const targetRot = startRot - Math.PI / 1.7;
+    const durationMs = 420;
+    const t0 = performance.now();
+    const step = () => {
+      const p = Math.min(1, (performance.now() - t0) / durationMs);
+      mesh.rotation.x = startRot + (targetRot - startRot) * (1 - Math.pow(1 - p, 2));
+      if (p < 1) requestAnimationFrame(step);
     };
     requestAnimationFrame(step);
   },
