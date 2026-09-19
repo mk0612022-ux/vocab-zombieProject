@@ -274,7 +274,11 @@ G.UI = {
     tabs.innerHTML = G.LEVELS.map((l) => `<div class="tab-btn ${l.id === levelId ? "active" : ""}" data-id="${l.id}">ด่าน ${l.id}: ${l.name}</div>`).join("");
     tabs.querySelectorAll(".tab-btn").forEach((t) => (t.onclick = () => this.renderWeaponLog(parseInt(t.dataset.id))));
     const level = G.getLevel(levelId);
-    const wallId = { school: "school_wall", hospital: "hospital_wall", bunker: "bunker_wall" }[level.theme];
+    const wallIds = {
+      school: ["school_wall", "hall_monitor", "detention_slug", "pop_quiz", "cafeteria_cleaver",
+        "honor_roll", "science_fair", "art_attack", "principals_verdict"],
+      hospital: ["hospital_wall"], bunker: ["bunker_wall"],
+    }[level.theme] || [];
     let html = "";
     G.RARITY_ORDER.forEach((rk) => {
       const weapons = Object.values(G.WEAPON_DEFS).filter((w) => w.rarity === rk && !w.wallExclusive && !w.boxOnly);
@@ -282,10 +286,9 @@ G.UI = {
       html += `<div class="weaponlog-section-title rarity-${rk}">${G.RARITY[rk].label}${G.save.settings.colorblindMode ? ` [${rk[0].toUpperCase()}]` : ""}</div>`;
       html += `<div class="weaponlog-grid">${weapons.map((w) => this.weaponLogCardHtml(w)).join("")}</div>`;
     });
-    if (wallId) {
-      const w = G.WEAPON_DEFS[wallId];
-      html += `<div class="weaponlog-section-title rarity-secret">🔒 ปืนติดผนังประจำด่านนี้</div>`;
-      html += `<div class="weaponlog-grid">${this.weaponLogCardHtml(w)}</div>`;
+    if (wallIds.length) {
+      html += `<div class="weaponlog-section-title rarity-secret">🔒 ปืนติดผนังประจำด่านนี้ (${wallIds.length} กระบอก)</div>`;
+      html += `<div class="weaponlog-grid">${wallIds.map((id) => this.weaponLogCardHtml(G.WEAPON_DEFS[id])).join("")}</div>`;
     }
     const boxGuns = Object.values(G.WEAPON_DEFS).filter((w) => w.boxOnly);
     if (boxGuns.length) {

@@ -619,7 +619,7 @@ G.Game = {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.3), new THREE.MeshLambertMaterial({ color: colors[kind] }));
     // Anchored to the local floor height (not always 0) so drops on a raised
     // platform or the hospital's 2nd floor don't render sunk into the ground below.
-    const baseY = G.getFloorHeightAt(this.world, pos.x, pos.z);
+    const baseY = G.getFloorHeightAt(this.world, pos.x, pos.z, pos.y !== undefined ? pos.y : undefined);
     mesh.position.set(pos.x, baseY + 0.3, pos.z);
     this.scene.add(mesh);
     const rarity = kind === "crate" ? G.rollRarity() : null;
@@ -960,7 +960,7 @@ G.Game = {
     // as height zones -- see G.getFloorHeightAt in world.js). The engine has
     // no real "standing on geometry" physics, so the player's eye height just
     // tracks whatever height zone they're currently over, on top of jump gravity.
-    const baseEyeY = 1.7 + G.getFloorHeightAt(this.world, this.yawObject.position.x, this.yawObject.position.z);
+    const baseEyeY = 1.7 + G.getFloorHeightAt(this.world, this.yawObject.position.x, this.yawObject.position.z, this.yawObject.position.y - 1.7);
     const jumpPressed = (G.Input.mode === "desktop" && G.Input.isDown("jump")) || G.Input.touchJump;
     if (jumpPressed && this.yawObject.position.y <= baseEyeY + 0.01 && this.velocityY === 0) this.velocityY = 4.2;
     this.velocityY -= 9.8 * dt;
@@ -1013,7 +1013,7 @@ G.Game = {
     // up there, and a fixed ground-level test box never overlaps them, so
     // the player could walk straight through them into empty space. Anchor
     // the test range to the current floor height instead.
-    const floorY = G.getFloorHeightAt(this.world, pos.x, pos.z);
+    const floorY = G.getFloorHeightAt(this.world, pos.x, pos.z, pos.y - 1.7);
     const box = (x, z) => new THREE.Box3(new THREE.Vector3(x - radius, floorY + 0.1, z - radius), new THREE.Vector3(x + radius, floorY + 2.6, z + radius));
     let blockedX = false, blockedZ = false;
     for (const c of this.world.colliders) {
@@ -1068,10 +1068,10 @@ G.Game = {
     // the waypoint route between them (see G.findPath in world.js) instead of
     // cutting through walls; once it's in the player's own region it goes
     // back to moving directly, same as before.
-    const pRegion = G.getRegionAt(this.world, playerPos.x, playerPos.z);
+    const pRegion = G.getRegionAt(this.world, playerPos.x, playerPos.z, playerPos.y - 1.7);
     for (const z of this.zombies) {
       if (!z.alive) continue;
-      const zRegion = G.getRegionAt(this.world, z.mesh.position.x, z.mesh.position.z);
+      const zRegion = G.getRegionAt(this.world, z.mesh.position.x, z.mesh.position.z, z.mesh.position.y);
       let moveTarget = playerPos;
       if (zRegion !== pRegion) {
         if (!z.navPath || z.navTargetRegion !== pRegion || z.navRegion !== zRegion || z.navRepathTimer === undefined || z.navRepathTimer <= 0) {
@@ -1094,7 +1094,7 @@ G.Game = {
         z.navPath = null;
       }
       const dist = z.update(dt, moveTarget, playerPos, this.world.colliders, G.save.settings.gameSpeed);
-      z.mesh.position.y = G.getFloorHeightAt(this.world, z.mesh.position.x, z.mesh.position.z);
+      z.mesh.position.y = G.getFloorHeightAt(this.world, z.mesh.position.x, z.mesh.position.z, z.mesh.position.y);
       if (dist !== undefined && dist < 1.1 && z.attackCooldown <= 0) {
         z.attackCooldown = 1.0;
         const dmg = z.damage * (1 - this.player.armorPct);

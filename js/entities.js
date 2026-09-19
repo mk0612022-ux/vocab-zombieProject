@@ -72,6 +72,27 @@ G.WEAPON_DEFS = {
   bunker_wall: { id: "bunker_wall", name: "Vault Breaker", rarity: "secret", damage: 140, fireRate: 750, magSize: 6,
     reloadTime: 2000, auto: false, recoil: 2.5, price: 3200, color: 0x4a5c3a, accent: 0x2a2a26, wallExclusive: true },
 
+  // Eight more wall mounts for the rebuilt school -- four on each floor, each
+  // in its own room. Ground-floor guns are affordable mid-run pickups; the
+  // upstairs four sit behind the 2nd-floor unlock so they're priced as
+  // end-of-run goals (a boss alone pays 500, a full run nets low thousands).
+  hall_monitor: { id: "hall_monitor", name: "Hallway Monitor", rarity: "rare", damage: 24, fireRate: 110, magSize: 35,
+    reloadTime: 1400, auto: true, recoil: 0.6, price: 1200, color: 0x4fa3d9, accent: 0x1d3f57, wallExclusive: true },
+  detention_slug: { id: "detention_slug", name: "Detention Slugger", rarity: "rare", damage: 18, pellets: 6, fireRate: 780, magSize: 8,
+    reloadTime: 1900, auto: false, recoil: 1.8, price: 1600, color: 0xc96a2f, accent: 0x4a2611, wallExclusive: true },
+  pop_quiz: { id: "pop_quiz", name: "Pop Quiz", rarity: "epic", damage: 34, fireRate: 200, magSize: 24,
+    reloadTime: 1600, auto: true, recoil: 0.9, price: 2000, color: 0x8ad94f, accent: 0x2f4a1a, wallExclusive: true },
+  cafeteria_cleaver: { id: "cafeteria_cleaver", name: "Cafeteria Cleaver", rarity: "epic", damage: 72, fireRate: 520, magSize: 8,
+    reloadTime: 1700, auto: false, recoil: 1.6, price: 2300, color: 0xd94f7a, accent: 0x4d162c, wallExclusive: true },
+  honor_roll: { id: "honor_roll", name: "Honor Roll", rarity: "epic", damage: 110, fireRate: 620, magSize: 10,
+    reloadTime: 1800, auto: false, recoil: 1.7, price: 2800, color: 0xd9c04f, accent: 0x4d4211, wallExclusive: true },
+  science_fair: { id: "science_fair", name: "Science Fair", rarity: "secret", damage: 45, fireRate: 105, magSize: 40,
+    reloadTime: 2000, auto: true, recoil: 0.8, price: 3200, color: 0x4fd9c0, accent: 0x134a40, wallExclusive: true },
+  art_attack: { id: "art_attack", name: "Art Attack", rarity: "secret", damage: 120, fireRate: 950, magSize: 5,
+    reloadTime: 2300, auto: false, splash: true, splashRadius: 4.5, recoil: 2.3, price: 3600, color: 0xb84fd9, accent: 0x3d134a, wallExclusive: true },
+  principals_verdict: { id: "principals_verdict", name: "Principal's Verdict", rarity: "secret", damage: 150, fireRate: 700, magSize: 6,
+    reloadTime: 2000, auto: false, pierce: true, recoil: 2.0, price: 4200, color: 0xff6a3d, accent: 0x5c1f08, wallExclusive: true },
+
   // ---------------- Mystery box pool (category C2) ----------------
   // Fifteen guns that exist only inside the 1,000-a-pull mystery box
   // (`boxOnly` keeps them out of crate rolls and the shop). Each pull deals a
@@ -355,6 +376,108 @@ G.WEAPON_BUILDERS = {
     stock.position.set(0, -0.01, 0.32); g.add(stock);
     const grip = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.18, 0.08), accentMat);
     grip.position.set(0, -0.15, 0.16); grip.rotation.x = -0.2; g.add(grip);
+  },
+
+  // ---------------- School wall-mount silhouettes ----------------
+  hall_monitor(g, mat, accentMat, magMat) { // tidy patrol SMG, top rail + side mag
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.13, 0.34), mat);
+    body.position.set(0, 0, -0.1); g.add(body);
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.03, 0.26), accentMat);
+    rail.position.set(0, 0.09, -0.14); g.add(rail);
+    const barrel = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.22), accentMat);
+    barrel.position.set(0, 0.01, -0.36); g.add(barrel);
+    const mag = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.2, 0.09), magMat);
+    mag.position.set(0, -0.19, -0.02); g.add(mag);
+    const grip = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.16, 0.08), accentMat);
+    grip.position.set(0, -0.13, 0.12); g.add(grip);
+  },
+  detention_slug(g, mat, accentMat, magMat) { // pump shotgun with an exposed slide
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.14, 0.4), mat);
+    body.position.set(0, 0, -0.08); g.add(body);
+    const tube = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.44), accentMat);
+    tube.position.set(0, -0.06, -0.38); g.add(tube);
+    const pump = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.09, 0.14), magMat);
+    pump.position.set(0, -0.06, -0.3); g.add(pump);
+    const barrel = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.42), accentMat);
+    barrel.position.set(0, 0.03, -0.4); g.add(barrel);
+    const stock = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.14, 0.26), accentMat);
+    stock.position.set(0, -0.03, 0.24); g.add(stock);
+  },
+  pop_quiz(g, mat, accentMat, magMat) { // compact carbine, angled foregrip
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.14, 0.42), mat);
+    body.position.set(0, 0, -0.06); g.add(body);
+    const shroud = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, 0.26), accentMat);
+    shroud.position.set(0, 0.03, -0.38); g.add(shroud);
+    const fore = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.14, 0.07), accentMat);
+    fore.position.set(0, -0.13, -0.3); fore.rotation.x = 0.35; g.add(fore);
+    const mag = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.18, 0.1), magMat);
+    mag.position.set(0, -0.17, -0.02); g.add(mag);
+    const stock = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.12, 0.2), accentMat);
+    stock.position.set(0, -0.01, 0.22); g.add(stock);
+  },
+  cafeteria_cleaver(g, mat, accentMat, magMat) { // slab-sided hand cannon
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.15, 0.3), mat);
+    body.position.set(0, 0, -0.12); g.add(body);
+    const slide = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.06, 0.34), accentMat);
+    slide.position.set(0, 0.11, -0.14); g.add(slide);
+    const comp = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.1, 0.1), accentMat);
+    comp.position.set(0, 0.01, -0.32); g.add(comp);
+    const mag = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.22, 0.1), magMat);
+    mag.position.set(0, -0.22, 0.0); g.add(mag);
+    const grip = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.18, 0.11), accentMat);
+    grip.position.set(0, -0.14, 0.02); grip.rotation.x = -0.18; g.add(grip);
+  },
+  honor_roll(g, mat, accentMat, magMat) { // long precision rifle, big scope
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.12, 0.48), mat);
+    body.position.set(0, 0, -0.08); g.add(body);
+    const barrel = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.56), accentMat);
+    barrel.position.set(0, 0.01, -0.6); g.add(barrel);
+    const scope = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, 0.3), accentMat);
+    scope.position.set(0, 0.14, -0.14); g.add(scope);
+    const mag = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.16, 0.12), magMat);
+    mag.position.set(0, -0.15, -0.02); g.add(mag);
+    const stock = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.15, 0.3), accentMat);
+    stock.position.set(0, -0.02, 0.28); g.add(stock);
+  },
+  science_fair(g, mat, accentMat, magMat) { // lab-built energy rifle, glowing flask
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.14, 0.36), mat);
+    body.position.set(0, 0, -0.08); g.add(body);
+    const emitter = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.26), accentMat);
+    emitter.position.set(0, 0.02, -0.38); g.add(emitter);
+    const core = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.14, 0.09), new THREE.MeshBasicMaterial({ color: 0xbafff0 }));
+    core.position.set(0, 0.14, -0.06); g.add(core);
+    const flask = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.16, 0.11), magMat);
+    flask.position.set(0, -0.16, -0.04); g.add(flask);
+    const grip = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.16, 0.09), accentMat);
+    grip.position.set(0, -0.13, 0.14); g.add(grip);
+  },
+  art_attack(g, mat, accentMat, magMat) { // paint-bomb launcher, fat drum
+    const tube = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 0.44), mat);
+    tube.position.set(0, 0.02, -0.16); g.add(tube);
+    const muzzle = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.1), accentMat);
+    muzzle.position.set(0, 0.02, -0.42); g.add(muzzle);
+    const drum = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.22, 0.14), magMat);
+    drum.position.set(0, -0.06, 0.02); g.add(drum);
+    const sight = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.09, 0.09), accentMat);
+    sight.position.set(0.07, 0.15, -0.16); g.add(sight);
+    const grip = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.17, 0.09), accentMat);
+    grip.position.set(0, -0.16, 0.2); g.add(grip);
+  },
+  principals_verdict(g, mat, accentMat, magMat) { // long piercing beam rifle
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.14, 0.44), mat);
+    body.position.set(0, 0, -0.04); g.add(body);
+    const lance = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.6), accentMat);
+    lance.position.set(0, 0.03, -0.58); g.add(lance);
+    [0.1, -0.1].forEach((y) => {
+      const vane = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.1, 0.2), accentMat);
+      vane.position.set(0, y + 0.02, -0.34); g.add(vane);
+    });
+    const tip = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, 0.08), new THREE.MeshBasicMaterial({ color: 0xffd0b0 }));
+    tip.position.set(0, 0.03, -0.9); g.add(tip);
+    const cell = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.18, 0.12), magMat);
+    cell.position.set(0, -0.17, 0.0); g.add(cell);
+    const stock = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.14, 0.26), accentMat);
+    stock.position.set(0, -0.02, 0.28); g.add(stock);
   },
 
   // ---------------- Mystery box silhouettes (category C2) ----------------
