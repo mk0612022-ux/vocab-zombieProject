@@ -6,8 +6,14 @@ html, body {
   color: #eaf2f2;
   user-select: none;
   -webkit-user-select: none;
+  /* Mobile: no pull-to-refresh, no rubber-band scroll, no double-tap zoom,
+     and no iOS text-size inflation in landscape. */
+  overscroll-behavior: none;
+  touch-action: none;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
 }
-#gameCanvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; display: block; outline: none; }
+#gameCanvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; display: block; outline: none; touch-action: none; }
 
 .hidden { display: none !important; }
 
@@ -277,15 +283,87 @@ html, body {
 }
 
 /* ---------------- Touch controls ---------------- */
-.touch-controls { position: fixed; inset: 0; z-index: 15; pointer-events: none; }
-.touch-joystick { position: absolute; left: 30px; bottom: 30px; width: 120px; height: 120px; border-radius: 50%; background: rgba(255,255,255,0.08); border: 2px solid rgba(255,255,255,0.25); pointer-events: auto; }
-.touch-joystick-knob { position: absolute; left: 35px; top: 35px; width: 50px; height: 50px; border-radius: 50%; background: rgba(255,255,255,0.35); }
-.touch-lookzone { position: absolute; right: 0; top: 0; width: 55%; height: 70%; pointer-events: auto; }
-.touch-btn { position: absolute; border-radius: 50%; background: rgba(255,80,80,0.35); border: 2px solid rgba(255,255,255,0.4); color: #fff; font-weight: 800; pointer-events: auto; }
-.touch-fire { right: 30px; bottom: 60px; width: 90px; height: 90px; font-size: 1rem; }
-.touch-interact { right: 140px; bottom: 150px; width: 55px; height: 55px; background: rgba(107,255,122,0.3); }
-.touch-reload { right: 30px; bottom: 165px; width: 55px; height: 55px; background: rgba(80,160,255,0.3); }
-.touch-jump { right: 150px; bottom: 40px; width: 55px; height: 55px; background: rgba(255,220,80,0.3); }
+/* Touch controls. Sizes scale with the viewport so the same layout works on a
+   phone in landscape and on an iPad, and everything is inset from the safe
+   area so nothing sits under a notch or the home indicator. */
+.touch-controls {
+  position: fixed; inset: 0; z-index: 15; pointer-events: none;
+  --tb: clamp(48px, 9vmin, 76px);       /* small round button */
+  --tf: clamp(74px, 15vmin, 112px);     /* fire button */
+  --tpad-x: calc(16px + env(safe-area-inset-right, 0px));
+  --tpad-l: calc(16px + env(safe-area-inset-left, 0px));
+  --tpad-b: calc(14px + env(safe-area-inset-bottom, 0px));
+}
+.touch-joystick {
+  position: absolute; left: var(--tpad-l); bottom: var(--tpad-b);
+  width: clamp(104px, 22vmin, 158px); height: clamp(104px, 22vmin, 158px);
+  border-radius: 50%; background: rgba(255,255,255,0.08);
+  border: 2px solid rgba(255,255,255,0.25); pointer-events: auto; touch-action: none;
+}
+.touch-joystick-knob {
+  position: absolute; left: 50%; top: 50%; width: 42%; height: 42%;
+  margin: -21% 0 0 -21%; border-radius: 50%; background: rgba(255,255,255,0.35);
+}
+.touch-lookzone { position: absolute; right: 0; top: 0; width: 55%; height: 72%; pointer-events: auto; touch-action: none; }
+.touch-btn {
+  position: absolute; border-radius: 50%; background: rgba(255,80,80,0.35);
+  border: 2px solid rgba(255,255,255,0.4); color: #fff; font-weight: 800;
+  pointer-events: auto; touch-action: none; padding: 0;
+  font-size: clamp(0.62rem, 1.9vmin, 0.95rem); line-height: 1;
+  -webkit-user-select: none; user-select: none;
+}
+.touch-btn.active { background: rgba(255,212,59,0.55); border-color: #ffd43b; }
+.touch-fire   { right: var(--tpad-x); bottom: calc(var(--tpad-b) + var(--tb) * 0.55); width: var(--tf); height: var(--tf); }
+.touch-ads    { right: calc(var(--tpad-x) + var(--tf) + 10px); bottom: calc(var(--tpad-b) + var(--tb) * 1.7); width: var(--tb); height: var(--tb); background: rgba(255,212,59,0.28); }
+.touch-interact { right: calc(var(--tpad-x) + var(--tf) + 10px); bottom: calc(var(--tpad-b) + var(--tb) * 0.1); width: var(--tb); height: var(--tb); background: rgba(107,255,122,0.32); }
+.touch-reload { right: var(--tpad-x); bottom: calc(var(--tpad-b) + var(--tf) + var(--tb) * 0.75); width: var(--tb); height: var(--tb); background: rgba(80,160,255,0.32); }
+.touch-jump   { left: calc(var(--tpad-l) + clamp(104px, 22vmin, 158px) + 12px); bottom: var(--tpad-b); width: var(--tb); height: var(--tb); background: rgba(255,220,80,0.3); }
+.touch-sprint { left: var(--tpad-l); bottom: calc(var(--tpad-b) + clamp(104px, 22vmin, 158px) + 10px); width: var(--tb); height: var(--tb); background: rgba(120,200,255,0.3); }
+/* Bottom centre: the gap between the movement thumb and the fire thumb is the
+   only place a weapon row doesn't collide with another control. */
+.touch-slots {
+  position: absolute; left: 50%; transform: translateX(-50%); bottom: var(--tpad-b);
+  display: flex; flex-direction: row; gap: 8px; pointer-events: auto;
+}
+
+/* In touch mode the stat panels move to the top, because the bottom corners
+   belong to the thumbs -- otherwise the joystick sits on the health bar and
+   the fire button covers the ammo counter. */
+body.touch-mode .hud-bottom { top: calc(52px + env(safe-area-inset-top, 0px)); bottom: auto; align-items: flex-start; }
+body.touch-mode .hud-slots { display: none; }
+body.touch-mode .hud-interact-prompt { top: 62%; }
+.touch-slot-btn {
+  width: calc(var(--tb) * 0.78); height: calc(var(--tb) * 0.78); border-radius: 10px;
+  background: rgba(10,18,14,0.55); border: 2px solid rgba(255,255,255,0.3); color: #fff;
+  font-weight: 800; font-size: clamp(0.7rem, 2vmin, 1rem); touch-action: none; padding: 0;
+}
+.touch-slot-btn.active { border-color: #6bff7a; background: rgba(28,59,34,0.8); }
+
+/* Landscape phones: the HUD and menus have to shrink or they eat the screen. */
+@media (max-height: 520px) {
+  .hud-meaning { font-size: 1.15rem; }
+  .hud-meaning-box { padding: 4px 14px; }
+  .hud-left, .hud-right { padding: 6px 9px; gap: 3px; font-size: 0.78rem; }
+  .hud-stat { font-size: 0.78rem; gap: 5px; }
+  .bar-track { width: 92px; height: 9px; }
+  .hud-ammo { font-size: 1rem; }
+  .hud-slot { width: 20px; height: 20px; font-size: 0.6rem; }
+  .hud-bottom { bottom: 8px; left: 10px; right: 10px; }
+  .hud-top { top: 6px; }
+  .screen-title { font-size: 1.4rem; margin-bottom: 8px; }
+  .btn { padding: 8px 14px; font-size: 0.85rem; }
+  .menu-btns { gap: 6px; }
+  .hud-challenge-box { width: min(360px, 76vw); padding: 8px 12px; }
+  .hud-challenge-meaning { font-size: 1.05rem; margin: 3px 0; }
+  .mcard { width: clamp(64px, 12vw, 104px); height: clamp(92px, 17vw, 150px); }
+  .mystery-title { font-size: 1.2rem; }
+  .log-content, .shop-grid { max-height: 52vh; }
+}
+@media (max-width: 900px) {
+  .game-title { font-size: 2.2rem; }
+  .shop-grid { grid-template-columns: repeat(auto-fill, minmax(150px,1fr)); }
+  .result-stats { flex-wrap: wrap; }
+}
 
 /* ---------------- Shop ---------------- */
 .shop-timer { opacity: 0.85; margin-bottom: 6px; }

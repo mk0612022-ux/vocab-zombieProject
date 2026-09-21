@@ -1,0 +1,5 @@
+# screenshots captured by the local dev server during design review
+_review/
+
+# exported save file, not part of the game
+vocab-zombie-save.json

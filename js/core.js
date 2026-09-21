@@ -188,6 +188,16 @@ G.disposeObject3D = function (obj) {
   });
 };
 
+// Phone/tablet check used for the default graphics tier and the initial
+// control scheme. A coarse pointer with no hover is the reliable signal --
+// an iPad in landscape is wider than plenty of laptops.
+G.isHandheld = function () {
+  const coarse = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
+  const noHover = window.matchMedia && window.matchMedia("(hover: none)").matches;
+  const touchPoints = (navigator.maxTouchPoints || 0) > 1;
+  return !!((coarse && noHover) || (touchPoints && window.innerWidth < 1400));
+};
+
 G.Input = {
   keys: {},
   mouseDelta: { x: 0, y: 0 },
@@ -201,6 +211,7 @@ G.Input = {
   touchInteract: false,
   touchReload: false,
   touchJump: false,
+  touchSprint: false,
   gamepadIndex: null,
   rebindingAction: null,
 
@@ -356,6 +367,23 @@ G.Input = {
     };
     bindHold("touch-fire", "touchFire");
     bindHold("touch-jump", "touchJump");
+    bindHold("touch-sprint", "touchSprint");
+    // ADS is a hold on desktop (right mouse); on touch it toggles, since you
+    // can't comfortably hold a corner button and still aim with the same thumb.
+    const adsBtn = document.getElementById("touch-ads");
+    adsBtn.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      this.aimDown = !this.aimDown;
+      adsBtn.classList.toggle("active", this.aimDown);
+    }, { passive: false });
+    // Weapon slots: filled in by G.UI.refreshTouchSlots to match what the
+    // player is actually carrying.
+    document.getElementById("touch-slots").addEventListener("touchstart", (e) => {
+      const btn = e.target.closest("[data-slot]");
+      if (!btn) return;
+      e.preventDefault();
+      G.onSlotPress && G.onSlotPress(parseInt(btn.dataset.slot, 10));
+    }, { passive: false });
     document.getElementById("touch-interact").addEventListener("touchstart", (e) => {
       this.touchInteract = true; e.preventDefault();
       G.onInteractPress && G.onInteractPress();

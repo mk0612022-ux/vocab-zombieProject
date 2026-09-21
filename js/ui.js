@@ -42,6 +42,19 @@ G.UI = {
   applyControlMode() {
     const mode = G.Input.mode;
     this.setTouchControlsVisible(mode === "touch" && G.Game && G.Game.state === "GAMEPLAY");
+    document.body.classList.toggle("touch-mode", mode === "touch");
+  },
+  // On-screen weapon switcher: one button per slot the player actually holds
+  // (knife + up to four guns), rebuilt only when the loadout or selection
+  // changes so it isn't re-rendered every frame.
+  refreshTouchSlots(slots, activeIndex) {
+    const wrap = this.el("touch-slots");
+    const sig = slots.length + ":" + activeIndex;
+    if (this._touchSlotSig === sig) return;
+    this._touchSlotSig = sig;
+    wrap.innerHTML = slots.map((s, i) =>
+      `<button class="touch-slot-btn${i === activeIndex ? " active" : ""}" data-slot="${i}">${i === 0 ? "🔪" : i + 1}</button>`
+    ).join("");
   },
 
   init() {
@@ -572,6 +585,7 @@ G.UI = {
     });
     if (p.combo > 1) { this.el("hud-combo").classList.remove("hidden"); this.el("hud-combo").textContent = "COMBO x" + p.combo; }
     else this.el("hud-combo").classList.add("hidden");
+    if (G.Input.mode === "touch") this.refreshTouchSlots(p.slots, p.slots.findIndex((s) => s.active));
   },
   setAimingVisual(v) { this.el("hud-crosshair").classList.toggle("aiming", !!v); },
 

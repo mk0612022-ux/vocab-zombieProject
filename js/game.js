@@ -48,10 +48,15 @@ G.Game = {
     const isFirstRun = !localStorage.getItem("vocabZombie_save_v1");
     G.loadSave();
     if (isFirstRun) {
-      const smallScreen = window.innerWidth < 900 || "ontouchstart" in window;
-      G.save.settings.graphicsQuality = smallScreen ? "medium" : "high";
+      // Phones/tablets start on medium so the first frame isn't a slideshow.
+      // matchMedia("pointer: coarse") is what actually catches an iPad --
+      // its landscape width is over 1000px, so a width test alone misses it.
+      G.save.settings.graphicsQuality = G.isHandheld() ? "medium" : "high";
       G.persist();
     }
+    // A touch device should come up already in touch mode rather than waiting
+    // for the first tap to switch the control scheme over.
+    if (G.isHandheld() && G.save.settings.controlMode === "auto") G.Input.mode = "touch";
     G.Input.init();
     G.UI.init();
     G.Shop.resetRun();
@@ -932,7 +937,7 @@ G.Game = {
     // Sprint is gated by stamina (category I): held sprint only speeds you up
     // while stamina remains, and only actually drains while you're moving --
     // holding the key while standing still costs nothing.
-    const wantSprint = G.Input.mode === "desktop" && G.Input.isDown("sprint");
+    const wantSprint = (G.Input.mode === "desktop" && G.Input.isDown("sprint")) || G.Input.touchSprint;
     // A3: at exactly 0 stamina the old check (stamina > 0) flipped back on the
     // very next frame, because the non-sprint branch regenerates -- so holding
     // sprint at empty alternated drain/regen frames and still moved you at
@@ -971,7 +976,7 @@ G.Game = {
     // and pulls the weapon toward center, blended over time (not an instant
     // snap) so it reads as a deliberate aim rather than a jump-cut.
     const def = this.currentWeaponDef();
-    const wantAim = G.Input.mode === "desktop" && G.Input.aimDown && def.id !== "melee" && !this.challenge;
+    const wantAim = G.Input.aimDown && def.id !== "melee" && !this.challenge;
     const aimSpeed = 10;
     this.aimT += ((wantAim ? 1 : 0) - this.aimT) * Math.min(1, aimSpeed * dt);
     if (Math.abs(this.aimT) < 0.002) this.aimT = 0;
@@ -1458,6 +1463,7 @@ G.onMouseDown = function (e) {
   if (Game.state === "GAMEPLAY" && !Game.paused && !Game.challenge) Game._fireEdge = true;
 };
 G.onInteractPress = function () { if (G.Game.state === "GAMEPLAY") G.Game.doInteract(); };
+G.onSlotPress = function (slot) { if (G.Game.state === "GAMEPLAY") G.Game.switchSlot(slot); };
 G.onReloadPress = function () { if (G.Game.state === "GAMEPLAY") G.Game.reload(); };
 
 // ---------------- Boot ----------------
