@@ -285,19 +285,27 @@ html, body {
 /* ---------------- Touch controls ---------------- */
 /* Touch controls. Sizes scale with the viewport so the same layout works on a
    phone in landscape and on an iPad, and everything is inset from the safe
-   area so nothing sits under a notch or the home indicator. */
+   area so nothing sits under a notch or the home indicator.
+   Every size is also multiplied by a per-control --s and every control fades
+   with --touch-op, which is what the layout editor (category B) writes to. */
 .touch-controls {
   position: fixed; inset: 0; z-index: 15; pointer-events: none;
-  --tb: clamp(48px, 9vmin, 76px);       /* small round button */
-  --tf: clamp(74px, 15vmin, 112px);     /* fire button */
+  /* vmin keeps these sane on a short landscape phone (a 360px-tall screen and
+     a 768px-tall iPad both get buttons proportional to the SHORT edge). */
+  --tb: clamp(42px, 10.5vmin, 76px);    /* small round button */
+  --tf: clamp(62px, 17vmin, 112px);     /* fire button */
+  --tj: clamp(104px, 22vmin, 158px);    /* movement joystick */
+  --tp: clamp(30px, 6vmin, 44px);       /* pause chip */
+  --touch-op: 1;                        /* player-set opacity */
   --tpad-x: calc(16px + env(safe-area-inset-right, 0px));
   --tpad-l: calc(16px + env(safe-area-inset-left, 0px));
   --tpad-b: calc(14px + env(safe-area-inset-bottom, 0px));
 }
 .touch-joystick {
+  --s: 1;
   position: absolute; left: var(--tpad-l); bottom: var(--tpad-b);
-  width: clamp(104px, 22vmin, 158px); height: clamp(104px, 22vmin, 158px);
-  border-radius: 50%; background: rgba(255,255,255,0.08);
+  width: calc(var(--tj) * var(--s)); height: calc(var(--tj) * var(--s));
+  border-radius: 50%; background: rgba(255,255,255,0.08); opacity: var(--touch-op);
   border: 2px solid rgba(255,255,255,0.25); pointer-events: auto; touch-action: none;
 }
 .touch-joystick-knob {
@@ -306,38 +314,98 @@ html, body {
 }
 .touch-lookzone { position: absolute; right: 0; top: 0; width: 55%; height: 72%; pointer-events: auto; touch-action: none; }
 .touch-btn {
+  --s: 1;
   position: absolute; border-radius: 50%; background: rgba(255,80,80,0.35);
   border: 2px solid rgba(255,255,255,0.4); color: #fff; font-weight: 800;
-  pointer-events: auto; touch-action: none; padding: 0;
+  pointer-events: auto; touch-action: none; padding: 0; opacity: var(--touch-op);
   font-size: clamp(0.62rem, 1.9vmin, 0.95rem); line-height: 1;
   -webkit-user-select: none; user-select: none;
 }
 .touch-btn.active { background: rgba(255,212,59,0.55); border-color: #ffd43b; }
-.touch-fire   { right: var(--tpad-x); bottom: calc(var(--tpad-b) + var(--tb) * 0.55); width: var(--tf); height: var(--tf); }
-.touch-ads    { right: calc(var(--tpad-x) + var(--tf) + 10px); bottom: calc(var(--tpad-b) + var(--tb) * 1.7); width: var(--tb); height: var(--tb); background: rgba(255,212,59,0.28); }
-.touch-interact { right: calc(var(--tpad-x) + var(--tf) + 10px); bottom: calc(var(--tpad-b) + var(--tb) * 0.1); width: var(--tb); height: var(--tb); background: rgba(107,255,122,0.32); }
-.touch-reload { right: var(--tpad-x); bottom: calc(var(--tpad-b) + var(--tf) + var(--tb) * 0.75); width: var(--tb); height: var(--tb); background: rgba(80,160,255,0.32); }
-.touch-jump   { left: calc(var(--tpad-l) + clamp(104px, 22vmin, 158px) + 12px); bottom: var(--tpad-b); width: var(--tb); height: var(--tb); background: rgba(255,220,80,0.3); }
-.touch-sprint { left: var(--tpad-l); bottom: calc(var(--tpad-b) + clamp(104px, 22vmin, 158px) + 10px); width: var(--tb); height: var(--tb); background: rgba(120,200,255,0.3); }
+/* Visible confirmation that a tap registered -- without it a button that does
+   nothing looks identical to one that isn't wired up. */
+.touch-btn.pressed { transform: scale(0.92); filter: brightness(1.6); }
+/* Top-left, not top-centre: centre is where the Thai word prompt sits, and on
+   a 667px-wide phone the two boxes overlapped. */
+.touch-pause {
+  left: var(--tpad-l); top: calc(8px + env(safe-area-inset-top, 0px));
+  /* capped independently of --tb so it can't grow into the stats panel on a
+     tablet, where --tb reaches 76px */
+  width: calc(var(--tp) * var(--s)); height: calc(var(--tp) * var(--s));
+  background: rgba(255,255,255,0.18); font-size: 0.8rem;
+}
+.touch-fire   { right: var(--tpad-x); bottom: calc(var(--tpad-b) + var(--tb) * 0.55); width: calc(var(--tf) * var(--s)); height: calc(var(--tf) * var(--s)); }
+.touch-ads    { right: calc(var(--tpad-x) + var(--tf) + 10px); bottom: calc(var(--tpad-b) + var(--tb) * 1.7); width: calc(var(--tb) * var(--s)); height: calc(var(--tb) * var(--s)); background: rgba(255,212,59,0.28); }
+.touch-interact { right: calc(var(--tpad-x) + var(--tf) + 10px); bottom: calc(var(--tpad-b) + var(--tb) * 0.1); width: calc(var(--tb) * var(--s)); height: calc(var(--tb) * var(--s)); background: rgba(107,255,122,0.32); }
+.touch-reload { right: var(--tpad-x); bottom: calc(var(--tpad-b) + var(--tf) + var(--tb) * 0.75); width: calc(var(--tb) * var(--s)); height: calc(var(--tb) * var(--s)); background: rgba(80,160,255,0.32); }
+.touch-jump   { left: calc(var(--tpad-l) + var(--tj) + 12px); bottom: var(--tpad-b); width: calc(var(--tb) * var(--s)); height: calc(var(--tb) * var(--s)); background: rgba(255,220,80,0.3); }
+/* Stacked above JUMP rather than above the joystick: on a short phone the
+   stats panel reaches far enough down the left edge that the old spot
+   overlapped it. */
+.touch-sprint { left: calc(var(--tpad-l) + var(--tj) + 12px); bottom: calc(var(--tpad-b) + var(--tb) + 10px); width: calc(var(--tb) * var(--s)); height: calc(var(--tb) * var(--s)); background: rgba(120,200,255,0.3); }
 /* Bottom centre: the gap between the movement thumb and the fire thumb is the
    only place a weapon row doesn't collide with another control. */
 .touch-slots {
+  --s: 1;
   position: absolute; left: 50%; transform: translateX(-50%); bottom: var(--tpad-b);
-  display: flex; flex-direction: row; gap: 8px; pointer-events: auto;
+  display: flex; flex-direction: row; gap: 8px; pointer-events: auto; opacity: var(--touch-op);
 }
 
 /* In touch mode the stat panels move to the top, because the bottom corners
    belong to the thumbs -- otherwise the joystick sits on the health bar and
    the fire button covers the ammo counter. */
-body.touch-mode .hud-bottom { top: calc(52px + env(safe-area-inset-top, 0px)); bottom: auto; align-items: flex-start; }
+body.touch-mode .hud-bottom { top: calc(58px + env(safe-area-inset-top, 0px)); bottom: auto; align-items: flex-start; }
 body.touch-mode .hud-slots { display: none; }
 body.touch-mode .hud-interact-prompt { top: 62%; }
 .touch-slot-btn {
-  width: calc(var(--tb) * 0.78); height: calc(var(--tb) * 0.78); border-radius: 10px;
+  width: calc(var(--tb) * 0.78 * var(--s)); height: calc(var(--tb) * 0.78 * var(--s)); border-radius: 10px;
   background: rgba(10,18,14,0.55); border: 2px solid rgba(255,255,255,0.3); color: #fff;
   font-weight: 800; font-size: clamp(0.7rem, 2vmin, 1rem); touch-action: none; padding: 0;
 }
 .touch-slot-btn.active { border-color: #6bff7a; background: rgba(28,59,34,0.8); }
+
+/* ---------------- Touch layout editor (category B) ---------------- */
+/* While editing, a transparent sheet sits over the controls and swallows every
+   pointer event, so dragging FIRE around cannot also shoot the gun. Hit
+   testing is done with elementFromPoint instead of real event targets. */
+#touchcfg-capture { position: fixed; inset: 0; z-index: 30; touch-action: none; background: transparent; }
+#touch-controls.tc-editing .touch-btn,
+#touch-controls.tc-editing .touch-joystick,
+#touch-controls.tc-editing .touch-slots {
+  outline: 2px dashed rgba(255,255,255,0.55); outline-offset: 3px;
+}
+#touch-controls.tc-editing .tc-selected {
+  outline: 3px solid #6bff7a; outline-offset: 3px; box-shadow: 0 0 18px rgba(107,255,122,0.55);
+}
+.touchcfg-panel {
+  position: fixed; z-index: 40; left: 50%; transform: translateX(-50%);
+  top: calc(6px + env(safe-area-inset-top, 0px));
+  width: min(480px, 92vw); max-height: 52vh; overflow-y: auto;
+  background: rgba(8,14,10,0.93); border: 1px solid #2f6b3c; border-radius: 12px;
+  padding: 10px 14px; color: #dff5e2; font-size: 0.82rem;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.6);
+}
+.touchcfg-panel.collapsed { max-height: none; padding: 6px 12px; width: auto; }
+.touchcfg-panel.collapsed .touchcfg-body { display: none; }
+.touchcfg-head { display: flex; align-items: center; gap: 10px; justify-content: space-between; }
+.touchcfg-head strong { font-size: 0.92rem; }
+.touchcfg-hint { opacity: 0.78; font-size: 0.74rem; margin: 6px 0 8px; line-height: 1.45; }
+.touchcfg-sel { font-weight: 800; color: #6bff7a; }
+.touchcfg-row { display: flex; align-items: center; gap: 8px; margin: 7px 0; }
+.touchcfg-row > label { flex: 0 0 42%; font-size: 0.76rem; }
+.touchcfg-row > input[type="range"] { flex: 1; }
+.touchcfg-presets { display: flex; gap: 6px; }
+.touchcfg-panel button {
+  background: rgba(30,60,38,0.85); border: 1px solid #3f8a50; color: #dff5e2;
+  border-radius: 7px; padding: 5px 10px; font-size: 0.76rem; font-weight: 700; cursor: pointer;
+}
+.touchcfg-panel button.primary { background: #2f7a41; border-color: #6bff7a; }
+.touchcfg-panel button:disabled { opacity: 0.4; cursor: default; }
+.touchcfg-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; }
+@media (max-height: 430px) {
+  .touchcfg-panel { max-height: 78vh; font-size: 0.76rem; padding: 7px 11px; }
+  .touchcfg-row { margin: 5px 0; }
+}
 
 /* Landscape phones: the HUD and menus have to shrink or they eat the screen. */
 @media (max-height: 520px) {
@@ -358,6 +426,19 @@ body.touch-mode .hud-interact-prompt { top: 62%; }
   .mcard { width: clamp(64px, 12vw, 104px); height: clamp(92px, 17vw, 150px); }
   .mystery-title { font-size: 1.2rem; }
   .log-content, .shop-grid { max-height: 52vh; }
+}
+/* Very short landscape phones (≈320px tall). The stats panel at the 520px
+   sizes is still ~150px tall, which reaches down into the joystick. */
+@media (max-height: 400px) {
+  .hud-left, .hud-right { padding: 4px 7px; gap: 1px; font-size: 0.68rem; }
+  .hud-stat { font-size: 0.68rem; gap: 4px; }
+  .hud-icon { font-size: 0.85rem; }
+  .bar-track { width: 68px; height: 7px; }
+  .hud-meaning { font-size: 0.95rem; }
+  .hud-meaning-label { font-size: 0.6rem; }
+  .hud-ammo { font-size: 0.9rem; }
+  .hud-weapon-name { font-size: 0.72rem; }
+  .hud-challenge-box { width: min(320px, 74vw); padding: 6px 10px; }
 }
 @media (max-width: 900px) {
   .game-title { font-size: 2.2rem; }

@@ -304,6 +304,17 @@ G.Input = {
   exitPointerLock() {
     if (document.exitPointerLock) document.exitPointerLock();
   },
+  // Drop every held input (used when a menu/overlay takes over mid-press, where
+  // the matching touchend/mouseup never reaches us).
+  clearHeldInputs() {
+    this.mouseDown = false; this.aimDown = false;
+    this.touchFire = false; this.touchJump = false; this.touchSprint = false;
+    this.touchInteract = false; this.touchReload = false;
+    this.touchMove = { x: 0, y: 0, active: false };
+    const knob = document.getElementById("touch-joystick-knob");
+    if (knob) knob.style.transform = "translate(0,0)";
+    document.querySelectorAll("#touch-controls .touch-btn").forEach((b) => b.classList.remove("pressed", "active"));
+  },
 
   _setupTouchControls() {
     const joy = document.getElementById("touch-joystick");
@@ -350,7 +361,9 @@ G.Input = {
         if (t.identifier === lookId) {
           const dx = t.clientX - lastLook.x, dy = t.clientY - lastLook.y;
           lastLook = { x: t.clientX, y: t.clientY };
-          const sens = (G.save && G.save.settings.mouseSensitivity) || 1;
+          // Touch look has its own sensitivity (category B): a figure tuned for
+          // a mouse on a desk says nothing about how far a thumb travels on glass.
+          const sens = (G.TouchCfg && G.TouchCfg.lookSens()) || 1;
           this.mouseDelta.x += dx * 2.2 * sens;
           this.mouseDelta.y += dy * 2.2 * sens;
         }
@@ -360,12 +373,34 @@ G.Input = {
       for (const t of e.changedTouches) if (t.identifier === lookId) lookId = null;
     });
 
-    const bindHold = (id, prop) => {
+    // Hold-style buttons. touchcancel matters as much as touchend: iOS fires it
+    // instead of touchend when the system steals the gesture (notification,
+    // call, palm rejection), and without handling it the button latched "held"
+    // forever -- firing or sprinting with nothing on the screen.
+    const bindHold = (id, prop, onPress) => {
       const el = document.getElementById(id);
-      el.addEventListener("touchstart", (e) => { this[prop] = true; e.preventDefault(); }, { passive: false });
-      el.addEventListener("touchend", (e) => { this[prop] = false; e.preventDefault(); }, { passive: false });
+      const press = (e) => {
+        e.preventDefault();
+        this[prop] = true;
+        el.classList.add("pressed");
+        if (onPress) onPress();
+      };
+      const release = (e) => {
+        e.preventDefault();
+        this[prop] = false;
+        el.classList.remove("pressed");
+      };
+      el.addEventListener("touchstart", press, { passive: false });
+      el.addEventListener("touchend", release, { passive: false });
+      el.addEventListener("touchcancel", release, { passive: false });
     };
-    bindHold("touch-fire", "touchFire");
+    // The press hook is what makes semi-automatic weapons work on touch. Firing
+    // one needs a fresh trigger-pull edge, which used to be produced ONLY by the
+    // DOM mousedown handler -- and calling preventDefault() on touchstart (which
+    // we must, to stop scrolling/zooming) suppresses the synthesized mouse
+    // events entirely on iOS. So the pistol every player starts with silently
+    // did nothing when the FIRE button was tapped, while auto weapons worked.
+    bindHold("touch-fire", "touchFire", () => G.onFirePress && G.onFirePress());
     bindHold("touch-jump", "touchJump");
     bindHold("touch-sprint", "touchSprint");
     // ADS is a hold on desktop (right mouse); on touch it toggles, since you
@@ -392,6 +427,12 @@ G.Input = {
     document.getElementById("touch-reload").addEventListener("touchstart", (e) => {
       e.preventDefault();
       G.onReloadPress && G.onReloadPress();
+    }, { passive: false });
+    // Touch had no way to pause at all -- ESC was the only route, which a
+    // tablet doesn't have.
+    document.getElementById("touch-pause").addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      G.onPausePress && G.onPausePress();
     }, { passive: false });
   },
 

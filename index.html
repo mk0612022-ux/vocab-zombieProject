@@ -192,7 +192,40 @@
   <button id="touch-reload" class="touch-btn touch-reload">R</button>
   <button id="touch-jump" class="touch-btn touch-jump">JUMP</button>
   <button id="touch-sprint" class="touch-btn touch-sprint">วิ่ง</button>
+  <button id="touch-pause" class="touch-btn touch-pause">II</button>
   <div id="touch-slots" class="touch-slots"></div>
+</div>
+
+<!-- ===================== TOUCH LAYOUT EDITOR (category B) ===================== -->
+<!-- Sits over the live game view so controls are placed against what the
+     player actually sees. The capture sheet swallows every pointer event so a
+     drag can't reach the control underneath and fire the gun. -->
+<div id="touchcfg-capture" class="hidden"></div>
+<div id="touchcfg-panel" class="touchcfg-panel hidden">
+  <div class="touchcfg-head">
+    <strong>ปรับแต่งปุ่มควบคุม</strong>
+    <button id="touchcfg-collapse">ย่อ</button>
+  </div>
+  <div class="touchcfg-body">
+    <div class="touchcfg-hint">ลากปุ่มบนจอเพื่อย้ายตำแหน่ง · แตะปุ่มหนึ่งครั้งเพื่อเลือกแล้วปรับขนาดด้านล่าง</div>
+    <div class="touchcfg-row"><label>ปุ่มที่เลือก</label><span class="touchcfg-sel" id="touchcfg-selname">— แตะปุ่มบนจอเพื่อเลือก —</span></div>
+    <div class="touchcfg-row"><label>ขนาดปุ่ม <span id="touchcfg-sizeval"></span></label>
+      <input type="range" id="touchcfg-size" min="0.6" max="1.8" step="0.05" value="1" disabled></div>
+    <div class="touchcfg-row"><label></label><div class="touchcfg-presets">
+      <button class="touchcfg-preset" data-scale="0.8" disabled>เล็ก</button>
+      <button class="touchcfg-preset" data-scale="1" disabled>กลาง</button>
+      <button class="touchcfg-preset" data-scale="1.3" disabled>ใหญ่</button>
+      <button id="touchcfg-resetone" disabled>คืนค่าปุ่มนี้</button>
+    </div></div>
+    <div class="touchcfg-row"><label>ความโปร่งใสของปุ่ม <span id="touchcfg-opval"></span></label>
+      <input type="range" id="touchcfg-op" min="0.2" max="1" step="0.05" value="1"></div>
+    <div class="touchcfg-row"><label>ความไวการลากหมุนกล้อง <span id="touchcfg-sensval"></span></label>
+      <input type="range" id="touchcfg-sens" min="0.3" max="3" step="0.05" value="1"></div>
+    <div class="touchcfg-actions">
+      <button id="touchcfg-reset">รีเซ็ตทั้งหมด</button>
+      <button id="touchcfg-done" class="primary">เสร็จสิ้น</button>
+    </div>
+  </div>
 </div>
 
 <!-- ===================== SHOP (between waves) ===================== -->
@@ -271,6 +304,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="js/data/words.js"></script>
 <script src="js/core.js"></script>
+<script src="js/touchcfg.js"></script>
 <script src="js/entities.js"></script>
 <script src="js/world.js"></script>
 <script src="js/systems.js"></script>

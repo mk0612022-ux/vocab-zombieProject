@@ -59,6 +59,7 @@ G.Game = {
     if (G.isHandheld() && G.save.settings.controlMode === "auto") G.Input.mode = "touch";
     G.Input.init();
     G.UI.init();
+    G.TouchCfg.init();
     G.Shop.resetRun();
     this.setupThree();
     document.getElementById("loading-overlay").classList.add("hidden");
@@ -220,6 +221,39 @@ G.Game = {
     if (G.Input.mode === "desktop") G.Input.requestPointerLock();
   },
 
+
+  // ---------------- Touch layout editor backdrop (category B) ----------------
+  // Arranging controls against a blank screen is guesswork, so the editor is
+  // drawn over the real view. During a run that is simply the paused scene; from
+  // the main menu there is nothing loaded, so a throwaway copy of the school is
+  // built and torn down again on close.
+  startLayoutPreview() {
+    if (this.state === "GAMEPLAY" || this.state === "PAUSE") return false;
+    this.teardownLevel();
+    this._previewLevel = G.getLevel(1);
+    this.scene = new THREE.Scene();
+    this.scene.add(this.yawObject);
+    this.world = G.buildLevelScene(this.scene, this._previewLevel, G.save.settings.graphicsQuality);
+    this.yawObject.position.set(this.world.spawn.x, 1.7, this.world.spawn.z);
+    this.pitchObject.rotation.x = 0;
+    this.yawObject.rotation.y = 0;
+    this._layoutPreview = true;
+    return true;
+  },
+  endLayoutPreview() {
+    if (!this._layoutPreview) return;
+    this._layoutPreview = false;
+    this.teardownLevel();
+    this.scene = null;
+    this.world = null;
+    if (this.renderer) this.renderer.clear();
+  },
+  // Only the preview needs driving by hand -- during a run the main loop is
+  // already rendering the (paused) scene every frame.
+  renderLayoutPreviewFrame() {
+    if (!this._layoutPreview || !this.renderer || !this.scene || !this.camera) return;
+    this.renderer.render(this.scene, this.camera);
+  },
   teardownLevel() {
     if (this.scene) {
       this.zombies.forEach((z) => { this.scene.remove(z.mesh); G.disposeObject3D(z.mesh); });
@@ -833,11 +867,16 @@ G.Game = {
     if (this.state !== "GAMEPLAY") return;
     this.paused = true; this.state = "PAUSE";
     G.Input.exitPointerLock();
+    // A finger still on FIRE/sprint when the pause screen opens never gets its
+    // touchend, so clear the held state or it resumes with the trigger stuck.
+    G.Input.clearHeldInputs();
+    G.UI.applyControlMode();
     G.UI.showScreen("screen-pause");
   },
   resume() {
     this.paused = false; this.state = "GAMEPLAY";
     G.UI.showScreen(null);
+    G.UI.applyControlMode();
     if (G.Input.mode === "desktop") G.Input.requestPointerLock();
   },
   pauseForOverlay(v) { this.paused = v; },
@@ -1458,12 +1497,23 @@ G.onKeyDown = function (e) {
   }
 };
 G.onKeyUp = function () {};
-G.onMouseDown = function (e) {
+// A single trigger-pull edge, shared by the mouse and the touch FIRE button.
+G.onFirePress = function () {
   const Game = G.Game;
   if (Game.state === "GAMEPLAY" && !Game.paused && !Game.challenge) Game._fireEdge = true;
 };
+G.onMouseDown = function (e) {
+  // Left button only -- right-click is ADS, and letting it through meant
+  // aiming also loosed a shot from every semi-automatic weapon.
+  if (e.button === 0) G.onFirePress();
+};
 G.onInteractPress = function () { if (G.Game.state === "GAMEPLAY") G.Game.doInteract(); };
 G.onSlotPress = function (slot) { if (G.Game.state === "GAMEPLAY") G.Game.switchSlot(slot); };
+G.onPausePress = function () {
+  const Game = G.Game;
+  if (Game.state === "GAMEPLAY") Game.pause();
+  else if (Game.state === "PAUSE") Game.resume();
+};
 G.onReloadPress = function () { if (G.Game.state === "GAMEPLAY") G.Game.reload(); };
 
 // ---------------- Boot ----------------

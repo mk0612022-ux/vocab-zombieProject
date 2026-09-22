@@ -37,9 +37,17 @@ G.UI = {
   },
   hideAllScreens() { this.showScreen(null); },
   setHudVisible(v) { this.el("hud").classList.toggle("hidden", !v); },
-  setTouchControlsVisible(v) { this.el("touch-controls").classList.toggle("hidden", !v); },
+  setTouchControlsVisible(v) {
+    this.el("touch-controls").classList.toggle("hidden", !v);
+    // A hidden control measures 0x0, so a stored custom position can only be
+    // resolved to pixels once it is on screen.
+    if (v && G.TouchCfg) G.TouchCfg.apply();
+  },
 
   applyControlMode() {
+    // The layout editor owns the controls while it is open -- it shows them
+    // outside gameplay on purpose, and this would hide them again.
+    if (G.TouchCfg && G.TouchCfg.editing) return;
     const mode = G.Input.mode;
     this.setTouchControlsVisible(mode === "touch" && G.Game && G.Game.state === "GAMEPLAY");
     document.body.classList.toggle("touch-mode", mode === "touch");
@@ -95,7 +103,7 @@ G.UI = {
     this.el("btn-weaponlog").onclick = () => { this._logReturnScreen = "screen-mainmenu"; this.renderWeaponLog(1); this.showScreen("screen-weaponlog"); };
     this.el("btn-import-vocab").onclick = () => { this.renderImportedSets(); this.showScreen("screen-import"); };
     this.el("btn-howtoplay").onclick = () => this.showScreen("screen-howtoplay");
-    this.el("btn-settings").onclick = () => { this.renderSettings(); this.showScreen("screen-settings"); };
+    this.el("btn-settings").onclick = () => { this._settingsReturn = "screen-mainmenu"; this.renderSettings(); this.showScreen("screen-settings"); };
   },
   goToMainMenu() { this.showScreen("screen-mainmenu"); this.setHudVisible(false); this.setTouchControlsVisible(false); },
 
@@ -127,7 +135,14 @@ G.UI = {
   bindHowTo() { this.el("btn-howtoplay-back").onclick = () => this.goToMainMenu(); },
 
   // ---------------- Settings ----------------
-  bindSettings() { this.el("btn-settings-back").onclick = () => this.goToMainMenu(); },
+  // Settings is reachable from the main menu AND from the pause screen; "back"
+  // used to always drop to the main menu, which quietly threw away the run.
+  bindSettings() {
+    this.el("btn-settings-back").onclick = () => {
+      if (this._settingsReturn === "screen-pause") this.showScreen("screen-pause");
+      else this.goToMainMenu();
+    };
+  },
   refreshSettingsScreen() { if (!this.el("screen-settings").classList.contains("hidden")) this.renderSettings(); },
   renderSettings() {
     const s = G.save.settings;
@@ -146,6 +161,8 @@ G.UI = {
       </div>
       <div class="settings-row"><label>ความไวเมาส์ (${s.mouseSensitivity.toFixed(2)})</label>
         <input type="range" id="set-sens" min="0.2" max="2.5" step="0.05" value="${s.mouseSensitivity}"></div>
+      <div class="settings-row"><label>ปุ่มควบคุมบนจอสัมผัส (ตำแหน่ง / ขนาด / ความโปร่งใส / ความไว)</label>
+        <button class="btn" id="btn-touchcfg">ปรับแต่งปุ่มควบคุม</button></div>
 
       <div class="settings-section-title">Key Bindings</div>
       ${Object.keys(actionLabels).map((a) => `
@@ -192,6 +209,7 @@ G.UI = {
     wrap.querySelector("#set-colorblind").checked = s.colorblindMode;
 
     wrap.querySelector("#set-controlmode").onchange = (e) => { s.controlMode = e.target.value; G.persist(); G.Input.mode = e.target.value === "auto" ? G.Input.mode : e.target.value; this.applyControlMode(); };
+    wrap.querySelector("#btn-touchcfg").onclick = () => G.TouchCfg.openEditor();
     wrap.querySelector("#set-sens").oninput = (e) => { s.mouseSensitivity = parseFloat(e.target.value); G.persist(); this.renderSettings(); };
     wrap.querySelector("#set-fpscap").onchange = (e) => { s.fpsCap = parseInt(e.target.value); G.persist(); };
     wrap.querySelector("#set-showfps").onchange = (e) => { s.showFpsCounter = e.target.checked; G.persist(); this.el("hud-fps-counter").classList.toggle("hidden", !s.showFpsCounter); };
@@ -480,7 +498,7 @@ G.UI = {
       const lvlId = (G.Game.level && G.Game.level.id) || 1;
       this.renderWeaponLog(lvlId); this.showScreen("screen-weaponlog");
     };
-    this.el("btn-pause-settings").onclick = () => { this.renderSettings(); this.showScreen("screen-settings"); };
+    this.el("btn-pause-settings").onclick = () => { this._settingsReturn = "screen-pause"; this.renderSettings(); this.showScreen("screen-settings"); };
     this.el("btn-pause-mainmenu").onclick = () => G.Game.quitToMainMenu();
   },
 
@@ -549,9 +567,14 @@ G.UI = {
   // elapsed wall-clock time (not tied to the game's own dt/FPS cap) --
   // money/score/HP used to just snap to the new value instantly.
   _tweenValue(key, target) {
+    // A single bad value used to wedge the HUD for good: NaN never converges
+    // back toward the target, so once it got in, HP/money/score read "NaN"
+    // until the page reloaded.
+    if (!Number.isFinite(target)) target = 0;
     const now = performance.now();
     this._tweenState = this._tweenState || {};
-    const st = this._tweenState[key] || { val: target, t: now };
+    const prev = this._tweenState[key];
+    const st = prev && Number.isFinite(prev.val) ? prev : { val: target, t: now };
     const dt = Math.min(0.1, (now - st.t) / 1000);
     const factor = 1 - Math.exp(-7 * dt);
     let val = st.val + (target - st.val) * factor;
