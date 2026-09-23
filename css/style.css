@@ -491,3 +491,24 @@ body.font-small .hud-meaning { font-size: 1.25rem; }
 
 ::-webkit-scrollbar { width: 8px; }
 ::-webkit-scrollbar-thumb { background: #345; border-radius: 4px; }
+
+/* ---------------- Sniper scope + charge meter (category N) ---------------- */
+/* The scope is drawn with a huge inset shadow rather than an image: it scales
+   to any viewport and costs nothing to composite. */
+.hud-scope { position: absolute; inset: 0; pointer-events: none; z-index: 6; }
+.hud-scope-ring {
+  position: absolute; left: 50%; top: 50%; width: 78vmin; height: 78vmin;
+  transform: translate(-50%, -50%); border-radius: 50%;
+  box-shadow: 0 0 0 100vmax rgba(0,0,0,0.92), inset 0 0 40px rgba(0,0,0,0.85);
+  border: 2px solid rgba(0,0,0,0.9);
+}
+.hud-scope-h, .hud-scope-v { position: absolute; left: 50%; top: 50%; background: rgba(10,12,10,0.85); }
+.hud-scope-h { width: 78vmin; height: 1px; transform: translate(-50%, -50%); }
+.hud-scope-v { width: 1px; height: 78vmin; transform: translate(-50%, -50%); }
+.hud-charge {
+  position: absolute; left: 50%; top: calc(50% + 34px); transform: translateX(-50%);
+  width: clamp(90px, 18vmin, 150px); height: 6px; z-index: 7;
+  background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.35); border-radius: 3px;
+}
+.hud-charge-fill { height: 100%; width: 0%; background: #ffd43b; border-radius: 2px; transition: background .1s; }
+.hud-charge-fill.full { background: #6bff7a; box-shadow: 0 0 8px #6bff7a; }

@@ -398,17 +398,25 @@ G.Game = {
   },
 
   // ---------------- Shooting ----------------
-  fireWeapon() {
+  // `chargeFrac` (0-1) comes from a charge weapon's held trigger; `inBurst`
+  // marks the follow-up rounds of a burst, which ignore the between-shot
+  // cooldown because the burst has its own, much shorter one.
+  fireWeapon(chargeFrac, inBurst) {
     const def = this.currentWeaponDef();
-    if (this.player.fireCooldown > 0 || this.player.reloading) return;
+    if ((this.player.fireCooldown > 0 && !inBurst) || this.player.reloading) return;
     const id = this.currentWeaponId();
     if (id === "melee") { this.meleeAttack(def); this.player.fireCooldown = def.fireRate / 1000; return; }
     const ammo = this.player.ammo[id];
     const lvl = this.player.weaponLevels[id];
-    if (ammo.mag <= 0) { this.reload(); return; }
+    if (ammo.mag <= 0) { this._burst = null; this.reload(); return; }
     ammo.mag--;
-    this.player.fireCooldown = (def.fireRate / 1000) / lvl.rate;
-    const dmg = def.damage * lvl.dmg;
+    if (!inBurst) this.player.fireCooldown = (def.fireRate / 1000) / lvl.rate;
+    // Category N: a burst weapon looses the rest of its rounds on a timer.
+    if (def.burst > 1 && !inBurst) {
+      this._burst = { id, left: def.burst - 1, timer: (def.burstDelay || 60) / 1000, charge: chargeFrac };
+    }
+    let dmg = def.damage * lvl.dmg;
+    if (def.charge) dmg *= 1 + (def.charge.mult - 1) * Math.min(1, chargeFrac || 0);
     const dir = new THREE.Vector3();
     this.camera.getWorldDirection(dir);
     const origin = new THREE.Vector3();
@@ -420,23 +428,29 @@ G.Game = {
     const shots = def.pellets || 1;
     let anyHit = false;
     for (let i = 0; i < shots; i++) {
-      const spread = def.pellets ? 0.06 : 0.004;
+      // Per-weapon spread: a tight combat shotgun and a wide scattergun are
+      // different guns even at the same pellet count.
+      const spread = def.pellets ? (def.spread || 0.06) : 0.004;
       const d = dir.clone();
       d.x += (G.rng() - 0.5) * spread; d.y += (G.rng() - 0.5) * spread; d.z += (G.rng() - 0.5) * spread;
       d.normalize();
-      if (this.raycastShoot(origin, d, dmg, def.pierce)) anyHit = true;
+      if (this.raycastShoot(origin, d, dmg, def.pierce, def)) anyHit = true;
     }
     if (anyHit) G.UI.showHitmarker();
-    if (ammo.mag <= 0 && ammo.reserve > 0) this.reload();
+    if (ammo.mag <= 0 && ammo.reserve > 0) { this._burst = null; this.reload(); }
   },
 
-  raycastShoot(origin, dir, dmg, pierce) {
+  // Category N: pierce is a COUNT now, not a flag -- a bolt that passes
+  // through three zombies plays differently from one that never stops.
+  raycastShoot(origin, dir, dmg, pierce, def) {
     this.raycaster.set(origin, dir);
     this.raycaster.far = 60;
     this.raycaster.camera = this.camera; // THREE.Sprite.raycast (word labels) needs this in r128
     const meshes = this.zombies.filter((z) => z.alive).map((z) => z.mesh);
     const hits = this.raycaster.intersectObjects(meshes, true);
     let hitAny = false;
+    let through = 0;
+    const maxThrough = pierce ? (pierce === true ? 99 : pierce) : 1;
     const hitZombieUids = new Set();
     for (const hit of hits) {
       let obj = hit.object;
@@ -447,7 +461,13 @@ G.Game = {
       hitZombieUids.add(z.uid);
       hitAny = true;
       this.damageZombie(z, dmg, hit.point);
-      if (!pierce) break;
+      if (def && def.splash) this.splashDamage(hit.point, def, dmg);
+      if (++through >= maxThrough) break;
+    }
+    // A missed explosive still goes off where it lands.
+    if (def && def.splash && !hitAny) {
+      const end = origin.clone().addScaledVector(dir, 40);
+      this.splashDamage(end, def, dmg);
     }
     // also allow shooting the static locked crate to attempt opening (per spec: "ยิงหรือกด E เพื่อเปิด")
     if (this.world) {
@@ -458,6 +478,28 @@ G.Game = {
       }
     }
     return hitAny;
+  },
+
+  // Category N: splash was declared on five weapons and never implemented --
+  // the grenade launcher, Art Attack and Meteor Detention were all really
+  // single-target guns. Damage falls off toward the edge of the radius, and
+  // the shooter is not immune to their own launcher at point blank.
+  splashDamage(point, def, baseDmg) {
+    const r = def.splashRadius || 3.5;
+    G.spawnHitParticles(this.scene, point, 0xffa64d, G.save.settings.graphicsQuality);
+    // snapshot: damageZombie can remove entries from this.zombies mid-loop
+    this.zombies.slice().forEach((z) => {
+      if (!z.alive) return;
+      const d = z.mesh.position.distanceTo(point);
+      if (d > r) return;
+      this.damageZombie(z, baseDmg * 0.6 * (1 - 0.7 * (d / r)), z.mesh.position);
+    });
+    const selfD = this.yawObject.position.distanceTo(point);
+    const safe = r * 0.55;
+    if (selfD < safe) {
+      this.player.hp -= baseDmg * 0.12 * (1 - selfD / safe);
+      G.UI.flashDamage && G.UI.flashDamage();
+    }
   },
 
   meleeAttack(def) {
@@ -686,7 +728,9 @@ G.Game = {
 
   openCrate(rarityKey, guaranteedMin, onClose) {
     if (guaranteedMin && G.RARITY_ORDER.indexOf(rarityKey) < G.RARITY_ORDER.indexOf(guaranteedMin)) rarityKey = guaranteedMin;
-    const pool = Object.values(G.WEAPON_DEFS).filter((w) => w.rarity === rarityKey && !w.wallExclusive && !w.boxOnly);
+    // Category H1: crates only ever contain guns from the level being played.
+    const pool = G.weaponsForLevel(this.level ? this.level.id : 1,
+      (w) => w.rarity === rarityKey && !w.wallExclusive && !w.boxOnly);
     const weaponDef = pool.length ? G.pick(pool) : G.WEAPON_DEFS.pistol;
     this.acquireWeapon(weaponDef.id);
     if (rarityKey === "secret") G.unlockAchievement("secret_crate");
@@ -1031,9 +1075,14 @@ G.Game = {
     this.aimT += ((wantAim ? 1 : 0) - this.aimT) * Math.min(1, aimSpeed * dt);
     if (Math.abs(this.aimT) < 0.002) this.aimT = 0;
     if (Math.abs(this.aimT - 1) < 0.002) this.aimT = 1;
-    this.camera.fov = this.baseFov + (this.aimFov - this.baseFov) * this.aimT;
+    // Category N: a sniper's `scope` is its own aimed FOV, well past the
+    // general ADS zoom, and it draws a scope overlay once fully shouldered.
+    const aimedFov = def.scope || this.aimFov;
+    this.camera.fov = this.baseFov + (aimedFov - this.baseFov) * this.aimT;
     this.camera.updateProjectionMatrix();
     if (G.UI.setAimingVisual) G.UI.setAimingVisual(this.aimT > 0.5);
+    if (G.UI.setScopeVisual) G.UI.setScopeVisual(!!def.scope && this.aimT > 0.85);
+    if (G.UI.setChargeMeter) G.UI.setChargeMeter(def.charge ? (this._chargeT || 0) / def.charge.time : null);
 
     // Weapon view transform: bob + ADS pull-in, then the category-E animation
     // offsets (switch dip, reload tilt, recoil kick) layered on top of it.
@@ -1068,8 +1117,36 @@ G.Game = {
     // its answer buttons, and while a weapon swap is still in progress)
     const wantFire = !this.challenge && this.weaponAnim.switchT <= 0
       && ((G.Input.mode === "desktop" && G.Input.mouseDown) || G.Input.touchFire);
-    if (wantFire && (def.auto || def.id === "melee" || this._fireEdge)) this.fireWeapon();
+
+    // Category N: a charge weapon winds up while the trigger is held and fires
+    // on release, with damage scaling from 1x to its charge multiplier.
+    if (def.charge) {
+      if (wantFire) {
+        this._chargeT = Math.min(def.charge.time, (this._chargeT || 0) + dt);
+      } else if (this._chargeT > 0) {
+        const frac = this._chargeT / def.charge.time;
+        this._chargeT = 0;
+        if (frac > 0.12) this.fireWeapon(frac);
+      }
+    } else {
+      this._chargeT = 0;
+      if (wantFire && (def.auto || def.id === "melee" || this._fireEdge)) this.fireWeapon();
+    }
     this._fireEdge = false;
+
+    // remaining rounds of a burst, on their own much shorter timer
+    if (this._burst) {
+      if (this._burst.id !== this.currentWeaponId() || this.player.reloading) this._burst = null;
+      else {
+        this._burst.timer -= dt;
+        if (this._burst.timer <= 0) {
+          this.fireWeapon(this._burst.charge, true);
+          this._burst.left--;
+          this._burst.timer = (def.burstDelay || 60) / 1000;
+          if (this._burst && this._burst.left <= 0) this._burst = null;
+        }
+      }
+    }
   },
 
   tryMove(dx, dz) {
@@ -1272,7 +1349,7 @@ G.Game = {
     }
     this.player.money -= G.MYSTERY_BOX_COST;
     G.UI.pulseHudStat("money");
-    this._mysteryHand = G.rollMysteryHand();
+    this._mysteryHand = G.rollMysteryHand(this.level ? this.level.id : 1);
     this._mysteryPick = null;
     // Freeze everything (zombies, timers, player) and hand the mouse back --
     // same overlay pattern the crate/word popups use.

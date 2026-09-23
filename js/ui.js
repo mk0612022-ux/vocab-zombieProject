@@ -305,14 +305,12 @@ G.UI = {
     tabs.innerHTML = G.LEVELS.map((l) => `<div class="tab-btn ${l.id === levelId ? "active" : ""}" data-id="${l.id}">ด่าน ${l.id}: ${l.name}</div>`).join("");
     tabs.querySelectorAll(".tab-btn").forEach((t) => (t.onclick = () => this.renderWeaponLog(parseInt(t.dataset.id))));
     const level = G.getLevel(levelId);
-    const wallIds = {
-      school: ["school_wall", "hall_monitor", "detention_slug", "pop_quiz", "cafeteria_cleaver",
-        "honor_roll", "science_fair", "art_attack", "principals_verdict"],
-      hospital: ["hospital_wall"], bunker: ["bunker_wall"],
-    }[level.theme] || [];
+    // Derived, not hand-listed: the wall guns for a level are simply its
+    // wallExclusive weapons, so adding one to a level plan lists it here too.
+    const wallIds = G.weaponsForLevel(levelId, (w) => w.wallExclusive).map((w) => w.id);
     let html = "";
     G.RARITY_ORDER.forEach((rk) => {
-      const weapons = Object.values(G.WEAPON_DEFS).filter((w) => w.rarity === rk && !w.wallExclusive && !w.boxOnly);
+      const weapons = G.weaponsForLevel(levelId, (w) => w.rarity === rk && !w.wallExclusive && !w.boxOnly);
       if (!weapons.length) return;
       html += `<div class="weaponlog-section-title rarity-${rk}">${G.RARITY[rk].label}${G.save.settings.colorblindMode ? ` [${rk[0].toUpperCase()}]` : ""}</div>`;
       html += `<div class="weaponlog-grid">${weapons.map((w) => this.weaponLogCardHtml(w)).join("")}</div>`;
@@ -321,7 +319,7 @@ G.UI = {
       html += `<div class="weaponlog-section-title rarity-secret">🔒 ปืนติดผนังประจำด่านนี้ (${wallIds.length} กระบอก)</div>`;
       html += `<div class="weaponlog-grid">${wallIds.map((id) => this.weaponLogCardHtml(G.WEAPON_DEFS[id])).join("")}</div>`;
     }
-    const boxGuns = Object.values(G.WEAPON_DEFS).filter((w) => w.boxOnly);
+    const boxGuns = G.weaponsForLevel(levelId, (w) => w.boxOnly);
     if (boxGuns.length) {
       const eliteTotal = boxGuns.filter((w) => w.boxTier === "elite").reduce((s, w) => s + w.boxWeight, 0);
       const stdTotal = boxGuns.filter((w) => w.boxTier === "standard").reduce((s, w) => s + w.boxWeight, 0);
@@ -336,10 +334,14 @@ G.UI = {
   // Category E: weight is a real stat now -- it costs movement speed and
   // stamina -- so it is shown everywhere a weapon's numbers are: the log, the
   // shop crate reveal, the mystery box and the wall mounts.
+  // Weight (category E) and firing mode (category N) are both real stats, so
+  // they are shown everywhere a weapon.s numbers are: the log, the shop crate
+  // reveal, the mystery box and the wall mounts.
   weightLine(def) {
     const c = G.weightClass(def);
     const pen = Math.round((1 - c.speedMult) * 100);
-    return `<span style="color:${c.color}">น้ำหนัก: ${c.label} (${G.weaponWeight(def).toFixed(1)})</span>`
+    return `<span style="color:#9fd6ff">โหมด: ${G.fireModeLabel(def)}</span><br>`
+      + `<span style="color:${c.color}">น้ำหนัก: ${c.label} (${G.weaponWeight(def).toFixed(1)})</span>`
       + (pen ? ` <span style="opacity:.75">ความเร็ว -${pen}%</span>` : ` <span style="opacity:.75">ไม่ลดความเร็ว</span>`);
   },
   weaponLogCardHtml(w, dropChance) {
@@ -623,6 +625,20 @@ G.UI = {
     if (G.Input.mode === "touch") this.refreshTouchSlots(p.slots, p.slots.findIndex((s) => s.active));
   },
   setAimingVisual(v) { this.el("hud-crosshair").classList.toggle("aiming", !!v); },
+  // Category N: the scope replaces the crosshair entirely -- a reticle drawn
+  // on top of a scope ring reads as two sights at once.
+  setScopeVisual(v) {
+    this.el("hud-scope").classList.toggle("hidden", !v);
+    this.el("hud-crosshair").classList.toggle("hidden", !!v);
+  },
+  setChargeMeter(frac) {
+    const box = this.el("hud-charge");
+    if (frac == null) { box.classList.add("hidden"); return; }
+    box.classList.remove("hidden");
+    const fill = this.el("hud-charge-fill");
+    fill.style.width = Math.round(Math.min(1, frac) * 100) + "%";
+    fill.classList.toggle("full", frac >= 0.999);
+  },
 
   // ---------------- Mystery weapon box (category C3) ----------------
   bindMystery() {

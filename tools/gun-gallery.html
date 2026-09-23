@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>คลังโมเดลปืน</title>
+<style>
+  body { margin: 0; background: #0d120f; color: #dff5e2; font-family: system-ui, sans-serif; }
+  #bar { padding: 10px 14px; font-size: 0.85rem; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+  select, button { background: #16221a; color: #dff5e2; border: 1px solid #2f6b3c; border-radius: 6px; padding: 4px 8px; }
+  canvas { display: block; }
+</style>
+</head>
+<body>
+<div id="bar">
+  <label>ด่าน <select id="lvl"><option value="all">ทั้งหมด</option><option value="0">เริ่มต้น</option><option value="1">1 โรงเรียน</option><option value="2">2 โรงพยาบาล</option><option value="3">3 บังเกอร์</option></select></label>
+  <span id="count"></span>
+  <button id="spin">หมุน/หยุด</button>
+</div>
+<canvas id="c"></canvas>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="../js/data/words_school.js"></script>
+<script src="../js/data/words_hospital.js"></script>
+<script src="../js/data/words_bunker.js"></script>
+<script src="../js/data/words.js"></script>
+<script src="../js/core.js"></script>
+<script src="../js/entities.js"></script>
+<script>
+  const canvas = document.getElementById("c");
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0d120f);
+  const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+  scene.add(new THREE.AmbientLight(0xffffff, 0.65));
+  const key = new THREE.DirectionalLight(0xffffff, 0.85); key.position.set(3, 6, 4); scene.add(key);
+  const fill = new THREE.DirectionalLight(0x88aaff, 0.4); fill.position.set(-4, 2, -3); scene.add(fill);
+
+  const COLS = 5, SPACING = 1.7;
+  let group = new THREE.Group(); scene.add(group);
+  let spinning = true;
+
+  function labelSprite(text, color) {
+    const cv = document.createElement("canvas"); cv.width = 256; cv.height = 40;
+    const ctx = cv.getContext("2d");
+    ctx.fillStyle = "rgba(0,0,0,0)"; ctx.fillRect(0, 0, 256, 40);
+    ctx.font = "bold 20px sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = color;
+    ctx.fillText(text, 128, 27);
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), transparent: true }));
+    s.scale.set(1.1, 0.17, 1);
+    return s;
+  }
+
+  function rebuild() {
+    const want = document.getElementById("lvl").value;
+    scene.remove(group); G.disposeObject3D(group);
+    group = new THREE.Group(); scene.add(group);
+    const defs = Object.values(G.WEAPON_DEFS).filter((d) => want === "all" || String(d.level == null ? 1 : d.level) === want);
+    document.getElementById("count").textContent = defs.length + " กระบอก";
+    defs.forEach((d, i) => {
+      const cell = new THREE.Group();
+      const m = G.buildWeaponMesh(d);
+      m.scale.set(1.5, 1.5, 1.5);
+      cell.add(m);
+      const rc = "#" + G.RARITY[d.rarity].color.toString(16).padStart(6, "0");
+      const l = labelSprite(d.name, rc); l.position.set(0, -0.55, 0); cell.add(l);
+      const a = labelSprite((d.archetype || G.inferArchetype(d)) + " · " + G.weightClass(d).label, "#8fa89a");
+      a.scale.set(0.95, 0.15, 1); a.position.set(0, -0.72, 0); cell.add(a);
+      cell.position.set((i % COLS - (COLS - 1) / 2) * SPACING, -Math.floor(i / COLS) * SPACING, 0);
+      cell.userData.gun = m;
+      group.add(cell);
+    });
+    const rows = Math.ceil(defs.length / COLS);
+    canvas.width = 1100; canvas.height = Math.max(420, rows * 185);
+    renderer.setSize(canvas.width, canvas.height, false);
+    camera.aspect = canvas.width / canvas.height; camera.updateProjectionMatrix();
+    const h = (rows - 1) * SPACING;
+    group.position.y = h / 2;
+    camera.position.set(0, 0, Math.max(6, h * 0.62 + 4.2));
+    camera.lookAt(0, 0, 0);
+  }
+
+  document.getElementById("lvl").onchange = rebuild;
+  document.getElementById("spin").onclick = () => { spinning = !spinning; };
+  G.loadSave();
+  rebuild();
+  let t = 0;
+  (function loop() {
+    requestAnimationFrame(loop);
+    if (spinning) { t += 0.012; group.children.forEach((c) => { if (c.userData.gun) c.userData.gun.rotation.y = Math.sin(t) * 0.9 + 0.5; }); }
+    renderer.render(scene, camera);
+  })();
+</script>
+</body>
+</html>
