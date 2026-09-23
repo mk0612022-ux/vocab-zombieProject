@@ -82,6 +82,9 @@ G.Game = {
     this.yawObject.add(this.pitchObject);
     this.yawObject.position.set(0, 1.7, 4);
     this.clock = new THREE.Clock();
+    // The body rig hangs off the persistent camera rig, so it is built once
+    // here rather than rebuilt with every level.
+    G.PlayerBody.build(this.yawObject, this.camera);
 
     window.addEventListener("resize", () => {
       this.camera.aspect = window.innerWidth / window.innerHeight;
@@ -1027,18 +1030,31 @@ G.Game = {
     // Weapon view transform: bob + ADS pull-in, then the category-E animation
     // offsets (switch dip, reload tilt, recoil kick) layered on top of it.
     this.updateWeaponAnim(dt);
+    // Category D2: where the weapon rides depends on what it weighs. A pistol
+    // sits high and central; a launcher hangs low, canted, with the support
+    // hand pushed far up the barrel.
+    const hold = G.holdPose(def);
+    const a = this.weaponAnim;
+    const rl = this.reloadPose();
+    const gunDrop = this.switchOffset() + (rl ? rl.drop : 0) - hold.sag;
     if (this.weaponViewGroup) {
-      const a = this.weaponAnim;
-      const rl = this.reloadPose();
       const bob = (len > 0 ? Math.sin(performance.now() * 0.012) * 0.015 * (1 - this.aimT * 0.8) : 0);
-      this.weaponViewGroup.position.y = -0.32 + bob + 0.02 * this.aimT + this.switchOffset() + (rl ? rl.drop : 0);
-      this.weaponViewGroup.position.x = 0.3 - 0.26 * this.aimT;
-      this.weaponViewGroup.position.z = -0.75 + 0.1 * this.aimT + a.recoilPos;
+      this.weaponViewGroup.position.y = hold.y + bob + 0.02 * this.aimT + gunDrop;
+      this.weaponViewGroup.position.x = hold.x - (hold.x - 0.04) * this.aimT;
+      this.weaponViewGroup.position.z = hold.z + 0.1 * this.aimT + a.recoilPos;
       this.weaponViewGroup.rotation.y = -0.06 * (1 - this.aimT);
-      this.weaponViewGroup.rotation.x = -a.recoilRot + (rl ? rl.pitch : 0);
-      this.weaponViewGroup.rotation.z = rl ? rl.roll : 0;
+      this.weaponViewGroup.rotation.x = hold.rx * (1 - this.aimT) - a.recoilRot + (rl ? rl.pitch : 0);
+      this.weaponViewGroup.rotation.z = hold.rz * (1 - this.aimT) + (rl ? rl.roll : 0);
       if (this.weaponViewGroup.userData.rainbowTrim) this.weaponViewGroup.userData.rainbowTrim.rotation.z += dt * 2.4;
     }
+    // Category D: the body and arms run off the same animation state as the
+    // weapon, so a reload, a swap or a sprint moves all three together.
+    G.PlayerBody.update({
+      dt, moving: len > 0.05, sprinting, airborne: this.velocityY !== 0,
+      aimT: this.aimT, pose: hold, gunDrop, recoilPos: a.recoilPos,
+      reload: a.reloadT > 0 ? { p: 1 - a.reloadT / a.reloadDur } : null,
+      switchT: a.switchT, switchDur: a.switchDur,
+    });
 
     // fire input (suppressed while a word-challenge popup wants the click for
     // its answer buttons, and while a weapon swap is still in progress)

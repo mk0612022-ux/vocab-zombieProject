@@ -693,6 +693,56 @@ G.buildRarityBadge = function (rarityKey) {
   return badge;
 };
 
+
+// ---------------- Weapon weight (categories D2 and E) ----------------
+// Derived from what a weapon IS rather than hand-set per gun, so every weapon
+// added later gets a sensible figure for free and the numbers stay consistent
+// with each other. Damage and magazine size stand in for bulk; shotguns,
+// launchers and slow reloads all mean a big receiver to swing around.
+G.weaponWeight = function (def) {
+  if (!def || def.id === "melee") return 0.4;
+  let w = 1.0;
+  w += (def.damage || 20) / 60;
+  w += (def.magSize || 10) / 40;
+  if (def.pellets) w += 0.7;
+  if (def.splash) w += 1.1;
+  if (def.pierce) w += 0.5;
+  w += Math.max(0, (def.reloadTime || 1500) - 1200) / 1200;
+  if (def.auto && (def.magSize || 0) >= 30) w += 0.4;
+  return Math.round(w * 100) / 100;
+};
+
+// Four bands, each with the movement penalty category E applies and the label
+// shown in the weapon log, the mystery box and the shop.
+G.WEIGHT_CLASSES = [
+  { key: "light", max: 2.2, label: "เบา", speedMult: 1.0, staminaMult: 1.0, color: "#6bff7a" },
+  { key: "medium", max: 3.3, label: "ปานกลาง", speedMult: 0.93, staminaMult: 1.12, color: "#ffd43b" },
+  { key: "heavy", max: 4.4, label: "หนัก", speedMult: 0.84, staminaMult: 1.3, color: "#ff9a4d" },
+  { key: "very_heavy", max: Infinity, label: "หนักมาก", speedMult: 0.74, staminaMult: 1.5, color: "#ff5c5c" },
+];
+G.weightClass = function (def) {
+  const w = G.weaponWeight(def);
+  return G.WEIGHT_CLASSES.find((c) => w <= c.max) || G.WEIGHT_CLASSES[G.WEIGHT_CLASSES.length - 1];
+};
+
+// How the weapon is carried, per weight band (category D2). `lead` is how far
+// forward the support hand reaches along the barrel, `sag` how much the whole
+// rig droops -- a launcher hangs visibly lower than a pistol.
+// The y values stay within a narrow band on purpose: the hands are placed
+// relative to them, and dropping a launcher as far as it "should" hang pushes
+// the support hand straight out of the bottom of the frustum.
+G.HOLD_POSES = {
+  light: { x: 0.25, y: -0.28, z: -0.70, rx: -0.03, rz: 0.0, lead: 0.26, sag: 0.0, support: 1.0 },
+  medium: { x: 0.30, y: -0.32, z: -0.75, rx: 0.0, rz: 0.0, lead: 0.40, sag: 0.02, support: 1.0 },
+  heavy: { x: 0.32, y: -0.35, z: -0.78, rx: 0.04, rz: 0.05, lead: 0.50, sag: 0.04, support: 1.0 },
+  very_heavy: { x: 0.34, y: -0.38, z: -0.82, rx: 0.07, rz: 0.09, lead: 0.58, sag: 0.06, support: 1.0 },
+  melee: { x: 0.26, y: -0.30, z: -0.66, rx: -0.05, rz: 0.0, lead: 0.0, sag: 0.0, support: 0.0 },
+};
+G.holdPose = function (def) {
+  if (!def) return G.HOLD_POSES.medium;
+  if (def.id === "melee") return G.HOLD_POSES.melee;
+  return G.HOLD_POSES[G.weightClass(def).key] || G.HOLD_POSES.medium;
+};
 G.buildWeaponMesh = function (def) {
   const g = new THREE.Group();
   const mat = G.makeBoxMat(def.color);
