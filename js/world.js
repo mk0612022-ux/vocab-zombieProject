@@ -752,8 +752,13 @@ G.buildLevelScene = function (scene, level, quality) {
       addCanvasBox(mx + sign * 0.08, y + 1.0, mz, 1.5, 0.42, 0.05, (ctx, cv) => {
         ctx.fillStyle = "#0a0a0a"; ctx.fillRect(0, 0, cv.width, cv.height);
         ctx.textAlign = "center";
-        ctx.font = "bold 22px sans-serif"; ctx.fillStyle = "#ffd43b"; ctx.fillText(wdef.name, 128, 32);
-        ctx.font = "bold 26px monospace"; ctx.fillStyle = "#6bff7a"; ctx.fillText("$" + wdef.price, 128, 70);
+        ctx.font = "bold 20px sans-serif"; ctx.fillStyle = "#ffd43b"; ctx.fillText(wdef.name, 128, 28);
+        ctx.font = "bold 24px monospace"; ctx.fillStyle = "#6bff7a"; ctx.fillText("$" + wdef.price, 128, 62);
+        // category E: the mount states the weight, because it changes how the
+        // gun plays as much as its damage does
+        const wc = G.weightClass(wdef);
+        ctx.font = "bold 17px sans-serif"; ctx.fillStyle = wc.color;
+        ctx.fillText("น้ำหนัก: " + wc.label, 128, 92);
       }, 0x1a1a1a, facingWest ? Math.PI / 2 : -Math.PI / 2);
       const ref = { id, price: wdef.price, purchased: false, gunMesh };
       world.wallWeapons.push(ref);

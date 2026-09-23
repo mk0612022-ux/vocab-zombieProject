@@ -933,6 +933,8 @@ G.Game = {
       staminaExhausted: this.staminaExhausted, money: this.player.money, score: this.player.score,
       levelLabel: `${this.level.name} · Wave ${this.wave}${this.mode === "campaign" ? "/" + this.level.waves : ""}`,
       zombiesLeft: this.zombies.length, weaponName: def.name,
+      weightLabel: def.id === "melee" ? null : G.weightClass(def).label,
+      weightColor: def.id === "melee" ? null : G.weightClass(def).color,
       ammoInMag, ammoReserve, currentMeaning: meaning, slots, combo: this.player.combo,
     };
   },
@@ -988,9 +990,13 @@ G.Game = {
     if (this.stamina <= 0) this.staminaExhausted = true;
     else if (this.staminaExhausted && this.stamina >= this.maxStamina * 0.2) this.staminaExhausted = false;
     const sprinting = wantSprint && !this.staminaExhausted && len > 0.05;
-    if (sprinting) this.stamina = Math.max(0, this.stamina - 22 * dt);
+    // Category E: what you are carrying slows you down, and tires you faster.
+    // A pistol costs nothing; a grenade launcher takes a quarter off your top
+    // speed and burns stamina half again as fast.
+    const wcls = G.weightClass(this.currentWeaponDef());
+    if (sprinting) this.stamina = Math.max(0, this.stamina - 22 * wcls.staminaMult * dt);
     else this.stamina = Math.min(this.maxStamina, this.stamina + 14 * dt);
-    const speed = (sprinting ? 5.2 : 3.2) * this.player.moveSpeedMult * dt;
+    const speed = (sprinting ? 5.2 : 3.2) * this.player.moveSpeedMult * wcls.speedMult * dt;
     const forward = new THREE.Vector3(-Math.sin(this.yawObject.rotation.y), 0, -Math.cos(this.yawObject.rotation.y));
     // right = forward rotated -90 deg around Y. (forward.z, 0, -forward.x) was
     // actually pointing left, which swapped A/D: D (mx=+1) moved the player
@@ -1210,7 +1216,10 @@ G.Game = {
         }
         if (found.kind === "wallweapon") {
           const wdef = G.WEAPON_DEFS[found.ref.id];
-          label = found.ref.purchased ? "" : `กด E เพื่อซื้อ ${wdef.name} ($${wdef.price}${this.player.money < wdef.price ? " - เงินไม่พอ" : ""})`;
+          // Weight is part of the buying decision (category E), so it is on
+          // the prompt rather than only in the log.
+          const wc = G.weightClass(wdef);
+          label = found.ref.purchased ? "" : `กด E เพื่อซื้อ ${wdef.name} ($${wdef.price}${this.player.money < wdef.price ? " - เงินไม่พอ" : ""}) · น้ำหนัก${wc.label}`;
         }
         G.UI.setInteractPrompt(!!label, label);
       }

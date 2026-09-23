@@ -333,6 +333,15 @@ G.UI = {
     }
     this.el("weaponlog-content").innerHTML = html;
   },
+  // Category E: weight is a real stat now -- it costs movement speed and
+  // stamina -- so it is shown everywhere a weapon's numbers are: the log, the
+  // shop crate reveal, the mystery box and the wall mounts.
+  weightLine(def) {
+    const c = G.weightClass(def);
+    const pen = Math.round((1 - c.speedMult) * 100);
+    return `<span style="color:${c.color}">น้ำหนัก: ${c.label} (${G.weaponWeight(def).toFixed(1)})</span>`
+      + (pen ? ` <span style="opacity:.75">ความเร็ว -${pen}%</span>` : ` <span style="opacity:.75">ไม่ลดความเร็ว</span>`);
+  },
   weaponLogCardHtml(w, dropChance) {
     const unlocked = (G.save.unlockedWeapons || []).includes(w.id);
     const odds = dropChance ? `<br>โอกาสออก: ${dropChance}` : "";
@@ -342,7 +351,7 @@ G.UI = {
     const dps = Math.round(w.damage * (w.pellets || 1) * (1000 / w.fireRate));
     return `<div class="weaponlog-card border-${w.rarity}" style="border-style:solid">
       <div class="wl-icon">🔫</div><div class="wl-name rarity-${w.rarity}">${w.name}</div>
-      <div class="wl-stats">ดาเมจ: ${w.damage}${w.pellets ? ` x${w.pellets} นัด` : ""}<br>อัตรายิง: ${(1000 / w.fireRate).toFixed(1)}/วิ<br>แม็กกาซีน: ${w.magSize}<br>DPS โดยประมาณ: ${dps}${w.price ? `<br>ราคา: $${w.price}` : ""}${odds}</div>
+      <div class="wl-stats">ดาเมจ: ${w.damage}${w.pellets ? ` x${w.pellets} นัด` : ""}<br>อัตรายิง: ${(1000 / w.fireRate).toFixed(1)}/วิ<br>แม็กกาซีน: ${w.magSize}<br>DPS โดยประมาณ: ${dps}<br>${this.weightLine(w)}${w.price ? `<br>ราคา: $${w.price}` : ""}${odds}</div>
     </div>`;
   },
 
@@ -558,7 +567,7 @@ G.UI = {
     this.el("crate-rarity-label").className = "crate-rarity-label rarity-" + rarityKey;
     this.el("crate-rarity-label").textContent = G.RARITY[rarityKey].label + (G.save.settings.colorblindMode ? ` [${rarityKey[0].toUpperCase()}]` : "");
     this.el("crate-weapon-name").textContent = weaponDef.name;
-    this.el("crate-weapon-stats").innerHTML = `ดาเมจ: ${weaponDef.damage}<br>อัตรายิง: ${(1000 / weaponDef.fireRate).toFixed(1)} นัด/วิ<br>แม็กกาซีน: ${weaponDef.magSize}`;
+    this.el("crate-weapon-stats").innerHTML = `ดาเมจ: ${weaponDef.damage}<br>อัตรายิง: ${(1000 / weaponDef.fireRate).toFixed(1)} นัด/วิ<br>แม็กกาซีน: ${weaponDef.magSize}<br>${this.weightLine(weaponDef)}`;
     this.showScreen("screen-crate");
   },
 
@@ -595,7 +604,10 @@ G.UI = {
     this.el("hud-score").textContent = Math.round(dispScore);
     this.el("hud-level-wave").textContent = p.levelLabel;
     this.el("hud-zombies-left").textContent = "Zombies: " + p.zombiesLeft;
-    this.el("hud-weapon-name").textContent = p.weaponName;
+    // Category E: the speed penalty is otherwise invisible, so the HUD names
+    // the weight band of whatever is in hand.
+    this.el("hud-weapon-name").innerHTML = p.weaponName +
+      (p.weightLabel ? ` <span style="color:${p.weightColor};font-size:0.78em">[${p.weightLabel}]</span>` : "");
     this.el("hud-ammo").textContent = p.weaponName === "Combat Knife" ? "∞" : `${p.ammoInMag} / ${p.ammoReserve}`;
     this.el("hud-meaning").textContent = p.currentMeaning || "-";
     const slotsWrap = this.el("hud-slots");
@@ -665,7 +677,7 @@ G.UI = {
     this.el("mystery-result-stats").innerHTML =
       `ดาเมจ: ${picked.damage}${picked.pellets ? ` x${picked.pellets} นัด` : ""} · อัตรายิง: ${(1000 / picked.fireRate).toFixed(1)}/วิ<br>
        แม็กกาซีน: ${picked.magSize} · รีโหลด: ${(picked.reloadTime / 1000).toFixed(1)} วิ · แรงดีด: ${picked.recoil.toFixed(1)}<br>
-       DPS โดยประมาณ: ${dps}${picked.pierce ? " · ทะลุเป้า" : ""}${picked.splash ? " · ระเบิดเป็นวงกว้าง" : ""}`;
+       DPS โดยประมาณ: ${dps}${picked.pierce ? " · ทะลุเป้า" : ""}${picked.splash ? " · ระเบิดเป็นวงกว้าง" : ""}<br>${this.weightLine(picked)}`;
     // rarer pull = bigger screen flash
     const flash = this.el("mystery-flash");
     const strength = { common: 0, uncommon: 0, rare: 1, epic: 1, secret: 1 }[picked.rarity];
