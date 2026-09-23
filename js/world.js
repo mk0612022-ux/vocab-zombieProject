@@ -40,12 +40,14 @@ G.THEME_PALETTES = {
   },
   hospital: {
     floor: 0x18261d, floorLine: 0x0e1811, floorStain: 0x24352a, wall: 0x203024, accent: 0x3d6b52,
-    fog: 0x0b150f, fogNear: 2.5, fogFar: 25, light: 0x7dffc0, ambient: 0x17281d,
+    // lifted with the rebuild (category M): the level is five times the size
+    // now, and at the old settings everything past the next doorway was black
+    fog: 0x0b150f, fogNear: 3, fogFar: 34, light: 0x7dffc0, ambient: 0x2b3c31,
     roomLight: [0x7dffc0, 0x6bd4ff, 0xff6b6b, 0x9dffb0, 0xffe27a],
   },
   bunker: {
     floor: 0x161615, floorLine: 0x0a0a0a, floorStain: 0x24211c, wall: 0x232320, accent: 0x35322a,
-    fog: 0x060605, fogNear: 1.8, fogFar: 18, light: 0xff9a4d, ambient: 0x131210,
+    fog: 0x060605, fogNear: 2.2, fogFar: 27, light: 0xff9a4d, ambient: 0x22201b,
     roomLight: [0xff9a4d, 0xff5c3d, 0x7dc9ff, 0xffcf4d, 0xff7a7a],
   },
 };
@@ -330,7 +332,7 @@ G.buildLevelScene = function (scene, level, quality) {
     const collider = new THREE.Box3(
       new THREE.Vector3(axis === "x" ? cx - half : cx - 0.3, baseY, axis === "x" ? cz - 0.3 : cz - half),
       new THREE.Vector3(axis === "x" ? cx + half : cx + 0.3, baseY + h, axis === "x" ? cz + 0.3 : cz + half));
-    const ref = { mesh: pivot, open: false, collider, axis, bashTimer: 0, x: cx, z: cz, baseY, animT: 1, fromRot: 0, toRot: 0 };
+    const ref = { mesh: pivot, open: false, collider, axis, width, bashTimer: 0, x: cx, z: cz, baseY, animT: 1, fromRot: 0, toRot: 0 };
     world.colliders.push(collider);
     world.roomDoors.push(ref);
     world.interactables.push({ mesh: pivot, kind: "roomdoor", ref });
@@ -482,185 +484,39 @@ G.buildLevelScene = function (scene, level, quality) {
     scene.add(stain);
   }
 
-  // ---------------- Room layout (5 rooms, ~1.8x the previous total area) ----------------
-  // A: start | B: central hub | C: east wing | D: west wing (behind a barricade
-  // the button clears) | E: south/boss wing. Corridors are 4 units wide and
-  // every doorway gap matches that width exactly.
-  const ROOMS = {
-    A: { cx: 0, cz: 0, w: 10, d: 10 },
-    B: { cx: 0, cz: -14.5, w: 13, d: 13 },
-    C: { cx: 14.5, cz: -14.5, w: 11, d: 11 },
-    D: { cx: -14.5, cz: -14.5, w: 10, d: 10 },
-    E: { cx: 0, cz: -32, w: 15, d: 15 },
-  };
-  const DOOR_W = 4;
-
-  // The school is now a purpose-built two-storey block (see buildSchoolBuilding)
-  // rather than the shared five-room hub layout the other themes use.
-  if (level.theme === "school") { buildSchoolBuilding(); } else {
-
-  Object.values(ROOMS).forEach((r) => {
-    addFloor(r.cx, r.cz, r.w, r.d);
-    addCeiling(r.cx, r.cz, r.w, r.d);
-  });
-  addFloor(0, -6.5, DOOR_W, 3);      addCeiling(0, -6.5, DOOR_W, 3);      // A-B corridor
-  addFloor(7.75, -14.5, 3, DOOR_W);  addCeiling(7.75, -14.5, 3, DOOR_W);  // B-C corridor
-  addFloor(-8, -14.5, 3, DOOR_W);    addCeiling(-8, -14.5, 3, DOOR_W);    // B-D corridor
-  addFloor(0, -22.75, DOOR_W, 3.5);  addCeiling(0, -22.75, DOOR_W, 3.5);  // B-E corridor
-  // A1 fix: the four connecting corridors had floors and ceilings but NO side
-  // walls, so stepping through any room's doorway and then sideways walked
-  // straight out of the building into empty space. Each corridor now has a
-  // wall down both long sides.
-  addWallSeg(-DOOR_W / 2, -6.5, 0.4, 3);      addWallSeg(DOOR_W / 2, -6.5, 0.4, 3);      // A-B
-  addWallSeg(7.75, -14.5 - DOOR_W / 2, 3, 0.4); addWallSeg(7.75, -14.5 + DOOR_W / 2, 3, 0.4); // B-C
-  addWallSeg(-8, -14.5 - DOOR_W / 2, 3, 0.4);   addWallSeg(-8, -14.5 + DOOR_W / 2, 3, 0.4);   // B-D
-  addWallSeg(-DOOR_W / 2, -22.75, 0.4, 3.5);  addWallSeg(DOOR_W / 2, -22.75, 0.4, 3.5);  // B-E
-
-  // addRoomWalls' "north" = the wall at cz-hd (more-negative Z, deeper into
-  // the level); "south" = cz+hd (toward the player's start / less negative Z).
-  // School only: room A's east wall gets a gap leading to the annex wing
-  // (layout redesign item 1).
-  const aGaps = { north: { center: 0, width: DOOR_W } };
-  if (level.theme === "school") {
-    aGaps.east = { center: 0, width: 3 };
-    aGaps.west = { center: 0, width: 3 };  // -> music room (item D1)
-    aGaps.south = { center: 0, width: 3 }; // -> cafeteria (item D1)
-  }
-  addRoomWalls(ROOMS.A, aGaps);
-  addRoomWalls(ROOMS.B, {
-    south: { center: 0, width: DOOR_W },   // -> A (A sits at less-negative Z)
-    east: { center: -14.5, width: DOOR_W }, // -> C
-    west: { center: -14.5, width: DOOR_W }, // -> D
-    north: { center: 0, width: DOOR_W },   // -> E (E sits at more-negative Z)
-  });
-  // Hospital and School: room C's east wall gets a second gap for the
-  // staircase up to their 2nd floor. School also gets a north gap for a
-  // small restroom nook (layout redesign item 3).
-  const cGaps = { west: { center: -14.5, width: DOOR_W } };
-  if (level.theme === "hospital" || level.theme === "school") cGaps.east = { center: -14.5, width: 3 };
-  if (level.theme === "school") cGaps.north = { center: 14.5, width: 2 };
-  addRoomWalls(ROOMS.C, cGaps);
-  // School: room D gets a south gap for a small supply-closet nook (item 3).
-  const dGaps = { east: { center: -14.5, width: DOOR_W } };
-  if (level.theme === "school") {
-    dGaps.south = { center: -14.5, width: 2 };
-    dGaps.north = { center: -13, width: 2.5 }; // -> boiler room (item D1)
-  }
-  addRoomWalls(ROOMS.D, dGaps);
-  const eGaps = { south: { center: 0, width: DOOR_W } };
-  if (level.theme === "school") eGaps.west = { center: -33, width: 2.5 }; // -> sports store (item D1)
-  addRoomWalls(ROOMS.E, eGaps);
-
-  // Category B: every room-to-room opening now carries a real hinged door.
-  // One door per connection (placed at the room-side end of each corridor).
-  addRoomDoor(0, -5, DOOR_W, "x");        // A <-> A-B corridor
-  addRoomDoor(0, -8, DOOR_W, "x");        // A-B corridor <-> B
-  addRoomDoor(6.5, -14.5, DOOR_W, "z");   // B <-> B-C corridor
-  addRoomDoor(9, -14.5, DOOR_W, "z");     // B-C corridor <-> C
-  addRoomDoor(-6.5, -14.5, DOOR_W, "z");  // B <-> B-D corridor
-  addRoomDoor(-9.5, -14.5, DOOR_W, "z");  // B-D corridor <-> D
-  addRoomDoor(0, -21, DOOR_W, "x");       // B <-> B-E corridor
-  addRoomDoor(0, -24.5, DOOR_W, "x");     // B-E corridor <-> E
-  if (level.theme === "school") {
-    addRoomDoor(14.5, -20, 2, "x");       // C <-> restroom
-    addRoomDoor(-14.5, -9.5, 2, "x");     // D <-> supply closet
-  }
-
-  // Per-room lighting variety (item 2): each wing gets its own color/height/
-  // intensity from the theme's roomLight set instead of one uniform light.
-  const rl = pal.roomLight;
-  addLight(ROOMS.A.cx, 3.1, ROOMS.A.cz, rl[0], 1.3, 1.2);
-  addLight(ROOMS.B.cx - 3, 3.4, ROOMS.B.cz - 3, rl[1], 1.1, 1.6);
-  addLight(ROOMS.B.cx + 3, 3.4, ROOMS.B.cz + 3, rl[2], 0.9, 2.0);
-  addLight(ROOMS.C.cx, 3.2, ROOMS.C.cz, rl[3], 1.2, 1.4);
-  addLight(ROOMS.D.cx, 3.0, ROOMS.D.cz, rl[4], 1.0, 1.8);
-  addLight(ROOMS.E.cx - 4, 3.5, ROOMS.E.cz - 4, rl[0], 1.4, 1.1);
-  addLight(ROOMS.E.cx + 4, 3.5, ROOMS.E.cz + 4, rl[2], 1.0, 2.2);
-
-  // A raised platform in the hub (watch-post / mezzanine / stage depending on
-  // theme) -- item 2's "พื้นที่ยกสูง" made genuinely walkable via a height zone + ramp.
-  // Placed in the SE corner, clear of all four of the hub's doorway gaps
-  // (north/south open at x=[-2,2], east/west open at z=[-16.5,-12.5]) --
-  // an earlier position's ramp physically clipped through the north doorway.
-  addPlatform(ROOMS.B.cx + 4.3, ROOMS.B.cz - 4.5, 3, 3, 0.4, accentMat, "z", 1, 1.8);
-  // A boss podium in the finale room, with ramps on two sides.
-  addPlatform(ROOMS.E.cx, ROOMS.E.cz - 2, 5, 5, 0.45, accentMat, "z", -1, 2);
-
-  // ---------------- Waypoint graph (room-level pathfinding) ----------------
-  // Zombies used to walk straight at the player regardless of walls (they
-  // don't test world.colliders at all -- cheap, but meant they'd cut through
-  // solid walls between rooms). This gives each zombie a room-to-room route:
-  // "regions" are AABBs matching the rooms/corridors above, "waypointNodes"
-  // are their centers, and "waypointEdges" mirrors the actual doorway
-  // topology, so a BFS route only ever crosses connections that really exist.
-  // Built BEFORE the theme decorators run (below) since decorateHospital
-  // extends this graph with its 2nd-floor region/nodes/edges.
-  world.regions = [
-    { name: "A", minX: ROOMS.A.cx - ROOMS.A.w / 2, maxX: ROOMS.A.cx + ROOMS.A.w / 2, minZ: ROOMS.A.cz - ROOMS.A.d / 2, maxZ: ROOMS.A.cz + ROOMS.A.d / 2 },
-    { name: "AB", minX: -DOOR_W / 2, maxX: DOOR_W / 2, minZ: -8, maxZ: -5 },
-    { name: "B", minX: ROOMS.B.cx - ROOMS.B.w / 2, maxX: ROOMS.B.cx + ROOMS.B.w / 2, minZ: ROOMS.B.cz - ROOMS.B.d / 2, maxZ: ROOMS.B.cz + ROOMS.B.d / 2 },
-    { name: "BC", minX: 6.5, maxX: 9, minZ: -16.5, maxZ: -12.5 },
-    { name: "C", minX: ROOMS.C.cx - ROOMS.C.w / 2, maxX: ROOMS.C.cx + ROOMS.C.w / 2, minZ: ROOMS.C.cz - ROOMS.C.d / 2, maxZ: ROOMS.C.cz + ROOMS.C.d / 2 },
-    { name: "BD", minX: -9.5, maxX: -6.5, minZ: -16.5, maxZ: -12.5 },
-    { name: "D", minX: ROOMS.D.cx - ROOMS.D.w / 2, maxX: ROOMS.D.cx + ROOMS.D.w / 2, minZ: ROOMS.D.cz - ROOMS.D.d / 2, maxZ: ROOMS.D.cz + ROOMS.D.d / 2 },
-    { name: "BE", minX: -DOOR_W / 2, maxX: DOOR_W / 2, minZ: -24.5, maxZ: -21 },
-    { name: "E", minX: ROOMS.E.cx - ROOMS.E.w / 2, maxX: ROOMS.E.cx + ROOMS.E.w / 2, minZ: ROOMS.E.cz - ROOMS.E.d / 2, maxZ: ROOMS.E.cz + ROOMS.E.d / 2 },
-  ];
-  world.waypointNodes = {
-    A: { x: ROOMS.A.cx, z: ROOMS.A.cz }, AB: { x: 0, z: -6.5 },
-    B: { x: ROOMS.B.cx, z: ROOMS.B.cz }, BC: { x: 7.75, z: -14.5 },
-    C: { x: ROOMS.C.cx, z: ROOMS.C.cz }, BD: { x: -8, z: -14.5 },
-    D: { x: ROOMS.D.cx, z: ROOMS.D.cz }, BE: { x: 0, z: -22.75 },
-    E: { x: ROOMS.E.cx, z: ROOMS.E.cz - 2 },
-  };
-  world.waypointEdges = {
-    A: ["AB"], AB: ["A", "B"], B: ["AB", "BC", "BD", "BE"],
-    BC: ["B", "C"], C: ["BC"], BD: ["B", "D"], D: ["BD"], BE: ["B", "E"], E: ["BE"],
-  };
-
-  const theme = { addProp, addLight, addGlowBox, addCanvasBox, addDecal, addFloatBox, addBarricade, addPlatform, ROOMS, pal };
-  const decorators = { hospital: decorateHospital, bunker: decorateBunker };
-  (decorators[level.theme] || decorateHospital)(theme);
-
-  } // end non-school layout
 
   // ---------------- Landmark decorators (one per theme) ----------------
   // Shared rule (item 4): every recurring object type keeps ONE consistent
   // color set everywhere it appears in a given level (ammo crates are always
   // the same yellow/black, lockers always the same blue, etc).
-  // ---------------- School: a two-storey building with a front yard ----------------
-  // A central corridor with rooms down both sides, the same footprint repeated
-  // directly overhead, an entrance lobby holding the staircase, a double-height
-  // gym at the far end, and an outdoor approach (C1/C2) the player starts in and
-  // walks through. The old school sprawled sideways because a single XZ point
-  // could only hold one walkable height; G.getFloorHeightAt is multi-level now,
-  // so floors truly stack.
+  // ================= Room complex builder (categories C3 and M) =================
+  // All three levels are built by one parameterised generator. Before this the
+  // school was a purpose-built two-storey block and the other two shared a
+  // five-room hub layout with theme paint on top -- which is why the hospital
+  // and the bunker came out at about an eighth of the school's size, with one
+  // wall gun each and almost no cover.
   //
-  //   z=60 ...... yard fence and gate            (outdoors, player starts here)
-  //   z=33 ...... school front doors
-  //   z=20 ...... lobby <-> ground-floor corridor
-  //   z=-44 ..... gym doors
-  //   z=-61 ..... back wall
-  function buildSchoolBuilding() {
-    const F1 = 0, F2 = 4.2, WH = 4.2, CEIL = 3.95;
-    const woodMat = new THREE.MeshLambertMaterial({ color: 0x6b4a2f });
-    const woodDarkMat = new THREE.MeshLambertMaterial({ color: 0x4a3220 });
-    const metalMat = new THREE.MeshLambertMaterial({ color: 0x6d737a });
-    const boardMat = new THREE.MeshLambertMaterial({ color: 0x1f4436 });
-    const railMat = new THREE.MeshLambertMaterial({ color: 0x3a3a34 });
-    const crateMat = new THREE.MeshLambertMaterial({ color: 0x8a6a3a });
-    const rubbleMat = new THREE.MeshLambertMaterial({ color: 0x5f5c55 });
-    const lockerMats = [0x2f6fb0, 0xc9433c, 0xd9b23c, 0x3f9e5c].map((c) => new THREE.MeshLambertMaterial({ color: c }));
+  // The shape every level shares:
+  //
+  //     [ boss hall ]            -Z end, double height, no floor above
+  //          |
+  //     [ spine corridor with rooms down both sides, N rows ]
+  //          |
+  //     [ entry hall ]           +Z end, holds the staircase on two-storey maps
+  //          |
+  //     [ yard ]                 outdoors, school only
+  //
+  // What a plan changes: how many rows, how wide the rooms and corridor are,
+  // one storey or two, what each room is called and carries, the boss hall and
+  // entry hall dimensions, and the per-room furniture.
+  function buildComplex(cfg) {
+    const F1 = 0, F2 = cfg.f2 || 4.2, WH = cfg.wallH || 4.2, CEIL = 3.95;
+    const HALF = cfg.half, ROOM_W = cfg.roomW;
+    const WX = -(HALF + ROOM_W / 2), EX = HALF + ROOM_W / 2;
+    const STOREYS = cfg.storeys;
+    const BOSS = cfg.boss, ENTRY = cfg.entry;
+    const M = cfg.mats;
     const rl = pal.roomLight;
-
-    const HALF = 3.5;          // corridor half width -> x[-3.5, 3.5]
-    const ROOM_W = 12.5;
-    const WX = -(HALF + ROOM_W / 2), EX = HALF + ROOM_W / 2;  // -9.75 / +9.75
-    const GYM = { cx: 0, cz: -52.5, w: 36, d: 17 };           // x[-18,18] z[-61,-44]
-    const LOBBY = { cx: 0, cz: 26.5, w: 32, d: 13 };          // x[-16,16] z[20,33]
-    const YARD = { cx: 0, cz: 46.5, w: 52, d: 27 };           // x[-26,26] z[33,60]
-    const STAIR_X = 2.15;                                     // stairwell half width
-    const STAIR_Z0 = 22, STAIR_Z1 = 29.8;                     // top (F2) .. bottom (F1)
 
     world.regions = []; world.waypointNodes = {}; world.waypointEdges = {};
     world.extraSpawnPoints = [];
@@ -682,48 +538,48 @@ G.buildLevelScene = function (scene, level, quality) {
     // addProp anchors to y=0, so every piece of upstairs furniture had to go
     // through addFloatBox -- which registers no collider, leaving the whole
     // second storey walk-through. This places a solid prop at any height.
+    const solidProps = [];
     function addSolid(x, y, z, w, h, d, mat, rz, ry) {
       const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
       m.position.set(x, y + h / 2, z);
       if (rz) m.rotation.z = rz;
       if (ry) m.rotation.y = ry;
       scene.add(m);
-      world.colliders.push(new THREE.Box3().setFromObject(m));
+      const box = new THREE.Box3().setFromObject(m);
+      world.colliders.push(box);
+      solidProps.push({ mesh: m, collider: box });
       return m;
     }
 
     // ---- C3: tactical cover ----------------------------------------------
-    // Tipped desks, toppled cabinets, crates, trolleys and rubble. Anything
-    // under 0.6 tall stays collider-free so the floor never becomes a minefield
-    // of ankle-high walls, and every piece is kept out of a protected lane so a
-    // route can't be plugged.
+    // Tipped furniture, crates, trolleys and rubble. Anything under 0.6 tall
+    // stays collider-free so the floor never becomes a minefield of ankle-high
+    // walls, and every piece is kept out of a protected lane so a route can't
+    // be plugged.
     function clutterPiece(x, y, z) {
       const kind = Math.floor(G.rng() * 5);
       const ry = G.rng() * Math.PI;
-      if (kind === 0) {                                  // desk knocked on its side
-        addSolid(x, y, z, 1.3, 0.72, 0.7, woodMat, Math.PI / 2 * (G.rng() < 0.5 ? 1 : -1), ry);
-        addFloatBox(x + 0.4, y + 0.1, z + 0.3, 0.45, 0.06, 0.35, woodDarkMat, ry);
-      } else if (kind === 1) {                           // cabinet face down
-        addSolid(x, y, z, 1.0, 1.9, 0.52, metalMat, Math.PI / 2, ry);
-        addFloatBox(x - 0.3, y + 0.06, z + 0.5, 0.3, 0.04, 0.4, woodDarkMat, ry);
-      } else if (kind === 2) {                           // stacked crates
-        addSolid(x, y, z, 0.9, 0.9, 0.9, crateMat, 0, ry);
-        if (G.rng() < 0.6) addSolid(x + 0.25, y + 0.9, z - 0.2, 0.6, 0.6, 0.6, crateMat, 0, ry * 1.7);
-      } else if (kind === 3) {                           // supply trolley
-        addSolid(x, y + 0.28, z, 1.05, 0.62, 0.66, metalMat, 0, ry);
+      if (kind === 0) {
+        addSolid(x, y, z, 1.3, 0.72, 0.7, M.wood, Math.PI / 2 * (G.rng() < 0.5 ? 1 : -1), ry);
+        addFloatBox(x + 0.4, y + 0.1, z + 0.3, 0.45, 0.06, 0.35, M.woodDark, ry);
+      } else if (kind === 1) {
+        addSolid(x, y, z, 1.0, 1.9, 0.52, M.metal, Math.PI / 2, ry);
+        addFloatBox(x - 0.3, y + 0.06, z + 0.5, 0.3, 0.04, 0.4, M.woodDark, ry);
+      } else if (kind === 2) {
+        addSolid(x, y, z, 0.9, 0.9, 0.9, M.crate, 0, ry);
+        if (G.rng() < 0.6) addSolid(x + 0.25, y + 0.9, z - 0.2, 0.6, 0.6, 0.6, M.crate, 0, ry * 1.7);
+      } else if (kind === 3) {
+        addSolid(x, y + 0.28, z, 1.05, 0.62, 0.66, M.metal, 0, ry);
         [[-0.42, -0.26], [-0.42, 0.26], [0.42, -0.26], [0.42, 0.26]].forEach(([dx, dz]) => {
-          addFloatBox(x + dx, y + 0.13, z + dz, 0.12, 0.26, 0.12, woodDarkMat);
+          addFloatBox(x + dx, y + 0.13, z + dz, 0.12, 0.26, 0.12, M.woodDark);
         });
-      } else {                                           // spilled rubble
+      } else {
         for (let i = 0; i < 4; i++) {
           addFloatBox(x + (G.rng() - 0.5) * 1.5, y + 0.07, z + (G.rng() - 0.5) * 1.5,
-            0.25 + G.rng() * 0.4, 0.14, 0.2 + G.rng() * 0.4, rubbleMat, G.rng() * 3);
+            0.25 + G.rng() * 0.4, 0.14, 0.2 + G.rng() * 0.4, M.rubble, G.rng() * 3);
         }
       }
     }
-    // Scatters `count` pieces inside a rect, skipping a protected band so the
-    // walking route through the space stays open. lane.axis "x" protects a
-    // strip running along X at z=lane.at; "z" protects one running along Z.
     function scatterClutter(cx, cz, w, d, y, count, lane) {
       for (let i = 0; i < count; i++) {
         let x = 0, z = 0, ok = false;
@@ -740,6 +596,7 @@ G.buildLevelScene = function (scene, level, quality) {
     // facingWest = the gun hangs on a wall to the player's west and points east.
     function mountWallGun(id, mx, y, mz, facingWest) {
       const wdef = G.WEAPON_DEFS[id];
+      if (!wdef) return;
       const sign = facingWest ? 1 : -1;
       const plaque = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.5, 2.0), new THREE.MeshLambertMaterial({ color: 0x141414 }));
       plaque.position.set(mx, y + 1.85, mz);
@@ -754,8 +611,6 @@ G.buildLevelScene = function (scene, level, quality) {
         ctx.textAlign = "center";
         ctx.font = "bold 20px sans-serif"; ctx.fillStyle = "#ffd43b"; ctx.fillText(wdef.name, 128, 28);
         ctx.font = "bold 24px monospace"; ctx.fillStyle = "#6bff7a"; ctx.fillText("$" + wdef.price, 128, 62);
-        // category E: the mount states the weight, because it changes how the
-        // gun plays as much as its damage does
         const wc = G.weightClass(wdef);
         ctx.font = "bold 17px sans-serif"; ctx.fillStyle = wc.color;
         ctx.fillText("น้ำหนัก: " + wc.label, 128, 92);
@@ -765,409 +620,184 @@ G.buildLevelScene = function (scene, level, quality) {
       world.interactables.push({ mesh: plaque, kind: "wallweapon", ref });
     }
 
-    // ---- floor plan -------------------------------------------------------
-    // Rows are contiguous along Z, so the rooms' own inner walls form the
-    // corridor's sides -- no separate corridor walls (and no double walls).
-    const ROWS = [
-      { cz: 13.5, d: 13, corr: "S" },    // z[7, 20]
-      { cz: 0.5, d: 13, corr: "M" },     // z[-6, 7]
-      { cz: -12.5, d: 13, corr: "N" },   // z[-19, -6]
-      { cz: -25, d: 12, corr: "N" },     // z[-31, -19]
-      { cz: -37.5, d: 13, corr: "N2" },  // z[-44, -31]
-    ];
-    const CORR_SEGS = [
-      { name: "S", cz: 13.5, d: 13 },
-      { name: "M", cz: 0.5, d: 13 },
-      // segments must butt up against each other exactly -- a gap is invisible
-      // on the ground floor (missing zones read as height 0) but upstairs it is
-      // a hole in the corridor you fall through.
-      { name: "N", cz: -19, d: 26 },     // z[-32, -6]
-      { name: "N2", cz: -38, d: 12 },    // z[-44, -32]
-    ];
-    const ROOM_PLAN = {
-      1: [
-        { key: "W1", side: "W", row: 0, label: "ห้องเรียน 1-1", light: 0, classroom: true },
-        { key: "E1", side: "E", row: 0, label: "ห้องเรียน 1-2", light: 2 },
-        { key: "W2", side: "W", row: 1, label: "ห้องเรียน 1-3", light: 1, gun: "hall_monitor" },
-        { key: "E2", side: "E", row: 1, label: "ห้องคอมพิวเตอร์", light: 3, gun: "pop_quiz" },
-        { key: "W3", side: "W", row: 2, label: "ห้องสมุด", light: 2, button: true },
-        { key: "E3", side: "E", row: 2, label: "ห้องเรียน 1-4", light: 0, classroom: true },
-        { key: "W4", side: "W", row: 3, label: "ห้องพักครู", light: 4, gun: "detention_slug", secret: true },
-        { key: "E4", side: "E", row: 3, label: "ห้องเก็บของ", light: 1, gun: "cafeteria_cleaver", wordDoor: true },
-        { key: "W5", side: "W", row: 4, label: "โรงอาหาร", light: 2, canteen: true },
-        { key: "E5", side: "E", row: 4, label: "ห้องพยาบาล", light: 3 },
-      ],
-      2: [
-        { key: "PW1", side: "W", row: 0, label: "ห้องดนตรี", light: 1, gun: "honor_roll" },
-        { key: "PE1", side: "E", row: 0, label: "ห้องเรียน 2-1", light: 3 },
-        { key: "PW2", side: "W", row: 1, label: "ห้องเรียน 2-2", light: 0, classroom: true },
-        { key: "PE2", side: "E", row: 1, label: "ห้องวิทยาศาสตร์", light: 2, gun: "science_fair" },
-        { key: "PW3", side: "W", row: 2, label: "ห้องศิลปะ", light: 4, gun: "art_attack" },
-        { key: "PE3", side: "E", row: 2, label: "ห้องประชุม", light: 1, mystery: true },
-        { key: "PW4", side: "W", row: 3, label: "ห้องเก็บเอกสาร", light: 3 },
-        { key: "PE4", side: "E", row: 3, label: "ห้องฉายภาพยนตร์", light: 0, gun: "principals_verdict" },
-        { key: "PW5", side: "W", row: 4, label: "ห้องเก็บอุปกรณ์กีฬา", light: 2 },
-        { key: "PE5", side: "E", row: 4, label: "ห้องเรียน 2-3", light: 4, classroom: true },
-      ],
-    };
-
-    // ---- corridors, both floors ----
-    [1, 2].forEach((fl) => {
+    // ---- corridors, every storey ----
+    const storeyList = STOREYS === 2 ? [1, 2] : [1];
+    storeyList.forEach((fl) => {
       const baseY = fl === 1 ? F1 : F2;
-      CORR_SEGS.forEach((c) => {
+      cfg.corrSegs.forEach((c) => {
         const key = "C" + fl + c.name;
         addSpace(key, 0, c.cz, HALF * 2, c.d, baseY);
         addCeiling(0, c.cz, HALF * 2, c.d, baseY, CEIL);
         addLight(0, baseY + CEIL - 0.4, c.cz, rl[fl === 1 ? 0 : 1], 1.0, 1.2 + G.rng() * 0.7);
       });
-      link("C" + fl + "S", "C" + fl + "M");
-      link("C" + fl + "M", "C" + fl + "N");
-      link("C" + fl + "N", "C" + fl + "N2");
+      for (let i = 0; i < cfg.corrSegs.length - 1; i++) {
+        link("C" + fl + cfg.corrSegs[i].name, "C" + fl + cfg.corrSegs[i + 1].name);
+      }
     });
 
-    // ---- rooms, both floors ----
-    [1, 2].forEach((fl) => {
+    // ---- rooms ----
+    cfg.plan.forEach((spec) => {
+      const fl = spec.storey || 1;
       const baseY = fl === 1 ? F1 : F2;
-      ROOM_PLAN[fl].forEach((spec) => {
-        const row = ROWS[spec.row];
-        const cx = spec.side === "W" ? WX : EX;
-        const r = { cx, cz: row.cz, w: ROOM_W, d: row.d };
-        addSpace(spec.key, cx, row.cz, ROOM_W, row.d, baseY);
-        addCeiling(cx, row.cz, ROOM_W, row.d, baseY, CEIL);
-        // the wall facing the corridor carries the doorway
-        const gaps = spec.side === "W"
-          ? { east: { center: row.cz, width: 3 } }
-          : { west: { center: row.cz, width: 3 } };
-        addRoomWalls(r, gaps, WH, baseY);
-        addLight(cx, baseY + CEIL - 0.45, row.cz, rl[spec.light], 1.15, 1.0 + G.rng() * 0.9);
-        const doorX = spec.side === "W" ? -HALF : HALF;
-        addRoomDoor(doorX, row.cz, 3, "z", baseY);
-        link(spec.key, "C" + fl + row.corr);
-        spec.room = r; spec.baseY = baseY; spec.floor = fl;
-        world.extraSpawnPoints.push({ pos: new THREE.Vector3(cx, baseY, row.cz), types: fl === 1 ? ["normal", "fast"] : ["normal"] });
-      });
+      const row = cfg.rows[spec.row];
+      const cx = spec.side === "W" ? WX : EX;
+      const r = { cx, cz: row.cz, w: ROOM_W, d: row.d };
+      addSpace(spec.key, cx, row.cz, ROOM_W, row.d, baseY);
+      addCeiling(cx, row.cz, ROOM_W, row.d, baseY, CEIL);
+      const gaps = spec.side === "W"
+        ? { east: { center: row.cz, width: 3 } }
+        : { west: { center: row.cz, width: 3 } };
+      addRoomWalls(r, gaps, WH, baseY);
+      addLight(cx, baseY + CEIL - 0.45, row.cz, rl[spec.light % rl.length], 1.15, 1.0 + G.rng() * 0.9);
+      addRoomDoor(spec.side === "W" ? -HALF : HALF, row.cz, 3, "z", baseY);
+      link(spec.key, "C" + fl + row.corr);
+      spec.room = r; spec.baseY = baseY; spec.floor = fl;
+      world.extraSpawnPoints.push({ pos: new THREE.Vector3(cx, baseY, row.cz), types: fl === 1 ? ["normal", "fast"] : ["normal"] });
     });
 
-    // ---- gym / boss hall (double height, no floor above it) ----
-    addSpace("GYM", GYM.cx, GYM.cz, GYM.w, GYM.d, F1);
-    addRoomWalls(GYM, { south: { center: 0, width: 6 } }, WH * 2, F1);
-    addCeiling(GYM.cx, GYM.cz, GYM.w, GYM.d, F2, CEIL);
-    addRoomDoor(0, -44, 6, "x");
-    addWallSeg(0, -44, 6, 0.4, 5.5, 2.9);   // lintel over the gym doors
-    link("GYM", "C1N2");
-    addLight(GYM.cx - 9, F2 + 2.2, GYM.cz, rl[4], 1.4, 1.1);
-    addLight(GYM.cx + 9, F2 + 2.2, GYM.cz, rl[2], 1.2, 1.7);
-    addCanvasBox(0, 5.2, GYM.cz - GYM.d / 2 + 0.3, 4.2, 1.8, 0.14, (ctx, cv) => {
-      ctx.fillStyle = "#111"; ctx.fillRect(0, 0, cv.width, cv.height);
-      ctx.textAlign = "center";
-      ctx.font = "bold 22px monospace"; ctx.fillStyle = "#ffcc55";
-      ctx.fillText("HOME", 64, 34); ctx.fillText("AWAY", 192, 34);
-      ctx.font = "bold 54px monospace"; ctx.fillStyle = "#ff3b3b";
-      ctx.fillText("00 : 00", 128, 96);
-    }, 0x1a1a1a);
-    // bleachers down both long sides, leaving a wide clear floor for the boss
-    for (let i = 0; i < 5; i++) {
-      addProp(-15 + i * 1.1, GYM.cz + 5.5, 0.9, 0.45 + i * 0.22, 0.8, woodDarkMat);
-      addProp(15 - i * 1.1, GYM.cz + 5.5, 0.9, 0.45 + i * 0.22, 0.8, woodDarkMat);
-      addProp(-15 + i * 1.1, GYM.cz - 5.5, 0.9, 0.45 + i * 0.22, 0.8, woodDarkMat);
-      addProp(15 - i * 1.1, GYM.cz - 5.5, 0.9, 0.45 + i * 0.22, 0.8, woodDarkMat);
+    // ---- boss hall (double height, no floor above it) ----
+    addSpace("BOSS", BOSS.cx, BOSS.cz, BOSS.w, BOSS.d, F1);
+    addRoomWalls(BOSS, { south: { center: 0, width: 6 } }, WH * 2, F1);
+    addCeiling(BOSS.cx, BOSS.cz, BOSS.w, BOSS.d, F2, CEIL);
+    addRoomDoor(0, BOSS.cz + BOSS.d / 2, 6, "x");
+    addWallSeg(0, BOSS.cz + BOSS.d / 2, 6, 0.4, 5.5, 2.9);   // lintel over the doors
+    link("BOSS", "C1" + cfg.corrSegs[cfg.corrSegs.length - 1].name);
+    addLight(BOSS.cx - BOSS.w * 0.25, F2 + 2.2, BOSS.cz, rl[4 % rl.length], 1.4, 1.1);
+    addLight(BOSS.cx + BOSS.w * 0.25, F2 + 2.2, BOSS.cz, rl[2 % rl.length], 1.2, 1.7);
+    addLight(BOSS.cx - BOSS.w * 0.35, F2 + 2.4, BOSS.cz - BOSS.d * 0.28, rl[2 % rl.length], 1.2, 1.3);
+    addLight(BOSS.cx + BOSS.w * 0.35, F2 + 2.4, BOSS.cz + BOSS.d * 0.28, rl[4 % rl.length], 1.2, 1.9);
+    scatterClutter(BOSS.cx, BOSS.cz, BOSS.w - 12, BOSS.d - 5, F1, 5, { axis: "z", at: 0, half: 4 });
+
+    // ---- entry hall ----
+    const ENTRY_R = { cx: 0, cz: ENTRY.cz, w: ENTRY.w, d: ENTRY.d };
+    addSpace("ENTRY", 0, ENTRY.cz, ENTRY.w, ENTRY.d, F1);
+    const entryGaps = { north: { center: 0, width: 7 } };
+    if (cfg.yard) entryGaps.south = { center: 0, width: 6 };
+    addRoomWalls(ENTRY_R, entryGaps, WH * 2, F1);
+    addRoomDoor(0, ENTRY.cz - ENTRY.d / 2, 7, "x");
+    if (cfg.yard) {
+      addRoomDoor(0, ENTRY.cz + ENTRY.d / 2, 6, "x");
+      // addRoomWalls cuts the gap through the walls FULL height, which for a
+      // double-height hall means the front entrance would be a 6x8.4 slot you
+      // could see straight through. The doors are 2.9 tall; above them is wall.
+      addWallSeg(0, ENTRY.cz + ENTRY.d / 2, 6, 0.4, 5.5, 2.9);
+      addGlowBox(0, 3.2, ENTRY.cz + ENTRY.d / 2 - 0.3, 2.2, 0.32, 0.08, 0x6bff7a);
     }
-    scatterClutter(GYM.cx, GYM.cz, GYM.w - 12, GYM.d - 5, F1, 5, { axis: "z", at: 0, half: 4 });
-    addCorpse(5, GYM.cz + 3, 0.7, 0x3a5c8a);
-    addBloodStain(5, GYM.cz + 3, 0.9, 0.7);
-    // the Faculty Enforcer, hung in the boss hall where you see it from the
-    // door long before you can afford it
-    mountWallGun("school_wall", -GYM.w / 2 + 0.3, F1, GYM.cz + 2, true);
+    link("ENTRY", "C1" + cfg.corrSegs[0].name);
+    // The entry hall is only double height down its middle -- the side bays are
+    // roofed by the upstairs floor slab, so a light hung at F2+2 would sit
+    // inside the rooms above and leave the bays pitch black.
+    addLight(-ENTRY.w * 0.34, 3.5, ENTRY.cz - 3, rl[1 % rl.length], 1.2, 1.3);
+    addLight(-ENTRY.w * 0.34, 3.5, ENTRY.cz + 4, rl[4 % rl.length], 1.1, 1.6);
+    addLight(ENTRY.w * 0.34, 3.5, ENTRY.cz - 3, rl[4 % rl.length], 1.1, 1.5);
+    addLight(ENTRY.w * 0.34, 3.5, ENTRY.cz + 4, rl[1 % rl.length], 1.2, 1.2);
+    addLight(0, 6.8, ENTRY.cz + 5, rl[2 % rl.length], 1.3, 1.1);
 
-    // ---- gym dressing: a court that reads as a court, and a lit arena ----
-    // The boss fight happens here, so the floor markings, hoops and banners
-    // exist mainly to give the space a readable centre and edges to fight around.
-    (function dressGym() {
-      const lineMat = new THREE.MeshBasicMaterial({ color: 0xc9b06a });
-      const courtMat = new THREE.MeshLambertMaterial({ color: 0x8a6a3c });
-      const boardMat2 = new THREE.MeshLambertMaterial({ color: 0xd8d4c8 });
-      const hoopMat = new THREE.MeshBasicMaterial({ color: 0xd94f2b });
-      const matMat = new THREE.MeshLambertMaterial({ color: 0x2f5a7a });
-      const gz = GYM.cz;
-      // sanded wooden court inset, with painted lines on top of it
-      addFloatBox(0, 0.02, gz, GYM.w - 4, 0.04, GYM.d - 3, courtMat);
-      const line = (x, z, w, d) => addFloatBox(x, 0.05, z, w, 0.03, d, lineMat);
-      line(0, gz, 0.14, GYM.d - 3.4);                      // halfway line
-      line(0, gz - (GYM.d - 3.4) / 2, GYM.w - 4.4, 0.14);  // sidelines
-      line(0, gz + (GYM.d - 3.4) / 2, GYM.w - 4.4, 0.14);
-      [-1, 1].forEach((s) => {
-        line(s * (GYM.w - 4.4) / 2, gz, 0.14, GYM.d - 3.4);        // baselines
-        [-2.4, 2.4].forEach((dz) => line(s * (GYM.w / 2 - 4.6), gz + dz, 5.2, 0.12)); // key
-        line(s * (GYM.w / 2 - 7.2), gz, 0.12, 4.8);
+    // ---- upper storey over the entry hall: two rooms plus the gallery ----
+    if (STOREYS === 2) {
+      const sideW = (ENTRY.w - 12) / 2;
+      const UP = [
+        { key: cfg.upperKeys[0], cx: -(6 + sideW / 2), w: sideW, li: 3 },
+        { key: cfg.upperKeys[1], cx: 6 + sideW / 2, w: sideW, li: 1 },
+      ];
+      UP.forEach((u) => {
+        const r = { cx: u.cx, cz: ENTRY.cz, w: u.w, d: ENTRY.d };
+        addSpace(u.key, r.cx, r.cz, r.w, r.d, F2);
+        addCeiling(r.cx, r.cz, r.w, r.d, F2, CEIL);
+        const west = u.cx < 0;
+        addRoomWalls(r, west ? { east: { center: ENTRY.cz - 2, width: 3 } } : { west: { center: ENTRY.cz - 2, width: 3 } }, WH, F2);
+        addRoomDoor(west ? -6 : 6, ENTRY.cz - 2, 3, "z", F2);
+        addLight(r.cx, F2 + CEIL - 0.45, r.cz, rl[u.li % rl.length], 1.1, 1.3);
+        scatterClutter(r.cx, r.cz, r.w, r.d, F2, 4, { axis: "x", at: ENTRY.cz - 2, half: 2.2 });
+        world.extraSpawnPoints.push({ pos: new THREE.Vector3(r.cx, F2, r.cz), types: ["normal"] });
       });
-      // centre circle, as eight short chords
-      for (let i = 0; i < 8; i++) {
-        const a = (i / 8) * Math.PI * 2;
-        addFloatBox(Math.cos(a) * 2.6, 0.05, gz + Math.sin(a) * 2.6, 1.4, 0.03, 0.12, lineMat, -a + Math.PI / 2);
+
+      const SX = cfg.stair.halfX;
+      const Z0 = ENTRY.cz - ENTRY.d / 2 + 2;                 // top of the flight (F2)
+      const Z1 = Z0 + cfg.stair.run;                          // foot of the flight (F1)
+      const bandCz = (Z0 + Z1) / 2 - 1 + 1, bandD = Z1 - (ENTRY.cz - ENTRY.d / 2);
+      const GAL_BANDS = [
+        { cx: 0, cz: ENTRY.cz - ENTRY.d / 2 + 1, w: SX * 2, d: 2 },
+        { cx: -(SX + (6 - SX) / 2), cz: (ENTRY.cz - ENTRY.d / 2 + Z1) / 2, w: 6 - SX, d: bandD },
+        { cx: SX + (6 - SX) / 2, cz: (ENTRY.cz - ENTRY.d / 2 + Z1) / 2, w: 6 - SX, d: bandD },
+      ];
+      GAL_BANDS.forEach((g2) => {
+        addFloor(g2.cx, g2.cz, g2.w, g2.d, F2);
+        world.heightZones.push({ minX: g2.cx - g2.w / 2, maxX: g2.cx + g2.w / 2, minZ: g2.cz - g2.d / 2, maxZ: g2.cz + g2.d / 2, height: F2 });
+      });
+      world.regions.push({ name: "GAL", y: F2, minX: -6, maxX: 6, minZ: ENTRY.cz - ENTRY.d / 2, maxZ: Z1 });
+      world.waypointNodes.GAL = { x: 0, z: ENTRY.cz - ENTRY.d / 2 + 1 };
+      link("GAL", "C2" + cfg.corrSegs[0].name);
+      link("GAL", cfg.upperKeys[0]); link("GAL", cfg.upperKeys[1]); link("GAL", "ENTRY");
+      addCeiling(0, ENTRY.cz, 12, ENTRY.d, F2, CEIL);
+      addLight(0, F2 + 3.4, ENTRY.cz - ENTRY.d / 2 + 1, rl[0], 1.05, 1.4);
+      addLight(4.5, F2 + 3.4, ENTRY.cz + 1, rl[2 % rl.length], 0.95, 1.8);
+      [-SX - 0.06, SX + 0.06].forEach((rx) => {
+        const rail = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.0, Z1 - Z0), M.rail);
+        rail.position.set(rx, F2 + 0.5, (Z0 + Z1) / 2);
+        scene.add(rail);
+        world.colliders.push(new THREE.Box3().setFromObject(rail));
+      });
+      const galRail = new THREE.Mesh(new THREE.BoxGeometry(12, 1.0, 0.12), M.rail);
+      galRail.position.set(0, F2 + 0.5, Z1 + 0.06);
+      scene.add(galRail);
+      world.colliders.push(new THREE.Box3().setFromObject(galRail));
+
+      // The treads are decoration + height zones only -- a collider on each one
+      // would catch the player's body box on the riser in front of them. Solid
+      // side walls stop you walking into the flight from the hall floor
+      // instead, which is also what makes the shutter below a real gate.
+      const STEPS = 12, RISE = F2 / STEPS, RUN = (Z1 - Z0) / STEPS;
+      for (let i = 0; i < STEPS; i++) {
+        const top = (i + 1) * RISE;
+        const zHi = Z1 - i * RUN, zLo = zHi - RUN;
+        const step = new THREE.Mesh(new THREE.BoxGeometry(SX * 2 - 0.3, top, RUN), accentMat);
+        step.position.set(0, top / 2, zLo + RUN / 2);
+        scene.add(step);
+        world.heightZones.push({ minX: -SX + 0.15, maxX: SX - 0.15, minZ: zLo, maxZ: zHi, height: top });
       }
-      // hoops on both end walls
-      [-1, 1].forEach((s) => {
-        const bx = s * (GYM.w / 2 - 0.6);
-        addFloatBox(bx, 3.3, gz, 0.14, 1.1, 1.8, boardMat2);
-        addFloatBox(bx - s * 0.5, 2.85, gz, 0.9, 0.08, 0.08, hoopMat);
-        [-0.42, 0.42].forEach((dz) => addFloatBox(bx - s * 0.5, 2.85, gz + dz, 0.9, 0.06, 0.06, hoopMat));
-      });
-      // banners hanging down the long walls
-      const banner = ["ชนะ", "สู้ๆ", "ทีมเรา"];
-      banner.forEach((t, i) => {
-        [-1, 1].forEach((s) => {
-          addCanvasBox(-9 + i * 9, 6.2, s * (GYM.d / 2 - 0.35) + gz, 3.0, 1.6, 0.08, (ctx, cv) => {
-            ctx.fillStyle = i % 2 ? "#7a2f2a" : "#2f4a7a"; ctx.fillRect(0, 0, cv.width, cv.height);
-            ctx.textAlign = "center"; ctx.font = "bold 56px sans-serif"; ctx.fillStyle = "#f0e6cf";
-            ctx.fillText(t, 128, 88);
-          }, 0x2a2a26, s > 0 ? Math.PI : 0);
-        });
-      });
-      // stacked gym mats and a vaulting horse, as cover in the corners
-      [[-14, gz - 6.5], [14, gz + 6.5]].forEach(([mx, mz]) => {
-        for (let i = 0; i < 3; i++) addSolid(mx, 0.38 * i, mz, 2.2, 0.38, 1.1, matMat, 0, i * 0.08);
-      });
-      addSolid(-6, 0, gz - 6, 1.6, 1.15, 0.6, woodDarkMat, 0, 0.3);
-      addSolid(7, 0, gz + 6, 1.6, 1.15, 0.6, woodDarkMat, 0, -0.2);
-      // loose balls (decorative only -- nothing ankle high gets a collider)
-      for (let i = 0; i < 7; i++) {
-        addFloatBox(-13 + G.rng() * 26, 0.16, gz - 6 + G.rng() * 12, 0.32, 0.32, 0.32,
-          new THREE.MeshLambertMaterial({ color: i % 2 ? 0xd9873c : 0xb6543a }), G.rng() * 3);
-      }
-      // four lights instead of two -- 36x17 was far too big for a pair
-      addLight(-13, F2 + 2.4, gz - 5, rl[2], 1.2, 1.3);
-      addLight(13, F2 + 2.4, gz + 5, rl[4], 1.2, 1.9);
-    })();
+      [-SX, SX].forEach((sx) => addWallSeg(sx, (Z0 + Z1) / 2, 0.3, Z1 - Z0, F2, F1));
 
-    // ---- entrance lobby: the full-width hall that replaced the stair room ----
-    addSpace("LOBBY", LOBBY.cx, LOBBY.cz, LOBBY.w, LOBBY.d, F1);
-    addRoomWalls(LOBBY, {
-      north: { center: 0, width: 7 },   // into the ground-floor corridor
-      south: { center: 0, width: 6 },   // the school's front doors
-    }, WH * 2, F1);
-    addRoomDoor(0, 20, 7, "x");
-    addRoomDoor(0, 33, 6, "x");
-    // addRoomWalls cuts the gap through the wall's FULL height, which for a
-    // double-height hall means the front entrance was a 6x8.4 slot you could
-    // see the yard through from the upstairs gallery. The doors are 2.9 tall;
-    // everything above them is wall.
-    addWallSeg(0, 33, 6, 0.4, 5.5, 2.9);
-    link("LOBBY", "C1S");
-    // The lobby is only double height down the middle -- the side bays are
-    // roofed by the upstairs floor slab at F2, so a light hung at F2+2 sat
-    // inside the rooms above and left the bays pitch black.
-    addLight(-11, 3.5, 23.5, rl[1], 1.2, 1.3);
-    addLight(-11, 3.5, 30.5, rl[4], 1.1, 1.6);
-    addLight(11, 3.5, 23.5, rl[4], 1.1, 1.5);
-    addLight(11, 3.5, 30.5, rl[1], 1.2, 1.2);
-    addLight(0, 6.8, 31.5, rl[2], 1.3, 1.1);   // high over the open atrium
-    addGlowBox(0, 3.2, 32.7, 2.2, 0.32, 0.08, 0x6bff7a);   // EXIT sign over the front doors
-
-    // ---- the face the player actually arrives at ----
-    // The front wall is the first thing anyone sees from the yard, so it gets a
-    // parapet, window bays, an entrance canopy and a name board instead of a
-    // blank slab -- plus roof slabs, so the building reads as a solid mass
-    // rather than an open-topped box.
-    (function buildFacade() {
-      const wallLight = new THREE.MeshLambertMaterial({ color: 0x9a9587 });
-      const wallDark = new THREE.MeshLambertMaterial({ color: 0x6f6b60 });
-      const glassMat = new THREE.MeshLambertMaterial({ color: 0x27323c });
-      const brokenMat = new THREE.MeshBasicMaterial({ color: 0x0a0d10 });
-      const zf = LOBBY.cz + LOBBY.d / 2;         // 33
-      addFloatBox(0, 8.7, zf, LOBBY.w + 1.2, 0.6, 1.0, wallDark);        // parapet
-      addFloatBox(0, 4.35, zf + 0.38, LOBBY.w + 0.4, 0.3, 0.5, wallLight); // string course
-      // window bays, two rows, skipping the entrance
-      [2.4, 6.2].forEach((wy, rowIdx) => {
-        for (let i = -4; i <= 4; i++) {
-          const wx = i * 3.4;
-          if (Math.abs(wx) < 4.4 || Math.abs(wx) > 14.5) continue;
-          // clear of the 0.4-thick wall (z up to zf+0.2), or the frames poke
-          // through and are visible from the gallery inside
-          addFloatBox(wx, wy, zf + 0.32, 2.0, 1.5, 0.22, wallDark);
-          addFloatBox(wx, wy, zf + 0.45, 1.7, 1.2, 0.08, glassMat);
-          if ((i + rowIdx) % 3 === 0) addFloatBox(wx + 0.35, wy + 0.1, zf + 0.52, 0.75, 0.9, 0.05, brokenMat);
-        }
-      });
-      // entrance: two piers carrying a canopy
-      [-3.7, 3.7].forEach((px) => {
-        const pier = new THREE.Mesh(new THREE.BoxGeometry(0.8, 4.4, 0.8), wallLight);
-        pier.position.set(px, 2.2, zf + 0.5);
-        scene.add(pier);
-        world.colliders.push(new THREE.Box3().setFromObject(pier));
-      });
-      addFloatBox(0, 4.6, zf + 0.6, 9.2, 0.35, 2.4, wallDark);
-      addCanvasBox(0, 6.4, zf + 0.4, 7.0, 1.3, 0.16, (ctx, cv) => {
-        ctx.fillStyle = "#1d2a33"; ctx.fillRect(0, 0, cv.width, cv.height);
-        ctx.textAlign = "center";
-        // 256px canvas: a 42px face ran the name off both edges
-        ctx.font = "bold 28px sans-serif"; ctx.fillStyle = "#cddbe6";
-        ctx.fillText("โรงเรียนบ้านหนอง", 128, 74);
-        ctx.fillStyle = "#101418";
-        for (let i = 0; i < 5; i++) ctx.fillRect(G.rng() * 230, G.rng() * 110, 8 + G.rng() * 24, 5 + G.rng() * 10);
-      }, 0x3a3a34);
-      // roofs: above every interior ceiling (3.55 downstairs, 7.75 upstairs),
-      // so they are invisible from inside and solid from outside
-      addFloatBox(0, 8.75, -5.5, 33, 0.5, 77, wallDark);
-      addFloatBox(0, 9.3, GYM.cz, GYM.w + 2, 0.5, GYM.d + 2, wallDark);
-      // a couple of lit upper windows, so the building looks occupied
-      [[-11, 6.2], [12.4, 2.4]].forEach(([wx, wy]) => addGlowBox(wx, wy, zf + 0.5, 1.7, 1.2, 0.06, 0xffd9a0));
-    })();
-
-    // ---- second storey over the lobby: two rooms and the gallery ----
-    const PLW = { cx: -11, cz: LOBBY.cz, w: 10, d: LOBBY.d };  // x[-16,-6]
-    const PLE = { cx: 11, cz: LOBBY.cz, w: 10, d: LOBBY.d };   // x[6,16]
-    [["PLW", PLW, 3], ["PLE", PLE, 1]].forEach(([key, r, li]) => {
-      addSpace(key, r.cx, r.cz, r.w, r.d, F2);
-      addCeiling(r.cx, r.cz, r.w, r.d, F2, CEIL);
-      const gaps = key === "PLW" ? { east: { center: 24.5, width: 3 } } : { west: { center: 24.5, width: 3 } };
-      addRoomWalls(r, gaps, WH, F2);
-      addRoomDoor(key === "PLW" ? -6 : 6, 24.5, 3, "z", F2);
-      addLight(r.cx, F2 + CEIL - 0.45, r.cz, rl[li], 1.1, 1.3);
-      scatterClutter(r.cx, r.cz, r.w, r.d, F2, 4, { axis: "x", at: 24.5, half: 2.2 });
-      world.extraSpawnPoints.push({ pos: new THREE.Vector3(r.cx, F2, r.cz), types: ["normal"] });
-    });
-    // Gallery: a landing at the head of the stairs plus two bands flanking the
-    // stairwell. This is what joins the upstairs corridor to the two rooms.
-    const GAL_BANDS = [
-      { cx: 0, cz: 21, w: STAIR_X * 2, d: 2 },      // landing   x[-2.15,2.15] z[20,22]
-      { cx: -4.075, cz: 24.9, w: 3.85, d: 9.8 },    // west band x[-6,-2.15]  z[20,29.8]
-      { cx: 4.075, cz: 24.9, w: 3.85, d: 9.8 },     // east band x[2.15,6]    z[20,29.8]
-    ];
-    GAL_BANDS.forEach((g2) => {
-      addFloor(g2.cx, g2.cz, g2.w, g2.d, F2);
-      world.heightZones.push({ minX: g2.cx - g2.w / 2, maxX: g2.cx + g2.w / 2, minZ: g2.cz - g2.d / 2, maxZ: g2.cz + g2.d / 2, height: F2 });
-    });
-    world.regions.push({ name: "GAL", y: F2, minX: -6, maxX: 6, minZ: 20, maxZ: STAIR_Z1 });
-    world.waypointNodes.GAL = { x: 0, z: 21 };
-    link("GAL", "C2S"); link("GAL", "PLW"); link("GAL", "PLE"); link("GAL", "LOBBY");
-    addLight(0, F2 + 3.4, 21, rl[0], 1.05, 1.4);
-    addLight(4.5, F2 + 3.4, 27, rl[2], 0.95, 1.8);
-    addCeiling(0, LOBBY.cz, 12, LOBBY.d, F2, CEIL);           // atrium roof over the void
-    // railings round the stairwell and along the open edge of the gallery
-    [-STAIR_X - 0.06, STAIR_X + 0.06].forEach((rx) => {
-      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.0, STAIR_Z1 - STAIR_Z0), railMat);
-      rail.position.set(rx, F2 + 0.5, (STAIR_Z0 + STAIR_Z1) / 2);
-      scene.add(rail);
-      world.colliders.push(new THREE.Box3().setFromObject(rail));
-    });
-    const galRail = new THREE.Mesh(new THREE.BoxGeometry(12, 1.0, 0.12), railMat);
-    galRail.position.set(0, F2 + 0.5, STAIR_Z1 + 0.06);
-    scene.add(galRail);
-    world.colliders.push(new THREE.Box3().setFromObject(galRail));
-
-    // ---- staircase: a real flight of voxel steps, climbing toward -Z --------
-    // The treads are decoration + height zones only (no colliders) -- a collider
-    // on each tread would catch the player's body box on the riser in front of
-    // them. Solid side walls stop you walking into the flight from the lobby
-    // floor instead, which is also what makes the shutter below a real gate.
-    const STEPS = 12, RISE = F2 / STEPS, RUN = (STAIR_Z1 - STAIR_Z0) / STEPS;
-    for (let i = 0; i < STEPS; i++) {
-      const top = (i + 1) * RISE;
-      const zHi = STAIR_Z1 - i * RUN, zLo = zHi - RUN;
-      const step = new THREE.Mesh(new THREE.BoxGeometry(STAIR_X * 2 - 0.3, top, RUN), accentMat);
-      step.position.set(0, top / 2, zLo + RUN / 2);
-      scene.add(step);
-      world.heightZones.push({ minX: -STAIR_X + 0.15, maxX: STAIR_X - 0.15, minZ: zLo, maxZ: zHi, height: top });
+      // The gate sits across the foot of the stairs, not the hall doorway --
+      // the hall is the only way in from outside, so gating it would lock the
+      // player out of the whole building.
+      const shutter = new THREE.Mesh(new THREE.BoxGeometry(SX * 2 + 0.2, 3.6, 0.22), M.metal);
+      shutter.position.set(0, 1.8, Z1 + 0.15);
+      scene.add(shutter);
+      const shutterCollider = new THREE.Box3().setFromObject(shutter);
+      world.colliders.push(shutterCollider);
+      addGlowBox(0, 3.75, Z1 + 0.15, SX * 2 + 0.3, 0.14, 0.26, 0xffcc33);
+      world.secondFloor = {
+        unlocked: false, barrierMesh: shutter, barrierCollider: shutterCollider,
+        killsNeeded: cfg.upperKills || 20, countMode: "correct", room: { cx: 0, cz: 0 }, floorY: F2,
+        cratePositions: [new THREE.Vector3(-4, F2 + 0.3, ENTRY.cz - 2), new THREE.Vector3(EX, F2 + 0.3, cfg.rows[0].cz)],
+      };
     }
-    [-STAIR_X, STAIR_X].forEach((sx) => addWallSeg(sx, (STAIR_Z0 + STAIR_Z1) / 2, 0.3, STAIR_Z1 - STAIR_Z0, F2, F1));
 
-    // B2 gate: a roller shutter, now across the foot of the stairs rather than
-    // the lobby doorway -- the lobby is the only way in from outside, so gating
-    // it would have locked the player out of the entire school.
-    const shutter = new THREE.Mesh(new THREE.BoxGeometry(STAIR_X * 2 + 0.2, 3.6, 0.22), metalMat);
-    shutter.position.set(0, 1.8, STAIR_Z1 + 0.15);
-    scene.add(shutter);
-    const shutterCollider = new THREE.Box3().setFromObject(shutter);
-    world.colliders.push(shutterCollider);
-    addGlowBox(0, 3.75, STAIR_Z1 + 0.15, STAIR_X * 2 + 0.3, 0.14, 0.26, 0xffcc33);
-    world.secondFloor = {
-      unlocked: false, barrierMesh: shutter, barrierCollider: shutterCollider,
-      killsNeeded: 20, countMode: "correct", room: { cx: 0, cz: 0.5 }, floorY: F2,
-      cratePositions: [new THREE.Vector3(-4, F2 + 0.3, 25), new THREE.Vector3(EX, F2 + 0.3, ROWS[0].cz)],
-    };
-
-    // ---- lobby dressing: reception desk, trophy cabinets, notice board ----
-    addProp(-6.5, 30, 3.4, 1.05, 0.9, woodMat);
-    addFloatBox(-6.5, 1.15, 30, 3.2, 0.1, 1.0, woodDarkMat);
-    addCanvasBox(-6.5, 1.55, 29.5, 1.1, 0.5, 0.06, (ctx, cv) => {
-      ctx.fillStyle = "#101014"; ctx.fillRect(0, 0, cv.width, cv.height);
-      ctx.textAlign = "center"; ctx.font = "bold 34px sans-serif"; ctx.fillStyle = "#cfe8ff";
-      ctx.fillText("ประชาสัมพันธ์", 128, 80);
-    }, 0x222222);
-    for (let i = 0; i < 3; i++) addProp(9 + i * 1.5, 31.3, 1.2, 2.0, 0.6, metalMat);
-    addCanvasBox(0, 2.2, 20.35, 3.0, 1.4, 0.08, (ctx, cv) => {
-      ctx.fillStyle = "#1d3b22"; ctx.fillRect(0, 0, cv.width, cv.height);
-      ctx.fillStyle = "#e8e8d8";
-      for (let i = 0; i < 6; i++) ctx.fillRect(18 + (i % 3) * 78, 16 + Math.floor(i / 3) * 52, 62, 40);
-    }, 0x3a2a18);
-    scatterClutter(-11, 25, 9, 10, F1, 3, { axis: "z", at: 0, half: 5 });
-    scatterClutter(11, 25, 9, 10, F1, 3, { axis: "z", at: 0, half: 5 });
-    addCorpse(-3.2, 31.5, 2.4, 0x2f4f7a);
-    addBloodStain(-3.2, 31.5, 1.1, 0.4);
-    addBloodStain(-1.6, 28.5, 0.9, 1.2);
-    addBloodStain(-0.6, 24.0, 0.8, 0.3);
-
-    // ---- per-room dressing, loot, wall guns, classrooms ----
-    function dress(spec) {
+    // ---- per-room dressing, loot, wall guns ----
+    function dressGeneric(spec) {
       const r = spec.room, y = spec.baseY;
       const corners = [[-1, -1], [1, -1], [-1, 1], [1, 1]];
       for (let i = 0; i < 3; i++) {
         const [sx, sz] = corners[i];
         const px = r.cx + sx * (r.w / 2 - 1.3), pz = r.cz + sz * (r.d / 2 - 1.3);
         const w = 0.7 + G.rng() * 1.0, h = 0.7 + G.rng() * 1.2, d = 0.6 + G.rng() * 0.8;
-        const mat = [woodMat, woodDarkMat, metalMat, lockerMats[i % lockerMats.length]][Math.floor(G.rng() * 4)];
-        addSolid(px, y, pz, w, h, d, mat);
+        addSolid(px, y, pz, w, h, d, M.locker[i % M.locker.length]);
       }
-      // C3: real cover in every room, kept off the line between door and centre
       scatterClutter(r.cx, r.cz, r.w, r.d, y, 2 + Math.floor(G.rng() * 2), { axis: "x", at: r.cz, half: 1.9 });
       if (G.rng() < 0.55) addBloodStain(r.cx + (G.rng() - 0.5) * 3, r.cz + (G.rng() - 0.5) * 3, 0.6 + G.rng() * 0.6, G.rng() * 3);
     }
-    // D: full classroom kit -- rows of desks with walking aisles, board on the
-    // outer wall (never across a doorway or the player's sightline).
-    function furnishClassroom(spec) {
-      const r = spec.room, y = spec.baseY;
-      const outerX = r.cx < 0 ? r.cx - r.w / 2 + 0.25 : r.cx + r.w / 2 - 0.25;
-      addFloatBox(outerX, y + 1.9, r.cz, 0.1, 1.5, 4.2, boardMat);
-      addFloatBox(outerX + (r.cx < 0 ? 0.04 : -0.04), y + 1.9, r.cz, 0.06, 1.7, 4.5, woodDarkMat);
-      const dirX = r.cx < 0 ? 1 : -1; // rows face the board
-      for (let col = 0; col < 3; col++) {
-        for (let row = 0; row < 3; row++) {
-          const px = outerX + dirX * (2.6 + col * 2.6);
-          const pz = r.cz - 3.4 + row * 3.4;
-          // one desk per classroom is knocked over, for cover and for the look
-          if (col === 1 && row === 2) { addSolid(px, y, pz, 1.3, 0.72, 0.7, woodMat, Math.PI / 2, 0.4); continue; }
-          addSolid(px, y, pz, 1.3, 0.75, 0.7, woodMat);
-          addSolid(px - dirX * 0.8, y, pz, 0.5, 0.45, 0.5, woodDarkMat);
-        }
-      }
-    }
-    // W5: canteen tables in long rows, one flipped on its side
-    function furnishCanteen(spec) {
-      const r = spec.room, y = spec.baseY;
-      for (let i = 0; i < 3; i++) {
-        const pz = r.cz - 3.8 + i * 3.8;
-        if (i === 1) { addSolid(r.cx - 1, y, pz, 3.6, 0.75, 1.0, woodMat, Math.PI / 2, 0.25); continue; }
-        addSolid(r.cx, y, pz, 4.2, 0.72, 1.0, woodMat);
-        [-1.4, 1.4].forEach((dx) => addSolid(r.cx + dx, y, pz + 1.0, 1.6, 0.42, 0.4, woodDarkMat));
-      }
-      for (let i = 0; i < 3; i++) addSolid(r.cx + r.w / 2 - 1.2, y, r.cz - 3 + i * 3, 1.0, 2.0, 0.6, metalMat);
-      addCorpse(r.cx + 2.5, r.cz + 4, 1.9, 0x7a6a3a);
-      addBloodStain(r.cx + 2.5, r.cz + 4, 1.0, 0.8);
-    }
 
-    [1, 2].forEach((fl) => ROOM_PLAN[fl].forEach((spec) => {
-      dress(spec);
-      if (spec.classroom) furnishClassroom(spec);
-      if (spec.canteen) furnishCanteen(spec);
+    cfg.plan.forEach((spec) => {
+      dressGeneric(spec);
+      const f = cfg.furnish && cfg.furnish[spec.furnish];
+      if (f) f(spec, { addSolid, addFloatBox, addCanvasBox, addGlowBox, addCorpse, addBloodStain, addLight, M, scene });
       if (spec.gun) {
         const r = spec.room, y = spec.baseY;
-        // mounted on the wall opposite the corridor door, at eye height
         const mx = r.cx < 0 ? r.cx - r.w / 2 + 0.3 : r.cx + r.w / 2 - 0.3;
-        const mz = r.cz + (spec.classroom ? 4.2 : 0);
-        mountWallGun(spec.gun, mx, y, mz, r.cx < 0);
+        mountWallGun(spec.gun, mx, y, r.cz + (spec.gunOffZ || 0), r.cx < 0);
       }
       if (spec.mystery) {
-        // F: same box, same behaviour -- moved upstairs and scaled up 1.4x.
         const s = 1.4;
         const mbX = spec.room.cx + spec.room.w / 2 - 2.2, mbZ = spec.room.cz - spec.room.d / 2 + 2.2;
         const crate = addProp(mbX, mbZ, 1.3 * s, 1.0 * s, 1.3 * s, new THREE.MeshLambertMaterial({ color: 0x1b1030 }));
@@ -1190,7 +820,6 @@ G.buildLevelScene = function (scene, level, quality) {
         world.buttons.push({ mesh: bm, pressed: false });
         world.interactables.push({ mesh: bm, kind: "button", ref: world.buttons[world.buttons.length - 1] });
       }
-      // a lootable, word-locked crate in about half the rooms
       if ((spec.row + (spec.side === "W" ? 0 : 1)) % 2 === 0) {
         const cm = addProp(spec.room.cx + 2.5, spec.room.cz - 2.5, 0.8, 0.8, 0.8, new THREE.MeshLambertMaterial({ color: 0x8a6a2a }));
         cm.position.y = spec.baseY + 0.4;
@@ -1198,74 +827,742 @@ G.buildLevelScene = function (scene, level, quality) {
         world.crates.push({ mesh: cm, opened: false, locked: true });
         world.interactables.push({ mesh: cm, kind: "crate", ref: world.crates[world.crates.length - 1] });
       }
-    }));
+    });
 
-    // secret area: the staff room stays shut until the library button is hit
-    const staff = ROOM_PLAN[1].find((s) => s.secret);
-    const barricade = addBarricade(-HALF - 0.4, staff.room.cz, 3, new THREE.MeshLambertMaterial({ color: 0x5c5438 }));
-    world.secretZone = {
-      center: new THREE.Vector3(staff.room.cx, 0, staff.room.cz), radius: 6, unlocked: false,
-      barricadeMesh: barricade.mesh, barricadeCollider: barricade.collider,
-    };
+    // secret area: stays shut until the button elsewhere on the map is hit
+    const secret = cfg.plan.find((s) => s.secret);
+    if (secret) {
+      const side = secret.side === "W" ? -1 : 1;
+      const barricade = addBarricade(side * (HALF + 0.4), secret.room.cz, 3, M.barricade);
+      world.secretZone = {
+        center: new THREE.Vector3(secret.room.cx, 0, secret.room.cz), radius: 6, unlocked: false,
+        barricadeMesh: barricade.mesh, barricadeCollider: barricade.collider,
+      };
+    }
 
-    // word-locked door on the storage room (which holds a wall gun)
-    const store = ROOM_PLAN[1].find((s) => s.wordDoor);
-    const lockedDoor = addProp(HALF + 0.45, store.room.cz, 0.3, 3, 2.8, new THREE.MeshLambertMaterial({ color: 0xb2452f }));
-    addGlowBox(HALF + 0.45, 3.05, store.room.cz, 0.34, 0.1, 2.9, 0xffcc33);
-    world.doors.push({ mesh: lockedDoor, locked: true, kind: "word", opened: false, collider: world.colliders[world.colliders.length - 1] });
-    world.interactables.push({ mesh: lockedDoor, kind: "door", ref: world.doors[world.doors.length - 1] });
+    // word-locked door on a room that holds a wall gun
+    const store = cfg.plan.find((s) => s.wordDoor);
+    if (store) {
+      const side = store.side === "W" ? -1 : 1;
+      const lockedDoor = addProp(side * (HALF + 0.45), store.room.cz, 0.3, 3, 2.8, new THREE.MeshLambertMaterial({ color: 0xb2452f }));
+      addGlowBox(side * (HALF + 0.45), 3.05, store.room.cz, 0.34, 0.1, 2.9, 0xffcc33);
+      world.doors.push({ mesh: lockedDoor, locked: true, kind: "word", opened: false, collider: world.colliders[world.colliders.length - 1] });
+      world.interactables.push({ mesh: lockedDoor, kind: "door", ref: world.doors[world.doors.length - 1] });
+    }
 
-    // spike trap in the far corridor, on the last approach to the gym
-    const trapMesh = addProp(0, -42, 5.6, 0.25, 0.8, new THREE.MeshLambertMaterial({ color: 0xff2222 }), 0, 0, 0, true);
+    // a hazard in the corridor on the last approach to the boss hall
+    const trapMesh = addProp(0, cfg.trapZ, HALF * 1.6, 0.25, 0.8, new THREE.MeshLambertMaterial({ color: 0xff2222 }), 0, 0, 0, true);
     trapMesh.position.y = 0.12;
     world.traps.push({ mesh: trapMesh, active: true, damage: 45, cooldown: 0, collider: null });
     world.interactables.push({ mesh: trapMesh, kind: "trap", ref: world.traps[world.traps.length - 1] });
 
-    // corridor dressing: lockers lining the main hall on both floors, plus
-    // cover pressed against the walls so the middle lane stays runnable
-    [1, 2].forEach((fl) => {
+    // corridor dressing: lockers lining the spine, plus cover pressed against
+    // the walls so the middle lane stays runnable
+    const corrZ0 = cfg.corrSegs[cfg.corrSegs.length - 1].cz - cfg.corrSegs[cfg.corrSegs.length - 1].d / 2;
+    const corrZ1 = cfg.corrSegs[0].cz + cfg.corrSegs[0].d / 2;
+    storeyList.forEach((fl) => {
       const y = fl === 1 ? F1 : F2;
-      for (let i = 0; i < 14; i++) {
-        const z = 16 - i * 4.4;
-        if (Math.abs(z - 13.5) < 1.6) continue;
-        const mat = lockerMats[i % lockerMats.length];
-        addSolid(-HALF + 0.35, y, z, 0.5, 2.2, 0.9, mat);
-        addSolid(HALF - 0.35, y, z + 2.2, 0.5, 2.2, 0.9, mat);
+      // Lockers hug the corridor walls -- but a locker that lands level with a
+      // room's doorway walls that room off, and a room you cannot walk into is
+      // a room the wave never clears.
+      const nearDoor = (z) => cfg.rows.some((rw) => Math.abs(z - rw.cz) < 2.6);
+      for (let z = corrZ1 - 3; z > corrZ0 + 1; z -= 4.4) {
+        const mat = M.locker[Math.abs(Math.round(z / 4.4)) % M.locker.length];
+        if (!nearDoor(z)) addSolid(-HALF + 0.35, y, z, 0.5, 2.2, 0.9, mat);
+        if (z - 2.2 > corrZ0 + 1 && !nearDoor(z - 2.2)) addSolid(HALF - 0.35, y, z - 2.2, 0.5, 2.2, 0.9, mat);
       }
-      CORR_SEGS.forEach((c) => scatterClutter(0, c.cz, HALF * 2, c.d, y, Math.max(1, Math.round(c.d / 9)), { axis: "z", at: 0, half: 1.95 }));
+      cfg.corrSegs.forEach((c) => scatterClutter(0, c.cz, HALF * 2, c.d, y, Math.max(1, Math.round(c.d / 9)), { axis: "z", at: 0, half: 1.95 }));
     });
 
-    // ================= C1/C2: the school grounds =========================
-    buildSchoolYard(LOBBY, YARD);
+    // ---- doorway clearance sweep -----------------------------------------
+    // Every furniture kit is written to keep the middle of its room open, but a
+    // kit plus random clutter plus a corridor locker can still conspire to wall
+    // a doorway off, and a room the player cannot walk into is a room the wave
+    // never clears. Anything still standing in a doorway is deleted outright --
+    // mesh and collider together, so nothing invisible is left behind.
+    function clearDoorways() {
+      world.roomDoors.forEach((d) => {
+        const halfOpen = (d.width || 3) / 2 - 0.15;
+        const deep = 2.5;
+        const alongX = d.axis === "x";
+        const box = new THREE.Box3(
+          new THREE.Vector3(alongX ? d.x - halfOpen : d.x - deep, (d.baseY || 0) + 0.15, alongX ? d.z - deep : d.z - halfOpen),
+          new THREE.Vector3(alongX ? d.x + halfOpen : d.x + deep, (d.baseY || 0) + 2.4, alongX ? d.z + deep : d.z + halfOpen));
+        for (let i = solidProps.length - 1; i >= 0; i--) {
+          const sp = solidProps[i];
+          if (!sp.collider.intersectsBox(box)) continue;
+          scene.remove(sp.mesh);
+          G.disposeObject3D(sp.mesh);
+          const ci = world.colliders.indexOf(sp.collider);
+          if (ci >= 0) world.colliders.splice(ci, 1);
+          solidProps.splice(i, 1);
+        }
+      });
+    }
+
+    if (cfg.dressEntry) cfg.dressEntry({ addSolid, addFloatBox, addCanvasBox, addGlowBox, addCorpse, addBloodStain, addProp, addLight, mountWallGun, scatterClutter, ENTRY, BOSS, F2, M, scene });
+    if (cfg.dressBoss) cfg.dressBoss({ addSolid, addFloatBox, addCanvasBox, addGlowBox, addCorpse, addBloodStain, addProp, addLight, mountWallGun, scatterClutter, BOSS, ENTRY, F2, M, scene });
+    if (cfg.yard) buildSchoolYard({ cz: ENTRY.cz, d: ENTRY.d, w: ENTRY.w }, cfg.yard);
+    clearDoorways();
 
     // ---- spawn points ----
-    world.extraSpawnPoints.push({ pos: new THREE.Vector3(0, 0, 10), types: ["normal"] });
-    world.extraSpawnPoints.push({ pos: new THREE.Vector3(0, 0, -14), types: ["normal", "fast"] });
-    world.extraSpawnPoints.push({ pos: new THREE.Vector3(0, 0, -38), types: ["normal", "fast"] });
-    world.extraSpawnPoints.push({ pos: new THREE.Vector3(-9, 0, GYM.cz), types: ["normal", "fast"] });
-    world.extraSpawnPoints.push({ pos: new THREE.Vector3(9, 0, GYM.cz), types: ["normal", "fast"] });
-    world.extraSpawnPoints.push({ pos: new THREE.Vector3(0, 0, 26.5), types: ["normal"] });
-    // outdoors: behind the trees and along the fence, so the opening wave meets
-    // the player while they are still crossing the yard
-    world.extraSpawnPoints.push({ pos: new THREE.Vector3(-18, 0, 42), types: ["normal"] });
-    world.extraSpawnPoints.push({ pos: new THREE.Vector3(18, 0, 42), types: ["normal"] });
-    world.extraSpawnPoints.push({ pos: new THREE.Vector3(-12, 0, 56), types: ["normal", "fast"] });
-    world.extraSpawnPoints.push({ pos: new THREE.Vector3(12, 0, 56), types: ["normal", "fast"] });
+    cfg.corrSegs.forEach((c) => world.extraSpawnPoints.push({ pos: new THREE.Vector3(0, 0, c.cz), types: ["normal", "fast"] }));
+    world.extraSpawnPoints.push({ pos: new THREE.Vector3(-BOSS.w * 0.25, 0, BOSS.cz), types: ["normal", "fast"] });
+    world.extraSpawnPoints.push({ pos: new THREE.Vector3(BOSS.w * 0.25, 0, BOSS.cz), types: ["normal", "fast"] });
+    world.extraSpawnPoints.push({ pos: new THREE.Vector3(-ENTRY.w * 0.3, 0, ENTRY.cz), types: ["normal"] });
+    world.extraSpawnPoints.push({ pos: new THREE.Vector3(ENTRY.w * 0.3, 0, ENTRY.cz), types: ["normal"] });
+    (cfg.extraSpawns || []).forEach((s) => world.extraSpawnPoints.push({ pos: new THREE.Vector3(s[0], s[1], s[2]), types: s[3] }));
     world.spawnPoints = world.extraSpawnPoints.map((sp) => Object.assign(sp, { cooldown: 0 }));
-    world.spawnPoints.push(Object.assign({ pos: new THREE.Vector3(0, 0, GYM.cz - 3), types: ["boss"] }, { cooldown: 0 }));
+    world.spawnPoints.push(Object.assign({ pos: new THREE.Vector3(BOSS.cx, 0, BOSS.cz - 3), types: ["boss"] }, { cooldown: 0 }));
     world.extraSpawnPoints = null;
 
-    // C2: the player starts out on the grounds and walks in
-    world.spawn = { x: 0, z: 53 };
+    world.spawn = cfg.spawn;
+    world.bossRoomCenter = new THREE.Vector3(BOSS.cx, 0, BOSS.cz);
+  }
+  // ================= Level plans (category M) =================
+  // One plan per theme, fed to buildComplex above. Each keeps the same skeleton
+  // -- spine corridor, rooms both sides, entry hall, boss hall -- but its own
+  // proportions, room list and furniture, so the three levels read as three
+  // different buildings rather than one building repainted.
+  function themeMats(theme) {
+    const C = (n) => new THREE.MeshLambertMaterial({ color: n });
+    const base = {
+      school: {
+        wood: 0x6b4a2f, woodDark: 0x4a3220, metal: 0x6d737a, crate: 0x8a6a3a, rubble: 0x5f5c55,
+        rail: 0x3a3a34, barricade: 0x5c5438, board: 0x1f4436,
+        locker: [0x2f6fb0, 0xc9433c, 0xd9b23c, 0x3f9e5c], accent: 0x8a3a2e,
+      },
+      hospital: {
+        wood: 0x9aa5a0, woodDark: 0x6d7a75, metal: 0xc6cdc9, crate: 0x7d8c84, rubble: 0x4d5a53,
+        rail: 0x8f9c96, barricade: 0x4a5c52, board: 0x2b4a3c,
+        locker: [0xe6ece8, 0x9fd6c0, 0xd6423c, 0x7fa8bd], accent: 0x3d6b52,
+      },
+      bunker: {
+        wood: 0x5a5344, woodDark: 0x3b362c, metal: 0x6a6a64, crate: 0x6b5f3e, rubble: 0x3f3d38,
+        rail: 0x4a4a44, barricade: 0x4a4636, board: 0x2a2f22,
+        locker: [0x4c5240, 0x7a6a3a, 0x8a4a2a, 0x3f4a55], accent: 0x8a5a2a,
+      },
+    }[theme];
+    const M = {};
+    for (const k in base) M[k] = Array.isArray(base[k]) ? base[k].map(C) : C(base[k]);
+    return M;
   }
 
+  // ---- shared furniture kits -------------------------------------------
+  // Each takes the room spec plus the drawing helpers and fills the room with
+  // something recognisable. They deliberately leave the middle strip (the line
+  // from the door to the far wall) clear.
+  const FURNISH = {
+    // school: rows of desks facing a board on the outer wall
+    classroom(spec, a) {
+      const r = spec.room, y = spec.baseY, M = a.M;
+      const outerX = r.cx < 0 ? r.cx - r.w / 2 + 0.25 : r.cx + r.w / 2 - 0.25;
+      a.addFloatBox(outerX, y + 1.9, r.cz, 0.1, 1.5, 4.2, M.board);
+      a.addFloatBox(outerX + (r.cx < 0 ? 0.04 : -0.04), y + 1.9, r.cz, 0.06, 1.7, 4.5, M.woodDark);
+      const dirX = r.cx < 0 ? 1 : -1;
+      for (let col = 0; col < 3; col++) {
+        for (let row = 0; row < 3; row++) {
+          const px = outerX + dirX * (2.6 + col * 2.6);
+          const pz = r.cz - 3.4 + row * 3.4;
+          if (col === 1 && row === 2) { a.addSolid(px, y, pz, 1.3, 0.72, 0.7, M.wood, Math.PI / 2, 0.4); continue; }
+          a.addSolid(px, y, pz, 1.3, 0.75, 0.7, M.wood);
+          a.addSolid(px - dirX * 0.8, y, pz, 0.5, 0.45, 0.5, M.woodDark);
+        }
+      }
+    },
+    // school: long canteen tables, one flipped
+    canteen(spec, a) {
+      const r = spec.room, y = spec.baseY, M = a.M;
+      for (let i = 0; i < 3; i++) {
+        const pz = r.cz - 3.8 + i * 3.8;
+        if (i === 1) { a.addSolid(r.cx - 1, y, pz, 3.6, 0.75, 1.0, M.wood, Math.PI / 2, 0.25); continue; }
+        a.addSolid(r.cx, y, pz, 4.2, 0.72, 1.0, M.wood);
+        [-1.4, 1.4].forEach((dx) => a.addSolid(r.cx + dx, y, pz + 1.0, 1.6, 0.42, 0.4, M.woodDark));
+      }
+      for (let i = 0; i < 3; i++) a.addSolid(r.cx + r.w / 2 - 1.2, y, r.cz - 3 + i * 3, 1.0, 2.0, 0.6, M.metal);
+      a.addCorpse(r.cx + 2.5, r.cz + 4, 1.9, 0x7a6a3a);
+    },
+    // hospital: beds down both sides with curtain rails, a couple overturned
+    ward(spec, a) {
+      const r = spec.room, y = spec.baseY, M = a.M;
+      [-1, 1].forEach((side) => {
+        for (let i = 0; i < 3; i++) {
+          const px = r.cx + side * (r.w / 2 - 2.0);
+          const pz = r.cz - 3.8 + i * 3.8;
+          if (side < 0 && i === 1) { a.addSolid(px, y, pz, 1.9, 0.7, 0.95, M.locker[0], Math.PI / 2, 0.3); continue; }
+          a.addSolid(px, y + 0.42, pz, 1.9, 0.26, 0.95, M.locker[0]);
+          [[-0.82, -0.4], [-0.82, 0.4], [0.82, -0.4], [0.82, 0.4]].forEach(([dx, dz]) =>
+            a.addFloatBox(px + dx, y + 0.21, pz + dz, 0.1, 0.42, 0.1, M.woodDark));
+          a.addFloatBox(px, y + 0.58, pz, 1.7, 0.06, 0.85, M.locker[1]);   // blanket
+          a.addFloatBox(px, y + 1.45, pz, 0.1, 1.7, 0.1, M.rail);          // drip stand
+          a.addFloatBox(px, y + 2.3, pz, 0.3, 0.22, 0.2, M.locker[1]);
+          if (i === 2) a.addSolid(px + (side < 0 ? 1.4 : -1.4), y, pz, 0.6, 0.8, 0.6, M.metal);
+        }
+      });
+      a.addBloodStain(r.cx, r.cz + 2, 1.2, 0.4);
+    },
+    // hospital: operating table under a lamp, instrument trolleys, screens
+    theatre(spec, a) {
+      const r = spec.room, y = spec.baseY, M = a.M;
+      a.addSolid(r.cx, y + 0.55, r.cz, 2.2, 0.22, 0.95, M.locker[0]);
+      [[-0.9, 0], [0.9, 0]].forEach(([dx]) => a.addFloatBox(r.cx + dx, y + 0.28, r.cz, 0.14, 0.55, 0.6, M.metal));
+      a.addFloatBox(r.cx, y + 3.0, r.cz, 1.5, 0.22, 1.5, M.metal);
+      a.addGlowBox(r.cx, y + 2.85, r.cz, 1.3, 0.1, 1.3, 0xf2fff4);
+      a.addLight(r.cx, y + 2.6, r.cz, 0xd8ffe8, 1.3, 1.1);
+      [[-2.8, -2.4], [2.8, 2.4]].forEach(([dx, dz]) => {
+        a.addSolid(r.cx + dx, y + 0.5, r.cz + dz, 0.9, 0.5, 0.6, M.metal);
+        a.addFloatBox(r.cx + dx, y + 0.8, r.cz + dz, 0.5, 0.1, 0.35, M.locker[2]);
+      });
+      // screens on the OUTER wall, clear of the doorway
+      const thOuter = r.cx + (r.cx < 0 ? -1 : 1) * (r.w / 2 - 1.1);
+      for (let i = 0; i < 3; i++) a.addSolid(thOuter, y, r.cz - 3 + i * 3, 0.7, 2.0, 1.4, M.locker[0]);
+      a.addBloodStain(r.cx, r.cz + 1.3, 1.6, 0.2);
+      a.addBloodStain(r.cx + 1.2, r.cz - 1.1, 1.0, 1.1);
+    },
+    // both: benches with equipment plus tall cabinets
+    lab(spec, a) {
+      const r = spec.room, y = spec.baseY, M = a.M;
+      // Benches run in two lengths with a gap in the middle: one continuous
+      // bench down the corridor-side wall seals the doorway off entirely.
+      [-1, 1].forEach((side) => {
+        const px = r.cx + side * (r.w / 2 - 1.8);
+        [-1, 1].forEach((half) => {
+          const bz = r.cz + half * (r.d / 4 + 0.4);
+          a.addSolid(px, y, bz, 1.3, 0.92, r.d / 2 - 2.6, M.locker[0]);
+          for (let i = 0; i < 2; i++) {
+            a.addFloatBox(px, y + 1.05, bz - 0.7 + i * 1.4, 0.34, 0.26, 0.34, M.locker[3]);
+            if (i === 0) a.addGlowBox(px, y + 1.28, bz - 0.7, 0.16, 0.2, 0.16, 0x7dffc0);
+          }
+        });
+      });
+      a.addSolid(r.cx, y, r.cz - r.d / 2 + 1.2, 3.2, 2.0, 0.7, M.metal);
+      a.addCanvasBox(r.cx, y + 1.5, r.cz - r.d / 2 + 0.82, 1.6, 0.9, 0.06, (ctx, cv) => {
+        ctx.fillStyle = "#04140a"; ctx.fillRect(0, 0, cv.width, cv.height);
+        ctx.strokeStyle = "#7dffc0"; ctx.lineWidth = 3; ctx.beginPath();
+        for (let i = 0; i <= 256; i += 8) ctx.lineTo(i, 64 + Math.sin(i * 0.17) * 24);
+        ctx.stroke();
+      }, 0x0a0a0a);
+    },
+    // both: desks, filing cabinets, scattered paper
+    office(spec, a) {
+      const r = spec.room, y = spec.baseY, M = a.M;
+      for (let i = 0; i < 3; i++) {
+        const px = r.cx + (i - 1) * 3.2;
+        a.addSolid(px, y, r.cz - 2.6, 2.2, 0.75, 1.0, M.wood, i === 2 ? Math.PI / 2 : 0, i === 2 ? 0.3 : 0);
+        if (i !== 2) a.addSolid(px, y, r.cz - 1.2, 0.6, 0.5, 0.6, M.woodDark);
+        a.addFloatBox(px, y + 0.82, r.cz - 2.6, 0.5, 0.06, 0.4, M.locker[0]);
+      }
+      // filing cabinets go on the OUTER wall -- against the corridor-side wall
+      // they line up with the doorway and seal it
+      const offOuter = r.cx + (r.cx < 0 ? -1 : 1) * (r.w / 2 - 1.0);
+      for (let i = 0; i < 4; i++) a.addSolid(offOuter, y, r.cz + 1 + (i - 2) * 1.2, 0.7, 1.9, 1.0, M.metal);
+      for (let i = 0; i < 6; i++) a.addFloatBox(r.cx + (G.rng() - 0.5) * 6, y + 0.02, r.cz + 2 + G.rng() * 3, 0.3, 0.02, 0.22, M.locker[0], G.rng() * 3);
+    },
+    // both: racked shelving down both walls, stacked crates between
+    storage(spec, a) {
+      const r = spec.room, y = spec.baseY, M = a.M;
+      // Two racks per wall with a clear band between them -- a third rack in
+      // the middle sits exactly in the doorway.
+      [-1, 1].forEach((side) => {
+        [-1, 1].forEach((half) => {
+          const px = r.cx + side * (r.w / 2 - 1.1);
+          const pz = r.cz + half * 4.2;
+          a.addSolid(px, y, pz, 0.9, 2.3, 2.4, M.metal);
+          [0.7, 1.45, 2.1].forEach((sy) => a.addFloatBox(px - side * 0.1, y + sy, pz, 0.85, 0.07, 2.3, M.woodDark));
+          for (let k = 0; k < 3; k++) a.addFloatBox(px - side * 0.1, y + 0.85 + (k % 2) * 0.75, pz - 0.8 + k * 0.8, 0.5, 0.4, 0.5, M.crate);
+        });
+      });
+      const outerX = r.cx + (r.cx < 0 ? -1 : 1) * (r.w / 2 - 1.1);
+      a.addSolid(outerX, y, r.cz, 0.9, 2.3, 2.4, M.metal);
+      a.addSolid(r.cx, y, r.cz + 2.4, 1.1, 1.1, 1.1, M.crate, 0, 0.4);
+      a.addSolid(r.cx + 0.9, y + 1.1, r.cz + 2.1, 0.8, 0.8, 0.8, M.crate, 0, 1.1);
+    },
+    // hospital: steel slabs and a wall of cold drawers
+    morgue(spec, a) {
+      const r = spec.room, y = spec.baseY, M = a.M;
+      for (let i = 0; i < 3; i++) {
+        const px = r.cx - 2.6 + i * 2.6;
+        a.addSolid(px, y + 0.5, r.cz - 1, 1.0, 0.18, 2.2, M.metal);
+        [[-0.4, -0.95], [-0.4, 0.95], [0.4, -0.95], [0.4, 0.95]].forEach(([dx, dz]) =>
+          a.addFloatBox(px + dx, y + 0.25, r.cz - 1 + dz, 0.1, 0.5, 0.1, M.woodDark));
+        if (i !== 1) a.addFloatBox(px, y + 0.66, r.cz - 1, 0.9, 0.14, 2.0, M.locker[0]);
+      }
+      for (let col = 0; col < 4; col++) {
+        for (let row = 0; row < 3; row++) {
+          a.addSolid(r.cx - r.w / 2 + 0.55, y + row * 0.9, r.cz - 3 + col * 2.0, 0.8, 0.82, 1.8, M.metal);
+          a.addFloatBox(r.cx - r.w / 2 + 0.98, y + row * 0.9 + 0.4, r.cz - 3 + col * 2.0, 0.06, 0.16, 0.5, M.locker[3]);
+        }
+      }
+      a.addCorpse(r.cx + 2, r.cz + 3.4, 1.2, 0xc9d0d0);
+      a.addBloodStain(r.cx + 2, r.cz + 3.4, 1.0, 0.5);
+    },
+    // bunker: stacked bunks and footlockers
+    barracks(spec, a) {
+      const r = spec.room, y = spec.baseY, M = a.M;
+      [-1, 1].forEach((side) => {
+        for (let i = 0; i < 3; i++) {
+          const px = r.cx + side * (r.w / 2 - 1.5);
+          const pz = r.cz - 3.6 + i * 3.6;
+          [0, 1].forEach((tier) => {
+            a.addSolid(px, y + tier * 1.1, pz, 1.6, 0.9, 0.9, M.metal);
+            a.addFloatBox(px, y + tier * 1.1 + 0.95, pz, 1.5, 0.08, 0.8, M.locker[0]);
+          });
+          a.addSolid(px - side * 1.1, y, pz, 0.6, 0.55, 1.1, M.crate);
+        }
+      });
+    },
+    // bunker: weapon racks, ammo crates, a workbench
+    armoury(spec, a) {
+      const r = spec.room, y = spec.baseY, M = a.M;
+      [-1, 1].forEach((side) => {
+        const px = r.cx + side * (r.w / 2 - 0.9);
+        [-1, 1].forEach((half) => {
+          const rz = r.cz + half * (r.d / 4 + 0.4);
+          a.addSolid(px, y, rz, 0.7, 2.4, r.d / 2 - 2.6, M.metal);
+          for (let i = 0; i < 3; i++) {
+            a.addFloatBox(px - side * 0.35, y + 1.1 + (i % 2) * 0.8, rz - 1 + i * 1.0, 0.12, 0.7, 0.12, M.woodDark, 0.2);
+          }
+        });
+      });
+      a.addSolid(r.cx, y, r.cz + r.d / 2 - 1.6, 3.4, 0.95, 1.0, M.woodDark);
+      for (let i = 0; i < 4; i++) a.addSolid(r.cx - 2.4 + i * 1.6, y, r.cz - r.d / 2 + 1.4, 1.1, 0.7, 0.8, M.crate, 0, G.rng());
+      a.addGlowBox(r.cx, y + 2.4, r.cz + r.d / 2 - 1.6, 1.6, 0.08, 0.5, 0xffcf4d);
+    },
+    // bunker: banks of consoles and screens along the far wall
+    control(spec, a) {
+      const r = spec.room, y = spec.baseY, M = a.M;
+      const outerX = r.cx < 0 ? r.cx - r.w / 2 + 0.9 : r.cx + r.w / 2 - 0.9;
+      for (let i = 0; i < 4; i++) {
+        const pz = r.cz - 3.6 + i * 2.4;
+        a.addSolid(outerX, y, pz, 1.3, 1.15, 2.0, M.metal);
+        a.addCanvasBox(outerX + (r.cx < 0 ? 0.68 : -0.68), y + 1.55, pz, 1.5, 0.9, 0.08, (ctx, cv) => {
+          ctx.fillStyle = "#06120a"; ctx.fillRect(0, 0, cv.width, cv.height);
+          ctx.fillStyle = "#7dc9ff";
+          for (let k = 0; k < 7; k++) ctx.fillRect(16, 12 + k * 15, 40 + G.rng() * 180, 7);
+        }, 0x14140f, r.cx < 0 ? Math.PI / 2 : -Math.PI / 2);
+        a.addGlowBox(outerX + (r.cx < 0 ? 0.6 : -0.6), y + 1.1, pz, 0.08, 0.06, 1.6, 0xff5c3d);
+      }
+      a.addSolid(r.cx + (r.cx < 0 ? 2.6 : -2.6), y, r.cz, 1.0, 0.95, 3.0, M.woodDark);
+    },
+    // bunker: pipes, turbines and a caged fan
+    generator(spec, a) {
+      const r = spec.room, y = spec.baseY, M = a.M;
+      for (let i = 0; i < 2; i++) {
+        const px = r.cx - 2.4 + i * 4.8;
+        a.addSolid(px, y, r.cz, 2.2, 2.1, 3.4, M.metal);
+        a.addFloatBox(px, y + 2.3, r.cz, 0.7, 0.5, 0.7, M.woodDark);
+        a.addGlowBox(px, y + 1.2, r.cz + 1.75, 0.5, 0.3, 0.06, i ? 0xff5c3d : 0xffcf4d);
+      }
+      for (let i = 0; i < 5; i++) {
+        a.addFloatBox(r.cx, y + 3.1, r.cz - 4 + i * 2, 9.0, 0.28, 0.28, M.rail);
+      }
+      a.addSolid(r.cx, y, r.cz + r.d / 2 - 1.4, 2.6, 2.6, 0.5, M.metal);
+      for (let i = 0; i < 4; i++) a.addFloatBox(r.cx - 0.9 + i * 0.6, y + 1.3, r.cz + r.d / 2 - 1.15, 0.12, 2.2, 0.12, M.rail);
+      a.addLight(r.cx, y + 2.6, r.cz, 0xff7a4d, 1.1, 3.2);
+    },
+    // bunker: barred cells along one wall
+    cells(spec, a) {
+      const r = spec.room, y = spec.baseY, M = a.M;
+      const outerX = r.cx < 0 ? r.cx - r.w / 2 + 2.4 : r.cx + r.w / 2 - 2.4;
+      for (let c = 0; c < 3; c++) {
+        const pz = r.cz - 3.6 + c * 3.6;
+        a.addSolid(outerX, y, pz - 1.6, 4.4, 2.8, 0.25, M.metal);
+        for (let b = 0; b < 7; b++) {
+          if (b === 3 && c === 1) continue;                      // one door forced open
+          a.addFloatBox(outerX + (r.cx < 0 ? 2.3 : -2.3), y + 1.4, pz - 1.4 + b * 0.45, 0.1, 2.7, 0.1, M.rail);
+        }
+        a.addSolid(outerX, y + 0.35, pz, 1.7, 0.2, 0.8, M.woodDark);
+      }
+      a.addCorpse(r.cx + (r.cx < 0 ? 1.5 : -1.5), r.cz + 2.2, 0.8, 0x54503f);
+    },
+    // hospital: reception counter, wheelchairs, a notice wall
+    reception(spec, a) {
+      const r = spec.room, y = spec.baseY, M = a.M;
+      a.addSolid(r.cx, y, r.cz - 2.2, 5.2, 1.05, 1.0, M.locker[0]);
+      a.addFloatBox(r.cx, y + 1.12, r.cz - 2.2, 5.0, 0.1, 1.1, M.metal);
+      a.addFloatBox(r.cx, y + 1.5, r.cz - 2.75, 1.0, 0.5, 0.06, M.locker[2]);
+      for (let i = 0; i < 3; i++) {
+        const px = r.cx - 2.6 + i * 2.6;
+        a.addSolid(px, y, r.cz + 3, 0.8, 0.55, 0.8, M.metal, 0, G.rng());
+        a.addFloatBox(px, y + 0.85, r.cz + 3, 0.72, 0.5, 0.1, M.locker[3]);
+      }
+      a.addSolid(r.cx + r.w / 2 - 1.2, y, r.cz + 1, 0.7, 2.1, 3.0, M.locker[0]);
+    },
+  };
+
+  function levelPlan(theme) {
+    const M = themeMats(theme);
+    if (theme === "school") {
+      return {
+        half: 3.5, roomW: 12.5, storeys: 2, f2: 4.2, wallH: 4.2, mats: M, furnish: FURNISH,
+        rows: [
+          { cz: 13.5, d: 13, corr: "S" }, { cz: 0.5, d: 13, corr: "M" },
+          { cz: -12.5, d: 13, corr: "N" }, { cz: -25, d: 12, corr: "N" },
+          { cz: -37.5, d: 13, corr: "N2" },
+        ],
+        corrSegs: [
+          { name: "S", cz: 13.5, d: 13 }, { name: "M", cz: 0.5, d: 13 },
+          { name: "N", cz: -19, d: 26 }, { name: "N2", cz: -38, d: 12 },
+        ],
+        boss: { cx: 0, cz: -52.5, w: 36, d: 17 },
+        entry: { cz: 26.5, w: 32, d: 13 },
+        upperKeys: ["PLW", "PLE"],
+        stair: { halfX: 2.15, run: 7.8 },
+        trapZ: -42, spawn: { x: 0, z: 53 }, upperKills: 20,
+        dressEntry: DRESSERS.school.entry, dressBoss: DRESSERS.school.boss,
+        yard: { cx: 0, cz: 46.5, w: 52, d: 27 },
+        extraSpawns: [[-18, 0, 42, ["normal"]], [18, 0, 42, ["normal"]],
+          [-12, 0, 56, ["normal", "fast"]], [12, 0, 56, ["normal", "fast"]]],
+        plan: [
+          { key: "W1", side: "W", row: 0, light: 0, furnish: "classroom" },
+          { key: "E1", side: "E", row: 0, light: 2 },
+          { key: "W2", side: "W", row: 1, light: 1, gun: "hall_monitor" },
+          { key: "E2", side: "E", row: 1, light: 3, gun: "pop_quiz", furnish: "lab" },
+          { key: "W3", side: "W", row: 2, light: 2, button: true, furnish: "office" },
+          { key: "E3", side: "E", row: 2, light: 0, furnish: "classroom" },
+          { key: "W4", side: "W", row: 3, light: 4, gun: "detention_slug", secret: true },
+          { key: "E4", side: "E", row: 3, light: 1, gun: "cafeteria_cleaver", wordDoor: true, furnish: "storage" },
+          { key: "W5", side: "W", row: 4, light: 2, furnish: "canteen" },
+          { key: "E5", side: "E", row: 4, light: 3 },
+          { key: "PW1", side: "W", row: 0, storey: 2, light: 1, gun: "honor_roll" },
+          { key: "PE1", side: "E", row: 0, storey: 2, light: 3 },
+          { key: "PW2", side: "W", row: 1, storey: 2, light: 0, furnish: "classroom" },
+          { key: "PE2", side: "E", row: 1, storey: 2, light: 2, gun: "science_fair", furnish: "lab" },
+          { key: "PW3", side: "W", row: 2, storey: 2, light: 4, gun: "art_attack" },
+          { key: "PE3", side: "E", row: 2, storey: 2, light: 1, mystery: true },
+          { key: "PW4", side: "W", row: 3, storey: 2, light: 3, furnish: "office" },
+          { key: "PE4", side: "E", row: 3, storey: 2, light: 0, gun: "principals_verdict" },
+          { key: "PW5", side: "W", row: 4, storey: 2, light: 2, furnish: "storage" },
+          { key: "PE5", side: "E", row: 4, storey: 2, light: 4, furnish: "classroom" },
+        ],
+      };
+    }
+    if (theme === "hospital") {
+      return {
+        half: 4.0, roomW: 13, storeys: 2, f2: 4.2, wallH: 4.2, mats: M, furnish: FURNISH,
+        rows: [
+          { cz: 12, d: 13, corr: "S" }, { cz: -1, d: 13, corr: "M" },
+          { cz: -14, d: 13, corr: "N" }, { cz: -27, d: 13, corr: "N2" },
+          { cz: -40, d: 13, corr: "N3" },
+        ],
+        corrSegs: [
+          { name: "S", cz: 12, d: 13 }, { name: "M", cz: -1, d: 13 },
+          { name: "N", cz: -14, d: 13 }, { name: "N2", cz: -27, d: 13 },
+          { name: "N3", cz: -40, d: 13 },
+        ],
+        boss: { cx: 0, cz: -54.5, w: 34, d: 16 },
+        entry: { cz: 24.5, w: 30, d: 12 },
+        upperKeys: ["PLW", "PLE"],
+        stair: { halfX: 2.15, run: 7.8 },
+        trapZ: -46, spawn: { x: -8, z: 24.5 }, upperKills: 24,
+        dressEntry: DRESSERS.hospital.entry, dressBoss: DRESSERS.hospital.boss,
+        extraSpawns: [[0, 0, 20, ["normal"]], [0, 0, -46, ["normal", "fast"]]],
+        plan: [
+          { key: "W1", side: "W", row: 0, light: 0, furnish: "reception" },
+          { key: "E1", side: "E", row: 0, light: 2, furnish: "ward" },
+          { key: "W2", side: "W", row: 1, light: 1, furnish: "theatre" },
+          { key: "E2", side: "E", row: 1, light: 3, furnish: "storage" },
+          { key: "W3", side: "W", row: 2, light: 2, button: true, furnish: "office" },
+          { key: "E3", side: "E", row: 2, light: 0, furnish: "ward" },
+          { key: "W4", side: "W", row: 3, light: 4, secret: true, furnish: "lab" },
+          { key: "E4", side: "E", row: 3, light: 1, wordDoor: true, furnish: "storage" },
+          { key: "W5", side: "W", row: 4, light: 2, furnish: "morgue" },
+          { key: "E5", side: "E", row: 4, light: 3, furnish: "ward" },
+          { key: "PW1", side: "W", row: 0, storey: 2, light: 1, furnish: "ward" },
+          { key: "PE1", side: "E", row: 0, storey: 2, light: 3, furnish: "office" },
+          { key: "PW2", side: "W", row: 1, storey: 2, light: 0, furnish: "theatre" },
+          { key: "PE2", side: "E", row: 1, storey: 2, light: 2, furnish: "lab" },
+          { key: "PW3", side: "W", row: 2, storey: 2, light: 4, furnish: "ward" },
+          { key: "PE3", side: "E", row: 2, storey: 2, light: 1, mystery: true, furnish: "storage" },
+          { key: "PW4", side: "W", row: 3, storey: 2, light: 3, furnish: "lab" },
+          { key: "PE4", side: "E", row: 3, storey: 2, light: 0, furnish: "office" },
+          { key: "PW5", side: "W", row: 4, storey: 2, light: 2, furnish: "storage" },
+          { key: "PE5", side: "E", row: 4, storey: 2, light: 4, furnish: "ward" },
+        ],
+      };
+    }
+    // bunker: narrower corridors and smaller rooms, so it reads as tunnels
+    return {
+      half: 3.0, roomW: 11, storeys: 2, f2: 4.2, wallH: 4.2, mats: M, furnish: FURNISH,
+      rows: [
+        { cz: 11, d: 12, corr: "S" }, { cz: -1, d: 12, corr: "M" },
+        { cz: -13, d: 12, corr: "N" }, { cz: -25, d: 12, corr: "N2" },
+        { cz: -37, d: 12, corr: "N3" },
+      ],
+      corrSegs: [
+        { name: "S", cz: 11, d: 12 }, { name: "M", cz: -1, d: 12 },
+        { name: "N", cz: -13, d: 12 }, { name: "N2", cz: -25, d: 12 },
+        { name: "N3", cz: -37, d: 12 },
+      ],
+      boss: { cx: 0, cz: -50.5, w: 30, d: 15 },
+      entry: { cz: 22.5, w: 26, d: 11 },
+      upperKeys: ["PLW", "PLE"],
+      stair: { halfX: 2.0, run: 7.4 },
+      trapZ: -42, spawn: { x: 0, z: 27.3 }, upperKills: 28,
+      dressEntry: DRESSERS.bunker.entry, dressBoss: DRESSERS.bunker.boss,
+      extraSpawns: [[0, 0, 18, ["normal"]], [0, 0, -43, ["normal", "fast"]]],
+      plan: [
+        { key: "W1", side: "W", row: 0, light: 0, furnish: "barracks" },
+        { key: "E1", side: "E", row: 0, light: 2, furnish: "storage" },
+        { key: "W2", side: "W", row: 1, light: 1, furnish: "armoury" },
+        { key: "E2", side: "E", row: 1, light: 3, furnish: "generator" },
+        { key: "W3", side: "W", row: 2, light: 2, button: true, furnish: "control" },
+        { key: "E3", side: "E", row: 2, light: 0, secret: true, furnish: "cells" },
+        { key: "W4", side: "W", row: 3, light: 4, wordDoor: true, furnish: "storage" },
+        { key: "E4", side: "E", row: 3, light: 1, furnish: "office" },
+        { key: "W5", side: "W", row: 4, light: 2, furnish: "storage" },
+        { key: "E5", side: "E", row: 4, light: 3, furnish: "armoury" },
+        { key: "PW1", side: "W", row: 0, storey: 2, light: 1, furnish: "control" },
+        { key: "PE1", side: "E", row: 0, storey: 2, light: 3, furnish: "office" },
+        { key: "PW2", side: "W", row: 1, storey: 2, light: 0, furnish: "lab" },
+        { key: "PE2", side: "E", row: 1, storey: 2, light: 2, furnish: "armoury" },
+        { key: "PW3", side: "W", row: 2, storey: 2, light: 4, furnish: "storage" },
+        { key: "PE3", side: "E", row: 2, storey: 2, light: 1, mystery: true, furnish: "control" },
+        { key: "PW4", side: "W", row: 3, storey: 2, light: 3, furnish: "barracks" },
+        { key: "PE4", side: "E", row: 3, storey: 2, light: 0, furnish: "storage" },
+        { key: "PW5", side: "W", row: 4, storey: 2, light: 2, furnish: "generator" },
+        { key: "PE5", side: "E", row: 4, storey: 2, light: 4, furnish: "office" },
+      ],
+    };
+  }
+  // ---- entry-hall and boss-hall dressing, one pair per theme -------------
+  const DRESSERS = {
+    school: {
+      entry(a) {
+        const M = a.M, E = a.ENTRY, B = a.BOSS;
+        a.addProp(-6.5, E.cz + 3.5, 3.4, 1.05, 0.9, M.wood);
+        a.addFloatBox(-6.5, 1.15, E.cz + 3.5, 3.2, 0.1, 1.0, M.woodDark);
+        a.addCanvasBox(-6.5, 1.55, E.cz + 3.0, 1.1, 0.5, 0.06, (ctx, cv) => {
+          ctx.fillStyle = "#101014"; ctx.fillRect(0, 0, cv.width, cv.height);
+          ctx.textAlign = "center"; ctx.font = "bold 34px sans-serif"; ctx.fillStyle = "#cfe8ff";
+          ctx.fillText("ประชาสัมพันธ์", 128, 80);
+        }, 0x222222);
+        for (let i = 0; i < 3; i++) a.addProp(9 + i * 1.5, E.cz + 4.8, 1.2, 2.0, 0.6, M.metal);
+        a.addCanvasBox(0, 2.2, E.cz - E.d / 2 + 0.35, 3.0, 1.4, 0.08, (ctx, cv) => {
+          ctx.fillStyle = "#1d3b22"; ctx.fillRect(0, 0, cv.width, cv.height);
+          ctx.fillStyle = "#e8e8d8";
+          for (let i = 0; i < 6; i++) ctx.fillRect(18 + (i % 3) * 78, 16 + Math.floor(i / 3) * 52, 62, 40);
+        }, 0x3a2a18);
+        a.scatterClutter(-11, E.cz - 1.5, 9, 10, 0, 3, { axis: "z", at: 0, half: 5 });
+        a.scatterClutter(11, E.cz - 1.5, 9, 10, 0, 3, { axis: "z", at: 0, half: 5 });
+        a.addCorpse(-3.2, E.cz + 5, 2.4, 0x2f4f7a);
+        a.addBloodStain(-3.2, E.cz + 5, 1.1, 0.4);
+        a.addBloodStain(-1.6, E.cz + 2, 0.9, 1.2);
+
+        // The face the player arrives at: parapet, window bays, an entrance
+        // canopy and a name board rather than a blank slab -- plus roof slabs,
+        // so the building reads as a solid mass and not an open-topped box.
+        const wallLight = new THREE.MeshLambertMaterial({ color: 0x9a9587 });
+        const wallDark = new THREE.MeshLambertMaterial({ color: 0x6f6b60 });
+        const glassMat = new THREE.MeshLambertMaterial({ color: 0x27323c });
+        const brokenMat = new THREE.MeshBasicMaterial({ color: 0x0a0d10 });
+        const zf = E.cz + E.d / 2;
+        a.addFloatBox(0, 8.7, zf, E.w + 1.2, 0.6, 1.0, wallDark);
+        a.addFloatBox(0, 4.35, zf + 0.38, E.w + 0.4, 0.3, 0.5, wallLight);
+        [2.4, 6.2].forEach((wy, rowIdx) => {
+          for (let i = -4; i <= 4; i++) {
+            const wx = i * 3.4;
+            if (Math.abs(wx) < 4.4 || Math.abs(wx) > E.w / 2 - 1.5) continue;
+            a.addFloatBox(wx, wy, zf + 0.32, 2.0, 1.5, 0.22, wallDark);
+            a.addFloatBox(wx, wy, zf + 0.45, 1.7, 1.2, 0.08, glassMat);
+            if ((i + rowIdx) % 3 === 0) a.addFloatBox(wx + 0.35, wy + 0.1, zf + 0.52, 0.75, 0.9, 0.05, brokenMat);
+          }
+        });
+        [-3.7, 3.7].forEach((px) => a.addSolid(px, 0, zf + 0.5, 0.8, 4.4, 0.8, wallLight));
+        a.addFloatBox(0, 4.6, zf + 0.6, 9.2, 0.35, 2.4, wallDark);
+        a.addCanvasBox(0, 6.4, zf + 0.4, 7.0, 1.3, 0.16, (ctx, cv) => {
+          ctx.fillStyle = "#1d2a33"; ctx.fillRect(0, 0, cv.width, cv.height);
+          ctx.textAlign = "center";
+          ctx.font = "bold 28px sans-serif"; ctx.fillStyle = "#cddbe6";
+          ctx.fillText("โรงเรียนบ้านหนอง", 128, 74);
+          ctx.fillStyle = "#101418";
+          for (let i = 0; i < 5; i++) ctx.fillRect(G.rng() * 230, G.rng() * 110, 8 + G.rng() * 24, 5 + G.rng() * 10);
+        }, 0x3a3a34);
+        // roofs sit above every interior ceiling (3.55 downstairs, 7.75 up)
+        const mainD = zf - (B.cz + B.d / 2);
+        a.addFloatBox(0, 8.75, (zf + B.cz + B.d / 2) / 2, E.w + 1, 0.5, mainD, wallDark);
+        a.addFloatBox(0, 9.3, B.cz, B.w + 2, 0.5, B.d + 2, wallDark);
+        [[-11, 6.2], [12.4, 2.4]].forEach(([wx, wy]) => a.addGlowBox(wx, wy, zf + 0.5, 1.7, 1.2, 0.06, 0xffd9a0));
+      },
+      boss(a) {
+        const M = a.M, B = a.BOSS, F2 = a.F2, gz = B.cz;
+        const lineMat = new THREE.MeshBasicMaterial({ color: 0xc9b06a });
+        const courtMat = new THREE.MeshLambertMaterial({ color: 0x8a6a3c });
+        const boardMat2 = new THREE.MeshLambertMaterial({ color: 0xd8d4c8 });
+        const hoopMat = new THREE.MeshBasicMaterial({ color: 0xd94f2b });
+        const matMat = new THREE.MeshLambertMaterial({ color: 0x2f5a7a });
+        a.addFloatBox(0, 0.02, gz, B.w - 4, 0.04, B.d - 3, courtMat);
+        const line = (x, z, w, d, ry) => a.addFloatBox(x, 0.05, z, w, 0.03, d, lineMat, ry);
+        line(0, gz, 0.14, B.d - 3.4);
+        line(0, gz - (B.d - 3.4) / 2, B.w - 4.4, 0.14);
+        line(0, gz + (B.d - 3.4) / 2, B.w - 4.4, 0.14);
+        [-1, 1].forEach((s) => {
+          line(s * (B.w - 4.4) / 2, gz, 0.14, B.d - 3.4);
+          [-2.4, 2.4].forEach((dz) => line(s * (B.w / 2 - 4.6), gz + dz, 5.2, 0.12));
+          line(s * (B.w / 2 - 7.2), gz, 0.12, 4.8);
+        });
+        for (let i = 0; i < 8; i++) {
+          const ang = (i / 8) * Math.PI * 2;
+          a.addFloatBox(Math.cos(ang) * 2.6, 0.05, gz + Math.sin(ang) * 2.6, 1.4, 0.03, 0.12, lineMat, -ang + Math.PI / 2);
+        }
+        [-1, 1].forEach((s) => {
+          const bx = s * (B.w / 2 - 0.6);
+          a.addFloatBox(bx, 3.3, gz, 0.14, 1.1, 1.8, boardMat2);
+          [-0.42, 0, 0.42].forEach((dz) => a.addFloatBox(bx - s * 0.5, 2.85, gz + dz, 0.9, 0.07, 0.07, hoopMat));
+        });
+        ["ชนะ", "สู้ๆ", "ทีมเรา"].forEach((t, i) => {
+          [-1, 1].forEach((s) => {
+            a.addCanvasBox(-9 + i * 9, 6.2, s * (B.d / 2 - 0.35) + gz, 3.0, 1.6, 0.08, (ctx, cv) => {
+              ctx.fillStyle = i % 2 ? "#7a2f2a" : "#2f4a7a"; ctx.fillRect(0, 0, cv.width, cv.height);
+              ctx.textAlign = "center"; ctx.font = "bold 56px sans-serif"; ctx.fillStyle = "#f0e6cf";
+              ctx.fillText(t, 128, 88);
+            }, 0x2a2a26, s > 0 ? Math.PI : 0);
+          });
+        });
+        a.addCanvasBox(0, 5.2, gz - B.d / 2 + 0.3, 4.2, 1.8, 0.14, (ctx, cv) => {
+          ctx.fillStyle = "#111"; ctx.fillRect(0, 0, cv.width, cv.height);
+          ctx.textAlign = "center";
+          ctx.font = "bold 22px monospace"; ctx.fillStyle = "#ffcc55";
+          ctx.fillText("HOME", 64, 34); ctx.fillText("AWAY", 192, 34);
+          ctx.font = "bold 54px monospace"; ctx.fillStyle = "#ff3b3b";
+          ctx.fillText("00 : 00", 128, 96);
+        }, 0x1a1a1a);
+        for (let i = 0; i < 5; i++) {
+          [[-1, 1], [1, 1], [-1, -1], [1, -1]].forEach(([sx, sz]) =>
+            a.addProp(sx * (15 - i * 1.1), gz + sz * 5.5, 0.9, 0.45 + i * 0.22, 0.8, M.woodDark));
+        }
+        [[-14, gz - 6.5], [14, gz + 6.5]].forEach(([mx, mz]) => {
+          for (let i = 0; i < 3; i++) a.addSolid(mx, 0.38 * i, mz, 2.2, 0.38, 1.1, matMat, 0, i * 0.08);
+        });
+        for (let i = 0; i < 7; i++) {
+          a.addFloatBox(-13 + G.rng() * 26, 0.16, gz - 6 + G.rng() * 12, 0.32, 0.32, 0.32,
+            new THREE.MeshLambertMaterial({ color: i % 2 ? 0xd9873c : 0xb6543a }), G.rng() * 3);
+        }
+        a.addCorpse(5, gz + 3, 0.7, 0x3a5c8a);
+        a.mountWallGun("school_wall", -B.w / 2 + 0.3, 0, gz + 2, true);
+      },
+    },
+    hospital: {
+      entry(a) {
+        const M = a.M, E = a.ENTRY;
+        // the counter sits well off-centre: the staircase comes down the
+        // middle of the hall and the player spawns beside it
+        a.addSolid(9, 0, E.cz + 3.4, 6.4, 1.05, 1.1, M.locker[0]);
+        a.addFloatBox(9, 1.14, E.cz + 3.4, 6.2, 0.1, 1.2, M.metal);
+        a.addFloatBox(9, 1.6, E.cz + 2.85, 1.0, 0.7, 0.07, M.locker[2]);   // red cross
+        a.addFloatBox(9, 1.6, E.cz + 2.84, 0.32, 0.9, 0.08, M.locker[2]);
+        for (let i = 0; i < 4; i++) {
+          const px = -9 + i * 6;
+          a.addSolid(px, 0, E.cz - 2.6, 2.6, 0.5, 0.7, M.locker[3]);
+          a.addFloatBox(px, 0.95, E.cz - 2.9, 2.6, 0.9, 0.12, M.locker[3]);
+        }
+        a.addCanvasBox(0, 2.6, E.cz - E.d / 2 + 0.35, 4.0, 1.2, 0.08, (ctx, cv) => {
+          ctx.fillStyle = "#08281c"; ctx.fillRect(0, 0, cv.width, cv.height);
+          ctx.textAlign = "center"; ctx.font = "bold 30px sans-serif"; ctx.fillStyle = "#9fe1cb";
+          ctx.fillText("แผนกฉุกเฉิน", 128, 52);
+          ctx.font = "bold 20px sans-serif"; ctx.fillStyle = "#6fb79c";
+          ctx.fillText("EMERGENCY  →", 128, 92);
+        }, 0x123b2c);
+        a.scatterClutter(-10, E.cz, 8, 9, 0, 3, { axis: "z", at: 0, half: 5 });
+        a.scatterClutter(10, E.cz, 8, 9, 0, 3, { axis: "z", at: 0, half: 5 });
+        a.addCorpse(-4.2, E.cz - 3.6, 1.3, 0xc9d0d0);
+        a.addBloodStain(-4.2, E.cz - 3.6, 1.2, 0.3);
+        a.addBloodStain(-2.4, E.cz - 1.2, 0.9, 1.4);
+      },
+      boss(a) {
+        const M = a.M, B = a.BOSS, gz = B.cz;
+        const tileMat = new THREE.MeshLambertMaterial({ color: 0x2c4a3c });
+        a.addFloatBox(0, 0.02, gz, B.w - 5, 0.04, B.d - 3, tileMat);
+        // triage bays down both long walls
+        [-1, 1].forEach((s) => {
+          for (let i = 0; i < 4; i++) {
+            const px = -10 + i * 6.6, pz = gz + s * (B.d / 2 - 2.2);
+            a.addSolid(px, 0.42, pz, 1.9, 0.24, 0.95, M.locker[0]);
+            a.addFloatBox(px, 0.6, pz, 1.7, 0.06, 0.85, M.locker[1]);
+            a.addFloatBox(px + 1.2, 1.4, pz, 0.1, 1.7, 0.1, M.rail);
+            a.addFloatBox(px - 1.5, 1.5, pz, 0.12, 2.8, 2.0, M.locker[3]);   // curtain
+          }
+        });
+        a.addSolid(0, 0, gz - B.d / 2 + 1.4, 7.0, 1.1, 1.0, M.locker[0]);
+        a.addCanvasBox(0, 4.8, gz - B.d / 2 + 0.3, 5.0, 1.6, 0.14, (ctx, cv) => {
+          ctx.fillStyle = "#06170f"; ctx.fillRect(0, 0, cv.width, cv.height);
+          ctx.textAlign = "center"; ctx.font = "bold 40px sans-serif"; ctx.fillStyle = "#ff6b6b";
+          ctx.fillText("TRIAGE", 128, 58);
+          ctx.strokeStyle = "#7dffc0"; ctx.lineWidth = 3; ctx.beginPath();
+          for (let i = 0; i <= 256; i += 6) ctx.lineTo(i, 96 + Math.sin(i * 0.24) * 16);
+          ctx.stroke();
+        }, 0x0c2a1e);
+        a.addLight(0, 6.0, gz, 0xff6b6b, 1.2, 2.6);
+        a.addCorpse(3.5, gz + 2.5, 0.9, 0xc9d0d0);
+        a.addBloodStain(3.5, gz + 2.5, 1.4, 0.6);
+        a.mountWallGun("hospital_wall", -B.w / 2 + 0.3, 0, gz + 2, true);
+      },
+    },
+    bunker: {
+      entry(a) {
+        const M = a.M, E = a.ENTRY;
+        // blast door frame on the outer wall, sealed for good
+        a.addFloatBox(0, 2.2, E.cz + E.d / 2 - 0.35, 6.0, 4.2, 0.35, M.metal);
+        for (let i = 0; i < 5; i++) a.addFloatBox(-2.2 + i * 1.1, 2.2, E.cz + E.d / 2 - 0.55, 0.22, 4.0, 0.12, M.rail);
+        a.addGlowBox(0, 4.5, E.cz + E.d / 2 - 0.55, 2.0, 0.16, 0.14, 0xff5c3d);
+        a.addCanvasBox(0, 2.6, E.cz + E.d / 2 - 0.58, 3.4, 1.0, 0.08, (ctx, cv) => {
+          ctx.fillStyle = "#1a1408"; ctx.fillRect(0, 0, cv.width, cv.height);
+          ctx.textAlign = "center"; ctx.font = "bold 28px sans-serif"; ctx.fillStyle = "#ffcf4d";
+          ctx.fillText("ประตูกันระเบิด", 128, 48);
+          ctx.font = "bold 19px monospace"; ctx.fillStyle = "#ff7a7a";
+          ctx.fillText("SEALED", 128, 86);
+        }, 0x2a2118);
+        // kept clear of the stair shaft down the middle of the hall
+        [-9.5, -5, 5, 9.5].forEach((px) => {
+          a.addSolid(px, 0, E.cz + 3.2, 1.2, 1.2, 1.2, M.crate, 0, G.rng());
+          a.addSolid(px + 0.5, 1.2, E.cz + 3.0, 0.8, 0.8, 0.8, M.crate, 0, G.rng());
+        });
+        for (let i = 0; i < 4; i++) a.addFloatBox(0, 3.4, E.cz - 4 + i * 2.4, E.w - 2, 0.26, 0.26, M.rail);
+        a.scatterClutter(-9.5, E.cz - 2, 6, 7, 0, 3, { axis: "z", at: 0, half: 5.5 });
+        a.scatterClutter(9.5, E.cz - 2, 6, 7, 0, 3, { axis: "z", at: 0, half: 5.5 });
+        a.addCorpse(-3.6, E.cz - 3.2, 2.1, 0x54503f);
+        a.addBloodStain(-3.6, E.cz - 3.2, 1.1, 0.5);
+      },
+      boss(a) {
+        const M = a.M, B = a.BOSS, gz = B.cz;
+        const plateMat = new THREE.MeshLambertMaterial({ color: 0x3a3a34 });
+        a.addFloatBox(0, 0.02, gz, B.w - 5, 0.04, B.d - 3, plateMat);
+        // the reactor column at the centre, caged, with coolant pipes
+        a.addSolid(0, 0, gz, 3.2, 6.0, 3.2, M.metal);
+        for (let i = 0; i < 8; i++) {
+          const ang = (i / 8) * Math.PI * 2;
+          a.addFloatBox(Math.cos(ang) * 2.6, 2.0, gz + Math.sin(ang) * 2.6, 0.16, 4.0, 0.16, M.rail);
+        }
+        a.addGlowBox(0, 3.3, gz, 3.4, 0.6, 3.4, 0xff7a3d);
+        a.addLight(0, 3.6, gz, 0xff7a3d, 1.5, 3.4);
+        [-1, 1].forEach((s) => {
+          for (let i = 0; i < 3; i++) {
+            const px = s * (B.w / 2 - 2.6);
+            a.addSolid(px, 0, gz - 4 + i * 4, 2.0, 2.4, 2.2, M.metal);
+            a.addGlowBox(px - s * 1.05, 1.5, gz - 4 + i * 4, 0.08, 0.5, 0.7, i % 2 ? 0x7dc9ff : 0xffcf4d);
+          }
+          for (let i = 0; i < 5; i++) a.addFloatBox(s * (B.w / 2 - 1.0), 3.2 + (i % 2) * 0.5, gz - 5 + i * 2.5, 0.3, 0.3, 2.4, M.rail);
+        });
+        a.addCanvasBox(0, 5.4, gz - B.d / 2 + 0.3, 4.6, 1.5, 0.14, (ctx, cv) => {
+          ctx.fillStyle = "#170d04"; ctx.fillRect(0, 0, cv.width, cv.height);
+          ctx.textAlign = "center"; ctx.font = "bold 34px sans-serif"; ctx.fillStyle = "#ff9a4d";
+          ctx.fillText("ห้องเตาปฏิกรณ์", 128, 52);
+          ctx.font = "bold 20px monospace"; ctx.fillStyle = "#ff5c3d";
+          ctx.fillText("CORE  UNSTABLE", 128, 92);
+        }, 0x2a1a0c);
+        a.addCorpse(-4, gz + 4, 1.7, 0x54503f);
+        a.addBloodStain(-4, gz + 4, 1.2, 0.8);
+        a.mountWallGun("bunker_wall", -B.w / 2 + 0.3, 0, gz + 5, true);
+      },
+    },
+  };
   // ---------------- C1: the yard in front of the school ----------------
   // Dusk, not night: cool blue-grey moonlight over the grounds, so the warm room
   // lights burning inside read as somewhere to head for. Everything out here is
   // ground level, and the perimeter keeps an unbroken collider line even where
   // the fence is meant to look torn open -- a real hole would let the player
   // walk out along the side of the building and off the edge of the level.
-  function buildSchoolYard(LOBBY, YARD) {
+  function buildSchoolYard(ENTRY_HALL, YARD) {
     const grassMat = new THREE.MeshLambertMaterial({ color: 0x3c4f2c });
     const grassTuftMat = new THREE.MeshLambertMaterial({ color: 0x53703a });
     const dirtMat = new THREE.MeshLambertMaterial({ color: 0x4a4436 });
@@ -1288,8 +1585,8 @@ G.buildLevelScene = function (scene, level, quality) {
     world.regions.push({ name: "YARD", y: 0, minX: x0, maxX: x1, minZ: z0, maxZ: z1 });
     world.waypointNodes.YARD = { x: 0, z: 46 };
     world.waypointEdges.YARD = world.waypointEdges.YARD || [];
-    world.waypointEdges.YARD.push("LOBBY");
-    world.waypointEdges.LOBBY.push("YARD");
+    world.waypointEdges.YARD.push("ENTRY");
+    world.waypointEdges.ENTRY.push("YARD");
 
     // Uneven, overgrown ground: shallow mounds you step straight onto (well
     // under STEP_UP), rather than real terrain the collision system can't model.
@@ -1402,7 +1699,7 @@ G.buildLevelScene = function (scene, level, quality) {
     railRun("z", z0, z1, x0 + 0.5, true);            // west fence
     railRun("z", z0, z1, x1 - 0.5, false);           // east fence
     // brick walls closing the two flanks between the fence and the building
-    [[x0 + 0.5, -LOBBY.w / 2], [LOBBY.w / 2, x1 - 0.5]].forEach(([fx0, fx1]) => {
+    [[x0 + 0.5, -ENTRY_HALL.w / 2], [ENTRY_HALL.w / 2, x1 - 0.5]].forEach(([fx0, fx1]) => {
       const wall = new THREE.Mesh(new THREE.BoxGeometry(fx1 - fx0, 2.6, 0.5), brickMat);
       wall.position.set((fx0 + fx1) / 2, 1.3, z0 + 0.25);
       scene.add(wall);
@@ -1519,338 +1816,27 @@ G.buildLevelScene = function (scene, level, quality) {
       addLight(lx, 4.1, lz, 0xffcf96, 0.85, 2.6);
     });
   }
+  // buildComplex + levelPlan replaced the old per-theme decorators: the theme
+  // now lives in the plan (room list, furniture kits, entry/boss dressing and
+  // material palette) rather than in a pass that painted props onto a shared
+  // five-room layout.
 
-  function decorateHospital(t) {
-    const bedMat = new THREE.MeshLambertMaterial({ color: 0xd6dede });
-    const bedDarkMat = new THREE.MeshLambertMaterial({ color: 0x8a9494 });
-    const cabinetMat = new THREE.MeshLambertMaterial({ color: 0xe8e8e0 });
-    const crossRed = new THREE.MeshLambertMaterial({ color: 0xd6423c });
-    const tankWhite = new THREE.MeshLambertMaterial({ color: 0xe8ece8 });
-    const tankGreen = new THREE.MeshLambertMaterial({ color: 0x3d9e5c });
 
-    // Room A -- ward: overturned beds + a reception counter.
-    addProp(-2.5, 2, 1.9, 0.7, 0.9, bedMat);
-    addProp(-2.5, 2, 0.2, 0.05, 0.9, bedDarkMat, 0, 0, 0, true); // thin blanket decal on the bed, non-blocking
-    addProp(2.2, 2.6, 1.9, 0.7, 0.9, bedMat, 0, 0, Math.PI / 2.2); // knocked-over bed
-    // Off to the side, well clear of the player spawn point (world.spawn = x:0,z:3)
-    // -- an earlier position sat almost exactly on top of it and trapped the
-    // player inside its collider from the very first frame.
-    addProp(ROOMS.A.cx - 3.5, ROOMS.A.cz + 3.8, 2.4, 1.1, 0.7, cabinetMat); // reception counter
-    addFloatBox(ROOMS.A.cx - 3.5, 1.2, ROOMS.A.cz + 3.86, 0.5, 0.5, 0.05, crossRed);
-    addGlowBox(-1.8, 2.9, -4.6, 0.6, 0.28, 0.05, 0x33ff66);
-    addGlowBox(1.5, 2.9, 4.6, 0.5, 0.25, 0.05, 0xff3333, Math.PI);
-    // Wheeled gurney (bed + small dark wheel blocks at each corner) and a
-    // patient corpse lying beside it, with medical debris scattered nearby.
-    const gurney = addProp(0.5, -2, 1.7, 0.55, 0.8, bedMat);
-    [[-0.75, -0.35], [-0.75, 0.35], [0.75, -0.35], [0.75, 0.35]].forEach(([dx, dz]) => {
-      addFloatBox(0.5 + dx, 0.12, -2 + dz, 0.1, 0.12, 0.1, bedDarkMat);
-    });
-    addCorpse(-3, -3, -0.4, 0xc9d0d0); // patient gown
-    addBloodStain(-3, -3, 0.8, -0.4);
-    addBloodStain(0.5, -1.4, 0.5, 0.2);
-    const debrisMat = new THREE.MeshLambertMaterial({ color: 0xd8dcd8 });
-    for (let i = 0; i < 4; i++) addDecal(-1.5 + i * 0.5, -3.5 + (i % 2) * 0.6, 0.14, 0.05, 0.14, debrisMat, i * 0.5);
 
-    // Room B (hub) -- nurse station on the raised platform + medicine cabinets.
-    addCanvasBox(ROOMS.B.cx, 1.3, ROOMS.B.cz - 4.2 - 1.55, 1.6, 1.0, 0.08, (ctx, cv) => {
-      ctx.fillStyle = "#04140a"; ctx.fillRect(0, 0, cv.width, cv.height);
-      ctx.strokeStyle = "#7dffc0"; ctx.lineWidth = 3;
-      ctx.beginPath();
-      for (let i = 0; i <= 256; i += 8) ctx.lineTo(i, 64 + Math.sin(i * 0.15) * 20);
-      ctx.stroke();
-      ctx.fillStyle = "#7dffc0"; ctx.font = "bold 20px monospace"; ctx.fillText("ICU MONITOR", 20, 110);
-    }, 0x0a0a0a);
-    for (let i = 0; i < 4; i++) {
-      addProp(ROOMS.B.cx + 3 + i * 1.1, ROOMS.B.cz + 5.8, 1.0, 1.6, 0.5, cabinetMat);
-      addFloatBox(ROOMS.B.cx + 3 + i * 1.1, 1.4, ROOMS.B.cz + 5.51, 0.4, 0.4, 0.04, crossRed);
-    }
+  // ---------------- Layout ----------------
+  // Every level is generated by buildComplex() from a per-theme plan (see
+  // levelPlan below). The old shared five-room A-E hub layout is gone: it left
+  // the hospital and the bunker at roughly an eighth of the school.s size with
+  // one wall gun each (category M).
+  //
+  // Called down here, not at the top: the plan tables are `const`, so calling
+  // before their declarations hits the temporal dead zone.
+  buildComplex(levelPlan(level.theme));
 
-    // Room C (east) -- pharmacy / oxygen-tank nook.
-    for (let i = 0; i < 3; i++) {
-      addProp(ROOMS.C.cx - 3 + i * 1.0, ROOMS.C.cz - 3, 0.5, 1.6, 0.5, tankWhite);
-      addFloatBox(ROOMS.C.cx - 3 + i * 1.0, 1.65, ROOMS.C.cz - 3, 0.5, 0.25, 0.5, tankGreen);
-    }
-    addProp(ROOMS.C.cx + 2, ROOMS.C.cz + 3, 1.6, 1.1, 0.6, cabinetMat);
-
-    // Room D (west, behind the barricade) -- biohazard waste nook.
-    const bioMat = new THREE.MeshLambertMaterial({ color: 0xd63c9e });
-    addProp(ROOMS.D.cx, ROOMS.D.cz - 2, 0.9, 1.1, 0.9, new THREE.MeshLambertMaterial({ color: 0x3a3a3a }));
-    addFloatBox(ROOMS.D.cx, 1.2, ROOMS.D.cz - 1.54, 0.4, 0.4, 0.04, bioMat);
-
-    // Room E (final) -- operating theater centerpiece + boss podium.
-    addProp(ROOMS.E.cx, ROOMS.E.cz - 2, 2.0, 0.9, 1.0, bedMat, 0, 0, 0, true);
-    addGlowBox(ROOMS.E.cx, 3.2, ROOMS.E.cz - 2, 0.8, 0.15, 0.8, 0xbfffe0);
-    addBloodStain(ROOMS.E.cx, ROOMS.E.cz - 2, 1.4, 0);
-    addCorpse(ROOMS.E.cx - 4, ROOMS.E.cz + 4, 1.0, 0x3a6a5c); // surgeon's scrubs
-    addBloodStain(ROOMS.E.cx - 4, ROOMS.E.cz + 4, 0.7, 1.0);
-    addCorpse(ROOMS.B.cx - 3, ROOMS.B.cz + 2, -0.7, 0xc9d0d0);
-    addBloodStain(ROOMS.B.cx - 3, ROOMS.B.cz + 2, 0.7, -0.7);
-
-    // ---------------- 2nd floor (category E3) ----------------
-    // No stacked-floor support in the height-zone system (one XZ point can
-    // only have one height), so the 2nd floor is a real elevated room
-    // reached by climbing a staircase rather than sitting directly overhead
-    // -- functionally identical (locked until earned, distinct area,
-    // rarer rewards), just offset to the east instead of straight up.
-    const floor2Y = 4.2;
-    // stairX1 now lands exactly on room F's west wall (24.7). It used to stop
-    // at 24.2, leaving a half-unit strip with no height zone where anyone
-    // walking off the top of the stairs dropped back to ground level -- i.e.
-    // straight through the building's footprint and outside the map (A1).
-    const stairX0 = 20.2, stairX1 = 24.7;
-    const rampLen = stairX1 - stairX0;
-    // A2 fix: rotation.z was NEGATIVE, tilting the slab down toward +X while
-    // the walkable height zone rose toward +X -- the visible staircase ran the
-    // opposite way to the surface you actually climbed. Length is the slope's
-    // hypotenuse so the slab spans the whole run instead of falling short.
-    const rampMesh = new THREE.Mesh(new THREE.BoxGeometry(Math.hypot(rampLen, floor2Y), 0.2, 3), wallMat);
-    rampMesh.position.set((stairX0 + stairX1) / 2, floor2Y / 2, -14.5);
-    rampMesh.rotation.z = Math.atan2(floor2Y, rampLen);
-    scene.add(rampMesh);
-    world.heightZones.push({ minX: stairX0, maxX: stairX1, minZ: -16, maxZ: -13, ramp: true, axis: "x", h0: 0, h1: floor2Y });
-    // Stairwell side walls (A1): the ramp's long sides were completely open,
-    // so you could climb it and step straight off into the void beside it.
-    addWallSeg((stairX0 + stairX1) / 2, -16.2, rampLen, 0.4, floor2Y + 3.2);
-    addWallSeg((stairX0 + stairX1) / 2, -12.8, rampLen, 0.4, floor2Y + 3.2);
-
-    const F = { cx: 29.7, cz: -14.5, w: 10, d: 10 };
-    // Flat height zone for the room itself -- without this, a player/zombie
-    // walking past the end of the ramp would fall straight back to height 0,
-    // since only the ramp's own XZ range had a height entry.
-    world.heightZones.push({ minX: F.cx - F.w / 2, maxX: F.cx + F.w / 2, minZ: F.cz - F.d / 2, maxZ: F.cz + F.d / 2, height: floor2Y });
-    addFloor(F.cx, F.cz, F.w, F.d, floor2Y);
-    const fh = 3.2;
-    function addUpperWall(x, z, w, d) {
-      const m = new THREE.Mesh(new THREE.BoxGeometry(w, fh, d), wallMat);
-      m.position.set(x, floor2Y + fh / 2, z);
-      scene.add(m);
-      world.colliders.push(new THREE.Box3().setFromObject(m));
-    }
-    // West wall has a 3-unit gap (matching the ramp/stair width, z=[-16,-13])
-    // where the staircase actually arrives -- a solid wall there sealed the
-    // room's only entrance completely, so the player got stuck right at the
-    // top of the stairs. Room F spans z=[-19.5,-9.5], so the two remaining
-    // wall segments are z=[-19.5,-16] and z=[-13,-9.5].
-    const fWestX = F.cx - F.w / 2;
-    addUpperWall(fWestX, -17.75, 0.4, 3.5);
-    addUpperWall(fWestX, -11.25, 0.4, 3.5);
-    [[F.cx + F.w / 2, F.cz, 0.4, F.d], [F.cx, F.cz - F.d / 2, F.w, 0.4], [F.cx, F.cz + F.d / 2, F.w, 0.4]].forEach(([x, z, w, d]) => addUpperWall(x, z, w, d));
-    const fCeil = new THREE.Mesh(new THREE.BoxGeometry(F.w, 0.3, F.d), ceilingMat);
-    fCeil.position.set(F.cx, floor2Y + fh + 0.15, F.cz);
-    scene.add(fCeil);
-    addLight(F.cx - 2, floor2Y + fh - 0.4, F.cz - 2, 0x7dffc0, 1.3, 1.5);
-    addLight(F.cx + 2, floor2Y + fh - 0.4, F.cz + 2, 0xff6b6b, 1.0, 1.9);
-
-    // ICU/operating-theater dressing, continuing floor 1's theme + more gore.
-    addFloatBox(F.cx - 3, floor2Y, F.cz - 3, 2.0, 0.9, 1.0, bedMat);
-    addFloatBox(F.cx - 3, floor2Y + 0.95, F.cz - 3, 0.15, 0.5, 0.15, cabinetMat);
-    addCorpse(F.cx + 2, F.cz - 2, 0.5, 0xc9d0d0);
-    world.regions.push({ name: "F", minX: F.cx - F.w / 2, maxX: F.cx + F.w / 2, minZ: F.cz - F.d / 2, maxZ: F.cz + F.d / 2 });
-    world.regions.push({ name: "CF", minX: stairX0, maxX: stairX1, minZ: -16, maxZ: -13 });
-    world.waypointNodes.F = { x: F.cx, z: F.cz };
-    world.waypointNodes.CF = { x: (stairX0 + stairX1) / 2, z: -14.5 };
-    world.waypointEdges.C.push("CF"); world.waypointEdges.CF = ["C", "F"]; world.waypointEdges.F = ["CF"];
-
-    const barrier2 = addBarricade(stairX0 - 0.3, -14.5, 3, new THREE.MeshLambertMaterial({ color: 0x555550 }));
-    // Blood-stained floor decal right at the barrier reads as "someone tried
-    // to get up there and didn't make it" -- a small storytelling touch.
-    addBloodStain(stairX0 - 0.3, -14.5, 0.6, 0.5);
-    world.secondFloor = {
-      unlocked: false, barrierMesh: barrier2.mesh, barrierCollider: barrier2.collider,
-      killsNeeded: 20, room: F, floorY: floor2Y,
-      // Fewer, rarer drops than the ground floor -- a special reward, not a farm spot.
-      cratePositions: [new THREE.Vector3(F.cx + 3, floor2Y + 0.3, F.cz + 3), new THREE.Vector3(F.cx - 2, floor2Y + 0.3, F.cz + 3.5)],
-    };
-  }
-
-  function decorateBunker(t) {
-    const crateYellow = new THREE.MeshLambertMaterial({ color: 0xd6b23c });
-    const crateStripe = new THREE.MeshLambertMaterial({ color: 0x1a1a1a });
-    const crateOlive = new THREE.MeshLambertMaterial({ color: 0x545c3a });
-    const rackMat = new THREE.MeshLambertMaterial({ color: 0x2e2e2c });
-    const gunMat = new THREE.MeshLambertMaterial({ color: 0x4a4a46 });
-
-    function ammoCrate(x, z) {
-      addProp(x, z, 0.9, 0.6, 0.9, crateYellow);
-      addFloatBox(x, 0.61, z, 0.9, 0.05, 0.2, crateStripe);
-      addFloatBox(x, 0.61, z, 0.2, 0.05, 0.9, crateStripe);
-    }
-    // Room A -- supply nook.
-    ammoCrate(-2.5, 2);
-    ammoCrate(-2.5, 2.9);
-    addProp(2, 2.2, 1.4, 0.8, 0.9, crateOlive);
-    addGlowBox(-1.8, 2.9, -4.6, 0.6, 0.28, 0.05, 0xffcc33);
-    addGlowBox(1.5, 2.9, 4.6, 0.5, 0.25, 0.05, 0xff5533, Math.PI);
-    addCorpse(0.5, -1.5, 0.9, 0x4a5c3a); // fallen soldier, fatigues
-    addBloodStain(0.5, -1.5, 0.7, 0.9);
-    addBloodStain(-2.3, 3.2, 0.5, -0.2); // stain on/near the ammo crates
-
-    // Room B (hub) -- watchtower platform + control panel.
-    addCanvasBox(ROOMS.B.cx, 1.3, ROOMS.B.cz - 4.2 - 1.55, 1.6, 1.0, 0.08, (ctx, cv) => {
-      ctx.fillStyle = "#1a1512"; ctx.fillRect(0, 0, cv.width, cv.height);
-      const colors = ["#ff5c3d", "#ffcf4d", "#7dc9ff", "#4dff88"];
-      for (let i = 0; i < 12; i++) { ctx.fillStyle = colors[i % colors.length]; ctx.fillRect(14 + (i % 6) * 38, 20 + Math.floor(i / 6) * 40, 22, 22); }
-    }, 0x0a0908);
-    for (let i = 0; i < 3; i++) ammoCrate(ROOMS.B.cx + 3.5, ROOMS.B.cz + 4.5 + i * 0.75);
-    addGlowBox(ROOMS.B.cx - 5.5, 3.0, ROOMS.B.cz, 0.5, 0.5, 0.06, 0xffcc33); // hazard sign
-
-    // Room C (east) -- weapon rack.
-    for (let i = 0; i < 4; i++) {
-      addFloatBox(ROOMS.C.cx - 3 + i * 0.5, 1.6, ROOMS.C.cz - 3, 0.06, 1.0, 0.06, gunMat);
-    }
-    addProp(ROOMS.C.cx - 1.5, ROOMS.C.cz - 3, 1.6, 0.15, 0.4, rackMat, 0, 0, 0, true);
-    ammoCrate(ROOMS.C.cx + 2, ROOMS.C.cz + 3);
-    ammoCrate(ROOMS.C.cx + 2.9, ROOMS.C.cz + 3);
-
-    // Room D (west, behind the barricade) -- barbed-wire choke + sandbags.
-    const sandbagMat = new THREE.MeshLambertMaterial({ color: 0xa89468 });
-    for (let i = 0; i < 3; i++) addProp(ROOMS.D.cx - 1 + i * 0.85, ROOMS.D.cz - 2, 0.8, 0.4, 0.5, sandbagMat);
-    addGlowBox(ROOMS.D.cx, 2.6, ROOMS.D.cz - 4.6, 0.5, 0.5, 0.06, 0xffcc33);
-
-    // Damaged hanging cables -- dark dangling wire bundles that periodically
-    // spark (see world.sparkPoints / G.updateSparks), reinforcing the
-    // "backup generator is failing" read of the bunker theme.
-    const cableMat = new THREE.MeshLambertMaterial({ color: 0x1c1c1a });
-    function hangingCable(x, y, z, sparkY) {
-      addFloatBox(x, y, z, 0.06, 0.7, 0.06, cableMat);
-      addFloatBox(x + 0.15, y - 0.05, z, 0.06, 0.5, 0.06, cableMat, 0.3);
-      world.sparkPoints.push({ x, y: sparkY != null ? sparkY : y - 0.35, z, timer: G.rng() * 3 });
-    }
-    hangingCable(ROOMS.B.cx - 4.5, 3.0, ROOMS.B.cz + 2);
-    hangingCable(ROOMS.D.cx + 1.5, 3.0, ROOMS.D.cz + 1);
-    hangingCable(ROOMS.E.cx - 2, 3.0, ROOMS.E.cz - 2.5);
-
-    // Room E (final) -- reinforced chamber, sandbag cover, boss podium.
-    for (let i = 0; i < 3; i++) addProp(ROOMS.E.cx - 4 + i * 0.85, ROOMS.E.cz + 3, 0.8, 0.4, 0.5, sandbagMat);
-    for (let i = 0; i < 3; i++) addProp(ROOMS.E.cx + 3 + i * 0.85, ROOMS.E.cz + 3, 0.8, 0.4, 0.5, sandbagMat);
-    addCorpse(ROOMS.E.cx, ROOMS.E.cz + 5.5, 0, 0x4a5c3a);
-    addBloodStain(ROOMS.E.cx, ROOMS.E.cz + 5.5, 0.8, 0);
-    addCorpse(ROOMS.C.cx - 1, ROOMS.C.cz + 5, 1.3, 0x545c3a);
-    addBloodStain(ROOMS.C.cx - 1, ROOMS.C.cz + 5, 0.6, 1.3);
-  }
-
-  // ---------------- Spawn points (spread across all 5 rooms) ----------------
-  // The school builds its own spawn list / interactables, since none of the
-  // shared A-E room coordinates below exist in its two-storey layout.
-  if (level.theme !== "school") {
-
-  world.spawnPoints = [
-    { pos: new THREE.Vector3(-3.5, 0, 3.5), types: ["normal"] },
-    { pos: new THREE.Vector3(3.5, 0, 3.5), types: ["normal"] },
-    { pos: new THREE.Vector3(-5, 0, ROOMS.B.cz - 5), types: ["normal", "fast"] },
-    { pos: new THREE.Vector3(5, 0, ROOMS.B.cz - 5), types: ["normal", "fast"] },
-    { pos: new THREE.Vector3(-5, 0, ROOMS.B.cz + 5), types: ["normal", "fast"] },
-    { pos: new THREE.Vector3(5, 0, ROOMS.B.cz + 5), types: ["normal", "fast"] },
-    { pos: new THREE.Vector3(ROOMS.C.cx + 3, 0, ROOMS.C.cz - 3), types: ["fast"] },
-    { pos: new THREE.Vector3(ROOMS.C.cx - 3, 0, ROOMS.C.cz + 3), types: ["normal"] },
-    { pos: new THREE.Vector3(ROOMS.D.cx, 0, ROOMS.D.cz - 3), types: ["normal", "fast"] },
-    { pos: new THREE.Vector3(ROOMS.E.cx - 5, 0, ROOMS.E.cz - 5), types: ["normal", "fast"] },
-    { pos: new THREE.Vector3(ROOMS.E.cx + 5, 0, ROOMS.E.cz - 5), types: ["normal", "fast"] },
-    { pos: new THREE.Vector3(ROOMS.E.cx, 0, ROOMS.E.cz - 5), types: ["boss"] },
-  ].map((sp) => Object.assign(sp, { cooldown: 0 }));
-  // The theme decorators run before this list is assigned, so any spawn points
-  // they registered (item D1's extra rooms) get merged in here rather than
-  // pushed straight onto world.spawnPoints -- that array is replaced above.
-  if (world.extraSpawnPoints && world.extraSpawnPoints.length) {
-    world.spawnPoints = world.spawnPoints.concat(
-      world.extraSpawnPoints.map((sp) => Object.assign(sp, { cooldown: 0 })));
-  }
-
-  // ---------------- Interactions ----------------
-  // Word-locked door blocking a direct look at the east wing's landmark. Its
-  // color reads too close to the surrounding wall in every theme's dim
-  // lighting, so it also gets a bright self-lit frame (never used for walls)
-  // that makes it obvious at a glance which panel is the interactive door.
-  const lockedDoorX = ROOMS.C.cx - 3.3, lockedDoorZ = ROOMS.C.cz - 5.4;
-  const lockedDoor = addProp(lockedDoorX, lockedDoorZ, 0.3, 3, 3.4, new THREE.MeshLambertMaterial({ color: 0xb2452f }));
-  addGlowBox(lockedDoorX, 3.05, lockedDoorZ, 0.34, 0.1, 3.5, 0xffcc33);
-  addGlowBox(lockedDoorX, 1.5, lockedDoorZ - 1.75, 0.34, 3.1, 0.08, 0xffcc33);
-  addGlowBox(lockedDoorX, 1.5, lockedDoorZ + 1.75, 0.34, 3.1, 0.08, 0xffcc33);
-  // `collider` is captured so opening the door can remove it from world.colliders --
-  // hiding the mesh alone (the previous behavior) left an invisible wall in place.
-  world.doors.push({ mesh: lockedDoor, locked: true, kind: "word", opened: false, collider: world.colliders[world.colliders.length - 1] });
-  world.interactables.push({ mesh: lockedDoor, kind: "door", ref: world.doors[world.doors.length - 1] });
-
-  // Button (in the east wing) that clears the barricade blocking the west wing.
-  const buttonMesh = addProp(ROOMS.C.cx + 4.5, ROOMS.C.cz - 4.5, 0.3, 0.3, 0.3, new THREE.MeshLambertMaterial({ color: 0xff4444 }), 0, 0, 0, true);
-  world.buttons.push({ mesh: buttonMesh, pressed: false });
-  world.interactables.push({ mesh: buttonMesh, kind: "button", ref: world.buttons[world.buttons.length - 1] });
-
-  const barricade = addBarricade(-8, ROOMS.B.cz, 3.4, new THREE.MeshLambertMaterial({ color: 0x555550 }));
-  world.secretZone = {
-    center: new THREE.Vector3(ROOMS.D.cx, 0, ROOMS.D.cz), radius: 5, unlocked: false,
-    barricadeMesh: barricade.mesh, barricadeCollider: barricade.collider,
-  };
-
-  // A lootable crate (word-locked) in the west wing -- the payoff for clearing the barricade.
-  const crateMesh = addProp(ROOMS.D.cx, ROOMS.D.cz + 3, 0.8, 0.8, 0.8, new THREE.MeshLambertMaterial({ color: 0x8a6a2a }));
-  world.crates.push({ mesh: crateMesh, opened: false, locked: true });
-  world.interactables.push({ mesh: crateMesh, kind: "crate", ref: world.crates[world.crates.length - 1] });
-
-  // A word-locked trap (laser wall) in the corridor to the final room.
-  const trapMesh = addProp(0, ROOMS.E.cz + 8.7, DOOR_W - 0.4, 2.8, 0.15, new THREE.MeshBasicMaterial({ color: 0xff2222, transparent: true, opacity: 0.55 }));
-  // This laser wall fully blocks the only corridor to the boss room via its
-  // collider. There was previously no way to interact with a "trap" at all
-  // (doInteract had no case for it) -- meaning the corridor was permanently
-  // impassable on foot. `collider` is captured so solving it can remove the
-  // block, same fix as the door above.
-  world.traps.push({ mesh: trapMesh, active: true, damage: 45, cooldown: 0, collider: world.colliders[world.colliders.length - 1] }); // was 12, scaled 3.75x with player HP
-  world.interactables.push({ mesh: trapMesh, kind: "trap", ref: world.traps[world.traps.length - 1] });
-
-  // ---------------- Wall-mounted exclusive weapon (category C3) ----------------
-  // Mounted on room A's solid south wall (no doorway there), off to the +X
-  // side where no theme's starting-room decor reaches, so it's clear in all
-  // three levels. See the wallExclusive weapon defs in entities.js for the
-  // pricing rationale.
-  const wallWeaponId = { school: "school_wall", hospital: "hospital_wall", bunker: "bunker_wall" }[level.theme];
-  if (wallWeaponId) {
-    const wdef = G.WEAPON_DEFS[wallWeaponId];
-    const mountX = 3.5, mountY = 1.7, mountZ = 4.7;
-    const plaque = new THREE.Mesh(new THREE.BoxGeometry(1.3, 1.1, 0.08), new THREE.MeshLambertMaterial({ color: 0x1a1a1a }));
-    plaque.position.set(mountX, mountY, mountZ);
-    scene.add(plaque);
-    const gunMesh = G.buildWeaponMesh(wdef);
-    gunMesh.scale.set(2.6, 2.6, 2.6);
-    gunMesh.position.set(mountX, mountY + 0.15, mountZ - 0.14);
-    gunMesh.rotation.y = Math.PI / 2 - 0.25;
-    scene.add(gunMesh);
-    addCanvasBox(mountX, mountY - 0.68, mountZ - 0.02, 1.1, 0.32, 0.04, (ctx, cv) => {
-      ctx.fillStyle = "#0a0a0a"; ctx.fillRect(0, 0, cv.width, cv.height);
-      ctx.textAlign = "center";
-      ctx.font = "bold 24px sans-serif"; ctx.fillStyle = "#ffd43b"; ctx.fillText(wdef.name, 128, 34);
-      ctx.font = "bold 26px monospace"; ctx.fillStyle = "#6bff7a"; ctx.fillText("$" + wdef.price, 128, 68);
-    }, 0x1a1a1a);
-    world.wallWeapon = { id: wallWeaponId, price: wdef.price, purchased: false, gunMesh };
-    world.interactables.push({ mesh: plaque, kind: "wallweapon", ref: world.wallWeapon });
-  }
-
-  // ---------------- Mystery weapon box (category C1) ----------------
-  // Sits in the east wing, a couple of rooms in from the spawn, so it is a
-  // deliberate trip rather than something you bump into at the start.
-  {
-    const mbX = ROOMS.C.cx - 3.5, mbZ = ROOMS.C.cz + 2;
-    const crate = addProp(mbX, mbZ, 1.3, 1.0, 1.3, new THREE.MeshLambertMaterial({ color: 0x1b1030 }));
-    // neon edge glow so it's findable in the dark
-    [[0, 0.52, 0.66], [0, 0.52, -0.66], [0.66, 0.52, 0], [-0.66, 0.52, 0]].forEach(([ox, oy, oz]) => {
-      addGlowBox(mbX + ox, oy + 0.5, mbZ + oz, ox ? 0.06 : 1.32, 0.06, oz ? 0.06 : 1.32, 0x7f5bff);
-    });
-    addCanvasBox(mbX, 1.25, mbZ + 0.67, 0.9, 0.7, 0.05, (ctx, cv) => {
-      ctx.fillStyle = "#12071f"; ctx.fillRect(0, 0, cv.width, cv.height);
-      ctx.textAlign = "center"; ctx.font = "bold 84px sans-serif"; ctx.fillStyle = "#c9a3ff";
-      ctx.fillText("?", 128, 96);
-    }, 0x2a1350);
-    world.mysteryBox = { mesh: crate, x: mbX, z: mbZ, uses: 0 };
-    world.interactables.push({ mesh: crate, kind: "mysterybox", ref: world.mysteryBox });
-  }
-
-  } // end non-school spawn points + interactions
-
-  // The school sets its own spawn out on the grounds (C2); everything else
-  // still starts the player inside room A.
+  // buildComplex sets both of these from the level plan; these are only a
+  // backstop in case a plan ever omits them.
   if (!world.spawn) world.spawn = { x: 0, z: 3 };
-  world.bossRoomCenter = level.theme === "school"
-    ? new THREE.Vector3(0, 0, -52.5)              // the gym at the north end
-    : new THREE.Vector3(ROOMS.E.cx, 0, ROOMS.E.cz - 2);
+  if (!world.bossRoomCenter) world.bossRoomCenter = new THREE.Vector3(0, 0, -30);
 
 
   // ---------------- Unstick spawn points ----------------
@@ -1863,6 +1849,22 @@ G.buildLevelScene = function (scene, level, quality) {
     const R = 0.45;
     const blocked = (x, y, z) => world.colliders.some((c) =>
       x - R < c.max.x && x + R > c.min.x && z - R < c.max.z && z + R > c.min.z && y + 0.1 < c.max.y && y + 2.0 > c.min.y);
+    // The player spawn gets the same treatment: starting inside a crate means
+    // starting unable to move at all.
+    if (world.spawn && blocked(world.spawn.x, G.getFloorHeightAt(world, world.spawn.x, world.spawn.z, 0), world.spawn.z)) {
+      const y0 = G.getFloorHeightAt(world, world.spawn.x, world.spawn.z, 0);
+      outer: for (let ring = 1; ring <= 8; ring++) {
+        for (let a = 0; a < 16; a++) {
+          const ang = (a / 16) * Math.PI * 2;
+          const nx = world.spawn.x + Math.cos(ang) * ring * 1.0;
+          const nz = world.spawn.z + Math.sin(ang) * ring * 1.0;
+          if (Math.abs(G.getFloorHeightAt(world, nx, nz, y0) - y0) > 0.05) continue;
+          if (blocked(nx, y0, nz)) continue;
+          world.spawn = { x: nx, z: nz };
+          break outer;
+        }
+      }
+    }
     world.spawnPoints.forEach((sp) => {
       const y = sp.pos.y;
       if (!blocked(sp.pos.x, y, sp.pos.z)) return;
