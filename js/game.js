@@ -901,7 +901,7 @@ G.Game = {
     this.updateInteractRay();
     this.updateTraps(dt);
     this.updateRoomDoors(dt);
-    G.updateFlickerLights(this.world, performance.now() / 1000);
+    G.updateFlickerLights(this.world, performance.now() / 1000, this.yawObject.position);
     G.updateDriftingFog(this.scene, this.world, performance.now() / 1000);
     G.updateSparks(this.scene, this.world, dt);
     this.updateChallengeTimer(dt);

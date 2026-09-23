@@ -22,7 +22,21 @@ G.Spawner = {
         (!playerPos || sp.pos.distanceTo(playerPos) >= minDist));
       if (candidates.length === 0) candidates = world.spawnPoints.filter((sp) => sp.cooldown <= 0 && sp.types[0] !== "boss");
       if (candidates.length === 0) return;
-      const sp = G.pick(candidates);
+      // The school runs 120 units end to end now. Picking uniformly kept
+      // spawning zombies ninety units away, where they spent the entire wave
+      // walking and never arrived -- so waves stalled and the player stood
+      // around waiting. Prefer points near them (never closer than minDist),
+      // weighted by inverse distance so the far ones still see some use.
+      const NEAR = 48;
+      let pool = playerPos ? candidates.filter((c) => c.pos.distanceTo(playerPos) <= NEAR) : candidates;
+      if (!pool.length) pool = candidates;
+      let sp = pool[pool.length - 1];
+      if (playerPos && pool.length > 1) {
+        let total = 0;
+        const weights = pool.map((c) => { const wgt = 1 / (6 + c.pos.distanceTo(playerPos)); total += wgt; return wgt; });
+        let r = G.rng() * total;
+        for (let i = 0; i < pool.length; i++) { r -= weights[i]; if (r <= 0) { sp = pool[i]; break; } }
+      } else sp = G.pick(pool);
       sp.cooldown = 2.5;
       const fastChance = Math.min(0.55, 0.1 + waveDifficulty * 0.08);
       const crawlerChance = Math.min(0.22, 0.05 + waveDifficulty * 0.025);
