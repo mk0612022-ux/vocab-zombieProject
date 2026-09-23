@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>ตรวจสอบคลังคำศัพท์</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #0d120f; color: #dff5e2; padding: 24px; line-height: 1.6; }
+  h1 { font-size: 1.3rem; }
+  table { border-collapse: collapse; margin: 12px 0 20px; }
+  th, td { border: 1px solid #2f6b3c; padding: 6px 12px; text-align: left; }
+  .pass { color: #6bff7a; font-weight: 800; }
+  .fail { color: #ff5c5c; font-weight: 800; }
+  pre { background: #10181300; }
+  li { margin: 2px 0; }
+</style>
+</head>
+<body>
+<h1>ตรวจสอบคลังคำศัพท์ (หมวด G)</h1>
+<div id="out">กำลังโหลด…</div>
+
+<script src="../js/data/words_school.js"></script>
+<script src="../js/data/words_hospital.js"></script>
+<script src="../js/data/words_bunker.js"></script>
+<script src="../js/data/words.js"></script>
+<script>
+  const r = G.auditWordSets();
+  const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+  const rows = r.sets.map((s) =>
+    `<tr><td>${esc(s.key)}</td><td>${esc(s.file)}</td><td>${esc(s.label)}</td>
+     <td>${s.count}</td><td>${s.unique}</td>
+     <td class="${s.count === 100 && s.unique === s.count ? "pass" : "fail"}">${s.count === 100 && s.unique === s.count ? "OK" : "ผิดพลาด"}</td></tr>`).join("");
+  const list = (arr, fmt) => arr.length ? `<ul>${arr.map((x) => `<li>${esc(fmt(x))}</li>`).join("")}</ul>` : '<span class="pass">ไม่พบ</span>';
+  document.getElementById("out").innerHTML = `
+    <table><tr><th>ด่าน</th><th>ไฟล์</th><th>ระดับ</th><th>จำนวนคำ</th><th>ไม่ซ้ำในชุด</th><th>ผล</th></tr>${rows}</table>
+    <p>รวมทั้งหมด: <b>${r.total}</b> คำ · ไม่ซ้ำกันทั่วทั้งเกม: <b>${r.uniqueOverall}</b> คำ</p>
+    <p>คำซ้ำข้ามด่าน: ${list(r.crossLevelDuplicates, (d) => `${d.word} (${d.inSets.join(" + ")})`)}</p>
+    <p>คำซ้ำภายในด่านเดียวกัน: ${list(r.withinSetDuplicates, (d) => `${d.word} (${d.set})`)}</p>
+    <p>รายการที่รูปแบบผิด / ไม่มีคำแปล: ${list(r.malformed, (m) => `${m.set}[${m.index}] = ${m.value}`)}</p>
+    <h2 class="${r.ok ? "pass" : "fail"}">ผลรวม: ${r.ok ? "ผ่านทั้งหมด" : "ไม่ผ่าน"}</h2>`;
+  window.__AUDIT__ = r;
+</script>
+</body>
+</html>
