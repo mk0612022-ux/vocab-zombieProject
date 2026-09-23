@@ -272,6 +272,7 @@ G.Game = {
       G.disposeObject3D(this.scene);
     }
     this.zombies = []; this.drops = [];
+    this._swingProps = null;
     G.BossFight.stop();
     this.challenge = null;
     G.UI.setChallengeVisible(false);
@@ -904,6 +905,7 @@ G.Game = {
     this.updateInteractRay();
     this.updateTraps(dt);
     this.updateRoomDoors(dt);
+    this.updateSwingProps(dt);
     G.updateFlickerLights(this.world, performance.now() / 1000, this.yawObject.position);
     G.updateDriftingFog(this.scene, this.world, performance.now() / 1000);
     G.updateSparks(this.scene, this.world, dt);
@@ -1304,9 +1306,19 @@ G.Game = {
     if (willOpen === ref.open && ref.animT >= 1) return;
     ref.open = willOpen;
     ref.bashTimer = 0;
-    const idx = this.world.colliders.indexOf(ref.collider);
-    if (willOpen) { if (idx >= 0) this.world.colliders.splice(idx, 1); }
-    else if (idx < 0) this.world.colliders.push(ref.collider);
+    // Category F: the blocking box now follows the panel through its swing
+    // rather than being yanked out the instant the door is TOLD to open. A
+    // door that is still half shut still blocks; a door that is still closing
+    // blocks progressively more. It is only dropped once the panel is fully
+    // clear of the doorway, and comes straight back the moment a close starts.
+    if (this.world.colliders.indexOf(ref.collider) < 0) this.world.colliders.push(ref.collider);
+    ref.colliderDropped = false;
+    ref.shakeT = 0;
+    // A door nobody has touched since the outbreak coughs dust off its frame.
+    if (!ref.dusted) {
+      ref.dusted = true;
+      G.spawnDustPuff(this.scene, new THREE.Vector3(ref.x, (ref.baseY || 0) + 1.5, ref.z), G.save.settings.graphicsQuality, 1.4);
+    }
     // The swing is stepped by updateRoomDoors from the game loop's own dt.
     // A requestAnimationFrame chain would keep running while the game is
     // paused and, worse, stall out entirely if the tab is backgrounded --
@@ -1323,9 +1335,25 @@ G.Game = {
     if (!doors || !doors.length) return;
     for (const d of doors) {
       if (d.animT < 1) {
-        d.animT = Math.min(1, d.animT + dt / 0.34);
+        d.animT = Math.min(1, d.animT + dt / 0.38);
+        // Ease out hard: the panel leaves fast and arrives slowly, the way a
+        // door someone shoved actually moves.
         const e = 1 - Math.pow(1 - d.animT, 3);
         d.mesh.rotation.y = d.fromRot + (d.toRot - d.fromRot) * e;
+        if (d.animT >= 1) d.shakeT = 0.24;          // hits the end of its travel
+        this.syncDoorCollider(d);
+      } else if (d.shakeT > 0) {
+        // A damped judder as the panel slams against the stop / the frame.
+        d.shakeT = Math.max(0, d.shakeT - dt);
+        const k = d.shakeT / 0.24;
+        d.mesh.rotation.y = d.toRot + Math.sin(d.shakeT * 62) * 0.06 * k * k;
+        if (d.shakeT <= 0) d.mesh.rotation.y = d.toRot;
+        this.syncDoorCollider(d);
+      } else if (d.open && !d.colliderDropped) {
+        // fully open and settled -- now the doorway is genuinely clear
+        const i = this.world.colliders.indexOf(d.collider);
+        if (i >= 0) this.world.colliders.splice(i, 1);
+        d.colliderDropped = true;
       }
       if (d.open) continue;
       let pressed = false;
@@ -1337,8 +1365,22 @@ G.Game = {
       d.bashTimer += dt;
       // shudder while being pushed on, so it reads as under attack
       d.mesh.rotation.y = Math.sin(d.bashTimer * 22) * 0.05;
+      this.syncDoorCollider(d);
       if (d.bashTimer >= 2.0) { d.mesh.rotation.y = 0; this.toggleRoomDoor(d, true); }
     }
+  },
+
+  // The blocking box is the panel's own world AABB, recomputed as it swings.
+  // A fixed box either blocks a door that is already open, or lets you walk
+  // through one that is still closing.
+  syncDoorCollider(d) {
+    if (d.colliderDropped || this.world.colliders.indexOf(d.collider) < 0) return;
+    d.mesh.updateMatrixWorld(true);
+    d.collider.setFromObject(d.mesh);
+    // Keep it full doorway height: the AABB of a thin panel is thin, and a
+    // short box would let the player's body test slip over the top of it.
+    d.collider.min.y = d.baseY || 0;
+    d.collider.max.y = (d.baseY || 0) + 2.9;
   },
 
   buyWallWeapon(ref) {
@@ -1367,18 +1409,49 @@ G.Game = {
     // hides it once the swing finishes.
     this.animateObstacleOpen(ref.mesh);
   },
+  // Category F: word-locked doors get the same treatment as the room doors --
+  // hinged on an edge rather than spun about their middle, eased round, a
+  // judder as they hit the stop, and dust knocked off a frame nothing has
+  // touched in a long time. The hinge is derived from the mesh's own box, so
+  // this needs no per-level setup and works for any panel.
   animateObstacleOpen(mesh) {
+    if (!mesh) return;
+    const gp = (mesh.geometry && mesh.geometry.parameters) || { width: 0.3, depth: 2.8 };
+    const alongZ = (gp.depth || 0) >= (gp.width || 0);
+    const halfLen = (alongZ ? gp.depth : gp.width) / 2;
+    const c0 = mesh.position.clone();
+    const hinge = alongZ ? new THREE.Vector3(c0.x, c0.y, c0.z - halfLen)
+      : new THREE.Vector3(c0.x - halfLen, c0.y, c0.z);
+    const rel = c0.clone().sub(hinge);
     const startRot = mesh.rotation.y;
-    const targetRot = startRot + Math.PI / 2.1;
-    const durationMs = 420;
-    const t0 = performance.now();
-    const step = () => {
-      const p = Math.min(1, (performance.now() - t0) / durationMs);
-      mesh.rotation.y = startRot + (targetRot - startRot) * (1 - Math.pow(1 - p, 2));
-      if (p < 1) requestAnimationFrame(step);
-      else mesh.visible = false;
-    };
-    requestAnimationFrame(step);
+    const targetRot = startRot + Math.PI / 2.05;
+    G.spawnDustPuff(this.scene, c0, G.save.settings.graphicsQuality, Math.max(1.0, halfLen * 1.4));
+    // Stepped from the game loop's dt, not requestAnimationFrame. An rAF chain
+    // stops dead when the tab is backgrounded, and this one left the door
+    // sitting closed-looking while its collider had already been removed.
+    this._swingProps = this._swingProps || [];
+    this._swingProps.push({ mesh, hinge, rel, startRot, targetRot, y: c0.y, t: 0 });
+  },
+  updateSwingProps(dt) {
+    const list = this._swingProps;
+    if (!list || !list.length) return;
+    const SWING = 0.48, SHAKE = 0.24;
+    for (let i = list.length - 1; i >= 0; i--) {
+      const s = list[i];
+      s.t += dt;
+      let rot;
+      if (s.t < SWING) {
+        const p = s.t / SWING;
+        rot = s.startRot + (s.targetRot - s.startRot) * (1 - Math.pow(1 - p, 3));
+      } else {
+        const k = Math.max(0, 1 - (s.t - SWING) / SHAKE);
+        rot = s.targetRot + Math.sin((s.t - SWING) * 55) * 0.07 * k * k;
+      }
+      s.mesh.rotation.y = rot;
+      const d = rot - s.startRot, si = Math.sin(d), co = Math.cos(d);
+      s.mesh.position.set(s.hinge.x + s.rel.x * co + s.rel.z * si, s.y, s.hinge.z - s.rel.x * si + s.rel.z * co);
+      if (s.t >= SWING + SHAKE) { s.mesh.rotation.y = s.targetRot; list.splice(i, 1); }
+    }
   },
 
   // Floor hatches (layout redesign item 5): a word-locked panel that hinges

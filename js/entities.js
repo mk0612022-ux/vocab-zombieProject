@@ -1131,6 +1131,44 @@ G.spawnHitParticles = function (scene, position, color, quality) {
 // One-shot spark burst for a frayed-wire decor point: a brief white/yellow
 // particle fan plus a quick light flash, using real elapsed time so it plays
 // the same regardless of the FPS cap.
+
+// A slow drift of dust, for a door that has not been opened since whatever
+// happened here happened (category F). Unlike a hit spray this barely falls --
+// it hangs, spreads and fades.
+G.spawnDustPuff = function (scene, position, quality, spread) {
+  const count = quality === "vhigh" ? 26 : quality === "high" ? 18 : quality === "medium" ? 12 : quality === "low" ? 6 : 0;
+  if (count === 0) return;
+  spread = spread || 0.9;
+  const geo = new THREE.BufferGeometry();
+  const positions = new Float32Array(count * 3);
+  const vel = [];
+  for (let i = 0; i < count; i++) {
+    positions[i * 3] = position.x + (G.rng() - 0.5) * spread;
+    positions[i * 3 + 1] = position.y + (G.rng() - 0.5) * 1.6;
+    positions[i * 3 + 2] = position.z + (G.rng() - 0.5) * spread;
+    vel.push(new THREE.Vector3((G.rng() - 0.5) * 0.5, 0.06 + G.rng() * 0.22, (G.rng() - 0.5) * 0.5));
+  }
+  geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  const mat = new THREE.PointsMaterial({ color: 0xbfb49a, size: 0.09, transparent: true, opacity: 0.55 });
+  const pts = new THREE.Points(geo, mat);
+  scene.add(pts);
+  let life = 0;
+  const anim = () => {
+    life += 1 / 60;
+    const pos = geo.attributes.position.array;
+    for (let i = 0; i < count; i++) {
+      vel[i].multiplyScalar(0.985);                 // air drag, not gravity
+      pos[i * 3] += vel[i].x * 0.03;
+      pos[i * 3 + 1] += vel[i].y * 0.03;
+      pos[i * 3 + 2] += vel[i].z * 0.03;
+    }
+    geo.attributes.position.needsUpdate = true;
+    mat.opacity = Math.max(0, 0.55 * (1 - life / 1.6));
+    if (life < 1.6) requestAnimationFrame(anim);
+    else { scene.remove(pts); geo.dispose(); mat.dispose(); }
+  };
+  requestAnimationFrame(anim);
+};
 G.spawnSparkBurst = function (scene, sparkPoint) {
   const position = new THREE.Vector3(sparkPoint.x, sparkPoint.y, sparkPoint.z);
   const count = 7;
