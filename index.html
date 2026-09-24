@@ -27,6 +27,7 @@
       <button class="btn" id="btn-weaponlog">คลังปืน</button>
       <button class="btn" id="btn-import-vocab">Import Vocabulary</button>
       <button class="btn" id="btn-howtoplay">How to Play</button>
+      <button class="btn" id="btn-tutorial-replay">เล่นบทสอนอีกครั้ง</button>
       <button class="btn" id="btn-settings">Settings</button>
     </div>
   </div>
@@ -155,6 +156,12 @@
   <div class="hud-scope hidden" id="hud-scope"><div class="hud-scope-ring"></div><div class="hud-scope-h"></div><div class="hud-scope-v"></div></div>
   <div class="hud-charge hidden" id="hud-charge"><div class="hud-charge-fill" id="hud-charge-fill"></div></div>
   <div class="hud-interact-prompt hidden" id="hud-interact-prompt">กด E เพื่อโต้ตอบ</div>
+  <!-- category O: contextual tutorial card -->
+  <div class="hud-tip hidden" id="hud-tip">
+    <div class="hud-tip-title" id="hud-tip-title"></div>
+    <div class="hud-tip-text" id="hud-tip-text"></div>
+    <button class="hud-tip-skip" id="hud-tip-skip">ข้ามบทสอน <span class="kbd-only">(T)</span></button>
+  </div>
   <div class="hud-challenge-box hidden" id="hud-challenge-box">
     <div class="hud-challenge-label" id="hud-challenge-label">ตอบคำศัพท์เพื่อปลดล็อก</div>
     <div class="hud-challenge-meaning" id="hud-challenge-meaning"></div>
@@ -237,6 +244,7 @@
 <div id="screen-shop" class="screen hidden">
   <h2 class="screen-title">ร้านค้า</h2>
   <div class="shop-timer" id="shop-timer">เริ่มเวฟถัดไปใน 15 วินาที</div>
+  <div class="shop-tip hidden" id="shop-tip"></div>
   <div class="shop-money">เงินสะสม: <span id="shop-money">0</span></div>
   <div class="shop-grid" id="shop-grid"></div>
   <div class="row-center"><button class="btn btn-primary" id="btn-shop-continue">เริ่มเวฟถัดไป</button></div>
@@ -276,6 +284,7 @@
     <button class="btn" id="btn-pause-vocablog">คลังคำศัพท์</button>
     <button class="btn" id="btn-pause-weaponlog">คลังปืน</button>
     <button class="btn" id="btn-pause-settings">Settings</button>
+    <button class="btn" id="btn-pause-tutorial">เริ่มบทสอนใหม่</button>
     <button class="btn" id="btn-pause-mainmenu">กลับ Main Menu</button>
   </div>
 </div>
@@ -321,6 +330,7 @@
 <script src="js/objectives.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/perf.js"></script>
+<script src="js/tutorial.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/game.js"></script>
 </body>

@@ -103,6 +103,7 @@ G.UI = {
     this.el("btn-weaponlog").onclick = () => { this._logReturnScreen = "screen-mainmenu"; this.renderWeaponLog(1); this.showScreen("screen-weaponlog"); };
     this.el("btn-import-vocab").onclick = () => { this.renderImportedSets(); this.showScreen("screen-import"); };
     this.el("btn-howtoplay").onclick = () => this.showScreen("screen-howtoplay");
+    this.el("btn-tutorial-replay").onclick = () => { G.Tutorial.reset(); G.Game.startLevel(1); };
     this.el("btn-settings").onclick = () => { this._settingsReturn = "screen-mainmenu"; this.renderSettings(); this.showScreen("screen-settings"); };
   },
   goToMainMenu() { this.showScreen("screen-mainmenu"); this.setHudVisible(false); this.setTouchControlsVisible(false); },
@@ -555,6 +556,11 @@ G.UI = {
   // ---------------- Pause ----------------
   bindPause() {
     this.el("btn-resume").onclick = () => G.Game.resume();
+    // Category O: replay the tutorial mid-run, and skip it from the card
+    this.el("btn-pause-tutorial").onclick = () => { G.Tutorial.reset(); G.Tutorial.startRun(G.Game); G.Game.resume(); };
+    const skip = (e) => { e.preventDefault(); e.stopPropagation(); G.Tutorial.skip(); };
+    this.el("hud-tip-skip").addEventListener("click", skip);
+    this.el("hud-tip-skip").addEventListener("touchstart", skip, { passive: false });
     this.el("btn-pause-vocablog").onclick = () => {
       this._logReturnScreen = "screen-pause";
       const lvlId = (G.Game.level && G.Game.level.id) || 1;

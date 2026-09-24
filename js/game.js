@@ -236,6 +236,7 @@ G.Game = {
     this._overtimeAnnounced = false;
     if (this.mode === "campaign") G.Objectives.reset(this.level.id, this.world); else G.Objectives.state = null;
     G.Audio.startLevel(this.level.theme);
+    G.Tutorial.startRun(this);
     this._stepT = 0; this._hbT = 0; this._behindT = 0; this._wasExhausted = false;
     this.startWave();
     if (G.Input.mode === "desktop") G.Input.requestPointerLock();
@@ -438,6 +439,7 @@ G.Game = {
     if (ammo.mag <= 0) { this._burst = null; G.Audio.sfx("empty"); this.reload(); return; }
     ammo.mag--;
     G.Audio.gunshot(def);
+    G.Tutorial.onShot();
     if (!inBurst) this.player.fireCooldown = (def.fireRate / 1000) / lvl.rate;
     // Category N: a burst weapon looses the rest of its rounds on a timer.
     if (def.burst > 1 && !inBurst) {
@@ -757,6 +759,7 @@ G.Game = {
     G.disposeObject3D(drop.mesh);
     this.drops = this.drops.filter((d) => d !== drop);
     G.Audio.sfx("pickup");
+    G.Tutorial.onPickup();
     if (drop.kind === "money") this.player.money += 20 + Math.round(G.rng() * 30);
     else if (drop.kind === "ammo") {
       const id = this.currentWeaponId();
@@ -870,6 +873,7 @@ G.Game = {
     G.UI.setHudVisible(false);
     G.Input.exitPointerLock();
     G.UI.renderShop();
+    G.Tutorial.shopTip();
     G.UI.showScreen("screen-shop");
   },
   buyShopItem(item, price) {
@@ -1003,6 +1007,7 @@ G.Game = {
     this.updateRoomDoors(dt);
     this.updateSwingProps(dt);
     if (this.mode === "campaign") G.Objectives.update(dt, this);
+    G.Tutorial.update(dt, this);
     this.updateAudio(dt);
     const camDir = new THREE.Vector3(-Math.sin(this.yawObject.rotation.y), 0, -Math.cos(this.yawObject.rotation.y));
     G.Perf.updateLights(this.yawObject.position, camDir, performance.now() / 1000);
@@ -1789,6 +1794,7 @@ G.onKeyDown = function (e) {
     return;
   }
   if (Game.state === "GAMEPLAY" && e.code === "KeyV") { Game.speakCurrentWord(); return; }
+  if (Game.state === "GAMEPLAY" && e.code === "KeyT" && G.Tutorial.current) { G.Tutorial.skip(); return; }
   if (Game.state === "GAMEPLAY") {
     const kb = G.save.settings.keybinds;
     if (e.code === kb.pause) { Game.pause(); return; }

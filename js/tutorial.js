@@ -1,0 +1,190 @@
+// ===================================================================
+// Contextual tutorial (category O)
+// -------------------------------------------------------------------
+// The player now starts outdoors with no one to tell them what the game
+// is, so the first run teaches it -- one short card at a time, at the moment
+// it matters, instead of a wall of text before anything happens:
+//
+//   moving and looking  ->  at spawn
+//   the core rule       ->  when the first Thai meaning appears
+//   shooting            ->  once they have walked a little
+//   doors (E)           ->  when they are looking at a closed door
+//   pickups             ->  when a drop lands near them
+//   wall guns / box     ->  when they are looking at one
+//   the shop            ->  the first time it opens
+//   the level goal      ->  after the first correct kill
+//
+// Each card has desktop and touch wording. The whole thing can be skipped
+// from the card itself, and replayed from the main menu or the pause screen.
+// ===================================================================
+G.Tutorial = {
+  current: null,
+  queue: [],
+  _age: 0,
+  _t: 0,
+
+  STEPS: [
+    {
+      id: "move",
+      title: "เคลื่อนที่และมองรอบ",
+      desk: "เดินด้วย W A S D · ขยับเมาส์เพื่อหันมอง · Shift วิ่ง · Space กระโดด",
+      touch: "ลากจอยสติ๊กซ้ายล่างเพื่อเดิน · ลากนิ้วที่ครึ่งขวาของจอเพื่อหันมอง · ปุ่ม “วิ่ง” เพื่อวิ่ง",
+      when: () => true,
+      done: (g, s) => s.moved > 4,
+    },
+    {
+      id: "rule",
+      title: "กติกาหลัก",
+      desk: "อ่านความหมายภาษาไทยด้านบน แล้วยิงซอมบี้ที่ถือ “คำภาษาอังกฤษ” ที่ตรงกัน — ยิงผิดคำจะเสียเลือดและซอมบี้จะเร็วขึ้น",
+      touch: "อ่านความหมายภาษาไทยด้านบน แล้วยิงซอมบี้ที่ถือ “คำภาษาอังกฤษ” ที่ตรงกัน — ยิงผิดคำจะเสียเลือดและซอมบี้จะเร็วขึ้น",
+      when: (g) => !!g.targetPair,
+      done: (g) => g.correctCount >= 1,
+      hold: 9,
+    },
+    {
+      id: "shoot",
+      title: "การยิง",
+      desk: "คลิกซ้ายยิง · คลิกขวาค้างเพื่อเล็ง · R รีโหลด · 1-5 สลับอาวุธ · V ฟังเสียงคำศัพท์อีกครั้ง",
+      touch: "ปุ่ม FIRE ยิง · ปุ่ม “เล็ง” ซูม · R รีโหลด · แถวตัวเลขด้านล่างสลับอาวุธ · 🔊 ฟังเสียงคำศัพท์",
+      when: (g, s) => s.moved > 4,
+      done: (g, s) => s.shots > 2,
+    },
+    {
+      id: "door",
+      title: "ประตู",
+      desk: "กด E เพื่อเปิด/ปิดประตู — ประตูที่ปิดอยู่ช่วยขวางซอมบี้ได้ชั่วคราว",
+      touch: "กดปุ่ม E เพื่อเปิด/ปิดประตู — ประตูที่ปิดอยู่ช่วยขวางซอมบี้ได้ชั่วคราว",
+      when: (g) => g._lookedAtInteractable && g._lookedAtInteractable.kind === "roomdoor",
+      done: (g) => (g.world.roomDoors || []).some((d) => d.open),
+    },
+    {
+      id: "pickup",
+      title: "ไอเทม",
+      desk: "เดินผ่านไอเทมเพื่อเก็บ: เงิน กระสุน เลือด และลังปืน",
+      touch: "เดินผ่านไอเทมเพื่อเก็บ: เงิน กระสุน เลือด และลังปืน",
+      when: (g) => g.drops.some((d) => d.mesh.position.distanceTo(g.yawObject.position) < 10),
+      done: (g, s) => s.pickups > 0,
+    },
+    {
+      id: "objectives",
+      title: "เป้าหมายของด่าน",
+      desk: "เอาตัวรอดอย่างเดียวไม่พอ — ดูภารกิจที่ “ภารกิจ x/6” มุมขวา หรือกด ESC เพื่อดูรายการเต็ม (กุญแจ 3 ดอก ห้องที่ต้องสำรวจ ความแม่นยำ และบอส)",
+      touch: "เอาตัวรอดอย่างเดียวไม่พอ — ดูภารกิจที่ “ภารกิจ x/6” มุมขวา หรือกดปุ่ม II เพื่อดูรายการเต็ม (กุญแจ 3 ดอก ห้องที่ต้องสำรวจ ความแม่นยำ และบอส)",
+      when: (g) => g.mode === "campaign" && g.correctCount >= 1,
+      done: () => false,
+      hold: 10,
+    },
+    {
+      id: "wallgun",
+      title: "ปืนติดผนัง",
+      desk: "ปืนบนผนังซื้อได้ด้วยเงิน (กด E เมื่อเงินพอ) — ปืนยิ่งหนักยิ่งเดินช้าและเหนื่อยเร็ว",
+      touch: "ปืนบนผนังซื้อได้ด้วยเงิน (กด E เมื่อเงินพอ) — ปืนยิ่งหนักยิ่งเดินช้าและเหนื่อยเร็ว",
+      when: (g) => g._lookedAtInteractable && g._lookedAtInteractable.kind === "wallweapon",
+      done: () => false,
+      hold: 7,
+    },
+    {
+      id: "mystery",
+      title: "กล่องสุ่มปืน",
+      desk: "กล่องสุ่ม $1,000 ต่อครั้ง: เลือกการ์ด 1 ใน 6 ใบ — มีการ์ดระดับโหดอยู่ 1 ใบเสมอ",
+      touch: "กล่องสุ่ม $1,000 ต่อครั้ง: เลือกการ์ด 1 ใน 6 ใบ — มีการ์ดระดับโหดอยู่ 1 ใบเสมอ",
+      when: (g) => g._lookedAtInteractable && g._lookedAtInteractable.kind === "mysterybox",
+      done: () => false,
+      hold: 7,
+    },
+  ],
+
+  // Shown inside the shop screen rather than on the HUD, since the HUD is
+  // hidden while shopping.
+  SHOP_TIP: "ร้านค้าเปิดระหว่างเวฟ: ใช้เงินจากการตอบถูกเพื่ออัปเกรดปืน ซื้อ Perk หรือลังปืนสุ่ม — มีเวลาจำกัด",
+
+  enabled() { return G.save && !G.save.tutorialDone; },
+  seen() { G.save.tutorialSeen = G.save.tutorialSeen || {}; return G.save.tutorialSeen; },
+
+  startRun(game) {
+    this.current = null; this.queue = [];
+    this.stats = { moved: 0, shots: 0, pickups: 0, lastPos: game.yawObject.position.clone() };
+    this.hide();
+  },
+
+  onShot() { if (this.stats) this.stats.shots++; },
+  onPickup() { if (this.stats) this.stats.pickups++; },
+
+  update(dt, game) {
+    if (!this.enabled() || !this.stats || game.mode !== "campaign") { if (this.current) this.hide(); return; }
+    const s = this.stats, p = game.yawObject.position;
+    s.moved += Math.hypot(p.x - s.lastPos.x, p.z - s.lastPos.z);
+    s.lastPos.copy(p);
+    const seen = this.seen();
+    // queue anything whose moment has come
+    this._t -= dt;
+    if (this._t <= 0) {
+      this._t = 0.25;
+      for (const st of this.STEPS) {
+        if (seen[st.id] || this.queue.includes(st) || this.current === st) continue;
+        if (st.when(game, s)) this.queue.push(st);
+      }
+    }
+    // game time, not wall-clock: a card must not quietly expire while the
+    // game is paused
+    if (this.current) {
+      this._age += dt;
+      const age = this._age;
+      const st = this.current;
+      // a card stays at least 2.5 s so it can be read, then leaves when its
+      // job is done -- or after its hold time, so nothing lingers forever
+      if ((age > 2.5 && st.done(game, s)) || age > (st.hold || 12)) {
+        seen[st.id] = true;
+        G.persistSoon();
+        this.hide();
+      }
+    } else if (this.queue.length) {
+      this.show(this.queue.shift());
+    }
+    // everything seen: the tutorial is over
+    if (this.STEPS.every((st) => seen[st.id]) && seen.shop) { G.save.tutorialDone = true; G.persistSoon(); }
+  },
+
+  show(st) {
+    this.current = st;
+    this._age = 0;
+    const touch = G.Input.mode === "touch";
+    const el = document.getElementById("hud-tip");
+    document.getElementById("hud-tip-title").textContent = "💡 " + st.title;
+    document.getElementById("hud-tip-text").textContent = touch ? st.touch : st.desk;
+    el.classList.remove("hidden");
+    el.classList.remove("tip-in"); void el.offsetWidth; el.classList.add("tip-in");
+  },
+  hide() {
+    this.current = null;
+    const el = document.getElementById("hud-tip");
+    if (el) el.classList.add("hidden");
+  },
+
+  // Shop screen: a one-off note on the first visit.
+  shopTip() {
+    const box = document.getElementById("shop-tip");
+    if (!box) return;
+    const seen = this.enabled() ? this.seen() : null;
+    if (!seen || seen.shop) { box.classList.add("hidden"); return; }
+    box.textContent = "💡 " + this.SHOP_TIP;
+    box.classList.remove("hidden");
+    seen.shop = true;
+    G.persistSoon();
+  },
+
+  skip() {
+    G.save.tutorialDone = true;
+    G.persist();
+    this.queue = [];
+    this.hide();
+  },
+  // Replay: every card becomes unseen again and shows when its moment comes.
+  reset() {
+    G.save.tutorialDone = false;
+    G.save.tutorialSeen = {};
+    G.persist();
+    this.queue = [];
+    this.hide();
+  },
+};
