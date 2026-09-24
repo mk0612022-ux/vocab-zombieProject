@@ -58,6 +58,7 @@ G.Game = {
     // for the first tap to switch the control scheme over.
     if (G.isHandheld() && G.save.settings.controlMode === "auto") G.Input.mode = "touch";
     G.Input.init();
+    G.Audio.init();
     G.UI.init();
     G.TouchCfg.init();
     G.Shop.resetRun();
@@ -225,6 +226,8 @@ G.Game = {
     this._finalWaveCleared = false;
     this._overtimeAnnounced = false;
     if (this.mode === "campaign") G.Objectives.reset(this.level.id, this.world); else G.Objectives.state = null;
+    G.Audio.startLevel(this.level.theme);
+    this._stepT = 0; this._hbT = 0; this._behindT = 0; this._wasExhausted = false;
     this.startWave();
     if (G.Input.mode === "desktop") G.Input.requestPointerLock();
   },
@@ -263,6 +266,7 @@ G.Game = {
     this.renderer.render(this.scene, this.camera);
   },
   teardownLevel() {
+    if (G.Audio) G.Audio.stopLevel();
     if (this.scene) {
       this.zombies.forEach((z) => { this.scene.remove(z.mesh); G.disposeObject3D(z.mesh); });
       this.drops.forEach((d) => { this.scene.remove(d.mesh); G.disposeObject3D(d.mesh); });
@@ -317,6 +321,8 @@ G.Game = {
     }
     const chosen = G.pick(alive);
     this.targetPair = [chosen.word, chosen.meaning];
+    // J3 "before" mode: read the new target aloud the moment it appears
+    if (G.save.settings.speechMode === "before") G.Audio.speak(chosen.word);
     alive.forEach((z) => z.setTarget(z === chosen));
   },
 
@@ -400,6 +406,7 @@ G.Game = {
     // Animation runs for exactly this weapon's reload time (category E2).
     this.weaponAnim.reloadDur = def.reloadTime / 1000;
     this.weaponAnim.reloadT = this.weaponAnim.reloadDur;
+    G.Audio.reload(this.weaponAnim.reloadDur);
   },
 
   // ---------------- Shooting ----------------
@@ -410,11 +417,16 @@ G.Game = {
     const def = this.currentWeaponDef();
     if ((this.player.fireCooldown > 0 && !inBurst) || this.player.reloading) return;
     const id = this.currentWeaponId();
-    if (id === "melee") { this.meleeAttack(def); this.player.fireCooldown = def.fireRate / 1000; return; }
+    if (id === "melee") {
+      this.meleeAttack(def); this.player.fireCooldown = def.fireRate / 1000;
+      G.Audio.noise({ dur: 0.16, freq: 1800, freqEnd: 600, q: 0.8, gain: 0.18 });   // blade swish
+      return;
+    }
     const ammo = this.player.ammo[id];
     const lvl = this.player.weaponLevels[id];
-    if (ammo.mag <= 0) { this._burst = null; this.reload(); return; }
+    if (ammo.mag <= 0) { this._burst = null; G.Audio.sfx("empty"); this.reload(); return; }
     ammo.mag--;
+    G.Audio.gunshot(def);
     if (!inBurst) this.player.fireCooldown = (def.fireRate / 1000) / lvl.rate;
     // Category N: a burst weapon looses the rest of its rounds on a timer.
     if (def.burst > 1 && !inBurst) {
@@ -491,6 +503,7 @@ G.Game = {
   // the shooter is not immune to their own launcher at point blank.
   splashDamage(point, def, baseDmg) {
     const r = def.splashRadius || 3.5;
+    G.Audio.explosion(point, r >= 6);
     G.spawnHitParticles(this.scene, point, 0xffa64d, G.save.settings.graphicsQuality);
     // snapshot: damageZombie can remove entries from this.zombies mid-loop
     this.zombies.slice().forEach((z) => {
@@ -612,7 +625,11 @@ G.Game = {
       appliedDmg = Math.min(dmg, z.maxHp * 0.01);
     }
     const died = z.takeDamage(appliedDmg);
-    if (died) this.onZombieDeath(z);
+    if (died) { G.Audio.zombie("death", z.type, z.mesh.position); this.onZombieDeath(z); }
+    else if (!z._hurtSoundAt || performance.now() - z._hurtSoundAt > 350) {
+      z._hurtSoundAt = performance.now();
+      G.Audio.zombie("hurt", z.type, z.mesh.position);
+    }
   },
 
   onZombieDeath(z) {
@@ -625,6 +642,10 @@ G.Game = {
     const wasCorrect = this.targetPair && z.word === this.targetPair[0];
     if (wasCorrect) {
       this.correctCount++;
+      G.Audio.sfx("correct");
+      // J3: pronounce the word once it has been earned (default), so the
+      // audio reinforces the answer instead of giving it away
+      if ((G.save.settings.speechMode || "after") === "after") G.Audio.speak(z.word);
       const prevWrong = G.save.wordStats[z.word.toLowerCase()] && G.save.wordStats[z.word.toLowerCase()].wrong > 0;
       G.recordWordResult(z.word, true);
       this.player.combo++;
@@ -636,6 +657,7 @@ G.Game = {
       this.rollLootDrop(z, true);
     } else {
       this.wrongCount++;
+      G.Audio.sfx("wrong");
       G.recordWordResult(z.word, false);
       this.trackWrongWord(z.word, z.meaning);
       this.player.combo = 0;
@@ -723,6 +745,7 @@ G.Game = {
     this.scene.remove(drop.mesh);
     G.disposeObject3D(drop.mesh);
     this.drops = this.drops.filter((d) => d !== drop);
+    G.Audio.sfx("pickup");
     if (drop.kind === "money") this.player.money += 20 + Math.round(G.rng() * 30);
     else if (drop.kind === "ammo") {
       const id = this.currentWeaponId();
@@ -841,6 +864,7 @@ G.Game = {
   buyShopItem(item, price) {
     if (this.player.money < price) return;
     this.player.money -= price;
+    G.Audio.sfx("purchase");
     G.Shop.recordPurchase(item.id);
     const curId = this.currentWeaponId();
     switch (item.kind) {
@@ -968,6 +992,7 @@ G.Game = {
     this.updateRoomDoors(dt);
     this.updateSwingProps(dt);
     if (this.mode === "campaign") G.Objectives.update(dt, this);
+    this.updateAudio(dt);
     G.updateFlickerLights(this.world, performance.now() / 1000, this.yawObject.position);
     G.updateDriftingFog(this.scene, this.world, performance.now() / 1000);
     G.updateSparks(this.scene, this.world, dt);
@@ -1216,6 +1241,7 @@ G.Game = {
         this.weaponAnim.switchDur = 0.42;
         this.weaponAnim.switchT = this.weaponAnim.switchDur;
         this.weaponAnim.pendingRebuild = true;
+        G.Audio.sfx("switch");
         this.weaponAnim.reloadT = 0;
         this.player.reloading = false;
       }
@@ -1263,6 +1289,7 @@ G.Game = {
         z.attackCooldown = 1.0;
         const dmg = z.damage * (1 - this.player.armorPct);
         this.player.hp -= dmg;
+        G.Audio.sfx("hurt");
         this.player.wasHitThisLevel = true;
         G.UI.flashDamage();
         this.checkPlayerDeath();
@@ -1382,6 +1409,7 @@ G.Game = {
     this._mysteryPick = idx;
     const picked = this._mysteryHand[idx];
     G.UI.revealMysteryCards(this._mysteryHand, idx);
+    G.Audio.mystery(picked.rarity);
     G.spawnCrateBurst(this.scene, this.yawObject.position.clone(), picked.rarity, G.save.settings.graphicsQuality);
   },
   confirmMysteryPick() {
@@ -1410,6 +1438,7 @@ G.Game = {
     if (this.world.colliders.indexOf(ref.collider) < 0) this.world.colliders.push(ref.collider);
     ref.colliderDropped = false;
     ref.shakeT = 0;
+    G.Audio.door(willOpen, new THREE.Vector3(ref.x, (ref.baseY || 0) + 1.5, ref.z));
     // A door nobody has touched since the outbreak coughs dust off its frame.
     if (!ref.dusted) {
       ref.dusted = true;
@@ -1466,6 +1495,75 @@ G.Game = {
     }
   },
 
+  // J3 replay (the HUD 🔊 button, or V): in "before" mode it reads the
+  // current target; otherwise it repeats the last word that was earned, so it
+  // never gives the answer away.
+  speakCurrentWord() {
+    if (G.save.settings.speechMode === "before" && this.targetPair) G.Audio.speak(this.targetPair[0]);
+    else G.Audio.replay();
+  },
+
+  // ---------------- Per-frame audio (category J) ----------------
+  // Music/ambience scheduling, positional zombie growls, footsteps that match
+  // the surface underfoot, and three warnings: low health, empty stamina, and
+  // a zombie closing in from behind.
+  updateAudio(dt) {
+    const A = G.Audio;
+    if (!A.ctx) return;
+    A.update(dt, this);
+    const p = this.yawObject.position;
+
+    // growls: each zombie on its own irregular timer, only within earshot
+    for (const z of this.zombies) {
+      if (!z.alive) continue;
+      z._growlT = (z._growlT === undefined ? 1 + Math.random() * 4 : z._growlT) - dt;
+      if (z._growlT <= 0) {
+        z._growlT = (z.type === "fast" ? 2.2 : 3.5) + Math.random() * 4.5;
+        if (z.mesh.position.distanceTo(p) < 32) A.zombie("growl", z.type, z.mesh.position.clone().setY(z.mesh.position.y + 1.4));
+      }
+    }
+
+    // footsteps: surface from the theme and, at the school, whether you are
+    // out on the grass
+    const moving = this._lastStepPos ? Math.hypot(p.x - this._lastStepPos.x, p.z - this._lastStepPos.z) / Math.max(dt, 1e-4) : 0;
+    this._lastStepPos = { x: p.x, z: p.z };
+    if (moving > 0.8 && this.velocityY === 0) {
+      const running = moving > 4.2;
+      this._stepT -= dt;
+      if (this._stepT <= 0) {
+        this._stepT = running ? 0.32 : 0.5;
+        const region = G.getRegionAt(this.world, p.x, p.z, p.y - 1.7);
+        const surface = this.level.theme === "bunker" ? "metal" : region === "YARD" ? "grass" : "tile";
+        A.footstep(surface, running);
+      }
+    } else this._stepT = Math.min(this._stepT, 0.12);
+
+    // warning 1: heartbeat under 30% health, quickening as it drops
+    const hpFrac = this.player.hp / this.player.maxHp;
+    if (hpFrac < 0.3 && hpFrac > 0) {
+      this._hbT -= dt;
+      if (this._hbT <= 0) { this._hbT = 0.55 + hpFrac * 1.4; A.sfx("heartbeat"); }
+    }
+    // warning 2: the moment stamina runs out
+    if (this.staminaExhausted && !this._wasExhausted) A.sfx("breath");
+    this._wasExhausted = this.staminaExhausted;
+    // warning 3: something close behind you
+    this._behindT -= dt;
+    if (this._behindT <= 0) {
+      const fwd = new THREE.Vector3(-Math.sin(this.yawObject.rotation.y), 0, -Math.cos(this.yawObject.rotation.y));
+      for (const z of this.zombies) {
+        if (!z.alive) continue;
+        const to = new THREE.Vector3(z.mesh.position.x - p.x, 0, z.mesh.position.z - p.z);
+        const d = to.length();
+        if (d > 1.2 && d < 6 && fwd.dot(to.normalize()) < -0.45) {
+          A.sfx("behind", { pos: z.mesh.position.clone().setY(1.5) });
+          this._behindT = 4;
+          break;
+        }
+      }
+    }
+  },
+
   // The blocking box is the panel's own world AABB, recomputed as it swings.
   // A fixed box either blocks a door that is already open, or lets you walk
   // through one that is still closing.
@@ -1482,6 +1580,7 @@ G.Game = {
   buyWallWeapon(ref) {
     if (ref.purchased || this.player.money < ref.price) return;
     this.player.money -= ref.price;
+    G.Audio.sfx("purchase");
     ref.purchased = true;
     this.acquireWeapon(ref.id);
     G.spawnCrateBurst(this.scene, ref.gunMesh.getWorldPosition(new THREE.Vector3()), "secret", G.save.settings.graphicsQuality);
@@ -1586,6 +1685,7 @@ G.Game = {
     if (killTally < sf.killsNeeded) return;
     sf.unlocked = true;
     sf.barrierMesh.visible = false;
+    G.Audio.sfx("unlock");
     const idx = this.world.colliders.indexOf(sf.barrierCollider);
     if (idx >= 0) this.world.colliders.splice(idx, 1);
     sf.cratePositions.forEach((p) => this.spawnDrop("crate", p));
@@ -1674,6 +1774,7 @@ G.onKeyDown = function (e) {
     Game.answerChallenge(parseInt(e.code.slice(-1)) - 1);
     return;
   }
+  if (Game.state === "GAMEPLAY" && e.code === "KeyV") { Game.speakCurrentWord(); return; }
   if (Game.state === "GAMEPLAY") {
     const kb = G.save.settings.keybinds;
     if (e.code === kb.pause) { Game.pause(); return; }

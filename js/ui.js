@@ -170,6 +170,18 @@ G.UI = {
           <button class="btn keybind-btn" data-action="${a}">${kb[a]}</button></div>`).join("")}
       <div class="row-center"><button class="btn" id="btn-reset-keybinds">Reset to Default</button></div>
 
+      <div class="settings-section-title">เสียง</div>
+      ${[["sfxVolume", "เสียงเอฟเฟกต์ (ปืน ซอมบี้ เดิน)"], ["musicVolume", "เพลงประกอบ"], ["ambientVolume", "เสียงบรรยากาศ"], ["speechVolume", "เสียงอ่านคำศัพท์"]].map(([k, label]) => `
+      <div class="settings-row"><label>${label} (${Math.round((s[k] == null ? 0.7 : s[k]) * 100)}%)</label>
+        <input type="range" class="set-vol" data-key="${k}" min="0" max="1" step="0.05" value="${s[k] == null ? 0.7 : s[k]}"></div>`).join("")}
+      <div class="settings-row"><label>อ่านออกเสียงคำศัพท์อัตโนมัติ</label>
+        <select id="set-speechmode">
+          <option value="after">หลังตอบถูก (แนะนำ)</option>
+          <option value="before">ทันทีที่คำใหม่ปรากฏ (ง่ายขึ้น)</option>
+          <option value="off">ปิด</option>
+        </select></div>
+      <div class="row-center"><button class="btn" id="btn-speech-test">ทดสอบเสียงอ่าน</button></div>
+
       <div class="settings-section-title">Performance</div>
       <div class="settings-row"><label>FPS Cap</label>
         <select id="set-fpscap">
@@ -216,6 +228,18 @@ G.UI = {
     wrap.querySelector("#set-quality").onchange = (e) => { s.graphicsQuality = e.target.value; G.persist(); G.Game.applyGraphicsQuality && G.Game.applyGraphicsQuality(); };
     wrap.querySelector("#set-gamespeed").oninput = (e) => { s.gameSpeed = parseFloat(e.target.value); G.persist(); this.renderSettings(); };
     wrap.querySelector("#set-fontsize").onchange = (e) => { s.fontSize = e.target.value; G.persist(); this.applyFontSizeClass(); };
+    // J4: four independent volumes, saved as they move
+    wrap.querySelectorAll(".set-vol").forEach((inp) => {
+      inp.oninput = (e) => {
+        s[inp.dataset.key] = parseFloat(e.target.value);
+        G.Audio.applyVolumes();
+        inp.previousElementSibling.textContent = inp.previousElementSibling.textContent.replace(/\(\d+%\)/, `(${Math.round(s[inp.dataset.key] * 100)}%)`);
+      };
+      inp.onchange = () => { G.persist(); if (inp.dataset.key === "sfxVolume") { G.Audio.unlock(); G.Audio.sfx("pickup"); } };
+    });
+    wrap.querySelector("#set-speechmode").value = s.speechMode || "after";
+    wrap.querySelector("#set-speechmode").onchange = (e) => { s.speechMode = e.target.value; G.persist(); };
+    wrap.querySelector("#btn-speech-test").onclick = () => G.Audio.speak("vocabulary");
     wrap.querySelector("#set-colorblind").onchange = (e) => {
       s.colorblindMode = e.target.checked; G.persist();
       if (G.Game.state === "GAMEPLAY" && G.Game.buildWeaponViewModel) G.Game.buildWeaponViewModel();
@@ -274,6 +298,15 @@ G.UI = {
   // ---------------- Vocabulary Log (category F) ----------------
   bindVocabLog() {
     this.el("btn-vocablog-back").onclick = () => this.showScreen(this._logReturnScreen || "screen-mainmenu");
+    // J3: every word in the log can be heard
+    this.el("vocablog-content").addEventListener("click", (e) => {
+      const b = e.target.closest(".speak-btn");
+      if (b) { G.Audio.unlock(); G.Audio.speak(b.dataset.word); }
+    });
+    const hs = this.el("hud-speak");
+    const replay = (e) => { e.preventDefault(); e.stopPropagation(); G.Audio.unlock(); G.Game.speakCurrentWord(); };
+    hs.addEventListener("click", replay);
+    hs.addEventListener("touchstart", replay, { passive: false });
   },
   renderVocabLog(levelId) {
     this._vocabLogLevel = levelId;
@@ -290,7 +323,7 @@ G.UI = {
           ? `<span class="vocab-badge correct">ถูก ${stat.correct}${stat.wrong ? ` / ผิด ${stat.wrong}` : ""}</span>`
           : `<span class="vocab-badge wrong">ผิด ${stat.wrong}${stat.correct ? ` / ถูก ${stat.correct}` : ""}</span>`;
       }
-      return `<div class="vocab-item"><div><div class="vw-en">${en}</div><div class="vw-th">${th}</div></div>${badge}</div>`;
+      return `<div class="vocab-item"><div><div class="vw-en">${en} <button class="speak-btn" data-word="${en}" aria-label="ฟังเสียง ${en}">🔊</button></div><div class="vw-th">${th}</div></div>${badge}</div>`;
     }).join("");
     this.el("vocablog-content").innerHTML = `<div class="vocab-grid">${items}</div>`;
   },
@@ -474,6 +507,8 @@ G.UI = {
     const [word, meaning] = this.practicePairs[this.practiceIdx];
     this.el("practice-progress").textContent = `${this.practiceIdx + 1} / ${this.practicePairs.length}`;
     this.el("practice-word").textContent = word;
+    // J3: Practice Mode reads every card aloud, on its own speech setting
+    if ((G.save.settings.speechMode || "after") !== "off") G.Audio.speak(word);
     this.el("practice-feedback").textContent = "";
     const allMeanings = G.getAllBuiltinWords().map((p) => p[1]).filter((m) => m !== meaning);
     const distractors = G.shuffle(allMeanings).slice(0, 3);

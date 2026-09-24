@@ -58,6 +58,9 @@ G.defaultSave = function () {
       keybinds: G.defaultKeybinds ? G.defaultKeybinds() : {},
       musicVolume: 0.6,
       sfxVolume: 0.8,
+      ambientVolume: 0.6,         // category J4
+      speechVolume: 0.9,
+      speechMode: "after",        // off | after (read the word once answered) | before (read the new target aloud)
     },
     importedSets: {},             // {id: {name, words:[[en,th],...]}}
   };

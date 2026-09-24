@@ -526,3 +526,17 @@ body.font-small .hud-meaning { font-size: 1.25rem; }
 .pause-objectives .obj-row.todo { color: #e6e6e6; }
 .pause-objectives .obj-val { font-variant-numeric: tabular-nums; opacity: 0.9; }
 @media (max-height: 520px) { .pause-objectives { font-size: 0.72rem; padding: 6px 10px; } }
+
+/* ---------------- Pronunciation buttons (category J3) ---------------- */
+.hud-meaning-box { position: relative; }
+.hud-speak {
+  position: absolute; right: -14px; top: 50%; transform: translateY(-50%);
+  width: 30px; height: 30px; border-radius: 50%; padding: 0;
+  background: rgba(10,20,14,0.85); border: 1px solid #6bff7a88; color: #dff5e2;
+  font-size: 0.9rem; cursor: pointer; pointer-events: auto; touch-action: none;
+}
+.speak-btn {
+  background: none; border: 1px solid #3f8a50; border-radius: 5px; color: #dff5e2;
+  font-size: 0.75rem; padding: 0 5px; margin-left: 4px; cursor: pointer; vertical-align: middle;
+}
+.speak-btn:hover, .hud-speak:hover { border-color: #6bff7a; }
