@@ -612,6 +612,13 @@ G.UI = {
       (p.weightLabel ? ` <span style="color:${p.weightColor};font-size:0.78em">[${p.weightLabel}]</span>` : "");
     this.el("hud-ammo").textContent = p.weaponName === "Combat Knife" ? "∞" : `${p.ammoInMag} / ${p.ammoReserve}`;
     this.el("hud-meaning").textContent = p.currentMeaning || "-";
+    const obj = this.el("hud-objectives");
+    if (p.objectives) {
+      obj.classList.remove("hidden");
+      if (obj.textContent !== p.objectives) obj.textContent = p.objectives;
+      const [d, t] = p.objectives.replace(/[^0-9/]/g, "").split("/").map(Number);
+      obj.classList.toggle("done", d === t);
+    } else obj.classList.add("hidden");
     const slotsWrap = this.el("hud-slots");
     slotsWrap.innerHTML = "";
     p.slots.forEach((s, i) => {
@@ -623,6 +630,16 @@ G.UI = {
     if (p.combo > 1) { this.el("hud-combo").classList.remove("hidden"); this.el("hud-combo").textContent = "COMBO x" + p.combo; }
     else this.el("hud-combo").classList.add("hidden");
     if (G.Input.mode === "touch") this.refreshTouchSlots(p.slots, p.slots.findIndex((s) => s.active));
+  },
+  // Category I: the full checklist, shown on the pause screen.
+  renderPauseObjectives() {
+    const box = this.el("pause-objectives");
+    const game = G.Game;
+    if (!G.Objectives.state) { box.classList.add("hidden"); return; }
+    box.classList.remove("hidden");
+    const rows = G.Objectives.list(game);
+    box.innerHTML = `<h4>ภารกิจผ่านด่าน (${rows.filter((r) => r.done).length}/${rows.length})</h4>` +
+      rows.map((r) => `<div class="obj-row ${r.done ? "done" : "todo"}"><span>${r.done ? "✔" : "○"} ${r.label}</span><span class="obj-val">${r.value}</span></div>`).join("");
   },
   setAimingVisual(v) { this.el("hud-crosshair").classList.toggle("aiming", !!v); },
   // Category N: the scope replaces the crosshair entirely -- a reticle drawn

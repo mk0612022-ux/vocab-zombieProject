@@ -521,6 +521,28 @@ G.buildLevelScene = function (scene, level, quality) {
     world.regions = []; world.waypointNodes = {}; world.waypointEdges = {};
     world.extraSpawnPoints = [];
     world.wallWeapons = [];
+    world.keys = [];
+    // category I: the rooms the "explore" objective counts -- every real room,
+    // not corridors, halls or the gallery
+    world.roomNames = new Set(cfg.plan.map((s) => s.key).concat(cfg.storeys === 2 ? cfg.upperKeys : []));
+
+    // A hidden key (category I): a ring, a shaft and two teeth, gold and
+    // self-lit so it reads in the dark from across a room.
+    function buildKeyMesh() {
+      const g = new THREE.Group();
+      const gold = new THREE.MeshBasicMaterial({ color: 0xffd43b });
+      const dark = new THREE.MeshLambertMaterial({ color: 0xb8860b });
+      [[0, 0.16, 0.2, 0.05], [0, -0.0, 0.2, 0.05], [-0.08, 0.08, 0.05, 0.2], [0.08, 0.08, 0.05, 0.2]].forEach(([x, y, w, h]) => {
+        const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.05), gold); b.position.set(x, y, 0); g.add(b);
+      });
+      const shaft = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.36, 0.05), dark); shaft.position.set(0, -0.2, 0); g.add(shaft);
+      [[0.05, -0.3], [0.05, -0.38]].forEach(([x, y]) => {
+        const t = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.04, 0.05), gold); t.position.set(x, y, 0); g.add(t);
+      });
+      const halo = new THREE.PointLight(0xffd43b, 0.7, 3.5); halo.position.set(0, 0, 0.1); g.add(halo);
+      g.scale.set(1.6, 1.6, 1.6);
+      return g;
+    }
 
     function link(a, b) {
       world.waypointEdges[a] = world.waypointEdges[a] || [];
@@ -813,6 +835,13 @@ G.buildLevelScene = function (scene, level, quality) {
         }, 0x2a1350);
         world.mysteryBox = { mesh: crate, x: mbX, z: mbZ, uses: 0 };
         world.interactables.push({ mesh: crate, kind: "mysterybox", ref: world.mysteryBox });
+      }
+      // `hasKey`, not `key`: `key` is already the room.s region name
+      if (spec.hasKey) {
+        const km = buildKeyMesh();
+        km.position.set(spec.room.cx + (spec.side === "W" ? 2 : -2), spec.baseY + 1.1, spec.room.cz);
+        scene.add(km);
+        world.keys.push({ mesh: km, baseY: spec.baseY, taken: false, phase: world.keys.length * 1.7, room: spec.key });
       }
       if (spec.button) {
         const bm = addProp(spec.room.cx - 3, spec.room.cz + 4, 0.35, 0.35, 0.35, new THREE.MeshLambertMaterial({ color: 0xff4444 }), 0, 0, 0, true);
@@ -1220,8 +1249,8 @@ G.buildLevelScene = function (scene, level, quality) {
           { key: "E2", side: "E", row: 1, light: 3, gun: "pop_quiz", furnish: "lab" },
           { key: "W3", side: "W", row: 2, light: 2, button: true, furnish: "office" },
           { key: "E3", side: "E", row: 2, light: 0, furnish: "classroom" },
-          { key: "W4", side: "W", row: 3, light: 4, gun: "detention_slug", secret: true },
-          { key: "E4", side: "E", row: 3, light: 1, gun: "cafeteria_cleaver", wordDoor: true, furnish: "storage" },
+          { key: "W4", side: "W", row: 3, light: 4, gun: "detention_slug", secret: true, hasKey: true },
+          { key: "E4", side: "E", row: 3, light: 1, gun: "cafeteria_cleaver", wordDoor: true, furnish: "storage", hasKey: true },
           { key: "W5", side: "W", row: 4, light: 2, furnish: "canteen" },
           { key: "E5", side: "E", row: 4, light: 3 },
           { key: "PW1", side: "W", row: 0, storey: 2, light: 1, gun: "honor_roll" },
@@ -1230,7 +1259,7 @@ G.buildLevelScene = function (scene, level, quality) {
           { key: "PE2", side: "E", row: 1, storey: 2, light: 2, gun: "science_fair", furnish: "lab" },
           { key: "PW3", side: "W", row: 2, storey: 2, light: 4, gun: "art_attack" },
           { key: "PE3", side: "E", row: 2, storey: 2, light: 1, mystery: true },
-          { key: "PW4", side: "W", row: 3, storey: 2, light: 3, furnish: "office" },
+          { key: "PW4", side: "W", row: 3, storey: 2, light: 3, furnish: "office", hasKey: true },
           { key: "PE4", side: "E", row: 3, storey: 2, light: 0, gun: "principals_verdict" },
           { key: "PW5", side: "W", row: 4, storey: 2, light: 2, furnish: "storage" },
           { key: "PE5", side: "E", row: 4, storey: 2, light: 4, furnish: "classroom" },
@@ -1264,15 +1293,15 @@ G.buildLevelScene = function (scene, level, quality) {
           { key: "E2", side: "E", row: 1, light: 3, furnish: "storage", gun: "iv_repeater" },
           { key: "W3", side: "W", row: 2, light: 2, button: true, furnish: "office" },
           { key: "E3", side: "E", row: 2, light: 0, furnish: "ward" },
-          { key: "W4", side: "W", row: 3, light: 4, secret: true, furnish: "lab", gun: "quarantine_lance" },
-          { key: "E4", side: "E", row: 3, light: 1, wordDoor: true, furnish: "storage", gun: "morphine_mist" },
+          { key: "W4", side: "W", row: 3, light: 4, secret: true, furnish: "lab", gun: "quarantine_lance", hasKey: true },
+          { key: "E4", side: "E", row: 3, light: 1, wordDoor: true, furnish: "storage", gun: "morphine_mist", hasKey: true },
           { key: "W5", side: "W", row: 4, light: 2, furnish: "morgue" },
           { key: "E5", side: "E", row: 4, light: 3, furnish: "ward" },
           { key: "PW1", side: "W", row: 0, storey: 2, light: 1, furnish: "ward" },
           { key: "PE1", side: "E", row: 0, storey: 2, light: 3, furnish: "office" },
           { key: "PW2", side: "W", row: 1, storey: 2, light: 0, furnish: "theatre", gun: "autoclave" },
           { key: "PE2", side: "E", row: 1, storey: 2, light: 2, furnish: "lab", gun: "defib_driver" },
-          { key: "PW3", side: "W", row: 2, storey: 2, light: 4, furnish: "ward" },
+          { key: "PW3", side: "W", row: 2, storey: 2, light: 4, furnish: "ward", hasKey: true },
           { key: "PE3", side: "E", row: 2, storey: 2, light: 1, mystery: true, furnish: "storage" },
           { key: "PW4", side: "W", row: 3, storey: 2, light: 3, furnish: "lab", gun: "vital_sign" },
           { key: "PE4", side: "E", row: 3, storey: 2, light: 0, furnish: "office", gun: "code_blue" },
@@ -1307,8 +1336,8 @@ G.buildLevelScene = function (scene, level, quality) {
         { key: "W2", side: "W", row: 1, light: 1, furnish: "armoury", gun: "vent_ripper" },
         { key: "E2", side: "E", row: 1, light: 3, furnish: "generator", gun: "bolt_thrower" },
         { key: "W3", side: "W", row: 2, light: 2, button: true, furnish: "control" },
-        { key: "E3", side: "E", row: 2, light: 0, secret: true, furnish: "cells" },
-        { key: "W4", side: "W", row: 3, light: 4, wordDoor: true, furnish: "storage", gun: "siege_slug" },
+        { key: "E3", side: "E", row: 2, light: 0, secret: true, furnish: "cells", hasKey: true },
+        { key: "W4", side: "W", row: 3, light: 4, wordDoor: true, furnish: "storage", gun: "siege_slug", hasKey: true },
         { key: "E4", side: "E", row: 3, light: 1, furnish: "office", gun: "drum_hammer" },
         { key: "W5", side: "W", row: 4, light: 2, furnish: "storage" },
         { key: "E5", side: "E", row: 4, light: 3, furnish: "armoury" },
@@ -1320,7 +1349,7 @@ G.buildLevelScene = function (scene, level, quality) {
         { key: "PE3", side: "E", row: 2, storey: 2, light: 1, mystery: true, furnish: "control" },
         { key: "PW4", side: "W", row: 3, storey: 2, light: 3, furnish: "barracks", gun: "overwatch" },
         { key: "PE4", side: "E", row: 3, storey: 2, light: 0, furnish: "storage", gun: "warhead" },
-        { key: "PW5", side: "W", row: 4, storey: 2, light: 2, furnish: "generator" },
+        { key: "PW5", side: "W", row: 4, storey: 2, light: 2, furnish: "generator", hasKey: true },
         { key: "PE5", side: "E", row: 4, storey: 2, light: 4, furnish: "office" },
       ],
     };

@@ -512,3 +512,17 @@ body.font-small .hud-meaning { font-size: 1.25rem; }
 }
 .hud-charge-fill { height: 100%; width: 0%; background: #ffd43b; border-radius: 2px; transition: background .1s; }
 .hud-charge-fill.full { background: #6bff7a; box-shadow: 0 0 8px #6bff7a; }
+
+/* ---------------- Level objectives (category I) ---------------- */
+.hud-objectives { margin-top: 4px; font-size: 0.72rem; font-weight: 700; color: #ffd43b; text-align: right; letter-spacing: 0.5px; }
+.hud-objectives.done { color: #6bff7a; }
+.pause-objectives {
+  background: rgba(10,18,14,0.75); border: 1px solid #2f6b3c; border-radius: 8px;
+  padding: 10px 14px; text-align: left; font-size: 0.85rem; line-height: 1.55;
+}
+.pause-objectives h4 { margin: 0 0 6px; color: #ffd43b; font-size: 0.9rem; }
+.pause-objectives .obj-row { display: flex; justify-content: space-between; gap: 14px; }
+.pause-objectives .obj-row.done { color: #6bff7a; }
+.pause-objectives .obj-row.todo { color: #e6e6e6; }
+.pause-objectives .obj-val { font-variant-numeric: tabular-nums; opacity: 0.9; }
+@media (max-height: 520px) { .pause-objectives { font-size: 0.72rem; padding: 6px 10px; } }

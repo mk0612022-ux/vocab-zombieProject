@@ -220,6 +220,11 @@ G.Game = {
     G.UI.setHudVisible(true);
     G.UI.applyControlMode();
     this.state = "GAMEPLAY";
+    // category I: campaign levels are cleared by their objectives, not just
+    // by outlasting the last wave
+    this._finalWaveCleared = false;
+    this._overtimeAnnounced = false;
+    if (this.mode === "campaign") G.Objectives.reset(this.level.id, this.world); else G.Objectives.state = null;
     this.startWave();
     if (G.Input.mode === "desktop") G.Input.requestPointerLock();
   },
@@ -787,6 +792,7 @@ G.Game = {
   },
   onBossDefeated(z) {
     G.unlockAchievement("first_boss");
+    G.Objectives.onBossDefeated();
     this.player.money += 500;
     this.player.score += 500;
     G.BossFight.stop();
@@ -809,7 +815,17 @@ G.Game = {
   },
   afterWaveCleared() {
     this._bossSpawnedThisWave = false;
-    if (this.mode === "campaign" && this.wave >= this.level.waves) { this.onVictory(); return; }
+    if (this.mode === "campaign" && this.wave >= this.level.waves) {
+      this._finalWaveCleared = true;
+      // Category I: the level only ends once every objective is met. Until
+      // then the waves keep coming -- overtime, not a fail state -- so a
+      // player who is short on keys or accuracy can still finish.
+      if (!G.Objectives.state || G.Objectives.allDone(this)) { this.onVictory(); return; }
+      if (!this._overtimeAnnounced) {
+        this._overtimeAnnounced = true;
+        G.UI.flashPurchaseBanner("ภารกิจยังไม่ครบ!", "ซอมบี้จะมาต่อเรื่อยๆ จนกว่าจะทำภารกิจครบ (ดูได้ที่ HUD / หน้าหยุดเกม)");
+      }
+    }
     this.openShop();
   },
 
@@ -919,6 +935,7 @@ G.Game = {
     // touchend, so clear the held state or it resumes with the trigger stuck.
     G.Input.clearHeldInputs();
     G.UI.applyControlMode();
+    G.UI.renderPauseObjectives();
     G.UI.showScreen("screen-pause");
   },
   resume() {
@@ -950,6 +967,7 @@ G.Game = {
     this.updateTraps(dt);
     this.updateRoomDoors(dt);
     this.updateSwingProps(dt);
+    if (this.mode === "campaign") G.Objectives.update(dt, this);
     G.updateFlickerLights(this.world, performance.now() / 1000, this.yawObject.position);
     G.updateDriftingFog(this.scene, this.world, performance.now() / 1000);
     G.updateSparks(this.scene, this.world, dt);
@@ -977,7 +995,8 @@ G.Game = {
     return {
       hp: (this.player.hp / this.player.maxHp) * 100, stamina: (this.stamina / this.maxStamina) * 100,
       staminaExhausted: this.staminaExhausted, money: this.player.money, score: this.player.score,
-      levelLabel: `${this.level.name} · Wave ${this.wave}${this.mode === "campaign" ? "/" + this.level.waves : ""}`,
+      levelLabel: `${this.level.name} · Wave ${this.wave}${this.mode === "campaign" ? "/" + this.level.waves : ""}${this.mode === "campaign" && this.wave > this.level.waves ? " (ต่อเวลา)" : ""}`,
+      objectives: G.Objectives.state ? `ภารกิจ ${G.Objectives.doneCount(this)}/${G.Objectives.list(this).length}` : null,
       zombiesLeft: this.zombies.length, weaponName: def.name,
       weightLabel: def.id === "melee" ? null : G.weightClass(def).label,
       weightColor: def.id === "melee" ? null : G.weightClass(def).color,
