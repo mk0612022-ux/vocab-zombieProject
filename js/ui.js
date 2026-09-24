@@ -191,6 +191,8 @@ G.UI = {
       </div>
       <div class="settings-row"><label>แสดง FPS Counter</label>
         <input type="checkbox" id="set-showfps"></div>
+      <div class="settings-row"><label>แสดงจำนวน draw call</label>
+        <input type="checkbox" id="set-showdraws"></div>
       <div class="settings-row"><label>คุณภาพกราฟิก</label>
         <select id="set-quality">
           <option value="vlow">ต่ำมาก</option><option value="low">ต่ำ</option><option value="medium">ปานกลาง</option>
@@ -216,6 +218,8 @@ G.UI = {
     wrap.querySelector("#set-controlmode").value = s.controlMode;
     wrap.querySelector("#set-fpscap").value = String(s.fpsCap);
     wrap.querySelector("#set-showfps").checked = s.showFpsCounter;
+    wrap.querySelector("#set-showdraws").checked = !!s.showDrawCalls;
+    wrap.querySelector("#set-showdraws").onchange = (e) => { s.showDrawCalls = e.target.checked; G.persist(); };
     wrap.querySelector("#set-quality").value = s.graphicsQuality;
     wrap.querySelector("#set-fontsize").value = s.fontSize;
     wrap.querySelector("#set-colorblind").checked = s.colorblindMode;
@@ -818,9 +822,19 @@ G.UI = {
     });
   },
   setChallengeTimer(pct) { this.el("hud-challenge-timer-fill").style.width = Math.max(0, pct * 100) + "%"; },
+  // Category K: FPS and draw calls, each toggleable in Settings
   updateFpsCounter(fps) {
     const el = this.el("hud-fps-counter");
-    if (G.save.settings.showFpsCounter) { el.classList.remove("hidden"); el.textContent = Math.round(fps) + " FPS"; }
-    else el.classList.add("hidden");
+    const s = G.save.settings;
+    if (!s.showFpsCounter && !s.showDrawCalls) { el.classList.add("hidden"); return; }
+    el.classList.remove("hidden");
+    const parts = [];
+    if (s.showFpsCounter) parts.push(Math.round(fps) + " FPS");
+    if (s.showDrawCalls && G.Game.renderer) {
+      const r = G.Game.renderer.info.render;
+      parts.push(r.calls + " draw calls", Math.round(r.triangles / 1000) + "k tris");
+    }
+    const txt = parts.join(" · ");
+    if (el.textContent !== txt) el.textContent = txt;
   },
 };

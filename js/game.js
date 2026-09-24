@@ -106,6 +106,7 @@ G.Game = {
       const pal = G.THEME_PALETTES[this.level.theme];
       this.scene.fog.far = q === "vlow" ? pal.fogFar * 0.5 : q === "low" ? pal.fogFar * 0.7 : pal.fogFar;
       if (this.world && this.world.fogBase) this.world.fogBase.far = this.scene.fog.far;
+      G.Perf.resizePool(this.scene, q);
     }
   },
 
@@ -177,6 +178,14 @@ G.Game = {
     this.scene = new THREE.Scene();
     this.scene.add(this.yawObject);
     this.world = G.buildLevelScene(this.scene, this.level, G.save.settings.graphicsQuality);
+    // Category K: bake the static level into a few merged meshes and swap
+    // its fifty-odd lights for a small fixed pool
+    this.perfReport = G.Perf.mergeStatic(this.scene, this.world, [this.yawObject]);
+    G.Perf.initLightPool(this.scene, this.world, G.save.settings.graphicsQuality);
+    // compile every shader now, during the load, instead of as a hitch the
+    // first time each material comes into view
+    this.scene.updateMatrixWorld(true);
+    try { this.renderer.compile(this.scene, this.camera); } catch (e) { /* best effort */ }
     this.yawObject.position.set(this.world.spawn.x, 1.7, this.world.spawn.z);
     this.pitchObject.rotation.x = 0;
     this.yawObject.rotation.y = 0;
@@ -267,6 +276,8 @@ G.Game = {
   },
   teardownLevel() {
     if (G.Audio) G.Audio.stopLevel();
+    // pooled objects live in the scene; take them out before it is disposed
+    if (G.Perf) { G.Perf.resetPools(); G.Perf.disposeLightPool(this.scene); }
     if (this.scene) {
       this.zombies.forEach((z) => { this.scene.remove(z.mesh); G.disposeObject3D(z.mesh); });
       this.drops.forEach((d) => { this.scene.remove(d.mesh); G.disposeObject3D(d.mesh); });
@@ -993,7 +1004,10 @@ G.Game = {
     this.updateSwingProps(dt);
     if (this.mode === "campaign") G.Objectives.update(dt, this);
     this.updateAudio(dt);
-    G.updateFlickerLights(this.world, performance.now() / 1000, this.yawObject.position);
+    const camDir = new THREE.Vector3(-Math.sin(this.yawObject.rotation.y), 0, -Math.cos(this.yawObject.rotation.y));
+    G.Perf.updateLights(this.yawObject.position, camDir, performance.now() / 1000);
+    G.Perf.updateSparks(dt);
+    G.Perf.cullZombies(this);
     G.updateDriftingFog(this.scene, this.world, performance.now() / 1000);
     G.updateSparks(this.scene, this.world, dt);
     this.updateChallengeTimer(dt);

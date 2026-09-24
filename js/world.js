@@ -539,7 +539,6 @@ G.buildLevelScene = function (scene, level, quality) {
       [[0.05, -0.3], [0.05, -0.38]].forEach(([x, y]) => {
         const t = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.04, 0.05), gold); t.position.set(x, y, 0); g.add(t);
       });
-      const halo = new THREE.PointLight(0xffd43b, 0.7, 3.5); halo.position.set(0, 0, 0.1); g.add(halo);
       g.scale.set(1.6, 1.6, 1.6);
       return g;
     }

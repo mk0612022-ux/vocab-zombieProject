@@ -604,9 +604,6 @@ G.buildWeaponModel = function (def) {
     ring.position.set(0, bh * 0.1, muzzleZ + 0.04);
     g.add(ring);
     g.userData.rainbowTrim = ring;
-    const spark = new THREE.PointLight(0xffd43b, 1.2, 1.8);
-    spark.position.set(0, 0.08, recZ - bd * 0.3);
-    g.add(spark);
   }
   return g;
 };
@@ -693,6 +690,9 @@ G.holdPose = function (def) {
 };
 G.buildWeaponMesh = function (def) {
   const g = G.buildWeaponModel(def);
+  // Category K: ~50 parts become one mesh per colour (the rainbow ring on
+  // secret guns spins, so it stays separate)
+  if (G.Perf && G.Perf.mergeLocal) G.Perf.mergeLocal(g, [g.userData.rainbowTrim]);
   if (G.save && G.save.settings && G.save.settings.colorblindMode) {
     const badge = G.buildRarityBadge(def.rarity);
     // Clears even the tallest silhouette (golden_smg's crown spikes top out
@@ -990,12 +990,12 @@ G.Zombie.prototype.update = function (dt, moveTarget, attackTarget, colliders, g
 };
 
 // ---------------- Particles (muzzle flash / blood / crate burst) ----------------
+// Category K: the flash borrows the light pool.s reserved slot instead of
+// adding and removing a PointLight every shot, which changed the scene.s light
+// count -- and three.js recompiles shaders when that count changes.
 G.spawnMuzzleFlash = function (scene, position, quality) {
   if (quality === "vlow") return;
-  const light = new THREE.PointLight(0xffdd66, 3, 4);
-  light.position.copy(position);
-  scene.add(light);
-  setTimeout(() => scene.remove(light), 50);
+  if (G.Perf) G.Perf.flash(position, 0xffdd66, 3, 4, 50);
 };
 
 // Category E3: a brass case flicks out to the right of the view and tumbles
@@ -1027,6 +1027,9 @@ G.spawnShellEject = function (scene, camera, quality) {
 G.spawnHitParticles = function (scene, position, color, quality) {
   const count = quality === "vhigh" ? 18 : quality === "high" ? 12 : quality === "medium" ? 8 : quality === "low" ? 4 : 0;
   if (count === 0) return;
+  // Category K: pooled -- this used to allocate a new geometry and material
+  // for every bullet that landed.
+  if (G.Perf) { G.Perf.sparks(scene, position, color || 0xff3333, count); return; }
   const geo = new THREE.BufferGeometry();
   const positions = new Float32Array(count * 3);
   const velocities = [];
@@ -1112,9 +1115,8 @@ G.spawnSparkBurst = function (scene, sparkPoint) {
   const mat = new THREE.PointsMaterial({ color: 0xfff2b0, size: 0.06, transparent: true });
   const pts = new THREE.Points(geo, mat);
   scene.add(pts);
-  const light = new THREE.PointLight(0xfff2b0, 3.5, 5);
-  light.position.copy(position);
-  scene.add(light);
+  if (G.Perf) G.Perf.flash(position, 0xfff2b0, 3.5, 5, 220);
+  const light = { intensity: 0 };   // kept so the fade below still has a target
   const t0 = performance.now();
   const durationMs = 220;
   const step = () => {
@@ -1131,7 +1133,7 @@ G.spawnSparkBurst = function (scene, sparkPoint) {
     mat.opacity = Math.max(0, 1 - p);
     light.intensity = Math.max(0, 3.5 * (1 - p));
     if (p < 1) requestAnimationFrame(step);
-    else { scene.remove(pts); scene.remove(light); geo.dispose(); mat.dispose(); }
+    else { scene.remove(pts); geo.dispose(); mat.dispose(); }
   };
   requestAnimationFrame(step);
 };
@@ -1140,10 +1142,5 @@ G.spawnCrateBurst = function (scene, position, rarityKey, quality) {
   const color = G.RARITY[rarityKey].color;
   const count = rarityKey === "secret" ? 60 : rarityKey === "epic" ? 40 : 24;
   G.spawnHitParticles(scene, position, color, quality === "vlow" ? "low" : quality);
-  if (rarityKey === "secret" || rarityKey === "epic") {
-    const light = new THREE.PointLight(color, 4, 8);
-    light.position.copy(position);
-    scene.add(light);
-    setTimeout(() => scene.remove(light), 900);
-  }
+  if ((rarityKey === "secret" || rarityKey === "epic") && G.Perf) G.Perf.flash(position, color, 4, 8, 900);
 };
