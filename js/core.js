@@ -68,17 +68,32 @@ G.defaultSave = function () {
 
 G.save = null;
 
+// One place that turns ANY stored or imported object into a valid save:
+// fills in fields added since it was written, and repairs fields of the wrong
+// type instead of letting them crash the level select three screens later.
+// Load and import both go through here, so they can never disagree.
+G.normalizeSave = function (data) {
+  if (!data || typeof data !== "object" || Array.isArray(data)) throw new Error("not a save object");
+  const def = G.defaultSave();
+  const s = Object.assign({}, def, data);
+  s.settings = Object.assign({}, def.settings, data.settings || {});
+  s.settings.keybinds = Object.assign({}, def.settings.keybinds, (data.settings || {}).keybinds || {});
+  s.leaderboards = Object.assign({}, def.leaderboards, data.leaderboards || {});
+  if (!Array.isArray(s.unlockedLevels)) s.unlockedLevels = [1];
+  s.unlockedLevels = s.unlockedLevels.filter((n) => Number.isInteger(n) && n >= 1 && n <= 3);
+  if (!s.unlockedLevels.includes(1)) s.unlockedLevels.unshift(1);
+  if (!Array.isArray(s.unlockedWeapons)) s.unlockedWeapons = ["pistol"];
+  s.unlockedWeapons = s.unlockedWeapons.filter((id) => typeof id === "string");
+  ["wordStats", "achievements", "levelHighScores", "dailyHighScores", "importedSets"].forEach((k) => {
+    if (!s[k] || typeof s[k] !== "object" || Array.isArray(s[k])) s[k] = def[k] || {};
+  });
+  return s;
+};
+
 G.loadSave = function () {
   try {
     const raw = localStorage.getItem(SAVE_KEY);
-    if (!raw) { G.save = G.defaultSave(); return G.save; }
-    const parsed = JSON.parse(raw);
-    // merge with defaults to survive schema additions
-    const def = G.defaultSave();
-    G.save = Object.assign({}, def, parsed);
-    G.save.settings = Object.assign({}, def.settings, parsed.settings || {});
-    G.save.settings.keybinds = Object.assign({}, def.settings.keybinds, (parsed.settings || {}).keybinds || {});
-    G.save.leaderboards = Object.assign({}, def.leaderboards, parsed.leaderboards || {});
+    G.save = raw ? G.normalizeSave(JSON.parse(raw)) : G.defaultSave();
   } catch (e) {
     console.warn("Save load failed, using default", e);
     G.save = G.defaultSave();
@@ -86,33 +101,103 @@ G.loadSave = function () {
   return G.save;
 };
 
+// Category L: a save that fails to write (Safari private mode, a full quota)
+// used to fail silently -- the player found out only when their progress was
+// gone. Now the first failure is shown once.
 G.persist = function () {
-  try { localStorage.setItem(SAVE_KEY, JSON.stringify(G.save)); }
-  catch (e) { console.warn("Save failed", e); }
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(G.save));
+    G._persistFailed = false;
+  } catch (e) {
+    console.warn("Save failed", e);
+    if (!G._persistFailedShown && G.UI && G.UI.flashPurchaseBanner) {
+      G._persistFailedShown = true;
+      G.UI.flashPurchaseBanner("บันทึกความคืบหน้าไม่ได้", "เบราว์เซอร์ไม่ให้เก็บข้อมูล (โหมดส่วนตัว?) — ใช้ Export Save เก็บไว้เองได้");
+    }
+    G._persistFailed = true;
+  }
+};
+// Frequent small changes (every answered word) are batched into one write a
+// moment later instead of a full JSON write per zombie.
+G.persistSoon = function () {
+  if (G._persistTimer) return;
+  G._persistTimer = setTimeout(() => { G._persistTimer = null; G.persist(); }, 1200);
+};
+// A phone kills a backgrounded tab without warning; these are the last
+// reliable moments to write, so a run's word history survives an app switch.
+["pagehide", "beforeunload"].forEach((ev) => window.addEventListener(ev, () => { if (G.save) G.persist(); }));
+document.addEventListener("visibilitychange", () => { if (document.hidden && G.save) G.persist(); });
+
+// ---------------- Export / import (category L) ----------------
+G.SAVE_FORMAT = "vocab-zombie-save";
+G.SAVE_FORMAT_VERSION = 2;
+
+G.saveSummary = function (s) {
+  return {
+    levels: (s.unlockedLevels || []).length,
+    words: Object.keys(s.wordStats || {}).length,
+    achievements: Object.keys(s.achievements || {}).filter((k) => s.achievements[k]).length,
+    weapons: (s.unlockedWeapons || []).length,
+    bestScores: Object.values(s.levelHighScores || {}).filter((v) => v != null).length,
+  };
 };
 
 G.exportSave = function () {
-  const blob = new Blob([JSON.stringify(G.save, null, 2)], { type: "application/json" });
+  G.persist();
+  const payload = {
+    format: G.SAVE_FORMAT, version: G.SAVE_FORMAT_VERSION,
+    exportedAt: new Date().toISOString(),
+    summary: G.saveSummary(G.save),
+    save: G.save,
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = url; a.download = "vocab-zombie-save.json";
+  a.href = url; a.download = "vocab-zombie-save-" + new Date().toISOString().slice(0, 10) + ".json";
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 };
 
-G.importSaveFromFile = function (file, cb) {
+// Reads and VALIDATES a file without touching the current save, so the
+// overwrite confirmation can say what is actually in it. Accepts the wrapped
+// export format and a bare save from before it existed; rejects anything else
+// -- an arbitrary JSON file used to "import successfully" and wipe the save.
+G.readSaveFile = function (file, cb) {
   const reader = new FileReader();
+  reader.onerror = () => cb(new Error("อ่านไฟล์ไม่ได้"));
   reader.onload = () => {
+    let data;
+    try { data = JSON.parse(reader.result); } catch (e) { cb(new Error("ไฟล์นี้ไม่ใช่ JSON")); return; }
+    let raw = null, exportedAt = null;
+    if (data && data.format === G.SAVE_FORMAT && data.save) { raw = data.save; exportedAt = data.exportedAt || null; }
+    else if (data && (Array.isArray(data.unlockedLevels) || (data.wordStats && typeof data.wordStats === "object"))) raw = data;
+    if (!raw) { cb(new Error("ไฟล์นี้ไม่ใช่ไฟล์เซฟของ Vocab Zombie")); return; }
     try {
-      const data = JSON.parse(reader.result);
-      const def = G.defaultSave();
-      G.save = Object.assign({}, def, data);
-      G.save.settings = Object.assign({}, def.settings, data.settings || {});
-      G.persist();
-      cb && cb(true);
-    } catch (e) { cb && cb(false, e); }
+      const save = G.normalizeSave(raw);
+      cb(null, { save, exportedAt, summary: G.saveSummary(save) });
+    } catch (e) { cb(new Error("ข้อมูลในไฟล์เสียหาย")); }
   };
   reader.readAsText(file);
+};
+
+G.applyImportedSave = function (save) {
+  G.save = save;
+  G.persist();
+  // everything that reads settings once at start-up has to be told
+  if (G.UI && G.UI.applyFontSizeClass) G.UI.applyFontSizeClass();
+  if (G.TouchCfg) G.TouchCfg.apply();
+  if (G.Audio) G.Audio.applyVolumes();
+  if (G.Input && G.save.settings.controlMode !== "auto") G.Input.mode = G.save.settings.controlMode;
+  if (G.UI && G.UI.applyControlMode) G.UI.applyControlMode();
+};
+
+// kept for any caller of the old one-step API
+G.importSaveFromFile = function (file, cb) {
+  G.readSaveFile(file, (err, res) => {
+    if (err) { cb && cb(false, err); return; }
+    G.applyImportedSave(res.save);
+    cb && cb(true);
+  });
 };
 
 // ---------------- Word stats (long-term memory tracking) ----------------
@@ -122,6 +207,10 @@ G.recordWordResult = function (word, correct) {
   if (correct) { stats.correct++; stats.lastCorrect = Date.now(); }
   else { stats.wrong++; }
   G.save.wordStats[w] = stats;
+  // Category L: this never saved on its own -- a run.s word history only
+  // reached storage at victory or game over, so closing the tab mid-run
+  // (routine on a phone) threw all of it away.
+  G.persistSoon();
 };
 
 // mastery score: higher = better known. Used to weight sampling (weak words appear more often)

@@ -254,10 +254,27 @@ G.UI = {
     });
     wrap.querySelector("#btn-export-save").onclick = () => G.exportSave();
     wrap.querySelector("#btn-import-save-settings").onclick = () => wrap.querySelector("#import-save-file").click();
+    // Category L: the file is read and validated BEFORE asking, so the
+    // overwrite confirmation shows what is in it next to what will be lost.
     wrap.querySelector("#import-save-file").onchange = (e) => {
-      const f = e.target.files[0]; if (!f) return;
-      if (!confirm("การนำเข้าจะเขียนทับข้อมูลปัจจุบันทั้งหมด ยืนยันหรือไม่?")) return;
-      G.importSaveFromFile(f, (ok) => { alert(ok ? "นำเข้าสำเร็จ" : "ไฟล์ไม่ถูกต้อง"); if (ok) this.renderSettings(); });
+      const f = e.target.files[0];
+      e.target.value = "";                    // picking the same file twice should still fire
+      if (!f) return;
+      G.readSaveFile(f, (err, res) => {
+        if (err) { alert("นำเข้าไม่ได้: " + err.message); return; }
+        const a = res.summary, b = G.saveSummary(G.save);
+        const when = res.exportedAt ? new Date(res.exportedAt).toLocaleString("th-TH") : "ไม่ทราบ";
+        const msg = "การนำเข้าจะเขียนทับข้อมูลปัจจุบันทั้งหมด\n\n"
+          + `ไฟล์ที่นำเข้า (ส่งออกเมื่อ ${when}):\n`
+          + `  ด่านที่ปลดล็อก ${a.levels} · คำศัพท์ที่มีสถิติ ${a.words} · Achievement ${a.achievements} · ปืนที่เคยได้ ${a.weapons}\n\n`
+          + "ข้อมูลปัจจุบันที่จะถูกแทนที่:\n"
+          + `  ด่านที่ปลดล็อก ${b.levels} · คำศัพท์ที่มีสถิติ ${b.words} · Achievement ${b.achievements} · ปืนที่เคยได้ ${b.weapons}\n\n`
+          + "ยืนยันการนำเข้าหรือไม่?";
+        if (!confirm(msg)) return;
+        G.applyImportedSave(res.save);
+        alert("นำเข้าสำเร็จ");
+        this.renderSettings();
+      });
     };
   },
 
