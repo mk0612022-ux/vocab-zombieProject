@@ -553,7 +553,7 @@ G.buildLevelScene = function (scene, level, quality) {
       addFloor(cx, cz, w, d, baseY);
       world.heightZones.push({ minX: cx - w / 2, maxX: cx + w / 2, minZ: cz - d / 2, maxZ: cz + d / 2, height: baseY });
       world.regions.push({ name: key, y: baseY, minX: cx - w / 2, maxX: cx + w / 2, minZ: cz - d / 2, maxZ: cz + d / 2 });
-      world.waypointNodes[key] = { x: cx, z: cz };
+      world.waypointNodes[key] = { x: cx, z: cz, y: baseY };
       world.waypointEdges[key] = world.waypointEdges[key] || [];
     }
     // addProp anchors to y=0, so every piece of upstairs furniture had to go
@@ -671,7 +671,13 @@ G.buildLevelScene = function (scene, level, quality) {
       addRoomWalls(r, gaps, WH, baseY);
       addLight(cx, baseY + CEIL - 0.45, row.cz, rl[spec.light % rl.length], 1.15, 1.0 + G.rng() * 0.9);
       addRoomDoor(spec.side === "W" ? -HALF : HALF, row.cz, 3, "z", baseY);
-      link(spec.key, "C" + fl + row.corr);
+      // A room is entered through its door, not its wall: the route passes a
+      // node just inside the corridor in front of the doorway. Without it a
+      // zombie in a long corridor steered straight at the room's centre and
+      // pinned itself against the wall beside the door (category P).
+      const dKey = "D" + spec.key;
+      world.waypointNodes[dKey] = { x: (spec.side === "W" ? -1 : 1) * (HALF - 1.0), z: row.cz, y: baseY };
+      link(spec.key, dKey); link(dKey, "C" + fl + row.corr);
       spec.room = r; spec.baseY = baseY; spec.floor = fl;
       world.extraSpawnPoints.push({ pos: new THREE.Vector3(cx, baseY, row.cz), types: fl === 1 ? ["normal", "fast"] : ["normal"] });
     });
@@ -704,7 +710,15 @@ G.buildLevelScene = function (scene, level, quality) {
       addWallSeg(0, ENTRY.cz + ENTRY.d / 2, 6, 0.4, 5.5, 2.9);
       addGlowBox(0, 3.2, ENTRY.cz + ENTRY.d / 2 - 0.3, 2.2, 0.32, 0.08, 0x6bff7a);
     }
-    link("ENTRY", "C1" + cfg.corrSegs[0].name);
+    if (STOREYS === 2) {
+      // The hall's own node sat in the middle of the floor -- on a two-storey
+      // map, on the staircase. Put it in the west bay, and reach the corridor
+      // through a node beside the stairs at the north doorway.
+      const sx = cfg.stair.halfX;
+      world.waypointNodes.ENTRY = { x: -(sx + 3), z: ENTRY.cz, y: F1 };
+      world.waypointNodes.DENTRY = { x: -(sx + 0.5), z: ENTRY.cz - ENTRY.d / 2 + 1, y: F1 };
+      link("ENTRY", "DENTRY"); link("DENTRY", "C1" + cfg.corrSegs[0].name);
+    } else link("ENTRY", "C1" + cfg.corrSegs[0].name);
     // The entry hall is only double height down its middle -- the side bays are
     // roofed by the upstairs floor slab, so a light hung at F2+2 would sit
     // inside the rooms above and leave the bays pitch black.
@@ -747,9 +761,22 @@ G.buildLevelScene = function (scene, level, quality) {
         world.heightZones.push({ minX: g2.cx - g2.w / 2, maxX: g2.cx + g2.w / 2, minZ: g2.cz - g2.d / 2, maxZ: g2.cz + g2.d / 2, height: F2 });
       });
       world.regions.push({ name: "GAL", y: F2, minX: -6, maxX: 6, minZ: ENTRY.cz - ENTRY.d / 2, maxZ: Z1 });
-      world.waypointNodes.GAL = { x: 0, z: ENTRY.cz - ENTRY.d / 2 + 1 };
+      world.waypointNodes.GAL = { x: 0, z: ENTRY.cz - ENTRY.d / 2 + 1, y: F2 };
       link("GAL", "C2" + cfg.corrSegs[0].name);
-      link("GAL", cfg.upperKeys[0]); link("GAL", cfg.upperKeys[1]); link("GAL", "ENTRY");
+      // The two upstairs rooms open off the side bays of the gallery, beyond
+      // the stairwell rails: go along the landing first, then down the bay to
+      // the door.
+      [[cfg.upperKeys[0], -1], [cfg.upperKeys[1], 1]].forEach(([key, s]) => {
+        world.waypointNodes["GAL" + key] = { x: s * (SX + 1.9), z: ENTRY.cz - ENTRY.d / 2 + 1, y: F2 };
+        world.waypointNodes["D" + key] = { x: s * (6 - 1.1), z: ENTRY.cz - 2, y: F2 };
+        link("GAL", "GAL" + key); link("GAL" + key, "D" + key); link("D" + key, key);
+      });
+      // Up and down go by way of the foot of the flight. A direct ENTRY-GAL
+      // hop sent zombies straight at the landing from wherever they stood in
+      // the hall, i.e. into the side of the staircase; the only one that ever
+      // got up did it through the gap underneath (closed below).
+      world.waypointNodes.STAIR = { x: 0, z: ENTRY.cz - ENTRY.d / 2 + 2 + cfg.stair.run + 1.3, y: F1 };
+      link("STAIR", "ENTRY"); link("STAIR", "GAL");
       addCeiling(0, ENTRY.cz, 12, ENTRY.d, F2, CEIL);
       addLight(0, F2 + 3.4, ENTRY.cz - ENTRY.d / 2 + 1, rl[0], 1.05, 1.4);
       addLight(4.5, F2 + 3.4, ENTRY.cz + 1, rl[2 % rl.length], 0.95, 1.8);
@@ -775,9 +802,27 @@ G.buildLevelScene = function (scene, level, quality) {
         const step = new THREE.Mesh(new THREE.BoxGeometry(SX * 2 - 0.3, top, RUN), accentMat);
         step.position.set(0, top / 2, zLo + RUN / 2);
         scene.add(step);
-        world.heightZones.push({ minX: -SX + 0.15, maxX: SX - 0.15, minZ: zLo, maxZ: zHi, height: top });
+        // Out to the side walls' centre line, not just the drawn tread: at the
+        // top of the flight the wall tops are level with the treads, and a
+        // zombie that stepped onto that 0.15 strip found only the hall floor
+        // under it and dropped through the staircase.
+        world.heightZones.push({ minX: -SX, maxX: SX, minZ: zLo, maxZ: zHi, height: top });
       }
       [-SX, SX].forEach((sx) => addWallSeg(sx, (Z0 + Z1) / 2, 0.3, Z1 - Z0, F2, F1));
+      // ...and the top end. Under the landing the flight was open at floor
+      // level: anything on the hall floor could walk in beneath the treads
+      // (they are drawn solid, but only the side walls were colliders), step
+      // onto the bottom tread from the inside and climb past the locked
+      // shutter. The playtest bot found a zombie on the gallery with the
+      // shutter still down. This block sits inside the top tread, so it is
+      // never seen, and stops 0.7 below the landing so nobody walking the
+      // stairs can touch it.
+      world.colliders.push(new THREE.Box3(
+        new THREE.Vector3(-SX, F1, Z0 + 0.15), new THREE.Vector3(SX, F2 - 0.7, Z0 + 0.6)));
+      // Zombies not routed up or down treat the whole flight as solid, or one
+      // crossing the hall wanders onto the bottom tread and climbs by accident
+      // (see updateZombies). Not a collider: the player and routed zombies use it.
+      world.stairBlock = new THREE.Box3(new THREE.Vector3(-SX - 0.35, F1, Z0), new THREE.Vector3(SX + 0.35, F1 + 3, Z1 + 0.45));
 
       // The gate sits across the foot of the stairs, not the hall doorway --
       // the hall is the only way in from outside, so gating it would lock the
@@ -943,9 +988,18 @@ G.buildLevelScene = function (scene, level, quality) {
     world.spawnPoints = world.extraSpawnPoints.map((sp) => Object.assign(sp, { cooldown: 0 }));
     world.spawnPoints.push(Object.assign({ pos: new THREE.Vector3(BOSS.cx, 0, BOSS.cz - 3), types: ["boss"] }, { cooldown: 0 }));
     world.extraSpawnPoints = null;
+    // tag the points that sit behind a gate (see G.spawnPointOpen)
+    const inGroundRoom = (p, spec) => spec && p.y < 1 && Math.abs(p.x - spec.room.cx) < spec.room.w / 2 && Math.abs(p.z - spec.room.cz) < spec.room.d / 2;
+    world.spawnPoints.forEach((sp) => {
+      if (world.secondFloor && sp.pos.y > 1) sp.gate = "upper";
+      else if (world.secretZone && inGroundRoom(sp.pos, secret)) sp.gate = "secret";
+      else if (inGroundRoom(sp.pos, store)) sp.gate = "word";
+    });
 
     world.spawn = cfg.spawn;
-    world.bossRoomCenter = new THREE.Vector3(BOSS.cx, 0, BOSS.cz);
+    // Not the dead centre: the bunker's reactor stands there, and a boss
+    // spawned inside it had to shoulder its way out through the casing.
+    world.bossRoomCenter = new THREE.Vector3(BOSS.cx, 0, BOSS.cz - 3);
   }
   // ================= Level plans (category M) =================
   // One plan per theme, fed to buildComplex above. Each keeps the same skeleton
@@ -1611,10 +1665,13 @@ G.buildLevelScene = function (scene, level, quality) {
     scene.add(ground);
     world.heightZones.push({ minX: x0, maxX: x1, minZ: z0, maxZ: z1, height: 0 });
     world.regions.push({ name: "YARD", y: 0, minX: x0, maxX: x1, minZ: z0, maxZ: z1 });
-    world.waypointNodes.YARD = { x: 0, z: 46 };
+    world.waypointNodes.YARD = { x: 0, z: 46, y: 0 };
+    // through the front doors, not the facade beside them
+    world.waypointNodes.DFRONT = { x: 0, z: z0 + 1.2, y: 0 };
     world.waypointEdges.YARD = world.waypointEdges.YARD || [];
-    world.waypointEdges.YARD.push("ENTRY");
-    world.waypointEdges.ENTRY.push("YARD");
+    world.waypointEdges.DFRONT = ["YARD", "ENTRY"];
+    world.waypointEdges.YARD.push("DFRONT");
+    world.waypointEdges.ENTRY.push("DFRONT");
 
     // Uneven, overgrown ground: shallow mounds you step straight onto (well
     // under STEP_UP), rather than real terrain the collision system can't model.

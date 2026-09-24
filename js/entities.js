@@ -943,7 +943,7 @@ G.Zombie.prototype.takeDamage = function (dmg) {
 // is always the real player position; the returned distance is measured to
 // THAT (not moveTarget), so an in-transit waypoint never triggers a melee hit
 // from across a wall, and attack range always reflects true player proximity.
-G.Zombie.prototype.update = function (dt, moveTarget, attackTarget, colliders, gameSpeedTimeScale) {
+G.Zombie.prototype.update = function (dt, moveTarget, attackTarget, colliders, gameSpeedTimeScale, keepOut) {
   if (!this.alive) return;
   attackTarget = attackTarget || moveTarget;
   this.walkT += dt * 6 * this.speed;
@@ -953,6 +953,22 @@ G.Zombie.prototype.update = function (dt, moveTarget, attackTarget, colliders, g
   if (moveDist > 0.9) {
     dir.normalize();
     const moveSpeed = this.speed * this.speedMultiplier * dt;
+    // Stuck guard (category P): steering can still wedge a zombie in a pocket
+    // between a locker, the wall and some clutter -- the playtest bot found
+    // two sitting in one for twenty minutes, and a wave cannot end while they
+    // live. If it has not closed on its target for a few seconds, it wanders
+    // off in a random direction for a moment and then tries again.
+    const tgtMoved = !this._lastTgt || Math.hypot(moveTarget.x - this._lastTgt.x, moveTarget.z - this._lastTgt.z) > 1;
+    if (tgtMoved) { this._lastTgt = { x: moveTarget.x, z: moveTarget.z }; this._bestDist = moveDist; this._stuckT = 0; }
+    if (moveDist < this._bestDist - 0.3) { this._bestDist = moveDist; this._stuckT = 0; }
+    this._stuckT += dt;
+    if (this._stuckT > 2.5) {
+      this._stuckT = 0; this._bestDist = moveDist;
+      this._escapeT = 0.9;
+      const a = G.rng() * Math.PI * 2;
+      this._escapeDir = new THREE.Vector3(Math.cos(a), 0, Math.sin(a));
+    }
+    if (this._escapeT > 0) { this._escapeT -= dt; dir.copy(this._escapeDir); }
     // Local obstacle avoidance (furniture/props within a room -- the waypoint
     // graph in game.js already handles routing between rooms through actual
     // doorways). Cheap: try the direct heading, then +/-40deg/80deg deflections,
@@ -960,16 +976,53 @@ G.Zombie.prototype.update = function (dt, moveTarget, attackTarget, colliders, g
     let moveDir = dir;
     if (colliders && colliders.length) {
       const testPoint = new THREE.Vector3();
-      const angles = [0, 0.7, -0.7, 1.4, -1.4];
-      for (const a of angles) {
+      const angles = [0, 0.7, -0.7, 1.4, -1.4, 2.1, -2.1];
+      // Only what is at this zombie's own height is in its way. This used to
+      // be a flat footprint test, so on a two-storey map every wall upstairs
+      // also blocked the floor beneath it -- the gallery rail and the upper
+      // rooms' walls cut the entry hall into pieces for zombies, and the only
+      // way they ever reached the upper floor was an accidental gap under the
+      // staircase (category P).
+      const y0 = this.mesh.position.y + 0.2, y1 = this.mesh.position.y + 1.6;
+      // Probe several points along the way, not just one 0.4 ahead: a wall
+      // thinner than the probe distance (the 0.3 stair and partition walls)
+      // used to fall BETWEEN the zombie and its probe, and it walked through.
+      const reach = moveSpeed + 0.4;
+      const probes = [0.15, 0.3, reach];
+      const inBox = (c, x, z) => c.max.y >= y0 && c.min.y <= y1 && x >= c.min.x && x <= c.max.x && z >= c.min.z && z <= c.max.z;
+      // keepOut: an extra no-go box from the caller (the staircase, for a
+      // zombie with no business on it -- see updateZombies)
+      const hits = (x, z) => (keepOut && inBox(keepOut, x, z)) || colliders.some((c) => inBox(c, x, z));
+      // Keep turning the way it last turned for a moment. Choosing the side
+      // afresh every frame had a zombie in front of anything wider than
+      // itself (the foot of the staircase) step right, then left, then right,
+      // forever -- each sidestep made the other side look better.
+      this._avoidT = Math.max(0, (this._avoidT || 0) - dt);
+      const s = this._avoidT > 0 ? this._avoidSide : 1;
+      const order = this._avoidT > 0 ? [0, s * 0.7, s * 1.4, s * 2.1, -s * 0.7, -s * 1.4, -s * 2.1] : angles;
+      for (const a of order) {
         const cand = dir.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), a);
-        testPoint.copy(this.mesh.position).addScaledVector(cand, moveSpeed + 0.4);
-        const blocked = colliders.some((c) => testPoint.x >= c.min.x && testPoint.x <= c.max.x && testPoint.z >= c.min.z && testPoint.z <= c.max.z);
-        if (!blocked) { moveDir = cand; break; }
+        const blocked = probes.some((d) => {
+          testPoint.copy(this.mesh.position).addScaledVector(cand, Math.min(d, reach));
+          return hits(testPoint.x, testPoint.z);
+        });
+        if (!blocked) {
+          moveDir = cand;
+          if (a !== 0) { this._avoidSide = Math.sign(a); this._avoidT = 1.2; }
+          break;
+        }
+        if (a === order[order.length - 1]) {
+          // boxed in on every side: hold still rather than march straight
+          // through the wall -- unless it is already inside something (a door
+          // swung shut on it), in which case let it walk out
+          if (!hits(this.mesh.position.x, this.mesh.position.z)) moveDir = null;
+        }
       }
     }
-    this.mesh.position.addScaledVector(moveDir, moveSpeed);
-    this.mesh.rotation.y = Math.atan2(moveDir.x, moveDir.z);
+    if (moveDir) {
+      this.mesh.position.addScaledVector(moveDir, moveSpeed);
+      this.mesh.rotation.y = Math.atan2(moveDir.x, moveDir.z);
+    }
   }
   const limbs = this.mesh.userData.limbs;
   if (limbs && this.mesh.userData.crawler) {

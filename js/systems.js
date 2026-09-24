@@ -18,9 +18,11 @@ G.Spawner = {
     if (this.timer <= 0) {
       this.timer = this.interval;
       const minDist = 6;
-      let candidates = world.spawnPoints.filter((sp) => sp.cooldown <= 0 && sp.types[0] !== "boss" &&
-        (!playerPos || sp.pos.distanceTo(playerPos) >= minDist));
-      if (candidates.length === 0) candidates = world.spawnPoints.filter((sp) => sp.cooldown <= 0 && sp.types[0] !== "boss");
+      // Category P: never behind something the player has not opened yet --
+      // see G.spawnPointOpen.
+      const usable = world.spawnPoints.filter((sp) => sp.cooldown <= 0 && sp.types[0] !== "boss" && G.spawnPointOpen(world, sp));
+      let candidates = usable.filter((sp) => !playerPos || sp.pos.distanceTo(playerPos) >= minDist);
+      if (candidates.length === 0) candidates = usable;
       if (candidates.length === 0) return;
       // The school runs 120 units end to end now. Picking uniformly kept
       // spawning zombies ninety units away, where they spent the entire wave
@@ -47,6 +49,21 @@ G.Spawner = {
     }
     world.spawnPoints.forEach((sp) => { if (sp.cooldown > 0) sp.cooldown -= dt; });
   },
+};
+
+// A third of the school's spawn points are on the upper floor, and two more
+// sit inside the secret room and the word-locked store. A zombie spawned there
+// before that part of the building is open can never reach the player -- and
+// since a wave only ends when everything spawned is dead, it stalled the wave
+// until the player happened to unlock the area. (The spawner's preference for
+// nearby points made it worse: a point on the floor above is only 4.2 units
+// away.) Each gated point records what gates it, in buildComplex.
+G.spawnPointOpen = function (world, sp) {
+  if (!sp.gate) return true;
+  if (sp.gate === "upper") return !world.secondFloor || world.secondFloor.unlocked;
+  if (sp.gate === "secret") return !world.secretZone || world.secretZone.unlocked;
+  if (sp.gate === "word") return (world.doors || []).every((d) => d.kind !== "word" || d.opened);
+  return true;
 };
 
 // ---------------- Boss fight ----------------

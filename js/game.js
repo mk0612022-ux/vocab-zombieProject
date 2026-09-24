@@ -217,6 +217,12 @@ G.Game = {
     this.targetPair = null;
     this.wave = 0;
     this.aimT = 0;
+    // Nothing used to clear `paused` on the way into a run, so Pause -> Main
+    // Menu -> any level loaded a frozen game (and quitting from behind a
+    // crate or mystery-box screen did the same). Found by the category P
+    // playtest bot, whose second run never moved.
+    this.paused = false;
+    this._onCrateClose = null; this._burst = null; this._chargeT = 0; this._bossChoices = null;
     this._mysteryHand = null; this._mysteryPick = null;
     this.weaponAnim = { switchT: 0, switchDur: 0.42, pendingRebuild: false, reloadT: 0, reloadDur: 0, recoilPos: 0, recoilRot: 0 };
     this.recoilRecover = 0;
@@ -319,7 +325,11 @@ G.Game = {
   },
 
   isBossWave() {
-    const isFinal = this.mode === "campaign" && this.wave >= this.level.waves;
+    // `===`, not `>=`: past the final wave (category I overtime) every wave
+    // used to count as "final", so overtime became a boss every wave -- a
+    // quiz worth $700 and a rare crate each time, and never the zombies the
+    // player was supposed to be fighting while finishing their objectives.
+    const isFinal = this.mode === "campaign" && this.wave === this.level.waves;
     return isFinal || this.wave % this.level.bossEvery === 0;
   },
 
@@ -473,8 +483,13 @@ G.Game = {
   // Category N: pierce is a COUNT now, not a flag -- a bolt that passes
   // through three zombies plays differently from one that never stops.
   raycastShoot(origin, dir, dmg, pierce, def) {
+    // Category P: rounds stop at the first wall, door, piece of furniture or
+    // floor slab in the way. They used to test zombies only, so a shot went
+    // through any number of walls -- and up through the ceiling into zombies
+    // on the floor above, which the player cannot even see.
+    const wallAt = this.world ? this.wallDistance(origin, dir, 60) : 60;
     this.raycaster.set(origin, dir);
-    this.raycaster.far = 60;
+    this.raycaster.far = wallAt;
     this.raycaster.camera = this.camera; // THREE.Sprite.raycast (word labels) needs this in r128
     const meshes = this.zombies.filter((z) => z.alive).map((z) => z.mesh);
     const hits = this.raycaster.intersectObjects(meshes, true);
@@ -494,20 +509,48 @@ G.Game = {
       if (def && def.splash) this.splashDamage(hit.point, def, dmg);
       if (++through >= maxThrough) break;
     }
-    // A missed explosive still goes off where it lands.
+    // A missed explosive still goes off where it lands -- on the wall it hit,
+    // not forty units beyond it.
     if (def && def.splash && !hitAny) {
-      const end = origin.clone().addScaledVector(dir, 40);
+      const end = origin.clone().addScaledVector(dir, Math.min(40, Math.max(0, wallAt - 0.2)));
       this.splashDamage(end, def, dmg);
     }
     // also allow shooting the static locked crate to attempt opening (per spec: "ยิงหรือกด E เพื่อเปิด")
     if (this.world) {
       const crateMeshes = this.world.crates.filter((c) => !c.opened).map((c) => c.mesh);
+      // a crate is itself a collider, so it IS the wall the ray stopped at
+      this.raycaster.far = wallAt + 0.05;
       const cHits = this.raycaster.intersectObjects(crateMeshes, true);
       if (cHits.length && (!hits.length || cHits[0].distance < (hits[0] ? hits[0].distance : Infinity))) {
         this.tryOpenStaticCrate(this.world.crates.find((c) => c.mesh === cHits[0].object || c.mesh === cHits[0].object.parent));
       }
     }
     return hitAny;
+  },
+
+  // Distance along a ray to the nearest solid: every collider box (walls,
+  // shut doors, furniture), plus the top of every raised floor -- the upper
+  // storey and the stair landings are height zones, not boxes.
+  wallDistance(origin, dir, far) {
+    const ray = this._wallRay || (this._wallRay = new THREE.Ray());
+    const hit = this._wallHit || (this._wallHit = new THREE.Vector3());
+    ray.origin.copy(origin); ray.direction.copy(dir);
+    let best = far;
+    for (const c of this.world.colliders) {
+      if (c.containsPoint(origin) || !ray.intersectBox(c, hit)) continue;
+      const d = hit.distanceTo(origin);
+      if (d < best) best = d;
+    }
+    if (Math.abs(dir.y) > 1e-4) {
+      for (const hz of this.world.heightZones) {
+        if (hz.ramp || hz.height <= 1) continue;
+        const k = (hz.height - origin.y) / dir.y;
+        if (k <= 0 || k >= best) continue;
+        const x = origin.x + dir.x * k, z = origin.z + dir.z * k;
+        if (x >= hz.minX && x <= hz.maxX && z >= hz.minZ && z <= hz.maxZ) best = k;
+      }
+    }
+    return best;
   },
 
   // Category N: splash was declared on five weapons and never implemented --
@@ -923,9 +966,12 @@ G.Game = {
     const correct = chosen === this.challenge.pair[0];
     G.recordWordResult(this.challenge.pair[0], correct);
     const cb = correct ? this.challenge.onSuccess : this.challenge.onFail;
+    const pair = this.challenge.pair;
     G.UI.setChallengeVisible(false);
     this.challenge = null;
-    if (correct) { this.correctCount++; cb && cb(); } else { this.wrongCount++; this.trackWrongWord(chosen ? this.challenge : "", ""); cb && cb(); }
+    // the wrong-word list used to be fed `this.challenge` AFTER it had been
+    // cleared, so every missed challenge was recorded under the word "null"
+    if (correct) { this.correctCount++; cb && cb(); } else { this.wrongCount++; this.trackWrongWord(pair[0], pair[1]); cb && cb(); }
     if (this.state === "GAMEPLAY" && G.Input.mode === "desktop") G.Input.requestPointerLock();
   },
 
@@ -1018,7 +1064,12 @@ G.Game = {
     this.updateChallengeTimer(dt);
     this.updateBossUI(dt);
 
-    if (!G.BossFight.active && !this.isBossWave()) {
+    // Category P: requiredKills is the wave's quota, and the spawner stops
+    // once it has been sent. It used to keep spawning for as long as anything
+    // was alive, so a wave only ended in the rare gap where the player had
+    // cleared the field before the next spawn tick -- the playtest bot sat in
+    // wave 1 with 16 of 8 spawned and no end in sight.
+    if (!G.BossFight.active && !this.isBossWave() && this.spawnedCount < this.requiredKills) {
       G.Spawner.update(dt, this.world, this.zombies.length, this.level.maxAliveZombies, (type, pos) => this.spawnZombieAt(type, pos), this.currentDiff, this.yawObject.position);
     }
     // Must run every frame (not just non-boss frames) so a boss wave with zero
@@ -1041,7 +1092,9 @@ G.Game = {
       staminaExhausted: this.staminaExhausted, money: this.player.money, score: this.player.score,
       levelLabel: `${this.level.name} · Wave ${this.wave}${this.mode === "campaign" ? "/" + this.level.waves : ""}${this.mode === "campaign" && this.wave > this.level.waves ? " (ต่อเวลา)" : ""}`,
       objectives: G.Objectives.state ? `ภารกิจ ${G.Objectives.doneCount(this)}/${G.Objectives.list(this).length}` : null,
-      zombiesLeft: this.zombies.length, weaponName: def.name,
+      // what is still between the player and the end of the wave: the ones
+      // alive plus the rest of the quota still to come
+      zombiesLeft: this.zombies.length + (this.isBossWave() ? 0 : Math.max(0, this.requiredKills - this.spawnedCount)), weaponName: def.name,
       weightLabel: def.id === "melee" ? null : G.weightClass(def).label,
       weightColor: def.id === "melee" ? null : G.weightClass(def).color,
       ammoInMag, ammoReserve, currentMeaning: meaning, slots, combo: this.player.combo,
@@ -1204,6 +1257,9 @@ G.Game = {
         this._burst.timer -= dt;
         if (this._burst.timer <= 0) {
           this.fireWeapon(this._burst.charge, true);
+          // fireWeapon drops the burst itself when the magazine runs dry
+          // mid-burst; carrying on used to throw here (found by the bot)
+          if (!this._burst) return;
           this._burst.left--;
           this._burst.timer = (def.burstDelay || 60) / 1000;
           if (this._burst && this._burst.left <= 0) this._burst = null;
@@ -1278,14 +1334,39 @@ G.Game = {
     // cutting through walls; once it's in the player's own region it goes
     // back to moving directly, same as before.
     const pRegion = G.getRegionAt(this.world, playerPos.x, playerPos.z, playerPos.y - 1.7);
+    const sbx = this.world.stairBlock;
+    const topY = this.world.secondFloor ? this.world.secondFloor.floorY : 4.2;
+    const onFlight = (x, zz, y) => !!sbx && y > 0.3 && y < topY - 0.3 && x >= sbx.min.x && x <= sbx.max.x && zz >= sbx.min.z && zz <= sbx.max.z;
     for (const z of this.zombies) {
       if (!z.alive) continue;
       const zRegion = G.getRegionAt(this.world, z.mesh.position.x, z.mesh.position.z, z.mesh.position.y);
       let moveTarget = playerPos;
-      if (zRegion !== pRegion) {
+      // Mid-flight the region lookup flips between the hall (below 2.3) and
+      // the gallery (above), and each re-plan pointed the other way, so a
+      // zombie could shuffle on the middle treads for good. On the stairs it
+      // simply heads for the top or the foot, whichever floor the player is on.
+      const zp0 = z.mesh.position;
+      if (onFlight(zp0.x, zp0.z, zp0.y) && !onFlight(playerPos.x, playerPos.z, playerPos.y - 1.7)) {
+        const node = this.world.waypointNodes[playerPos.y - 1.7 > topY / 2 ? "GAL" : "STAIR"];
+        moveTarget = new THREE.Vector3(node.x, 0, node.z);
+        z.navPath = null;
+      } else if (zRegion !== pRegion) {
         if (!z.navPath || z.navTargetRegion !== pRegion || z.navRegion !== zRegion || z.navRepathTimer === undefined || z.navRepathTimer <= 0) {
           z.navPath = G.findPath(this.world, zRegion, pRegion);
           z.navIndex = 0;
+          // Don't walk back to a waypoint already passed. A re-plan halfway up
+          // the staircase starts again from the stair-foot node; if the zombie
+          // is already on the leg to the next node, skip ahead to it.
+          const nodes = this.world.waypointNodes, zp = z.mesh.position;
+          while (z.navIndex < z.navPath.length - 1) {
+            const a = nodes[z.navPath[z.navIndex]], b = nodes[z.navPath[z.navIndex + 1]];
+            const abx = b.x - a.x, abz = b.z - a.z, len2 = abx * abx + abz * abz || 1;
+            const k = Math.max(0, Math.min(1, ((zp.x - a.x) * abx + (zp.z - a.z) * abz) / len2));
+            const off = Math.hypot(a.x + abx * k - zp.x, a.z + abz * k - zp.z);
+            const sameLeg = (a.y === undefined || b.y === undefined || Math.abs(zp.y - (a.y + (b.y - a.y) * k)) < 1.5);
+            if (off < 1.5 && sameLeg && Math.hypot(b.x - zp.x, b.z - zp.z) < Math.sqrt(len2)) z.navIndex++;
+            else break;
+          }
           z.navTargetRegion = pRegion;
           z.navRegion = zRegion;
           z.navRepathTimer = 1.0 + G.rng() * 0.5;
@@ -1293,7 +1374,10 @@ G.Game = {
         z.navRepathTimer -= dt;
         if (z.navPath.length && z.navIndex < z.navPath.length) {
           const node = this.world.waypointNodes[z.navPath[z.navIndex]];
-          if (Math.hypot(node.x - z.mesh.position.x, node.z - z.mesh.position.z) < 1.3) z.navIndex++;
+          // reached = close AND on the same floor: the gallery node sits right
+          // above the hall floor, and a zombie under it had not "reached" it
+          if (Math.hypot(node.x - z.mesh.position.x, node.z - z.mesh.position.z) < 1.3 &&
+            (node.y === undefined || Math.abs(node.y - z.mesh.position.y) < 1.5)) z.navIndex++;
         }
         if (z.navPath.length && z.navIndex < z.navPath.length) {
           const node = this.world.waypointNodes[z.navPath[z.navIndex]];
@@ -1302,9 +1386,21 @@ G.Game = {
       } else {
         z.navPath = null;
       }
-      const dist = z.update(dt, moveTarget, playerPos, this.world.colliders, G.save.settings.gameSpeed);
+      // The staircase is only for zombies that mean to use it: one on it or
+      // routed over it, or chasing a player who is on it. Anyone else treats
+      // the flight as solid instead of wandering up the bottom tread.
+      const sb = this.world.stairBlock;
+      let stairKeepOut = null;
+      if (sb && z.mesh.position.y < 0.3 && playerPos.y - 1.7 < 0.3) {
+        const route = z.navPath && zRegion !== pRegion ? z.navPath.slice(z.navIndex) : [];
+        if (!route.includes("STAIR") && !route.includes("GAL")) stairKeepOut = sb;
+      }
+      const dist = z.update(dt, moveTarget, playerPos, this.world.colliders, G.save.settings.gameSpeed, stairKeepOut);
       z.mesh.position.y = G.getFloorHeightAt(this.world, z.mesh.position.x, z.mesh.position.z, z.mesh.position.y);
-      if (dist !== undefined && dist < 1.1 && z.attackCooldown <= 0) {
+      // a bite needs the same floor too -- the distance is measured flat, so a
+      // zombie on the hall floor could bite a player on the gallery above it
+      const sameFloor = Math.abs(z.mesh.position.y - (playerPos.y - 1.7)) < 1.5;
+      if (dist !== undefined && dist < 1.1 && sameFloor && z.attackCooldown <= 0) {
         z.attackCooldown = 1.0;
         const dmg = z.damage * (1 - this.player.armorPct);
         this.player.hp -= dmg;

@@ -69,6 +69,11 @@ G.Objectives = {
     });
     if (!s.completeAnnounced && this.allDone(game)) {
       s.completeAnnounced = true;
+      // Latched: once the whole checklist has been met it stays met. Accuracy
+      // is the one goal that can slip back, and the playtest bot showed the
+      // result -- "objectives complete!" at 75%, one stray kill later 74%, and
+      // the level refused to end and ran on into overtime.
+      s.latched = true;
       G.UI.flashPurchaseBanner("ภารกิจครบแล้ว!", game.wave >= game.level.waves ? "เคลียร์เวฟนี้เพื่อผ่านด่าน" : "เอาตัวรอดให้ครบทุกเวฟเพื่อผ่านด่าน");
     }
   },
@@ -87,10 +92,11 @@ G.Objectives = {
     if (!s) return [];
     const c = s.cfg;
     const acc = this.accuracy(game);
+    const L = !!s.latched;
     const rows = [
       { label: `เอาตัวรอดให้ครบ ${game.level.waves} เวฟ`, value: `${Math.min(game.wave, game.level.waves)} / ${game.level.waves}`, done: game.wave > game.level.waves || (game.wave === game.level.waves && game._finalWaveCleared) },
-      { label: `ตอบคำศัพท์ถูกอย่างน้อย ${c.minCorrect} คำ`, value: `${game.correctCount} / ${c.minCorrect}`, done: game.correctCount >= c.minCorrect },
-      { label: `ความแม่นยำคำศัพท์ ${Math.round(c.accuracy * 100)}% ขึ้นไป`, value: `${Math.round(acc * 100)}%`, done: acc >= c.accuracy && (game.correctCount + game.wrongCount) > 0 },
+      { label: `ตอบคำศัพท์ถูกอย่างน้อย ${c.minCorrect} คำ`, value: `${game.correctCount} / ${c.minCorrect}`, done: L || game.correctCount >= c.minCorrect },
+      { label: `ความแม่นยำคำศัพท์ ${Math.round(c.accuracy * 100)}% ขึ้นไป`, value: `${Math.round(acc * 100)}%`, done: L || (acc >= c.accuracy && (game.correctCount + game.wrongCount) > 0) },
       { label: `สำรวจห้องให้ได้ ${s.roomsNeeded} ห้อง`, value: `${s.visited.size} / ${s.roomsNeeded}`, done: s.visited.size >= s.roomsNeeded },
       { label: `ตามหากุญแจที่ซ่อนอยู่ ${s.keysTotal} ดอก`, value: `${s.keysFound} / ${s.keysTotal}`, done: s.keysFound >= s.keysTotal },
     ];
