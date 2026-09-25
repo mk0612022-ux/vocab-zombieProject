@@ -415,15 +415,23 @@ G.buildWeaponModel = function (def) {
     black: G.makeBoxMat(0x191b1f),
   };
   const g = new THREE.Group();
+  // Parts that move on their own during a reload -- the magazine, the bolt or
+  // slide, a shotgun's pump, an LMG's top cover -- are built into sub-groups
+  // whose origin is their pivot. `box` takes absolute gun coordinates either
+  // way; while `into` names a part it lands there, offset by the part origin.
+  let into = null;
+  const part = (x, y, z) => { const p = new THREE.Group(); p.position.set(x, y, z); g.add(p); return p; };
   const box = (w, h, d, x, y, z, m, rx, ry, rz) => {
     const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
-    b.position.set(x, y, z);
+    const o = into ? into.position : null;
+    b.position.set(x - (o ? o.x : 0), y - (o ? o.y : 0), z - (o ? o.z : 0));
     if (rx) b.rotation.x = rx;
     if (ry) b.rotation.y = ry;
     if (rz) b.rotation.z = rz;
-    g.add(b);
+    (into || g).add(b);
     return b;
   };
+  const parts = {};
   const glow = (w, h, d, x, y, z, c) => box(w, h, d, x, y, z, new THREE.MeshBasicMaterial({ color: c }));
 
   // The seed nudges the receiver as well as the barrel, so two guns on the
@@ -437,10 +445,23 @@ G.buildWeaponModel = function (def) {
   const muzzleZ = recZ - bd / 2 - barrelLen;
 
   // ---- receiver, top cover and ejection port ----
+  const archKey = G.WEAPON_ARCHETYPES[def.archetype] ? def.archetype : G.inferArchetype(def);
   box(bw, bh, bd, 0, 0, recZ, S.body);
+  // A pistol's top cover IS its slide: it rides back with the rack.
+  // An LMG's hinges up at the rear for a belt change.
+  if (archKey === "pistol") into = parts.bolt = part(0, bh * 0.5, recZ);
+  else if (archKey === "lmg") into = parts.cover = part(0, bh * 0.64, recZ + bd * 0.46);
   box(bw * 0.86, bh * 0.28, bd * 0.92, 0, bh * 0.5, recZ, S.mid);
+  into = null;
   box(bw * 0.55, bh * 0.22, bd * 0.3, bw * 0.5, bh * 0.14, recZ - bd * 0.15, S.black);   // ejection port
+  into = parts.bolt || (parts.bolt = part(bw * 0.55, bh * 0.36, recZ + bd * 0.1));
   box(bw * 0.3, bh * 0.12, bd * 0.16, bw * 0.55, bh * 0.36, recZ + bd * 0.1, S.steel);   // charging handle
+  if (archKey === "sniper") {
+    // a real bolt handle to work, sticking out to the right
+    box(0.07, 0.022, 0.022, bw * 0.55 + 0.04, bh * 0.36, recZ + bd * 0.1, S.steel);
+    box(0.035, 0.035, 0.035, bw * 0.55 + 0.08, bh * 0.36 - 0.01, recZ + bd * 0.1, S.black);
+  }
+  into = null;
   if (carryHandle) {
     box(bw * 0.22, 0.05, bd * 0.34, 0, bh * 0.62 + 0.06, recZ - bd * 0.05, S.dark);
     [-1, 1].forEach((s) => box(bw * 0.22, 0.07, 0.022, 0, bh * 0.62 + 0.03, recZ - bd * 0.05 + s * bd * 0.17, S.dark));
@@ -484,7 +505,10 @@ G.buildWeaponModel = function (def) {
   box(0.04, 0.045, 0.016, 0, -bh / 2 - 0.045, gripZ - 0.1, S.black);                       // guard front
 
   // ---- magazine ----
+  // Its own part, pivoting at the mag well, so a reload can pull it out,
+  // drop it and seat a new one. (A shotgun's tube is part of the gun.)
   const magZ = recZ - bd * 0.08;
+  if (A.mag !== "tube") into = parts.mag = part(0, -bh / 2, A.mag === "short" ? gripZ : magZ);
   if (A.mag === "short") {
     box(0.062, 0.1, 0.075, 0, -bh / 2 - 0.05, gripZ, S.light, -0.17);
   } else if (A.mag === "long") {
@@ -506,6 +530,7 @@ G.buildWeaponModel = function (def) {
     box(0.085, 0.11, 0.13, 0, -bh / 2 - 0.055, magZ, S.light);
     glow(0.09, 0.035, 0.09, 0, -bh / 2 - 0.055, magZ, def.color);
   }
+  into = null;
 
   // ---- stock ----
   if (A.stock === "full") {
@@ -555,8 +580,10 @@ G.buildWeaponModel = function (def) {
   // ---- archetype extras ----
   if (A.foregrip) box(0.05, 0.11, 0.055, 0, -bh / 2 - 0.05, recZ - bd / 2 - barrelLen * 0.45, S.dark, 0.12);
   if (A.pump) {
+    into = parts.pump = part(0, bh * 0.06 - bore * 0.5, recZ - bd / 2 - barrelLen * 0.5);
     box(bore * 2.4, bore * 1.7, 0.15, 0, bh * 0.06 - bore * 0.5, recZ - bd / 2 - barrelLen * 0.5, S.dark);
     for (let i = 0; i < 4; i++) box(bore * 2.5, 0.012, 0.014, 0, bh * 0.06 - bore * 0.5 + 0.02, recZ - bd / 2 - barrelLen * 0.5 - 0.05 + i * 0.033, S.black);
+    into = null;
   }
   if (A.bipod) {
     [-1, 1].forEach((s) => box(0.016, 0.13, 0.016, s * 0.045, -bh / 2 - 0.06, recZ - bd / 2 - barrelLen * 0.72, S.black, 0, 0, s * 0.42));
@@ -608,6 +635,38 @@ G.buildWeaponModel = function (def) {
     g.add(ring);
     g.userData.rainbowTrim = ring;
   }
+
+  // ---- where the hands go (animation pass A) ----
+  // Anchor points in gun coordinates: the grip for the firing hand, a spot
+  // for the support hand (foregrip, pump, handguard -- or cupping the grip on
+  // a pistol), and the parts a reload works on. The viewmodel puts the hands
+  // on these with IK, so every gun is held by its own grip.
+  const V = (x, y, z) => new THREE.Vector3(x, y, z);
+  const hgLen = barrelLen * 0.55, hgZ = recZ - bd / 2 - hgLen / 2 - 0.02;
+  let fore;
+  if (A.foregrip) fore = V(0, -bh / 2 - 0.07, recZ - bd / 2 - barrelLen * 0.45);
+  else if (A.pump) fore = V(0, bh * 0.06 - bore * 1.2, recZ - bd / 2 - barrelLen * 0.5);
+  else if (A.handguard || A.coils) fore = V(0, bh * 0.06 - bore * 1.3, hgZ + hgLen * 0.2);
+  else if (archKey === "pistol") fore = V(-0.02, -bh / 2 - 0.1, gripZ - 0.02);
+  else fore = V(0, bh * 0.08 - bore * 1.1, recZ - bd / 2 - barrelLen * 0.28);
+  const magDepth = { short: 0.1, long: 0.27, curved: 0.25, drum: 0.2, cell: 0.11 }[A.mag] || 0.12;
+  g.userData.anchors = {
+    grip: V(0, -bh / 2 - 0.08, gripZ + 0.005),
+    fore,
+    magWell: parts.mag ? parts.mag.position.clone() : V(0, -bh / 2, recZ - bd * 0.1),
+    magBottom: parts.mag ? parts.mag.position.clone().add(V(0, -magDepth, 0)) : V(0, -bh / 2 - 0.02, recZ - bd * 0.1),
+    bolt: parts.bolt ? parts.bolt.position.clone() : V(bw * 0.55, bh * 0.36, recZ),
+    pump: parts.pump ? parts.pump.position.clone() : fore.clone(),
+    cover: V(0, bh * 0.66, recZ - bd * 0.15),
+    port: V(0, -bh / 2 - 0.02, recZ - bd * 0.15),
+    muzzle: V(0, bh * 0.08, muzzleZ),
+  };
+  g.userData.parts = parts;
+  g.userData.archetype = archKey;
+  g.userData.magKind = A.mag;
+  g.userData.magDepth = magDepth;
+  g.userData.reloadStyle = archKey === "pistol" ? "pistol" : A.mag === "tube" ? "shotgun" : archKey === "sniper" ? "bolt"
+    : archKey === "lmg" ? "belt" : (archKey === "launcher" || archKey === "cannon") ? "launcher" : "rifle";
   return g;
 };
 
@@ -694,8 +753,13 @@ G.holdPose = function (def) {
 G.buildWeaponMesh = function (def) {
   const g = G.buildWeaponModel(def);
   // Category K: ~50 parts become one mesh per colour (the rainbow ring on
-  // secret guns spins, so it stays separate)
-  if (G.Perf && G.Perf.mergeLocal) G.Perf.mergeLocal(g, [g.userData.rainbowTrim]);
+  // secret guns spins, so it stays separate). The moving parts -- magazine,
+  // bolt, pump, cover -- are merged within themselves and kept apart.
+  if (G.Perf && G.Perf.mergeLocal) {
+    const moving = Object.values(g.userData.parts || {});
+    moving.forEach((p) => G.Perf.mergeLocal(p));
+    G.Perf.mergeLocal(g, [g.userData.rainbowTrim].concat(moving));
+  }
   if (G.save && G.save.settings && G.save.settings.colorblindMode) {
     const badge = G.buildRarityBadge(def.rarity);
     // Clears even the tallest silhouette (golden_smg's crown spikes top out
@@ -714,6 +778,9 @@ G.buildMeleeMesh = function () {
   const blade = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.32, 0.02), G.makeBoxMat(0xcfd6d6));
   blade.position.set(0, 0.14, 0);
   g.add(blade);
+  g.userData.anchors = { grip: new THREE.Vector3(0, -0.1, 0) };
+  g.userData.parts = {};
+  g.userData.reloadStyle = null;
   return g;
 };
 
@@ -842,6 +909,13 @@ function addTatteredClothing(g, tornMat, tatterAmount, anchorY, anchorZ) {
   }
 }
 
+function zBox(parent, w, h, d, x, y, z, mat) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+  m.position.set(x, y, z);
+  parent.add(m);
+  return m;
+}
+
 G.buildZombieMesh = function (type, variation) {
   const def = G.ZOMBIE_TYPES[type];
   const v = variation || G.randomZombieVariation();
@@ -854,50 +928,95 @@ G.buildZombieMesh = function (type, variation) {
   if (type === "crawler") {
     // Legless crawler: body dragged low and near-horizontal instead of
     // standing upright, forelimbs reaching forward for the pull stroke.
+    // (the torso rides in its own group: it heaves with each pull, and a
+    // group can be merged into one mesh and still be moved)
+    const torsoG = new THREE.Group();
+    torsoG.position.set(0, 0.32, -0.05); g.add(torsoG);
     const torso = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.32, 0.75), mat);
-    torso.position.set(0, 0.32, -0.05); torso.rotation.x = -0.12; g.add(torso);
+    torso.rotation.x = -0.12; torsoG.add(torso);
     addWounds(torso, woundCount);
     addTatteredClothing(g, tornMat, v.tatterAmount, 0.3, 0.15);
+    const neck = new THREE.Group();
+    neck.position.set(0, 0.36, 0.3); g.add(neck);
     const head = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.3, 0.32), skinMat);
-    head.position.set(0, 0.38, 0.42); head.rotation.x = 0.35; g.add(head);
+    head.position.set(0, 0.02, 0.12); head.rotation.x = 0.35; neck.add(head);
     head.name = "head";
     addZombieFace(head, type, skinMat, v);
-    const armGeo = new THREE.BoxGeometry(0.15, 0.5, 0.15);
-    const armL = new THREE.Mesh(armGeo, skinMat); armL.position.set(-0.22, 0.28, 0.35); armL.rotation.x = -0.9; g.add(armL);
-    const armR = new THREE.Mesh(armGeo, skinMat); armR.position.set(0.22, 0.28, 0.35); armR.rotation.x = -0.9; g.add(armR);
-    // stumps where the legs used to be -- short, dragging, non-animated
+    // arms jointed at shoulder and elbow, reaching ahead to pull the body
+    const makeArm = (side) => {
+      const shoulder = new THREE.Group(); shoulder.position.set(side * 0.22, 0.36, 0.3); g.add(shoulder);
+      zBox(shoulder, 0.14, 0.28, 0.14, 0, -0.14, 0, skinMat);
+      const elbow = new THREE.Group(); elbow.position.y = -0.27; shoulder.add(elbow);
+      zBox(elbow, 0.13, 0.26, 0.13, 0, -0.13, 0, skinMat);
+      zBox(elbow, 0.15, 0.08, 0.14, 0, -0.3, 0.01, skinMat);
+      return { shoulder, elbow, side };
+    };
+    // stumps where the legs used to be -- short and dragging
     const stumpGeo = new THREE.BoxGeometry(0.16, 0.16, 0.22);
     const stumpL = new THREE.Mesh(stumpGeo, tornMat); stumpL.position.set(-0.13, 0.18, -0.4); g.add(stumpL);
     const stumpR = new THREE.Mesh(stumpGeo, tornMat); stumpR.position.set(0.13, 0.18, -0.4); g.add(stumpR);
-    g.userData.limbs = { armL, armR, legL: null, legR: null };
+    g.userData.limbs = { armL: makeArm(-1), armR: makeArm(1), stumpL, stumpR };
     g.userData.crawler = true;
-    g.userData.torso = torso;
-    g.userData.torsoBaseY = torso.position.y;
+    g.userData.torso = torsoG;
+    g.userData.neck = neck;
+    g.userData.torsoBaseY = torsoG.position.y;
   } else {
+    // Animation pass A: a body that bends where bodies bend. The upper body
+    // pivots at the hips, the head at the neck, arms at shoulder and elbow,
+    // legs at hip and knee. The old limbs were single boxes turning about
+    // their own middles, which is what made the walk look robotic.
+    const upper = new THREE.Group(); upper.position.y = 0.74; g.add(upper);
     const torso = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.7, 0.3), mat);
-    torso.position.y = 1.1; g.add(torso);
+    torso.position.y = 0.36; upper.add(torso);
     addWounds(torso, woundCount);
-    addTatteredClothing(g, tornMat, v.tatterAmount, 0.75, 0.13);
+    addTatteredClothing(upper, tornMat, v.tatterAmount, 0.01, 0.13);
+    const neck = new THREE.Group(); neck.position.y = 0.72; upper.add(neck);
     const head = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.35, 0.35), skinMat);
-    head.position.y = 1.65; g.add(head);
+    head.position.y = 0.19; neck.add(head);
     head.name = "head";
     addZombieFace(head, type, skinMat, v);
     // boss gets visible shoulder armor plates to look distinctly more dangerous
     if (type === "boss") {
       [-0.32, 0.32].forEach((x) => {
         const plate = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.14, 0.22), tornMat);
-        plate.position.set(x, 1.42, 0); g.add(plate);
+        plate.position.set(x, 0.68, 0); upper.add(plate);
       });
     }
-    const armGeo = new THREE.BoxGeometry(0.18, 0.55, 0.18);
-    const armL = new THREE.Mesh(armGeo, skinMat); armL.position.set(-0.38, 1.05, 0); g.add(armL);
-    const armR = new THREE.Mesh(armGeo, skinMat); armR.position.set(0.38, 1.05, 0); g.add(armR);
-    const legGeo = new THREE.BoxGeometry(0.2, 0.6, 0.2);
-    const legL = new THREE.Mesh(legGeo, mat); legL.position.set(-0.15, 0.4, 0); g.add(legL);
-    const legR = new THREE.Mesh(legGeo, mat); legR.position.set(0.15, 0.4, 0); g.add(legR);
-    g.userData.limbs = { armL, armR, legL, legR };
+    const makeArm = (side) => {
+      const shoulder = new THREE.Group(); shoulder.position.set(side * 0.36, 0.64, 0); upper.add(shoulder);
+      zBox(shoulder, 0.18, 0.31, 0.18, 0, -0.14, 0, skinMat);
+      const elbow = new THREE.Group(); elbow.position.y = -0.29; shoulder.add(elbow);
+      zBox(elbow, 0.16, 0.29, 0.16, 0, -0.14, 0, skinMat);
+      zBox(elbow, 0.17, 0.1, 0.15, 0, -0.33, 0.01, skinMat);                  // hand
+      return { shoulder, elbow, side };
+    };
+    const makeLeg = (side) => {
+      const hip = new THREE.Group(); hip.position.set(side * 0.15, 0.74, 0); g.add(hip);
+      zBox(hip, 0.2, 0.37, 0.2, 0, -0.18, 0, mat);
+      const knee = new THREE.Group(); knee.position.y = -0.36; hip.add(knee);
+      zBox(knee, 0.18, 0.34, 0.18, 0, -0.17, 0, tornMat);
+      const foot = new THREE.Group(); foot.position.y = -0.34; knee.add(foot);
+      zBox(foot, 0.19, 0.08, 0.28, 0, 0, 0.05, tornMat);
+      return { hip, knee, foot, side };
+    };
+    g.userData.limbs = { armL: makeArm(-1), armR: makeArm(1), legL: makeLeg(-1), legR: makeLeg(1) };
+    g.userData.upper = upper;
+    g.userData.neck = neck;
   }
 
+  // Draw-call budget (category K): a jointed zombie is ~30 boxes. Each rigid
+  // piece -- torso with its wounds, head with its face, a forearm with its
+  // hand -- is merged into one mesh per material, leaving only the joints as
+  // separate objects. That brings it back to about the old mesh count.
+  if (G.Perf && G.Perf.mergeLocal) {
+    const keepAnimated = new Set(Object.values(g.userData.limbs || {}).filter((l) => l && l.isMesh));
+    const groups = [];
+    g.traverse((o) => { if (!o.isMesh && !o.isSprite) groups.push(o); });
+    groups.forEach((grp) => {
+      const keep = grp.children.filter((c) => !c.isMesh || keepAnimated.has(c));
+      G.Perf.mergeLocal(grp, keep);
+    });
+  }
   g.scale.setScalar(def.scale);
   // slight random stagger lean, per instance, so a group of zombies doesn't
   // look identically posed
@@ -941,6 +1060,112 @@ G.Zombie.prototype.takeDamage = function (dmg) {
   if (this.hp <= 0 && this.alive) { this.alive = false; return true; }
   return false;
 };
+// ---------------- Zombie animation (animation pass A1) ----------------
+// A shamble built from the same rules as the player's rig: the stride phase
+// follows the ground actually covered (feet don't skate), weights between
+// standing and walking ease in, every joint moves on an eased curve, and the
+// loose parts -- head, arms -- trail the body on springs. Each zombie gets
+// its own limp, reach and rhythm so a crowd never moves in step.
+const ZOMBIE_GAIT = {
+  normal: { stride: 1.05, swing: 0.42, knee: 0.85, reach: 1.25, pump: 0.0, lean: 0.2 },
+  fast: { stride: 1.55, swing: 0.7, knee: 1.25, reach: 0.55, pump: 0.8, lean: 0.34 },
+  boss: { stride: 1.3, swing: 0.36, knee: 0.7, reach: 0.9, pump: 0.15, lean: 0.16 },
+};
+G.Zombie.prototype.animate = function (dt, moved) {
+  const u = this.mesh.userData, L = u.limbs;
+  if (!L || dt <= 0) return;
+  const A = G.Anim;
+  const def = G.ZOMBIE_TYPES[this.type];
+  if (!this._anim) {
+    // per-zombie character: which leg drags, how far the arms reach, tempo
+    this._anim = {
+      phase: G.rng(), t: G.rng() * 20, spd: 0, moveW: 0, limp: G.rng() < 0.5 ? -1 : 1,
+      limpAmt: 0.25 + G.rng() * 0.45, reach: 0.85 + G.rng() * 0.3, seed: G.rng() * 10,
+      head: { x: new A.Spring(), z: new A.Spring() }, arm: new A.Spring(), lunge: 0,
+    };
+  }
+  const S = this._anim;
+  S.t += dt;
+  const speed = moved / dt;
+  S.spd = A.approach(S.spd, speed, dt, 0.2);
+  S.moveW = A.approach(S.moveW, S.spd > 0.15 ? 1 : 0, dt, 0.25);
+  const w = S.moveW;
+  const scale = def.scale || 1;
+
+  if (u.crawler) {
+    // hand over hand: each arm reaches, plants and drags the body forward
+    S.phase = (S.phase + dt * S.spd / (0.6 * scale)) % 1;
+    const ph = S.phase * Math.PI * 2;
+    [L.armL, L.armR].forEach((arm, i) => {
+      const a = ph + i * Math.PI;
+      const reach = Math.sin(a), bend = Math.max(0, -Math.cos(a));
+      arm.shoulder.rotation.x = -1.35 - 0.55 * reach * w + A.wobble(S.t, S.seed + i) * 0.06 * (1 - w);
+      arm.shoulder.rotation.z = arm.side * (0.15 + 0.1 * bend * w);
+      arm.elbow.rotation.x = -0.3 - 0.9 * bend * w;
+    });
+    const pull = Math.abs(Math.sin(ph));
+    u.torso.position.y = u.torsoBaseY + pull * 0.05 * w;
+    u.torso.rotation.z = Math.sin(ph) * 0.08 * w;
+    S.head.x.step(Math.sin(ph) * 0.12 * w, dt, 2.2, 0.35);
+    u.neck.rotation.set(S.head.x.x + A.wobble(S.t * 0.8, S.seed) * 0.08, A.wobble(S.t * 0.5, S.seed + 3) * 0.15, 0);
+    if (L.stumpL) { L.stumpL.rotation.x = Math.sin(ph) * 0.2 * w; L.stumpR.rotation.x = -Math.sin(ph) * 0.2 * w; }
+    return;
+  }
+
+  const G2 = ZOMBIE_GAIT[this.type] || ZOMBIE_GAIT.normal;
+  S.phase = (S.phase + dt * S.spd / (G2.stride * scale)) % 1;
+  const ph = S.phase * Math.PI * 2;
+  S.lunge = Math.max(0, S.lunge - dt);
+  const lungeK = S.lunge > 0 ? Math.sin((1 - S.lunge / 0.45) * Math.PI) : 0;
+
+  // ---- legs ----
+  [L.legL, L.legR].forEach((leg, i) => {
+    const a = ph + i * Math.PI;
+    // the dragging leg swings less and barely bends
+    const drag = leg.side === S.limp ? 1 - S.limpAmt : 1;
+    const swing = Math.sin(a) * G2.swing * drag * w;
+    // the knee folds most as the leg passes under the body going forward
+    const kneeBend = Math.pow(Math.max(0, Math.cos(a)), 1.5) * G2.knee * drag * w;
+    leg.hip.rotation.x = -swing - 0.05 * w;
+    leg.hip.rotation.z = leg.side * 0.03;
+    leg.knee.rotation.x = 0.08 + kneeBend;
+    // keep the sole roughly level, toe dragging on the lame side
+    leg.foot.rotation.x = swing - kneeBend * 0.8 + (drag < 1 ? 0.25 * w : 0);
+  });
+
+  // ---- upper body: hunched, lurching over the planted foot ----
+  const idle = 1 - w;
+  const sway = Math.sin(ph) * 0.07 * w + A.wobble(S.t * 0.6, S.seed) * 0.05 * idle;
+  const bob = -Math.cos(2 * ph) * 0.025 * w;
+  u.upper.position.y = 0.74 + bob + Math.sin(S.t * 1.4 + S.seed) * 0.006 * idle;
+  u.upper.rotation.set(G2.lean + 0.06 * w + 0.35 * lungeK + Math.sin(S.t * 1.4 + S.seed) * 0.02 * idle,
+    Math.sin(ph) * 0.1 * w, sway + S.limp * 0.04 * S.limpAmt * w);
+
+  // ---- arms: the classic reach, trailing the body on a spring ----
+  S.arm.step(-sway * 1.4, dt, 2.4, 0.4);
+  [L.armL, L.armR].forEach((arm, i) => {
+    const a = ph + i * Math.PI;
+    const reach = G2.reach * S.reach;
+    // fast ones pump their arms to run; the rest hold them out and let them
+    // bounce with the steps
+    const pump = Math.sin(a + Math.PI) * G2.pump * w;
+    const bounce = Math.sin(2 * ph + i) * 0.08 * w;
+    const dangle = A.wobble(S.t * 0.9, S.seed + i * 2) * 0.08 * idle;
+    arm.shoulder.rotation.x = -reach + pump + bounce + dangle - 0.8 * lungeK;
+    arm.shoulder.rotation.z = arm.side * (0.12 + 0.05 * idle) + S.arm.x * 0.6;
+    arm.shoulder.rotation.y = arm.side * -0.08;
+    arm.elbow.rotation.x = -(0.25 + 0.2 * Math.max(0, Math.sin(a)) * w + (G2.pump ? 0.8 * w : 0)) + 0.3 * lungeK;
+  });
+
+  // ---- head: lolls behind the body's motion ----
+  S.head.z.step(-sway * 1.6, dt, 1.8, 0.3);
+  S.head.x.step(bob * 3 + 0.1 * idle, dt, 2.0, 0.35);
+  u.neck.rotation.set(-0.15 + S.head.x.x + A.wobble(S.t * 0.7, S.seed + 5) * 0.07,
+    A.wobble(S.t * 0.4, S.seed + 7) * 0.2 * idle, S.head.z.x);
+};
+// called when a zombie bites: arms and shoulders throw forward
+G.Zombie.prototype.lunge = function () { if (this._anim) this._anim.lunge = 0.45; };
+
 // moveTarget drives WHERE the zombie walks (the player directly, or the next
 // waypoint when routing around walls -- see game.js updateZombies). attackTarget
 // is always the real player position; the returned distance is measured to
@@ -1024,22 +1249,24 @@ G.Zombie.prototype.update = function (dt, moveTarget, attackTarget, colliders, g
     }
     if (moveDir) {
       this.mesh.position.addScaledVector(moveDir, moveSpeed);
-      this.mesh.rotation.y = Math.atan2(moveDir.x, moveDir.z);
+      this._faceYaw = Math.atan2(moveDir.x, moveDir.z);
     }
+  } else {
+    // close enough to bite: square up to the player
+    this._faceYaw = Math.atan2(attackTarget.x - this.mesh.position.x, attackTarget.z - this.mesh.position.z);
   }
-  const limbs = this.mesh.userData.limbs;
-  if (limbs && this.mesh.userData.crawler) {
-    // Dragging crawl: forelimbs pull alternately (breast-stroke-like reach)
-    // and the torso bobs with each pull instead of a standing leg-swing.
-    const crawlSwing = Math.sin(this.walkT) * 0.5;
-    limbs.armL.rotation.x = -0.9 + crawlSwing;
-    limbs.armR.rotation.x = -0.9 - crawlSwing;
-    if (this.mesh.userData.torso) this.mesh.userData.torso.position.y = this.mesh.userData.torsoBaseY + Math.abs(Math.sin(this.walkT * 0.5)) * 0.05;
-  } else if (limbs) {
-    const swing = Math.sin(this.walkT) * 0.4;
-    limbs.armL.rotation.x = swing; limbs.armR.rotation.x = -swing;
-    limbs.legL.rotation.x = -swing; limbs.legR.rotation.x = swing;
+  // Turn toward the heading at a body's pace instead of snapping to it --
+  // an instant 90-degree swivel was half of what read as robotic.
+  if (this._faceYaw !== undefined) {
+    let d = this._faceYaw - this.mesh.rotation.y;
+    d = Math.atan2(Math.sin(d), Math.cos(d));
+    const rate = (this.type === "fast" ? 7 : this.type === "boss" ? 2.5 : 4.5) * dt;
+    this.mesh.rotation.y += Math.max(-rate, Math.min(rate, d * Math.min(1, dt * 8)));
   }
+  const moved = Math.hypot(this.mesh.position.x - (this._lastX === undefined ? this.mesh.position.x : this._lastX),
+    this.mesh.position.z - (this._lastZ === undefined ? this.mesh.position.z : this._lastZ));
+  this._lastX = this.mesh.position.x; this._lastZ = this.mesh.position.z;
+  this.animate(dt, moved);
   this.attackCooldown -= dt;
   const dx = attackTarget.x - this.mesh.position.x, dz = attackTarget.z - this.mesh.position.z;
   return Math.hypot(dx, dz);

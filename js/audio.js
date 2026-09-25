@@ -242,12 +242,30 @@ G.Audio = {
     this.tone({ type: "sine", freq: big ? 60 : 85, freqEnd: 24, dur: big ? 1.0 : 0.6, gain: 0.9, pos });
     this.noise({ dur: big ? 1.2 : 0.7, filter: "lowpass", freq: 900, freqEnd: 90, gain: 0.8, pos });
   },
+  // Animation pass A3: reload sounds are triggered by the reload routine's
+  // own steps (G.Game.onReloadEvent), so each click lands on the frame the
+  // hand does the thing -- whatever the weapon type and however long it is.
+  reloadEvent(kind, def) {
+    if (!this.ctx) return;
+    const click = (freq, gain, at) => this.tone({ type: "square", freq, dur: 0.025, gain, at: at || 0, filter: { type: "bandpass", freq: freq * 1.6, q: 3 } });
+    switch (kind) {
+      case "start": this.noise({ dur: 0.16, filter: "lowpass", freq: 700, gain: 0.05 }); break;          // cloth, the hand moving
+      case "out": click(1300, 0.08); this.noise({ dur: 0.1, freq: 900, gain: 0.1, at: 0.03 }); break;     // release, slide out
+      case "grab": this.noise({ dur: 0.12, filter: "lowpass", freq: 1100, gain: 0.07 }); break;          // out of the pouch
+      case "in": this.noise({ dur: 0.07, freq: 1500, gain: 0.12 }); click(900, 0.12, 0.05); break;        // slides in, catch clicks
+      case "slap": this.noise({ dur: 0.05, filter: "lowpass", freq: 600, gain: 0.14 }); break;           // palm on the base
+      case "bolt": click(1100, 0.1); this.noise({ dur: 0.06, freq: 2000, gain: 0.07, at: 0.02 }); click(700, 0.14, 0.09); break;
+      case "cover": click(800, 0.1); this.noise({ dur: 0.08, freq: 1200, gain: 0.07 }); break;
+      case "coverClose": click(600, 0.15); break;
+      case "shell": this.noise({ dur: 0.04, freq: 1800, gain: 0.08 }); click(1400, 0.06, 0.03); break;
+      case "pump": this.noise({ dur: 0.07, freq: 1000, gain: 0.12 }); this.noise({ dur: 0.07, freq: 1300, gain: 0.13, at: 0.13 }); click(700, 0.1, 0.19); break;
+      case "land": this.tone({ type: "triangle", freq: 520 + Math.random() * 120, dur: 0.06, gain: 0.05 }); break;   // spent magazine hits the floor
+    }
+  },
+  // kept for any older caller: a whole reload's worth of clicks by duration
   reload(dur) {
     if (!this.ctx) return;
-    this.tone({ type: "square", freq: 1300, dur: 0.03, gain: 0.08, at: dur * 0.12, filter: { type: "bandpass", freq: 2200, q: 3 } });   // mag release
-    this.noise({ dur: 0.12, freq: 900, gain: 0.12, at: dur * 0.2 });                                                                   // mag slides out
-    this.noise({ dur: 0.1, freq: 1400, gain: 0.14, at: dur * 0.62 });                                                                  // new mag in
-    this.tone({ type: "square", freq: 700, dur: 0.04, gain: 0.14, at: dur * 0.84, filter: { type: "bandpass", freq: 1600, q: 2 } });    // slide/bolt home
+    ["out", "in", "bolt"].forEach((k, i) => setTimeout(() => this.reloadEvent(k), dur * [120, 620, 840][i]));
   },
 
   // ---------------- everything else in J1 ----------------

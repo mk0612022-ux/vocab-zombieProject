@@ -34,7 +34,8 @@ G.Game = {
   baseFov: 75, aimFov: 50,
   stamina: 100, maxStamina: 100, staminaExhausted: false, // category I
   // category E: weapon switch / reload / recoil animation state
-  weaponAnim: { switchT: 0, switchDur: 0.42, pendingRebuild: false, reloadT: 0, reloadDur: 0, recoilPos: 0, recoilRot: 0 },
+  weaponAnim: { switchT: 0, switchDur: 0.42, pendingRebuild: false, recoilPos: 0, recoilRot: 0 },
+  reloadState: null, // the reload routine in progress: { id, plan, t, next } (see reload())
   recoilRecover: 0,
   lastFrameTime: 0,
   fpsSmoothed: 60,
@@ -203,7 +204,7 @@ G.Game = {
       weaponLevels: { pistol: { dmg: 1, rate: 1, mag: 1 } },
       perks: {}, moveSpeedMult: 1, armorPct: 0,
       combo: 0, comboTimer: 0, wasHitThisLevel: false,
-      fireCooldown: 0, reloadTimeLeft: 0, reloading: false,
+      fireCooldown: 0, reloading: false,
     };
     // Every new run/death starts with pistol + melee only. G.save.unlockedWeapons
     // is a permanent "ever discovered" record used by the Weapon Log (category F)
@@ -227,7 +228,11 @@ G.Game = {
     this.paused = false;
     this._onCrateClose = null; this._burst = null; this._chargeT = 0; this._bossChoices = null;
     this._mysteryHand = null; this._mysteryPick = null;
-    this.weaponAnim = { switchT: 0, switchDur: 0.42, pendingRebuild: false, reloadT: 0, reloadDur: 0, recoilPos: 0, recoilRot: 0 };
+    this.weaponAnim = { switchT: 0, switchDur: 0.42, pendingRebuild: false, recoilPos: 0, recoilRot: 0 };
+    this.reloadState = null;
+    this._prevPos = null; this._prevYaw = undefined; this._prevPitch = undefined;
+    this._sprintLatch = false; this._prevSprintHeld = false;
+    G.ViewModel.reset();
     this.recoilRecover = 0;
     this.camera.fov = this.baseFov;
     this.camera.updateProjectionMatrix();
@@ -287,6 +292,7 @@ G.Game = {
   },
   teardownLevel() {
     if (G.Audio) G.Audio.stopLevel();
+    if (G.ViewModel) G.ViewModel.clearProps();
     // pooled objects live in the scene; take them out before it is disposed
     if (G.Perf) { G.Perf.resetPools(); G.Perf.disposeLightPool(this.scene); }
     if (this.scene) {
@@ -395,9 +401,11 @@ G.Game = {
     return id === "melee" ? { dmg: 1, rate: 1, mag: 1 } : this.player.weaponLevels[id];
   },
   switchSlot(slot) {
-    if (slot === 0) { this.player.currentSlot = 0; return; }
+    if (slot === this.player.currentSlot) return;
+    if (slot === 0) { this.cancelReload(); this.player.currentSlot = 0; return; }
     const idx = slot - 1;
-    if (this.player.gunSlots[idx]) { this.player.currentSlot = slot; this.player.reloading = false; }
+    // switching away abandons a reload (see cancelReload)
+    if (this.player.gunSlots[idx]) { this.cancelReload(); this.player.currentSlot = slot; }
   },
   buildWeaponViewModel() {
     if (this.weaponViewGroup) { this.camera.remove(this.weaponViewGroup); G.disposeObject3D(this.weaponViewGroup); }
@@ -405,6 +413,8 @@ G.Game = {
     const mesh = def.id === "melee" ? G.buildMeleeMesh() : G.buildWeaponMesh(def);
     mesh.position.set(0.3, -0.32, -0.75);
     mesh.rotation.y = -0.06; // slight natural inward cant, typical FPS held-weapon angle
+    // from here on G.ViewModel poses it every frame
+    G.ViewModel.onWeaponBuilt(mesh, def);
     // The weapon builders already extend barrels/muzzles toward local -Z,
     // matching the camera's own forward (-Z) direction -- this extra 180deg
     // flip inverted that, sending the "barrel" toward the camera instead of
@@ -437,12 +447,39 @@ G.Game = {
     const lvl = this.player.weaponLevels[id];
     const magSize = Math.round(def.magSize * lvl.mag);
     if (this.player.reloading || ammo.mag >= magSize || ammo.reserve <= 0) return;
+    if (this.weaponAnim.switchT > 0) return;               // not in the middle of a swap
+    // Animation pass A3: a reload is a routine with steps, planned per weapon
+    // type by G.ViewModel. Its events drive the gameplay: ammo goes in when
+    // the fresh magazine seats (or shell by shell for a tube-fed shotgun),
+    // so a reload abandoned before that point refills nothing.
+    const missing = Math.min(magSize - ammo.mag, ammo.reserve);
     this.player.reloading = true;
-    this.player.reloadTimeLeft = def.reloadTime / 1000;
-    // Animation runs for exactly this weapon's reload time (category E2).
-    this.weaponAnim.reloadDur = def.reloadTime / 1000;
-    this.weaponAnim.reloadT = this.weaponAnim.reloadDur;
-    G.Audio.reload(this.weaponAnim.reloadDur);
+    this.reloadState = { id, plan: G.ViewModel.planReload(def, missing), t: 0, next: 0 };
+    // A reload is a reason to stop running: held sprint is ignored until it
+    // is released, and pressing it again abandons the reload.
+    this._sprintLatch = true;
+    G.Audio.reloadEvent("start", def);
+  },
+  cancelReload() {
+    if (!this.player.reloading) return;
+    this.player.reloading = false;
+    this.reloadState = null;
+    G.ViewModel.cancelReload();
+  },
+  onReloadEvent(kind, R) {
+    const def = G.WEAPON_DEFS[R.id];
+    const ammo = this.player.ammo[R.id];
+    const lvl = this.player.weaponLevels[R.id];
+    if (ammo && def) {
+      const magSize = Math.round(def.magSize * lvl.mag);
+      if (kind === "in") {
+        const need = Math.min(magSize - ammo.mag, ammo.reserve);
+        ammo.mag += need; ammo.reserve -= need;
+      } else if (kind === "shell" && ammo.mag < magSize && ammo.reserve > 0) {
+        ammo.mag++; ammo.reserve--;
+      }
+    }
+    G.Audio.reloadEvent(kind, def);
   },
 
   // ---------------- Shooting ----------------
@@ -632,59 +669,17 @@ G.Game = {
       this.pitchObject.rotation.x -= back;
       this.recoilRecover -= back;
     }
-    // weapon switch: lower the old gun, swap models at the bottom, raise the new one
+    // weapon switch: the old gun goes down and out of frame, the model is
+    // swapped at the bottom, the new one comes up (poses in G.ViewModel)
     if (a.switchT > 0) {
       a.switchT = Math.max(0, a.switchT - dt);
       const p = 1 - a.switchT / a.switchDur;
       if (p >= 0.5 && a.pendingRebuild) { a.pendingRebuild = false; this.buildWeaponViewModel(); }
     }
-    // reload: tilt the gun over, drop the spent mag, slap a new one in
-    if (a.reloadT > 0) {
-      const prev = a.reloadT;
-      a.reloadT = Math.max(0, a.reloadT - dt);
-      const p = 1 - a.reloadT / a.reloadDur;
-      const prevP = 1 - prev / a.reloadDur;
-      if (prevP < 0.22 && p >= 0.22) this.dropSpentMagazine();
-    }
   },
-  switchOffset() {
+  switchProgress() {
     const a = this.weaponAnim;
-    if (a.switchT <= 0) return 0;
-    const p = 1 - a.switchT / a.switchDur;
-    return -0.62 * (1 - Math.abs(2 * p - 1)); // down at the swap point, level at both ends
-  },
-  reloadPose() {
-    const a = this.weaponAnim;
-    if (a.reloadT <= 0) return null;
-    const p = 1 - a.reloadT / a.reloadDur;
-    const inT = Math.min(1, p / 0.18);                    // tilt out
-    const outT = Math.min(1, Math.max(0, (p - 0.86) / 0.14)); // settle back
-    const hold = inT * (1 - outT);
-    // sharp jolt as the fresh mag locks home
-    const jolt = p > 0.82 && p < 0.92 ? Math.sin((p - 0.82) / 0.1 * Math.PI) * 0.055 : 0;
-    return { drop: -0.16 * hold + jolt, roll: -0.55 * hold, pitch: 0.28 * hold };
-  },
-  dropSpentMagazine() {
-    if (!this.weaponViewGroup) return;
-    const def = this.currentWeaponDef();
-    const magColor = new THREE.Color(def.color || 0x888888).lerp(new THREE.Color(0xffffff), 0.45).getHex();
-    const mag = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.14, 0.08), new THREE.MeshLambertMaterial({ color: magColor }));
-    const start = this.weaponViewGroup.getWorldPosition(new THREE.Vector3());
-    mag.position.copy(start);
-    this.scene.add(mag);
-    const vel = new THREE.Vector3((G.rng() - 0.5) * 0.4, 0.6, (G.rng() - 0.5) * 0.4);
-    const spin = new THREE.Vector3(G.rng() * 6, G.rng() * 6, G.rng() * 6);
-    const t0 = performance.now();
-    const step = () => {
-      const el = (performance.now() - t0) / 1000;
-      const d = 1 / 60;
-      vel.y -= 9.8 * d;
-      mag.position.addScaledVector(vel, d);
-      mag.rotation.x += spin.x * d; mag.rotation.y += spin.y * d; mag.rotation.z += spin.z * d;
-      if (el < 1.4) requestAnimationFrame(step);
-      else { this.scene.remove(mag); G.disposeObject3D(mag); }
-    };
-    requestAnimationFrame(step);
+    return a.switchT > 0 ? 1 - a.switchT / a.switchDur : null;
   },
 
   damageZombie(z, dmg, hitPoint) {
@@ -1080,6 +1075,7 @@ G.Game = {
     const camDir = new THREE.Vector3(-Math.sin(this.yawObject.rotation.y), 0, -Math.cos(this.yawObject.rotation.y));
     G.Perf.updateLights(this.yawObject.position, camDir, performance.now() / 1000);
     G.Perf.updateSparks(dt);
+    G.ViewModel.updateProps(dt, this.world);
     G.Perf.cullZombies(this);
     G.updateDriftingFog(this.scene, this.world, performance.now() / 1000);
     G.updateSparks(this.scene, this.world, dt);
@@ -1165,7 +1161,15 @@ G.Game = {
     // Sprint is gated by stamina (category I): held sprint only speeds you up
     // while stamina remains, and only actually drains while you're moving --
     // holding the key while standing still costs nothing.
-    const wantSprint = (G.Input.mode === "desktop" && G.Input.isDown("sprint")) || G.Input.touchSprint;
+    const sprintHeld = (G.Input.mode === "desktop" && G.Input.isDown("sprint")) || G.Input.touchSprint;
+    // Animation pass A3: a fresh press of sprint abandons a reload in progress
+    // (the magazine never goes in, so no ammo is added). A sprint that was
+    // already held when the reload began is ignored until it is released.
+    const sprintPressed = sprintHeld && !this._prevSprintHeld;
+    this._prevSprintHeld = sprintHeld;
+    if (!sprintHeld) this._sprintLatch = false;
+    if (sprintPressed && this.player.reloading && len > 0.05) { this.cancelReload(); this._sprintLatch = false; }
+    const wantSprint = sprintHeld && !this._sprintLatch;
     // A3: at exactly 0 stamina the old check (stamina > 0) flipped back on the
     // very next frame, because the non-sprint branch regenerates -- so holding
     // sprint at empty alternated drain/regen frames and still moved you at
@@ -1222,39 +1226,45 @@ G.Game = {
     if (G.UI.setScopeVisual) G.UI.setScopeVisual(!!def.scope && this.aimT > 0.85);
     if (G.UI.setChargeMeter) G.UI.setChargeMeter(def.charge ? (this._chargeT || 0) / def.charge.time : null);
 
-    // Weapon view transform: bob + ADS pull-in, then the category-E animation
-    // offsets (switch dip, reload tilt, recoil kick) layered on top of it.
     this.updateWeaponAnim(dt);
-    // Category D2: where the weapon rides depends on what it weighs. A pistol
-    // sits high and central; a launcher hangs low, canted, with the support
-    // hand pushed far up the barrel.
-    const hold = G.holdPose(def);
     const a = this.weaponAnim;
-    const rl = this.reloadPose();
-    const gunDrop = this.switchOffset() + (rl ? rl.drop : 0) - hold.sag;
-    if (this.weaponViewGroup) {
-      const bob = (len > 0 ? Math.sin(performance.now() * 0.012) * 0.015 * (1 - this.aimT * 0.8) : 0);
-      this.weaponViewGroup.position.y = hold.y + bob + 0.02 * this.aimT + gunDrop;
-      this.weaponViewGroup.position.x = hold.x - (hold.x - 0.04) * this.aimT;
-      this.weaponViewGroup.position.z = hold.z + 0.1 * this.aimT + a.recoilPos;
-      this.weaponViewGroup.rotation.y = -0.06 * (1 - this.aimT);
-      this.weaponViewGroup.rotation.x = hold.rx * (1 - this.aimT) - a.recoilRot + (rl ? rl.pitch : 0);
-      this.weaponViewGroup.rotation.z = hold.rz * (1 - this.aimT) + (rl ? rl.roll : 0);
-      if (this.weaponViewGroup.userData.rainbowTrim) this.weaponViewGroup.userData.rainbowTrim.rotation.z += dt * 2.4;
+
+    // Animation pass A: what the rigs need to know about this frame -- how fast
+    // the player REALLY moved (after collisions), and how fast the view turned
+    const pos = this.yawObject.position;
+    const vel = new THREE.Vector3();
+    if (this._prevPos) {
+      vel.set((pos.x - this._prevPos.x) / dt, 0, (pos.z - this._prevPos.z) / dt);
+      if (vel.length() > 12) vel.set(0, 0, 0);            // a teleport, not a step
     }
-    // Category D: the body and arms run off the same animation state as the
-    // weapon, so a reload, a swap or a sprint moves all three together.
-    G.PlayerBody.update({
-      dt, moving: len > 0.05, sprinting, airborne: this.velocityY !== 0,
-      aimT: this.aimT, pose: hold, gunDrop, recoilPos: a.recoilPos,
-      reload: a.reloadT > 0 ? { p: 1 - a.reloadT / a.reloadDur } : null,
-      switchT: a.switchT, switchDur: a.switchDur,
+    this._prevPos = pos.clone();
+    const yawNow = this.yawObject.rotation.y, pitchNow = this.pitchObject.rotation.x;
+    let dYaw = this._prevYaw === undefined ? 0 : yawNow - this._prevYaw;
+    dYaw = Math.atan2(Math.sin(dYaw), Math.cos(dYaw));
+    const lookYaw = dYaw / dt, lookPitch = this._prevPitch === undefined ? 0 : (pitchNow - this._prevPitch) / dt;
+    this._prevYaw = yawNow; this._prevPitch = pitchNow;
+    const airborne = this.velocityY !== 0;
+    const rawFire = !this.challenge && ((G.Input.mode === "desktop" && G.Input.mouseDown) || G.Input.touchFire);
+
+    G.PlayerBody.stepGait(dt, vel, yawNow, airborne);
+    G.ViewModel.update({
+      dt, def, aimT: this.aimT, sprinting, firing: rawFire, lookYaw, lookPitch, airborne,
+      recoilPos: a.recoilPos, recoilRot: a.recoilRot, switchP: this.switchProgress(),
+      reload: this.player.reloading ? this.reloadState : null, vel, yaw: yawNow,
     });
+    G.PlayerBody.update({ dt, airborne, sprinting, weightKey: G.ViewModel.weightKey(def), aimT: this.aimT, lookYaw });
+
+    // A shotgun being loaded shell by shell can be fired as soon as it holds
+    // one: the trigger abandons the rest of the reload.
+    if (rawFire && this.player.reloading && this.reloadState && this.reloadState.plan.style === "shotgun"
+      && this.player.ammo[this.reloadState.id] && this.player.ammo[this.reloadState.id].mag > 0) this.cancelReload();
 
     // fire input (suppressed while a word-challenge popup wants the click for
-    // its answer buttons, and while a weapon swap is still in progress)
-    const wantFire = !this.challenge && this.weaponAnim.switchT <= 0
-      && ((G.Input.mode === "desktop" && G.Input.mouseDown) || G.Input.touchFire);
+    // its answer buttons, while a weapon swap is still in progress, and until
+    // the gun has come down out of the sprint carry -- pulling the trigger is
+    // what brings it down)
+    const sprintCarry = G.ViewModel.S && G.ViewModel.S.sprintW > 0.25;
+    const wantFire = rawFire && this.weaponAnim.switchT <= 0 && !sprintCarry;
 
     // Category N: a charge weapon winds up while the trigger is held and fires
     // on release, with damage scaling from 1x to its charge multiplier.
@@ -1312,20 +1322,15 @@ G.Game = {
 
   updateShooting(dt) {
     this.player.fireCooldown = Math.max(0, this.player.fireCooldown - dt);
-    if (this.player.reloading) {
-      this.player.reloadTimeLeft -= dt;
-      if (this.player.reloadTimeLeft <= 0) {
-        this.player.reloading = false;
-        const id = this.currentWeaponId();
-        if (id !== "melee") {
-          const ammo = this.player.ammo[id];
-          const lvl = this.player.weaponLevels[id];
-          const magSize = Math.round(G.WEAPON_DEFS[id].magSize * lvl.mag);
-          const need = Math.min(magSize - ammo.mag, ammo.reserve);
-          ammo.mag += need; ammo.reserve -= need;
-        }
-      }
-    }
+    // the reload routine: its events (magazine seated, a shell pushed in) are
+    // what actually move ammo -- see reload() and onReloadEvent()
+    const R = this.reloadState;
+    if (this.player.reloading && R) {
+      R.t += dt;
+      const evs = R.plan.events;
+      while (R.next < evs.length && evs[R.next].t <= R.t) this.onReloadEvent(evs[R.next++].kind, R);
+      if (R.t >= R.plan.dur) { this.player.reloading = false; this.reloadState = null; }
+    } else if (this.player.reloading) this.player.reloading = false;
     // Category E1: a swap no longer snaps the new model in instantly -- the
     // old gun drops out of frame, the model is swapped at the bottom of that
     // dip, and the new one rises into place (firing is locked out until it's
@@ -1335,12 +1340,13 @@ G.Game = {
       this._lastWeaponId = this.currentWeaponId();
       if (first) { this.buildWeaponViewModel(); }
       else {
-        this.weaponAnim.switchDur = 0.42;
+        // a heavy gun takes longer to put away and to bring up
+        const from = G.ViewModel.def, to = this.currentWeaponDef();
+        this.weaponAnim.switchDur = (G.ViewModel.switchDuration(from) + G.ViewModel.switchDuration(to)) / 2;
         this.weaponAnim.switchT = this.weaponAnim.switchDur;
         this.weaponAnim.pendingRebuild = true;
         G.Audio.sfx("switch");
-        this.weaponAnim.reloadT = 0;
-        this.player.reloading = false;
+        this.cancelReload();
       }
     } else if (!this.weaponViewGroup) {
       this.buildWeaponViewModel();
@@ -1435,6 +1441,7 @@ G.Game = {
       const sameFloor = Math.abs(z.mesh.position.y - (playerPos.y - 1.7)) < 1.5;
       if (dist !== undefined && dist < 1.1 && sameFloor && z.attackCooldown <= 0) {
         z.attackCooldown = 1.0;
+        if (z.lunge) z.lunge();
         const dmg = z.damage * (1 - this.player.armorPct);
         this.player.hp -= dmg;
         G.Audio.sfx("hurt");
@@ -1675,16 +1682,15 @@ G.Game = {
     // out on the grass
     const moving = this._lastStepPos ? Math.hypot(p.x - this._lastStepPos.x, p.z - this._lastStepPos.z) / Math.max(dt, 1e-4) : 0;
     this._lastStepPos = { x: p.x, z: p.z };
-    if (moving > 0.8 && this.velocityY === 0) {
-      const running = moving > 4.2;
-      this._stepT -= dt;
-      if (this._stepT <= 0) {
-        this._stepT = running ? 0.32 : 0.5;
-        const region = G.getRegionAt(this.world, p.x, p.z, p.y - 1.7);
-        const surface = this.level.theme === "bunker" ? "metal" : region === "YARD" ? "grass" : "tile";
-        A.footstep(surface, running);
-      }
-    } else this._stepT = Math.min(this._stepT, 0.12);
+    // one per foot plant, as reported by the gait (animation pass A2), so the
+    // sound lands exactly when the foot on screen does
+    const steps = G.PlayerBody.takeSteps();
+    if (steps.length && moving > 0.6 && this.velocityY === 0) {
+      const running = G.PlayerBody.gait.runW > 0.5;
+      const region = G.getRegionAt(this.world, p.x, p.z, p.y - 1.7);
+      const surface = this.level.theme === "bunker" ? "metal" : region === "YARD" ? "grass" : "tile";
+      A.footstep(surface, running);
+    }
 
     // warning 1: heartbeat under 30% health, quickening as it drops
     const hpFrac = this.player.hp / this.player.maxHp;

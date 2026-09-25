@@ -1,15 +1,27 @@
 // ===================================================================
-// First-person player body (category D)
+// First-person player body (category D, rebuilt in animation pass A)
 // -------------------------------------------------------------------
 // Two rigs, deliberately separate:
 //
-//   bodyRig -> yawObject   torso, hips, legs, head. Turns with the player but
-//                          NOT with their pitch, so looking down shows your
-//                          own chest and boots the way it should instead of
-//                          swinging the whole body up into the sky.
-//   armRig  -> camera      shoulders, arms, hands. These follow the camera
-//                          exactly, because they are holding the weapon and
-//                          the weapon is parented to the camera too.
+//   bodyRig -> yawObject   pelvis, spine, legs. Turns with the player but NOT
+//                          with their pitch, so looking down shows your own
+//                          chest and boots instead of swinging the body up.
+//   armRig  -> camera      upper arms, forearms, hands. The weapon is on the
+//                          camera too, so the arms can reach it exactly.
+//
+// Both are driven procedurally, every frame:
+//
+//   gait   the stride phase advances with the distance actually covered, so
+//          the feet plant at the speed the ground moves under them -- no
+//          sliding -- and a heavier gun (slower walk) takes shorter, slower
+//          steps. Each foot plant is reported for the footstep sound.
+//   legs   two-bone IK from hip to ankle: the foot is put where the step
+//          needs it and the knee bends to suit, forward like a knee does.
+//   arms   two-bone IK from shoulder to wrist: the hands are placed on the
+//          grip and the support point of whatever gun is held (see
+//          G.ViewModel), and the elbows work out where they must be. The
+//          shoulders sit on their own spring, so a turn reaches the arms a
+//          moment after the body and the gun after that.
 //
 // Everything is BoxGeometry, to match the rest of the game's art.
 // ===================================================================
@@ -17,8 +29,7 @@ G.PlayerBody = {
   built: false,
   bodyRig: null,
   armRig: null,
-  _stride: 0,
-  _lastHoldKey: null,
+  gait: { phase: 0, speed: 0, moveW: 0, runW: 0, bob: 0, sway: 0, stride: 1, steps: [] },
 
   MATS: null,
   _mats() {
@@ -30,8 +41,11 @@ G.PlayerBody = {
         trouserDark: new THREE.MeshLambertMaterial({ color: 0x232a3d }),
         shoe: new THREE.MeshLambertMaterial({ color: 0x191a1f }),
         skin: new THREE.MeshLambertMaterial({ color: 0xc09168 }),
+        skinDark: new THREE.MeshLambertMaterial({ color: 0xa87a55 }),
         hair: new THREE.MeshLambertMaterial({ color: 0x24201c }),
         strap: new THREE.MeshLambertMaterial({ color: 0x4a3a2a }),
+        shell: new THREE.MeshLambertMaterial({ color: 0xb8322a }),
+        brass: new THREE.MeshLambertMaterial({ color: 0xd9b24a }),
       };
     }
     return this.MATS;
@@ -43,6 +57,23 @@ G.PlayerBody = {
     parent.add(m);
     return m;
   },
+  // a bone: a group whose geometry hangs down its local -Y, so aimBone can
+  // point it from one joint at the next
+  bone(parent, len, w, d, mat) {
+    const b = new THREE.Group();
+    this.box(b, w, len, d, 0, -len / 2, 0, mat);
+    parent.add(b);
+    return b;
+  },
+
+  // arm lengths in camera space. The viewmodel is drawn further from the eye
+  // than a real gun is held (it has to clear the near plane), so the arms
+  // are long to match -- only the forearms are ever in view.
+  ARM: {
+    right: { shoulder: new THREE.Vector3(0.28, -0.55, 0.1), upper: 0.48, fore: 0.46, pole: new THREE.Vector3(0.9, -1.0, 0.3) },
+    left: { shoulder: new THREE.Vector3(-0.42, -0.6, 0.18), upper: 0.68, fore: 0.62, pole: new THREE.Vector3(-1.6, -0.7, 0.1) },
+  },
+  LEG: { hipY: -0.95, hipX: 0.11, hipZ: 0.02, thigh: 0.42, shin: 0.42, ankle: 0.08, floor: -1.70 },
 
   build(yawObject, camera) {
     this.dispose(yawObject, camera);
@@ -50,66 +81,73 @@ G.PlayerBody = {
 
     // ---- body: hung off the yaw rig, eye level is y = 0 ----
     const body = new THREE.Group();
-    // Head sits BEHIND the near plane on purpose. It exists so the rig is a
-    // whole person rather than a floating torso, but a head drawn at the eye
-    // would simply fill the screen.
     // Geometry here is tuned against the 0.1 near clip plane as much as against
     // anatomy: a chest modelled where a chest really is straddles the near
-    // plane, and a polygon clipped by it smears across the whole lower screen
-    // as a flat wall of colour. Everything is pushed down and back far enough
-    // that no corner comes within 0.2 of the eye at any pitch.
+    // plane and smears across the lower screen. Everything above the hips is
+    // pushed down and back far enough that no corner comes within 0.2 of the
+    // eye at any pitch. The spine pivots at the pelvis, so a lean tilts the
+    // whole upper body over the hips.
+    const spine = new THREE.Group();
+    spine.position.set(0, -0.93, 0.08);
+    body.add(spine);
     const head = new THREE.Group();
-    head.position.set(0, -0.06, 0.22);                                // behind the camera
+    head.position.set(0, 0.87, 0.14);                                  // behind the camera
     this.box(head, 0.26, 0.26, 0.26, 0, 0, 0, M.skin);
     this.box(head, 0.28, 0.1, 0.28, 0, 0.13, 0, M.hair);
-    body.add(head);
-    this.box(body, 0.14, 0.12, 0.14, 0, -0.28, 0.18, M.skin);         // neck
-
-    // The chest is set further BACK than the legs on purpose. Modelled in line
-    // with them it simply occludes them, and looking down showed nothing but a
-    // white slab -- this way the legs are the nearer surface and stay visible.
+    spine.add(head);
+    this.box(spine, 0.14, 0.12, 0.14, 0, 0.65, 0.1, M.skin);          // neck
     const torso = new THREE.Group();
-    torso.position.set(0, -0.63, 0.14);
+    torso.position.set(0, 0.30, 0.06);
     this.box(torso, 0.38, 0.46, 0.22, 0, 0, 0, M.shirt);
     this.box(torso, 0.40, 0.08, 0.24, 0, -0.25, 0, M.shirtDark);      // shirt hem
-    this.box(torso, 0.09, 0.40, 0.24, -0.11, 0.02, 0, M.strap);       // sling over the shoulder
-    body.add(torso);
+    this.box(torso, 0.09, 0.40, 0.24, -0.11, 0.02, 0, M.strap);       // sling
+    // magazine pouches on the belt -- where the reload hand goes
+    [-0.12, -0.02].forEach((x) => this.box(torso, 0.07, 0.1, 0.05, x, -0.2, -0.13, M.strap));
+    spine.add(torso);
     const hips = this.box(body, 0.40, 0.16, 0.22, 0, -0.93, 0.08, M.trouserDark);
 
-    // Legs pivot at the hip, so a rotation swings the whole leg like a leg.
-    // Total drop lands the soles at -1.70, which is exactly eye height above
-    // the floor.
+    const L = this.LEG;
     const legs = [-1, 1].map((side) => {
-      const hip = new THREE.Group();
-      hip.position.set(side * 0.11, -0.95, 0.02);
-      const thigh = this.box(hip, 0.18, 0.40, 0.22, 0, -0.20, 0, M.trouser);
-      const knee = new THREE.Group();
-      knee.position.set(0, -0.40, 0);
-      this.box(knee, 0.16, 0.30, 0.20, 0, -0.15, 0, M.trouserDark);
-      this.box(knee, 0.18, 0.09, 0.28, 0, -0.345, 0.04, M.shoe);
-      hip.add(knee);
-      body.add(hip);
-      return { hip, knee, thigh, side };
+      const thigh = this.bone(body, L.thigh, 0.18, 0.21, M.trouser);
+      const shin = this.bone(body, L.shin, 0.16, 0.19, M.trouserDark);
+      const foot = new THREE.Group();
+      this.box(foot, 0.17, 0.09, 0.28, 0, -0.035, -0.06, M.shoe);
+      body.add(foot);
+      return { side, thigh, shin, foot, hip: new THREE.Vector3(side * L.hipX, L.hipY, L.hipZ),
+        knee: new THREE.Vector3(), ankle: new THREE.Vector3(), lift: 0 };
     });
-
     yawObject.add(body);
-    this.bodyRig = { group: body, head, torso, hips, legs };
+    this.bodyRig = { group: body, spine, torso, head, hips, legs };
 
     // ---- arms: parented to the camera, alongside the weapon ----
-    // Only the forearm and hand are modelled. An upper arm belongs behind the
-    // eye, where it is either clipped or drawn as a slab filling a third of
-    // the screen -- what a player actually sees of their own arms is the
-    // sleeve from the elbow forward. Each arm pivots at its elbow.
     const arms = new THREE.Group();
-    const makeArm = (side) => {
-      const pivot = new THREE.Group();
-      const fore = this.box(pivot, 0.11, 0.11, 0.36, 0, 0, -0.18, M.shirtDark);
-      this.box(pivot, 0.125, 0.125, 0.06, 0, 0, -0.37, M.shirt);       // cuff
-      const hand = this.box(pivot, 0.12, 0.12, 0.17, 0, 0, -0.49, M.skin);
-      arms.add(pivot);
-      return { pivot, fore, hand, side };
+    const makeArm = (key) => {
+      const cfg = this.ARM[key];
+      const upper = this.bone(arms, cfg.upper, 0.125, 0.125, M.shirtDark);
+      const fore = this.bone(arms, cfg.fore, 0.11, 0.11, M.shirtDark);
+      this.box(fore, 0.125, 0.06, 0.125, 0, -cfg.fore + 0.03, 0, M.shirt);   // cuff at the wrist
+      // The hand is modelled in GUN coordinates around its anchor, so giving
+      // it the gun's orientation wraps it round the grip whatever the gun.
+      const hand = new THREE.Group();
+      if (key === "right") {
+        this.box(hand, 0.105, 0.12, 0.115, 0.004, 0.005, 0.015, M.skin);         // fist round the grip
+        this.box(hand, 0.03, 0.05, 0.1, -0.055, 0.045, -0.01, M.skinDark);      // thumb over the top
+        this.box(hand, 0.02, 0.025, 0.05, -0.02, 0.035, -0.07, M.skinDark);     // trigger finger
+      } else {
+        this.box(hand, 0.1, 0.06, 0.15, -0.012, -0.035, 0.0, M.skin);           // palm under the handguard
+        this.box(hand, 0.03, 0.075, 0.13, 0.045, 0.0, 0.0, M.skinDark);         // fingers up the far side
+        this.box(hand, 0.03, 0.05, 0.07, -0.058, 0.005, 0.03, M.skinDark);      // thumb
+      }
+      // what the support hand can be carrying: a shotgun shell
+      const shell = new THREE.Group();
+      this.box(shell, 0.028, 0.028, 0.07, 0, 0.01, -0.02, M.shell);
+      this.box(shell, 0.03, 0.03, 0.018, 0, 0.01, 0.022, M.brass);
+      shell.visible = false;
+      hand.add(shell);
+      arms.add(hand);
+      return { key, upper, fore, hand, shell, elbow: new THREE.Vector3(), wrist: new THREE.Vector3() };
     };
-    const right = makeArm(1), left = makeArm(-1);
+    const right = makeArm("right"), left = makeArm("left");
     camera.add(arms);
     this.armRig = { group: arms, right, left };
     this.built = true;
@@ -126,101 +164,123 @@ G.PlayerBody = {
     if (this.armRig) this.armRig.group.visible = v;
   },
 
-  // ctx: { dt, moving, sprinting, airborne, aimT, pose, reload, switchT,
-  //        switchDur, recoilPos }
+  // ---------------- gait ----------------
+  // vel: world velocity (m/s) measured from the player's real movement;
+  // yaw: body facing. Call once per frame before the viewmodel.
+  stepGait(dt, vel, yaw, airborne) {
+    const A = G.Anim, gt = this.gait;
+    const speed = Math.hypot(vel.x, vel.z);
+    gt.speed = A.approach(gt.speed, airborne ? gt.speed : speed, dt, 0.16);
+    const sm = gt.speed;
+    gt.moveW = A.approach(gt.moveW, sm > 0.25 ? 1 : 0, dt, 0.18);
+    gt.runW = A.approach(gt.runW, A.clamp01((sm - 3.6) / 1.1), dt, 0.22);
+    // stride (one full left+right cycle) lengthens with speed, so a run is
+    // both faster AND longer steps
+    gt.stride = 0.9 + 0.36 * sm;
+    const prev = gt.phase;
+    if (!airborne) gt.phase = (gt.phase + dt * sm / gt.stride) % 1;
+    // footfalls at phase 0 (left) and 0.5 (right)
+    gt.steps = gt.steps || [];
+    if (sm > 0.6 && !airborne) {
+      if (prev > gt.phase) gt.steps.push("left");
+      else if (prev < 0.5 && gt.phase >= 0.5) gt.steps.push("right");
+    }
+    // the body dips just after each foot takes the weight and rises over it
+    gt.bob = -Math.cos(4 * Math.PI * (gt.phase - 0.05));
+    // and shifts over the planted foot
+    gt.sway = -Math.sin(2 * Math.PI * (gt.phase - 0.05));
+    // local (body-space) direction of travel, for placing the feet
+    const c = Math.cos(yaw), s = Math.sin(yaw);
+    const lx = vel.x * c - vel.z * s, lz = vel.x * s + vel.z * c;
+    const l = Math.hypot(lx, lz);
+    if (l > 0.2) { gt.dirX = lx / l; gt.dirZ = lz / l; }
+    return gt;
+  },
+  takeSteps() { const s = this.gait.steps || []; this.gait.steps = []; return s; },
+
+  // ctx: { dt, airborne, sprinting, weightKey, aimT, lookYaw }
   update(ctx) {
     if (!this.built) return;
-    const { dt } = ctx;
-    const B = this.bodyRig, A = this.armRig;
+    const A = G.Anim, dt = ctx.dt, gt = this.gait;
+    const B = this.bodyRig, L = this.LEG;
+    this._t = (this._t || 0) + dt;
 
-    // ---- walk / run cycle -------------------------------------------------
-    // Cadence follows the gait, not the frame rate: a run steps faster AND
-    // further, so the stride phase advances on both counts.
-    const cadence = ctx.sprinting ? 9.2 : 5.6;
-    const target = ctx.moving ? 1 : 0;
-    this._gait = (this._gait === undefined ? 0 : this._gait) + (target - (this._gait || 0)) * Math.min(1, dt * 8);
-    this._stride += dt * cadence * this._gait;
-    const swing = Math.sin(this._stride) * (ctx.sprinting ? 0.62 : 0.38) * this._gait;
-    const lift = Math.max(0, Math.cos(this._stride)) * 0.3 * this._gait;
-
-    B.legs.forEach((l) => {
-      const s = l.side > 0 ? 1 : -1;               // legs alternate
-      l.hip.rotation.x = swing * s;
-      // the knee only bends on the backswing, which is what stops it reading
-      // as a pair of stiff planks sliding back and forth
-      l.knee.rotation.x = Math.max(0, -swing * s) * 1.1 + lift * (s > 0 ? 1 : 0.4);
-    });
-    // torso counter-sways against the legs, and leans forward into a sprint
-    B.torso.rotation.z = -Math.sin(this._stride) * 0.035 * this._gait;
-    B.torso.rotation.x = (ctx.sprinting ? 0.12 : 0.04) * this._gait;
-    B.group.position.y = Math.abs(Math.sin(this._stride)) * 0.028 * this._gait;
-    B.group.rotation.z = Math.sin(this._stride * 0.5) * 0.012 * this._gait;
-    if (ctx.airborne) { B.legs.forEach((l) => { l.hip.rotation.x = -0.35; l.knee.rotation.x = 0.55; }); }
-
-    // ---- arms: hold pose, then reload / switch on top --------------------
-    const pose = ctx.pose;
-    const aim = ctx.aimT || 0;
-    const R = A.right, L = A.left;
-
-    // Right hand rides the grip, so it inherits the weapon's own offsets.
-    // Elbows sit low and off-screen, with the forearms angled up into frame --
-    // an elbow modelled at its real height lands within 0.25 of the eye and
-    // reads as a slab, not an arm.
-    const gx = pose.x - (pose.x - 0.04) * aim;   // matches the weapon's ADS pull-in
-    R.pivot.position.set(gx + 0.03, pose.y - 0.29 + ctx.gunDrop, -0.24 + ctx.recoilPos);
-    R.pivot.rotation.set(0.55 + pose.rx + ctx.recoilPos * 0.8, -0.18 + aim * 0.14, pose.rz * 0.6);
-
-    // Left hand supports the handguard -- further up the barrel the heavier
-    // the weapon, and hidden entirely for a one-handed melee stance.
-    L.pivot.visible = pose.support > 0.01;
-    let lx = gx - 0.10 - pose.lead * 0.3;
-    let ly = pose.y - 0.31 + ctx.gunDrop;
-    let lz = -0.38 - pose.lead * 0.3;
-    let lrot = { x: 0.55 - pose.sag * 1.2, y: 0.3, z: 0 };
-
-    // Reload: the right hand keeps the grip while the left does the work --
-    // strips the spent magazine, drops out of frame to fetch a fresh one,
-    // pushes it home, then returns to the handguard.
-    if (ctx.reload) {
-      const p = ctx.reload.p;
-      if (p < 0.22) {                                   // pull the old mag
-        const k = p / 0.22;
-        lx += 0.05 * k; ly += -0.26 * k; lz += 0.18 * k;
-        lrot.x += 0.5 * k;
-      } else if (p < 0.55) {                            // hand leaves the frame
-        const k = (p - 0.22) / 0.33;
-        lx += 0.05 + 0.04 * k; ly += -0.26 - 0.34 * k; lz += 0.18 + 0.1 * k;
-        lrot.x += 0.5 + 0.3 * k;
-      } else if (p < 0.86) {                            // bring the new one up and slam it in
-        const k = (p - 0.55) / 0.31;
-        const e = k * k * (3 - 2 * k);
-        lx += (0.09) * (1 - e); ly += (-0.6) * (1 - e) + 0.04 * Math.sin(e * Math.PI);
-        lz += (0.28) * (1 - e);
-        lrot.x += 0.8 * (1 - e);
-      } else {                                          // settle back onto the handguard
-        const k = (p - 0.86) / 0.14;
-        ly += 0.05 * Math.sin((1 - k) * Math.PI);
+    // ---------------- legs ----------------
+    const heavy = ctx.weightKey === "heavy" || ctx.weightKey === "very_heavy";
+    const sf = 0.58 - 0.18 * gt.runW;                 // time a foot spends on the ground
+    const reach = gt.stride * sf;                      // how far it travels back meanwhile
+    const liftH = 0.1 + 0.16 * gt.runW;
+    const dx = gt.dirX || 0, dz = gt.dirZ === undefined ? -1 : gt.dirZ;
+    this._air = A.approach(this._air || 0, ctx.airborne ? 1 : 0, dt, 0.12);
+    B.legs.forEach((leg, i) => {
+      const p = (gt.phase + (i === 0 ? 0 : 0.5)) % 1;
+      let along, lift;
+      if (p < sf) {                                    // planted: moves back under the body
+        along = (0.5 - p / sf) * reach; lift = 0;
+      } else {                                         // swinging forward, heel up
+        const u = (p - sf) / (1 - sf);
+        along = (-0.5 + A.easeInOutCubic(u)) * reach;
+        lift = Math.sin(Math.PI * u) * liftH;
       }
-      R.pivot.rotation.z += 0.22 * Math.sin(Math.min(1, p / 0.2) * Math.PI * 0.5) * (1 - Math.max(0, (p - 0.86) / 0.14));
-    }
+      const w = gt.moveW;
+      const tgt = new THREE.Vector3(
+        leg.hip.x + dx * along * w,
+        L.floor + L.ankle + lift * w,
+        leg.hip.z + dz * along * w);
+      // airborne: knees come up
+      tgt.y += 0.28 * this._air; tgt.z -= 0.12 * this._air;
+      const hip = leg.hip.clone();
+      hip.y += gt.bob * 0.025 * w;
+      // knee bends forward (-Z is forward for the body)
+      const pole = hip.clone().add(new THREE.Vector3(leg.side * 0.1, -0.4, -1));
+      A.solveTwoBone(hip, tgt, L.thigh, L.shin, pole, leg.knee);
+      leg.ankle.copy(tgt);
+      A.aimBone(leg.thigh, hip, leg.knee);
+      A.aimBone(leg.shin, leg.knee, tgt);
+      leg.foot.position.copy(tgt);
+      // toe drops as the foot swings through, then lands flat
+      leg.foot.rotation.set(p < sf ? 0 : -Math.sin(Math.PI * (p - sf) / (1 - sf)) * 0.35 * w, 0, 0);
+      if (dz > 0.3) leg.foot.rotation.y = 0;
+    });
 
-    // Weapon switch: both arms drop with the gun and swing slightly outward,
-    // which is what sells the swap as an arm movement rather than the model
-    // teleporting.
-    if (ctx.switchT > 0) {
-      const sp = 1 - ctx.switchT / ctx.switchDur;
-      const dip = 1 - Math.abs(2 * sp - 1);
-      ly -= 0.42 * dip; lx -= 0.1 * dip; lrot.x -= 0.7 * dip;
-      R.pivot.position.y -= 0.42 * dip;
-      R.pivot.rotation.x -= 0.7 * dip;
-      R.pivot.rotation.y -= 0.3 * dip;
-    }
+    // ---------------- spine ----------------
+    // breathing, a lean into the run (more with a heavy gun), a sway over the
+    // planted foot, and the torso trailing a turn a little
+    const breath = Math.sin(this._t * 1.75);
+    const lean = (0.05 * gt.moveW + (heavy ? 0.16 : 0.1) * gt.runW) * (1 - (ctx.aimT || 0) * 0.5);
+    this._twist = this._twist || new G.Anim.Spring();
+    this._twist.step(Math.max(-0.25, Math.min(0.25, -(ctx.lookYaw || 0) * 0.03)), dt, 3, 0.6);
+    B.spine.rotation.set(-lean + breath * 0.008 * (1 - gt.moveW), this._twist.x, gt.sway * 0.04 * gt.moveW);
+    B.torso.scale.set(1 + breath * 0.008, 1 + breath * 0.012, 1 + breath * 0.012);
+    B.group.position.y = gt.bob * 0.02 * gt.moveW;
 
-    L.pivot.position.set(lx, ly, lz);
-    L.pivot.rotation.set(lrot.x, lrot.y, lrot.z);
-
-    // Both arms tuck in while aiming down sights.
-    A.group.position.x = -0.05 * aim;
-    A.group.position.y = -0.02 * aim;
+    // ---------------- arms ----------------
+    const H = G.ViewModel.hands;
+    const Ar = this.armRig;
+    const sh = G.ViewModel.shoulder || { x: 0, y: 0 };
+    [Ar.right, Ar.left].forEach((arm) => {
+      const cfg = this.ARM[arm.key];
+      const h = H ? H[arm.key] : null;
+      const show = !!(h && h.visible);
+      arm.upper.visible = arm.fore.visible = arm.hand.visible = show;
+      if (!show) return;
+      // hand: placed at the anchor with the gun's orientation
+      arm.hand.position.copy(h.pos);
+      arm.hand.quaternion.copy(h.quat);
+      // wrist: behind the hand, along the gun's own axes
+      const back = arm.key === "right" ? new THREE.Vector3(0.012, -0.03, 0.085) : new THREE.Vector3(-0.045, -0.055, 0.075);
+      arm.wrist.copy(h.pos).add(back.applyQuaternion(h.quat));
+      // shoulder, on the lagging spring
+      const shoulder = cfg.shoulder.clone().add(new THREE.Vector3(sh.x, sh.y, 0));
+      // an out-of-reach target pulls the shoulder along rather than leaving
+      // the hand floating off the grip
+      const d = arm.wrist.distanceTo(shoulder), maxR = cfg.upper + cfg.fore - 0.01;
+      if (d > maxR) shoulder.lerp(arm.wrist, (d - maxR) / d);
+      const pole = shoulder.clone().add(cfg.pole);
+      A.solveTwoBone(shoulder, arm.wrist, cfg.upper, cfg.fore, pole, arm.elbow);
+      A.aimBone(arm.upper, shoulder, arm.elbow);
+      A.aimBone(arm.fore, arm.elbow, arm.wrist);
+      arm.shell.visible = arm.key === "left" && !!G.ViewModel._shellVisible;
+    });
   },
 };
