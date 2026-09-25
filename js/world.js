@@ -776,7 +776,12 @@ G.buildLevelScene = function (scene, level, quality) {
       // the hall, i.e. into the side of the staircase; the only one that ever
       // got up did it through the gap underneath (closed below).
       world.waypointNodes.STAIR = { x: 0, z: ENTRY.cz - ENTRY.d / 2 + 2 + cfg.stair.run + 1.3, y: F1 };
-      link("STAIR", "ENTRY"); link("STAIR", "GAL");
+      // ...and the top of it: from the gallery's side bays a straight line to
+      // the foot runs into the stairwell and gallery rails, and a zombie
+      // wedged itself in that corner for six minutes in the playtest. Going
+      // down, it walks round to the landing first.
+      world.waypointNodes.LANDING = { x: 0, z: ENTRY.cz - ENTRY.d / 2 + 1.5, y: F2 };
+      link("STAIR", "ENTRY"); link("STAIR", "LANDING"); link("LANDING", "GAL");
       addCeiling(0, ENTRY.cz, 12, ENTRY.d, F2, CEIL);
       addLight(0, F2 + 3.4, ENTRY.cz - ENTRY.d / 2 + 1, rl[0], 1.05, 1.4);
       addLight(4.5, F2 + 3.4, ENTRY.cz + 1, rl[2 % rl.length], 0.95, 1.8);
@@ -822,7 +827,7 @@ G.buildLevelScene = function (scene, level, quality) {
       // Zombies not routed up or down treat the whole flight as solid, or one
       // crossing the hall wanders onto the bottom tread and climbs by accident
       // (see updateZombies). Not a collider: the player and routed zombies use it.
-      world.stairBlock = new THREE.Box3(new THREE.Vector3(-SX - 0.35, F1, Z0), new THREE.Vector3(SX + 0.35, F1 + 3, Z1 + 0.45));
+      world.stairBlock = new THREE.Box3(new THREE.Vector3(-SX - 0.15, F1, Z0), new THREE.Vector3(SX + 0.15, F1 + 3, Z1 + 0.45));
 
       // The gate sits across the foot of the stairs, not the hall doorway --
       // the hall is the only way in from outside, so gating it would lock the

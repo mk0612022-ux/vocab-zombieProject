@@ -118,7 +118,7 @@ G.Bot = {
   async run(opt) {
     opt = Object.assign({
       level: 1, know: 0.78, elim: 0.5, learn: 0.35, reaction: 1.0, aimErr: 0.022, turnRate: 4.0, clickRate: 4.0,
-      kite: 3.4, engage: 16, weapon: null, explore: true, spend: true, buyGuns: true,
+      kite: 3.4, engage: 16, healBelow: 0.55, weapon: null, explore: true, spend: true, buyGuns: true,
       dt: 1 / 30, maxMinutes: 40, stopAfterWave: null, log: false,
     }, opt || {});
     const g = G.Game, I = G.Input;
@@ -288,7 +288,10 @@ G.Bot = {
         const S = G.Objectives.state, p = pos(), fh = feet();
         const c = [];
         const add = (x, z, h, kind, ref, bias) => c.push({ x, z, h, kind, ref, cost: Math.hypot(x - p.x, z - p.z) + Math.abs(h - fh) * 12 + (bias || 0) });
-        if (opt.explore && S) {
+        // badly hurt: stop exploring, fight where you are and go for health
+        const hurt = g.player.hp < hpMax * 0.35;
+        if (hurt) (g.drops || []).forEach((d) => { if (d.kind === "health") add(d.mesh.position.x, d.mesh.position.z, d.baseY || 0, "drop", d, -30); });
+        if (opt.explore && S && !hurt) {
           (world.keys || []).forEach((k) => { if (!k.taken && roomOpen(k.room)) add(k.mesh.position.x, k.mesh.position.z, k.baseY, "key", k, -8); });
           [...world.roomNames].forEach((name) => { if (!S.visited.has(name) && roomOpen(name)) { const n = world.waypointNodes[name]; add(n.x, n.z, roomH(name), "room", name); } });
           world.buttons.forEach((b) => { if (!b.pressed && S.visited.has("W3")) add(b.mesh.position.x + 1.2, b.mesh.position.z, 0, "button", b, -6); });
@@ -338,7 +341,7 @@ G.Bot = {
           if (opt.spend) {
             const items = G.SHOP_ITEMS;
             const buy = (id) => { const it = items.find((x) => x.id === id); const price = G.Shop.priceFor(it.id, it.base, it.growth); if (g.player.money >= price) { g.buyShopItem(it, price); R.purchases.push(Math.round(t) + "s shop " + id + " $" + price); return true; } return false; };
-            if (g.player.hp < hpMax * 0.55) { const before = g.player.hp; if (buy("heal")) R.healed += g.player.maxHp - before; }
+            if (g.player.hp < hpMax * opt.healBelow) { const before = g.player.hp; if (buy("heal")) R.healed += g.player.maxHp - before; }
             const cur = g.currentWeaponId();
             if (cur !== "melee" && g.player.ammo[cur].reserve < G.WEAPON_DEFS[cur].magSize * 2) buy("ammo_refill");
           }
@@ -538,7 +541,9 @@ G.Bot = {
           const yawT = Math.atan2(-dx, -dz) + aimOff.y, pitchT = Math.atan2(dy, Math.hypot(dx, dz)) + aimOff.p;
           const err = turnTo(yawT, pitchT, dt);
           const range = def.id === "melee" ? def.range : 60;
-          if (reactT <= 0 && err < 0.07 && Math.hypot(dx, dz) < range && !g.player.reloading) {
+          // up close a body fills a much wider angle, so a rough aim is enough
+          const tol = Math.hypot(dx, dz) < 2.5 ? 0.25 : 0.07;
+          if (reactT <= 0 && err < tol && Math.hypot(dx, dz) < range && !g.player.reloading) {
             if (def.charge) {
               I.touchFire = (g._chargeT || 0) < def.charge.time;       // release when full
             } else if (def.auto || def.id === "melee") I.touchFire = true;

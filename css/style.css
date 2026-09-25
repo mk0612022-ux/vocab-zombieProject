@@ -449,6 +449,7 @@ body.touch-mode .hud-interact-prompt { top: 62%; }
 /* ---------------- Shop ---------------- */
 .shop-timer { opacity: 0.85; margin-bottom: 6px; }
 .shop-money { font-size: 1.3rem; color: #ffdd66; margin-bottom: 16px; }
+.shop-bonus { color: #6bff7a; font-weight: 700; margin-bottom: 4px; }
 .shop-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px,1fr)); gap: 14px; max-width: 900px; width: 100%; max-height: 60vh; overflow-y: auto; }
 .shop-item { background: rgba(15,22,18,0.7); border: 1px solid #345; border-radius: 8px; padding: 14px; }
 .shop-item-title { font-weight: 700; }

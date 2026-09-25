@@ -42,16 +42,20 @@ G.NavTest = {
         return node;
       };
       for (const name of targets) {
-        for (const [src] of sources) {
+        for (const entry of sources) {
+          const src = entry.length > 2 ? entry : entry[0], srcY = entry[1];
           if (src === name) continue;
-          const n = standAt(w.waypointNodes[name], regionY[name]), s = standAt(w.waypointNodes[src], regionY[src]);
+          const n = standAt(w.waypointNodes[name], regionY[name]);
+          // a source is a region name, or [label, y, x, z] for a spot of its own
+          const sy = Array.isArray(src) ? srcY : regionY[src];
+          const s = Array.isArray(src) ? { x: src[2], z: src[3] } : standAt(w.waypointNodes[src], regionY[src]);
           g.zombies.forEach((z) => g.scene.remove(z.mesh)); g.zombies = [];
           g.spawnedCount = 999; g.requiredKills = 999;
           w.roomDoors.forEach((d) => { if (!d.open) g.toggleRoomDoor(d, true); });
           for (let i = 0; i < 20; i++) upd.call(g, 1 / 30);
           const py = regionY[name];
           P.set(n.x, py + 1.7, n.z); g.player.hp = 1e9;
-          const z = g.spawnZombieAt("normal", new THREE.Vector3(s.x, regionY[src], s.z));
+          const z = g.spawnZombieAt("normal", new THREE.Vector3(s.x, sy, s.z));
           z.speed = 1.7; z.speedMultiplier = 1;
           let t = 0, reached = null, last = null;
           while (t < opts.limit) {
@@ -61,7 +65,7 @@ G.NavTest = {
             if (Math.hypot(zp.x - n.x, zp.z - n.z) < 1.6 && Math.abs(zp.y - py) < 1.2) { reached = t; break; }
             last = zp;
           }
-          const label = src + "->" + name;
+          const label = (Array.isArray(src) ? src[0] : src) + "->" + name;
           if (reached) out.ok.push(label + " " + reached.toFixed(0) + "s");
           else out.fail.push(label + " stuck at " + last.x.toFixed(1) + "," + last.y.toFixed(1) + "," + last.z.toFixed(1) + " (" + G.getRegionAt(w, last.x, last.z, last.y) + ")");
           if (out.ok.length % 6 === 0) await new Promise((r) => setTimeout(r, 0));

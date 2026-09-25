@@ -12,10 +12,15 @@
 // here can become permanently impossible -- accuracy only rises with more
 // correct answers, and the keys and rooms stay where they are.
 // ===================================================================
+// Accuracy bars were 75/80/85%. The category P playtest showed why that was
+// out of reach: accuracy counts EVERY wrong kill -- a panic shot at a zombie
+// biting you, a stray round, a launcher's splash -- so players who knew about
+// three words in four finished at 55-73%, then sat in overtime until they died.
+// The bar is now 65/70/75%, and it only has to be reached once (see `latched`).
 G.LEVEL_OBJECTIVES = {
-  1: { accuracy: 0.75, minCorrect: 40, rooms: 18, keys: 3, boss: true },
-  2: { accuracy: 0.80, minCorrect: 60, rooms: 19, keys: 3, boss: true },
-  3: { accuracy: 0.85, minCorrect: 80, rooms: 20, keys: 3, boss: true },
+  1: { accuracy: 0.65, minCorrect: 40, rooms: 18, keys: 3, boss: true },
+  2: { accuracy: 0.70, minCorrect: 60, rooms: 19, keys: 3, boss: true },
+  3: { accuracy: 0.75, minCorrect: 80, rooms: 20, keys: 3, boss: true },
 };
 
 G.Objectives = {
@@ -74,6 +79,10 @@ G.Objectives = {
       // result -- "objectives complete!" at 75%, one stray kill later 74%, and
       // the level refused to end and ran on into overtime.
       s.latched = true;
+      // In overtime the waves were survived long ago: the level ends the
+      // moment the list is complete, instead of making the player clear one
+      // more (the playtest bot finished everything and died doing that).
+      if (game._finalWaveCleared) { game._winNow = true; return; }
       G.UI.flashPurchaseBanner("ภารกิจครบแล้ว!", game.wave >= game.level.waves ? "เคลียร์เวฟนี้เพื่อผ่านด่าน" : "เอาตัวรอดให้ครบทุกเวฟเพื่อผ่านด่าน");
     }
   },

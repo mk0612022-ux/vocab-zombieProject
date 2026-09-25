@@ -603,6 +603,12 @@ G.UI = {
   bindShop() { this.el("btn-shop-continue").onclick = () => G.Game.leaveShop(); },
   renderShop() {
     this.el("shop-money").textContent = G.Game.player.money;
+    const bonus = this.el("shop-bonus");
+    if (bonus) {
+      const b = G.Game._waveBonus || 0;
+      bonus.textContent = b ? `เคลียร์เวฟ ${G.Game.wave} · โบนัส +$${b}` : "";
+      bonus.classList.toggle("hidden", !b);
+    }
     const grid = this.el("shop-grid");
     grid.innerHTML = "";
     G.SHOP_ITEMS.forEach((item) => {

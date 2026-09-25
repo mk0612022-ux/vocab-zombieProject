@@ -84,14 +84,17 @@ G.WEAPON_DEFS = {
     reloadTime: 1600, auto: true, recoil: 0.9, price: 2000, color: 0x8ad94f, accent: 0x2f4a1a, wallExclusive: true },
   cafeteria_cleaver: { id: "cafeteria_cleaver", name: "Cafeteria Cleaver", rarity: "epic", damage: 72, fireRate: 520, magSize: 8,
     reloadTime: 1700, auto: false, recoil: 1.6, price: 2300, color: 0xd94f7a, accent: 0x4d162c, wallExclusive: true },
+  // The four upstairs guns cost 20% less since the category P playtest: the
+  // upper floor opens around wave 3, and at the old prices ($2,800-4,200) a
+  // new player could not afford one before the level was over.
   honor_roll: { id: "honor_roll", name: "Honor Roll", rarity: "epic", damage: 110, fireRate: 620, magSize: 10,
-    reloadTime: 1800, auto: false, recoil: 1.7, price: 2800, color: 0xd9c04f, accent: 0x4d4211, wallExclusive: true },
+    reloadTime: 1800, auto: false, recoil: 1.7, price: 2250, color: 0xd9c04f, accent: 0x4d4211, wallExclusive: true },
   science_fair: { id: "science_fair", name: "Science Fair", rarity: "secret", damage: 45, fireRate: 105, magSize: 40,
-    reloadTime: 2000, auto: true, recoil: 0.8, price: 3200, color: 0x4fd9c0, accent: 0x134a40, wallExclusive: true },
+    reloadTime: 2000, auto: true, recoil: 0.8, price: 2550, color: 0x4fd9c0, accent: 0x134a40, wallExclusive: true },
   art_attack: { id: "art_attack", name: "Art Attack", rarity: "secret", damage: 120, fireRate: 950, magSize: 5,
-    reloadTime: 2300, auto: false, splash: true, splashRadius: 4.5, recoil: 2.3, price: 3600, color: 0xb84fd9, accent: 0x3d134a, wallExclusive: true },
+    reloadTime: 2300, auto: false, splash: true, splashRadius: 4.5, recoil: 2.3, price: 2900, color: 0xb84fd9, accent: 0x3d134a, wallExclusive: true },
   principals_verdict: { id: "principals_verdict", name: "Principal's Verdict", rarity: "secret", damage: 150, fireRate: 700, magSize: 6,
-    reloadTime: 2000, auto: false, pierce: true, recoil: 2.0, price: 4200, color: 0xff6a3d, accent: 0x5c1f08, wallExclusive: true },
+    reloadTime: 2000, auto: false, pierce: true, recoil: 2.0, price: 3350, color: 0xff6a3d, accent: 0x5c1f08, wallExclusive: true },
 
   // ---------------- Mystery box pool (category C2) ----------------
   // Fifteen guns that exist only inside the 1,000-a-pull mystery box

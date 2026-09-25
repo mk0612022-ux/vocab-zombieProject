@@ -194,7 +194,10 @@ G.Game = {
       // Was 100/100; all player-facing damage values below (zombie contact,
       // traps, wrong-answer penalties) are scaled by the same 3.75x factor
       // so relative danger (% of max HP per hit) stays exactly as before.
-      hp: 375, maxHp: 375, money: 0, score: 0,
+      // Category P raised it to 450 without touching the damage: in the
+      // playtest, four of ten new-player runs were bitten to death by wave 2
+      // (12-15 bites) at 375. Now a normal zombie's bite is 6.7% rather than 8%.
+      hp: 450, maxHp: 450, money: 0, score: 0,
       gunSlots: ["pistol"], currentSlot: 1,
       ammo: { pistol: { mag: G.WEAPON_DEFS.pistol.magSize, reserve: G.WEAPON_DEFS.pistol.magSize * 4 } },
       weaponLevels: { pistol: { dmg: 1, rate: 1, mag: 1 } },
@@ -240,6 +243,7 @@ G.Game = {
     // by outlasting the last wave
     this._finalWaveCleared = false;
     this._overtimeAnnounced = false;
+    this._winNow = false; this._waveBonus = 0;
     if (this.mode === "campaign") G.Objectives.reset(this.level.id, this.world); else G.Objectives.state = null;
     G.Audio.startLevel(this.level.theme);
     G.Tutorial.startRun(this);
@@ -316,7 +320,11 @@ G.Game = {
     // making the mode practically unplayable the longer a run went on. Capping
     // the wave figure fed into both formulas keeps pacing sane indefinitely
     // while `currentDiff` (fast-zombie chance) still has its own clamp downstream.
-    const effWave = Math.min(this.wave, 40);
+    // Category P: campaign overtime (see afterWaveCleared) exists so a player
+    // can finish their objectives, and it no longer keeps escalating -- every
+    // overtime wave plays like the last regular one. In the playtest, overtime
+    // wave 7 (20 zombies at 125% speed) killed most players who reached it.
+    const effWave = Math.min(this.overtimeWave(), 40);
     const diff = this.level.difficulty + (effWave - 1) * 0.18 + (this.mode === "endless" ? (effWave - 1) * 0.05 : 0);
     this.requiredKills = Math.round(6 + effWave * 2);
     G.Spawner.reset(this.level, effWave);
@@ -367,7 +375,13 @@ G.Game = {
   // noticeably slower (65%) so new players can get their bearings, ramping
   // back up to (and slightly past) full speed by wave ~7.
   waveSpeedMult() {
-    return Math.min(1.3, 0.65 + (this.wave - 1) * 0.1);
+    return Math.min(1.3, 0.65 + (this.overtimeWave() - 1) * 0.1);
+  },
+  // The wave number that difficulty is read from: past a campaign level's
+  // final wave it stays at the last regular (non-boss) wave.
+  overtimeWave() {
+    if (this.mode !== "campaign" || this.wave <= this.level.waves) return this.wave;
+    return Math.max(1, this.level.waves - 1);
   },
 
   // ---------------- Weapon helpers ----------------
@@ -906,6 +920,13 @@ G.Game = {
         G.UI.flashPurchaseBanner("ภารกิจยังไม่ครบ!", "ซอมบี้จะมาต่อเรื่อยๆ จนกว่าจะทำภารกิจครบ (ดูได้ที่ HUD / หน้าหยุดเกม)");
       }
     }
+    // Category P: a cleared wave pays. Kill money alone came to roughly
+    // $150-450 a regular wave for a new player in the playtest, so the $1,000
+    // mystery box waited until after the first boss and the upstairs guns
+    // were out of reach for the whole level. Boss waves already pay $500.
+    // (overtime pays like the last regular wave, as it plays like one)
+    this._waveBonus = this.isBossWave() ? 0 : 100 * this.overtimeWave();
+    this.player.money += this._waveBonus;
     this.openShop();
   },
 
@@ -1053,6 +1074,7 @@ G.Game = {
     this.updateRoomDoors(dt);
     this.updateSwingProps(dt);
     if (this.mode === "campaign") G.Objectives.update(dt, this);
+    if (this._winNow) { this._winNow = false; this.onVictory(); return; }
     G.Tutorial.update(dt, this);
     this.updateAudio(dt);
     const camDir = new THREE.Vector3(-Math.sin(this.yawObject.rotation.y), 0, -Math.cos(this.yawObject.rotation.y));
@@ -1337,6 +1359,7 @@ G.Game = {
     const sbx = this.world.stairBlock;
     const topY = this.world.secondFloor ? this.world.secondFloor.floorY : 4.2;
     const onFlight = (x, zz, y) => !!sbx && y > 0.3 && y < topY - 0.3 && x >= sbx.min.x && x <= sbx.max.x && zz >= sbx.min.z && zz <= sbx.max.z;
+    const tmpV = new THREE.Vector3();
     for (const z of this.zombies) {
       if (!z.alive) continue;
       const zRegion = G.getRegionAt(this.world, z.mesh.position.x, z.mesh.position.z, z.mesh.position.y);
@@ -1393,7 +1416,17 @@ G.Game = {
       let stairKeepOut = null;
       if (sb && z.mesh.position.y < 0.3 && playerPos.y - 1.7 < 0.3) {
         const route = z.navPath && zRegion !== pRegion ? z.navPath.slice(z.navIndex) : [];
-        if (!route.includes("STAIR") && !route.includes("GAL")) stairKeepOut = sb;
+        if (!route.includes("STAIR") && !route.includes("GAL") && !route.includes("LANDING")) stairKeepOut = sb;
+      }
+      // Already standing in that area (at the foot of the flight): step out
+      // the front of it first. Chasing straight from there walked it onto the
+      // bottom tread, which sent it back to the foot, which walked it onto
+      // the tread... -- a stall the playtest bot hit twice.
+      // (Straight out past the front edge -- the stair-foot node itself can be
+      // under 0.9 away, and a zombie that close to its target doesn't move.)
+      if (stairKeepOut && sb.containsPoint(tmpV.set(z.mesh.position.x, 0.1, z.mesh.position.z))) {
+        moveTarget = new THREE.Vector3(z.mesh.position.x, 0, sb.max.z + 1.5);
+        stairKeepOut = null;
       }
       const dist = z.update(dt, moveTarget, playerPos, this.world.colliders, G.save.settings.gameSpeed, stairKeepOut);
       z.mesh.position.y = G.getFloorHeightAt(this.world, z.mesh.position.x, z.mesh.position.z, z.mesh.position.y);
