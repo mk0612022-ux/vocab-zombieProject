@@ -828,15 +828,35 @@ G.UI = {
   setBossBar(visible, name, hpPct) {
     this.el("hud-boss-bar").classList.toggle("hidden", !visible);
     if (!visible) return;
+    const hint = G.Input.mode === "touch" ? "แตะคำตอบที่ถูก" : "คลิกคำตอบ หรือกด 1-4";
+    if (this.el("hud-boss-hint").textContent !== hint) this.el("hud-boss-hint").textContent = hint;
     this.el("hud-boss-name").textContent = name;
     this.el("hud-boss-hp-fill").style.width = Math.max(0, hpPct) + "%";
   },
   setBossWord(meaning) { this.el("hud-boss-word").textContent = meaning ? `แปลว่า: ${meaning}` : ""; },
+  // The answers used to be plain text with no click handler, in a layer that
+  // ignores the mouse: keys 1-4 were the only way to answer, and a touch
+  // screen had none. Same buttons as the door/crate question now.
   setBossChoices(choices) {
     const wrap = this.el("hud-boss-choices");
-    wrap.innerHTML = (choices || []).map((c, i) => `<div class="hud-boss-choice"><b>[${i + 1}]</b>${c}</div>`).join("");
+    wrap.innerHTML = (choices || []).map((c, i) => `<div class="hud-boss-choice" role="button" data-idx="${i}"><b>[${i + 1}]</b>${c}</div>`).join("");
+    wrap.querySelectorAll(".hud-boss-choice").forEach((el) => {
+      el.onclick = () => G.Game.answerBossChoice(parseInt(el.dataset.idx, 10));
+    });
   },
   setBossTimer(pct) { this.el("hud-boss-timer-fill").style.width = Math.max(0, pct * 100) + "%"; },
+  // Desktop, mid-game, no window open and still no pointer lock: the browser
+  // refused to re-lock (a question timed out, the shop timer ran out -- no
+  // click or key behind them) or the player alt-tabbed back. Say so, rather
+  // than leave a view that ignores the mouse. Held briefly so the frames
+  // between asking for the lock and getting it don't flash it.
+  updateResumeHint() {
+    const g = G.Game, now = performance.now();
+    const want = G.Input.mode === "desktop" && g.state === "GAMEPLAY" && !g.paused && !G.Modal.isOpen() && !G.Input.pointerLocked;
+    if (!want) this._hintSince = 0; else if (!this._hintSince) this._hintSince = now;
+    const show = want && now - this._hintSince > 350;
+    if (show !== this._hintShown) { this._hintShown = show; this.el("hud-resume-hint").classList.toggle("hidden", !show); }
+  },
 
   setChallengeVisible(v, label) {
     this.el("hud-challenge-box").classList.toggle("hidden", !v);
@@ -845,7 +865,7 @@ G.UI = {
   setChallengeMeaning(meaning) { this.el("hud-challenge-meaning").textContent = meaning || ""; },
   setChallengeChoices(choices) {
     const wrap = this.el("hud-challenge-choices");
-    wrap.innerHTML = (choices || []).map((c, i) => `<div class="hud-boss-choice" data-idx="${i}"><b>[${i + 1}]</b>${c}</div>`).join("");
+    wrap.innerHTML = (choices || []).map((c, i) => `<div class="hud-boss-choice" role="button" data-idx="${i}"><b>[${i + 1}]</b>${c}</div>`).join("");
     wrap.querySelectorAll(".hud-boss-choice").forEach((el) => {
       el.onclick = () => G.Game.answerChallenge(parseInt(el.dataset.idx, 10));
     });

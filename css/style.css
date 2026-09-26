@@ -151,7 +151,7 @@ html, body {
 .hud-meaning-label { font-size: 0.7rem; opacity: 0.7; letter-spacing: 1px; }
 .hud-meaning { font-size: 1.6rem; font-weight: 800; color: #fff29b; text-shadow: 0 0 8px rgba(255,242,155,0.5); }
 
-.hud-boss-bar { width: 480px; max-width: 90vw; background: rgba(20,5,5,0.7); border: 1px solid #ff5c5c; border-radius: 8px; padding: 8px 14px; text-align:center; }
+.hud-boss-bar { pointer-events: auto; width: 480px; max-width: 90vw; background: rgba(20,5,5,0.7); border: 1px solid #ff5c5c; border-radius: 8px; padding: 8px 14px; text-align:center; }
 .hud-boss-name { color: #ff5c5c; font-weight: 800; letter-spacing: 2px; }
 .hud-boss-hp-track { height: 14px; background: #2a0a0a; border-radius: 7px; overflow: hidden; margin-top: 4px; }
 .hud-boss-hp-fill { height: 100%; background: linear-gradient(90deg,#ff2b2b,#ff8a2b); width:100%; transition: width .15s; }
@@ -162,6 +162,10 @@ html, body {
 .hud-boss-choice b { color: #ffdd88; margin-right: 4px; }
 .hud-boss-timer-track { height: 8px; background: #2a0a0a; border-radius: 4px; overflow: hidden; margin-top: 6px; }
 .hud-boss-timer-fill { height: 100%; background: #ffdd88; width: 100%; transition: width .1s linear; }
+.hud-boss-hint { margin-top: 5px; font-size: 0.75rem; opacity: 0.75; }
+.hud-boss-bar .hud-boss-choice { cursor: pointer; touch-action: manipulation; -webkit-user-select: none; user-select: none; }
+.hud-boss-bar .hud-boss-choice:hover { background: rgba(255,138,92,0.25); border-color: #ffdd88; }
+.hud-boss-choice:active { filter: brightness(1.5); }
 
 .hud-crosshair {
   position: absolute; top: 50%; left: 50%; width: 20px; height: 20px; transform: translate(-50%, -50%);
@@ -195,7 +199,7 @@ html, body {
 }
 .hud-challenge-label { font-size: 0.8rem; opacity: 0.8; }
 .hud-challenge-meaning { font-size: 1.3rem; font-weight: 800; color: #fff29b; margin: 6px 0; }
-.hud-challenge-box .hud-boss-choice { cursor: pointer; }
+.hud-challenge-box .hud-boss-choice { cursor: pointer; touch-action: manipulation; -webkit-user-select: none; user-select: none; }
 .hud-challenge-box .hud-boss-choice:hover { background: rgba(107,255,122,0.18); border-color: #6bff7a; }
 
 .hud-bottom { position: absolute; bottom: 16px; left: 16px; right: 16px; display: flex; justify-content: space-between; align-items: flex-end; }
@@ -256,7 +260,7 @@ html, body {
 .hud-slot { width: 26px; height: 26px; border-radius: 4px; border: 1px solid #345; display:flex; align-items:center; justify-content:center; font-size: 0.7rem; }
 .hud-slot.active { border-color: #6bff7a; background: #1c3b22; }
 
-.hud-combo { position: absolute; top: 100px; left: 50%; transform: translate(-50%,0); font-size: 1.4rem; font-weight: 900; color: #ffcf3b; text-shadow: 0 0 10px rgba(255,207,59,0.7); }
+.hud-combo { font-size: 1.4rem; font-weight: 900; color: #ffcf3b; text-shadow: 0 0 10px rgba(255,207,59,0.7); }
 @keyframes hud-pulse-kf { 0% { transform: scale(1); } 35% { transform: scale(1.45); filter: brightness(1.6); } 100% { transform: scale(1); } }
 .hud-pulse { display: inline-block; animation: hud-pulse-kf 0.35s ease-out; }
 
@@ -544,26 +548,44 @@ body.font-small .hud-meaning { font-size: 1.25rem; }
 
 /* ---------------- Contextual tutorial (category O) ---------------- */
 .hud-tip {
-  position: absolute; left: 50%; top: 88px; transform: translateX(-50%);
   width: min(460px, 86vw); padding: 10px 14px 8px;
   background: rgba(8,18,12,0.9); border: 1px solid #6bff7a88; border-left: 4px solid #ffd43b;
   border-radius: 8px; color: #e8f5e9; font-size: 0.86rem; line-height: 1.5;
   box-shadow: 0 6px 20px rgba(0,0,0,0.5); z-index: 8;
 }
 .hud-tip.tip-in { animation: tip-in-kf .28s ease-out; }
-@keyframes tip-in-kf { from { opacity: 0; transform: translate(-50%, -8px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@keyframes tip-in-kf { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
 .hud-tip-title { font-weight: 800; color: #ffd43b; margin-bottom: 3px; font-size: 0.9rem; }
 .hud-tip-skip {
   margin-top: 6px; background: none; border: 1px solid #3f8a50; color: #9fc9a8; border-radius: 5px;
   font-size: 0.7rem; padding: 2px 8px; cursor: pointer; pointer-events: auto; touch-action: none;
 }
 body.touch-mode .hud-tip .kbd-only { display: none; }
-body.touch-mode .hud-tip { top: 64px; width: min(420px, 60vw); font-size: 0.78rem; }
+body.touch-mode .hud-tip { width: min(420px, 60vw); font-size: 0.78rem; }
 .shop-tip {
   max-width: 560px; margin: 6px auto 10px; padding: 8px 12px; border-radius: 6px;
   background: rgba(8,18,12,0.85); border-left: 4px solid #ffd43b; font-size: 0.85rem; color: #e8f5e9;
 }
 @media (max-height: 520px) {
-  .hud-tip { top: 70px; padding: 6px 10px; font-size: 0.72rem; }
-  body.touch-mode .hud-tip { top: 58px; }
+  .hud-tip { padding: 6px 10px; font-size: 0.72rem; }
 }
+
+/* ---------------- Modal windows (js/modal.js) ---------------- */
+/* While a window is open the cursor is free and the window takes every click
+   and tap. The touch layer sits above the HUD (z 15 over z 10) and its look
+   zone covers the right half of the screen, which is where two of the four
+   answers are -- so it steps aside, except the pause chip. */
+body.modal-open .touch-controls > :not(.touch-pause) { pointer-events: none !important; opacity: 0.18; }
+/* The question is the only thing to read: no COMBO banner or tutorial card
+   stacked into the boss panel. */
+body.modal-question .hud-combo,
+body.modal-question .hud-meaning-box,
+body.modal-question .hud-tip,
+body.modal-question .hud-interact-prompt,
+body.modal-question .hud-crosshair { display: none !important; }
+.hud-resume-hint {
+  position: absolute; left: 50%; top: 58%; transform: translateX(-50%);
+  padding: 8px 18px; border-radius: 6px; background: rgba(0,0,0,0.7); border: 1px solid #6bff7a88;
+  color: #e8f5e9; font-weight: 700; font-size: 0.95rem; animation: resume-hint-kf 1.6s ease-in-out infinite;
+}
+@keyframes resume-hint-kf { 50% { opacity: 0.55; } }

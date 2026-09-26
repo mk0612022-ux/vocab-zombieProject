@@ -148,20 +148,24 @@
       <div class="hud-boss-word" id="hud-boss-word"></div>
       <div class="hud-boss-choices" id="hud-boss-choices"></div>
       <div class="hud-boss-timer-track"><div class="hud-boss-timer-fill" id="hud-boss-timer-fill"></div></div>
+      <div class="hud-boss-hint" id="hud-boss-hint"></div>
     </div>
+    <!-- stacked under the word prompt and the boss panel, never on top of them -->
+    <!-- category O: contextual tutorial card -->
+    <div class="hud-tip hidden" id="hud-tip">
+      <div class="hud-tip-title" id="hud-tip-title"></div>
+      <div class="hud-tip-text" id="hud-tip-text"></div>
+      <button class="hud-tip-skip" id="hud-tip-skip">ข้ามบทสอน <span class="kbd-only">(T)</span></button>
+    </div>
+    <div class="hud-combo hidden" id="hud-combo">COMBO x0</div>
   </div>
+  <div class="hud-resume-hint hidden" id="hud-resume-hint">คลิกที่จอเพื่อเล่นต่อ</div>
 
   <div class="hud-crosshair" id="hud-crosshair"></div>
   <!-- category N: sniper scope overlay and charge-weapon wind-up meter -->
   <div class="hud-scope hidden" id="hud-scope"><div class="hud-scope-ring"></div><div class="hud-scope-h"></div><div class="hud-scope-v"></div></div>
   <div class="hud-charge hidden" id="hud-charge"><div class="hud-charge-fill" id="hud-charge-fill"></div></div>
   <div class="hud-interact-prompt hidden" id="hud-interact-prompt">กด E เพื่อโต้ตอบ</div>
-  <!-- category O: contextual tutorial card -->
-  <div class="hud-tip hidden" id="hud-tip">
-    <div class="hud-tip-title" id="hud-tip-title"></div>
-    <div class="hud-tip-text" id="hud-tip-text"></div>
-    <button class="hud-tip-skip" id="hud-tip-skip">ข้ามบทสอน <span class="kbd-only">(T)</span></button>
-  </div>
   <div class="hud-challenge-box hidden" id="hud-challenge-box">
     <div class="hud-challenge-label" id="hud-challenge-label">ตอบคำศัพท์เพื่อปลดล็อก</div>
     <div class="hud-challenge-meaning" id="hud-challenge-meaning"></div>
@@ -187,7 +191,6 @@
       <div class="hud-slots" id="hud-slots"></div>
     </div>
   </div>
-  <div class="hud-combo hidden" id="hud-combo">COMBO x0</div>
   <div class="hud-fps-counter hidden" id="hud-fps-counter">0 FPS</div>
   <div class="hud-achievement-toast hidden" id="hud-achievement-toast"></div>
   <div class="hud-purchase-banner hidden" id="hud-purchase-banner"></div>
@@ -323,6 +326,7 @@
 <script src="js/data/words_bunker.js"></script>
 <script src="js/data/words.js"></script>
 <script src="js/core.js"></script>
+<script src="js/modal.js"></script>
 <script src="js/anim.js"></script>
 <script src="js/touchcfg.js"></script>
 <script src="js/entities.js"></script>

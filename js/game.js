@@ -95,7 +95,8 @@ G.Game = {
     });
 
     document.getElementById("gameCanvas").addEventListener("click", () => {
-      if (this.state === "GAMEPLAY" && G.Input.mode === "desktop") G.Input.requestPointerLock();
+      // not while a window is open: that click was for the window
+      if (this.state === "GAMEPLAY" && !this.paused && !G.Modal.isOpen() && G.Input.mode === "desktop") G.Input.requestPointerLock();
     });
   },
 
@@ -117,6 +118,7 @@ G.Game = {
 
   quitToMainMenu() {
     this.teardownLevel();
+    G.Modal.reset();
     G.Input.exitPointerLock();
     G.UI.setHudVisible(false);
     G.UI.setTouchControlsVisible(false);
@@ -225,6 +227,7 @@ G.Game = {
     // Menu -> any level loaded a frozen game (and quitting from behind a
     // crate or mystery-box screen did the same). Found by the category P
     // playtest bot, whose second run never moved.
+    G.Modal.reset();
     this.paused = false;
     this._onCrateClose = null; this._burst = null; this._chargeT = 0; this._bossChoices = null;
     this._mysteryHand = null; this._mysteryPick = null;
@@ -829,19 +832,25 @@ G.Game = {
     this.acquireWeapon(weaponDef.id);
     if (rarityKey === "secret") G.unlockAchievement("secret_crate");
     G.spawnCrateBurst(this.scene, this.yawObject.position.clone(), rarityKey, G.save.settings.graphicsQuality);
-    this.pauseForOverlay(true);
     this._onCrateClose = onClose || null;
-    G.Input.exitPointerLock();
+    G.Modal.open("crate", { pause: true, keys: (e) => {
+      if (e.code === "Enter" || e.code === "Space" || e.code === "KeyE") { this.closeCrateScreen(); return true; }
+      return false;
+    } });
     G.UI.showCrateScreen(rarityKey, weaponDef);
   },
   closeCrateScreen() {
-    G.UI.showScreen(null);
+    if (!G.Modal.isOpen("crate")) return;
+    // a crate bought in the shop goes back to the shop, not to an empty view
+    // with the shop timer still running behind it
+    if (this.state === "SHOP") { G.UI.renderShop(); G.UI.showScreen("screen-shop"); }
+    else G.UI.showScreen(null);
     G.UI.setHudVisible(this.state === "GAMEPLAY");
-    this.pauseForOverlay(false);
     const cb = this._onCrateClose;
     this._onCrateClose = null;
     cb && cb();
-    if (this.state === "GAMEPLAY" && G.Input.mode === "desktop") G.Input.requestPointerLock();
+    // closed last, so a window the callback opened (the shop) keeps the cursor
+    G.Modal.close("crate");
   },
 
   tryOpenStaticCrate(crateRef) {
@@ -864,6 +873,9 @@ G.Game = {
     this.zombies.forEach((zz) => { if (zz !== z) { this.scene.remove(zz.mesh); } });
     this.zombies = [z];
     const hardWords = G.pickHardWords(this.wordPool, 8);
+    // The boss is a quiz: while its questions run, the world holds still and
+    // the boss only strikes on a wrong answer or a timeout.
+    G.Modal.open("boss", { freeze: true, keys: G.Modal.digitKeys(4, (i) => this.answerBossChoice(i)) });
     G.BossFight.start(z, hardWords, (correct, remaining) => {
       if (correct) {
         this.correctCount++;
@@ -875,6 +887,9 @@ G.Game = {
         this.trackWrongWord(G.BossFight.currentWord ? G.BossFight.currentWord[0] : "?", G.BossFight.currentWord ? G.BossFight.currentWord[1] : "");
         this.player.hp -= 45; // was 12, scaled 3.75x with player HP
         G.UI.flashDamage();
+        if (z.lunge) z.lunge();
+        G.Audio.sfx("hurt");
+        this.checkPlayerDeath();
       }
       if (z.hp <= 0 || remaining <= 0 && correct) { z.hp = 0; z.alive = false; this.onZombieDeath(z); }
     });
@@ -888,6 +903,7 @@ G.Game = {
     G.UI.setBossBar(false);
     this.zombies = [];
     this.openCrate(G.rollRarity("rare"), "rare", () => this.afterWaveCleared());
+    G.Modal.close("boss");
   },
 
   // ---------------- Wave flow ----------------
@@ -930,7 +946,10 @@ G.Game = {
     this.state = "SHOP";
     this.shopTimer = 15;
     G.UI.setHudVisible(false);
-    G.Input.exitPointerLock();
+    G.Modal.open("shop", { pause: true, keys: (e) => {
+      if (e.code === "Enter" && !G.Modal.isOpen("crate")) { this.leaveShop(); return true; }
+      return false;
+    } });
     G.UI.renderShop();
     G.Tutorial.shopTip();
     G.UI.showScreen("screen-shop");
@@ -955,12 +974,13 @@ G.Game = {
     }
   },
   leaveShop() {
+    if (G.Modal.isOpen("crate")) G.Modal.close("crate");
     G.persist();
     this.state = "GAMEPLAY";
     G.UI.setHudVisible(true);
     G.UI.applyControlMode();
     G.UI.showScreen(null);
-    if (G.Input.mode === "desktop") G.Input.requestPointerLock();
+    G.Modal.close("shop");
     this.startWave();
   },
 
@@ -971,7 +991,7 @@ G.Game = {
     const allMeanings = G.getAllBuiltinWords().map((p) => p[0]).filter((w) => w !== pair[0]);
     const choices = G.shuffle([pair[0], ...G.shuffle(allMeanings).slice(0, 3)]);
     this.challenge = { pair, choices, timeLeft: 8, timeLimit: 8, onSuccess, onFail };
-    G.Input.exitPointerLock();
+    G.Modal.open("challenge", { freeze: true, keys: G.Modal.digitKeys(4, (i) => this.answerChallenge(i)) });
     G.UI.setChallengeVisible(true, label);
     G.UI.setChallengeMeaning(pair[1]);
     G.UI.setChallengeChoices(choices);
@@ -988,13 +1008,15 @@ G.Game = {
     // the wrong-word list used to be fed `this.challenge` AFTER it had been
     // cleared, so every missed challenge was recorded under the word "null"
     if (correct) { this.correctCount++; cb && cb(); } else { this.wrongCount++; this.trackWrongWord(pair[0], pair[1]); cb && cb(); }
-    if (this.state === "GAMEPLAY" && G.Input.mode === "desktop") G.Input.requestPointerLock();
+    // closed after the callback: a crate it opens keeps the cursor free
+    G.Modal.close("challenge");
   },
 
   // ---------------- Player death / results ----------------
   checkPlayerDeath() { if (this.player.hp <= 0) this.onGameOver(); },
   onGameOver() {
     this.state = "GAME_OVER";
+    G.Modal.reset();
     G.Input.exitPointerLock();
     G.UI.setHudVisible(false);
     G.UI.setTouchControlsVisible(false);
@@ -1013,6 +1035,7 @@ G.Game = {
   },
   onVictory() {
     this.state = "VICTORY";
+    G.Modal.reset();
     G.Input.exitPointerLock();
     G.UI.setHudVisible(false);
     G.UI.setTouchControlsVisible(false);
@@ -1031,6 +1054,7 @@ G.Game = {
   pause() {
     if (this.state !== "GAMEPLAY") return;
     this.paused = true; this.state = "PAUSE";
+    this._pausedAt = performance.now();
     G.Input.exitPointerLock();
     // A finger still on FIRE/sprint when the pause screen opens never gets its
     // touchend, so clear the held state or it resumes with the trigger stuck.
@@ -1040,24 +1064,33 @@ G.Game = {
     G.UI.showScreen("screen-pause");
   },
   resume() {
-    this.paused = false; this.state = "GAMEPLAY";
+    // a window that was open under the pause menu (the crate reveal, a
+    // question) is still open: it keeps its pause and the free cursor
+    this.paused = G.Modal.pausesAll(); this.state = "GAMEPLAY";
     G.UI.showScreen(null);
+    if (G.Modal.isOpen("crate")) G.UI.showScreen("screen-crate");
+    if (G.Modal.isOpen("mystery")) G.UI.showScreen("screen-mystery");
     G.UI.applyControlMode();
-    if (G.Input.mode === "desktop") G.Input.requestPointerLock();
+    G.Modal.relock();
   },
   pauseForOverlay(v) { this.paused = v; },
+  // the player is in control: not paused, no window open
+  playing() { return this.state === "GAMEPLAY" && !this.paused && !G.Modal.isOpen(); },
 
   // ---------------- Update loop ----------------
   update(dt) {
     dt *= G.save.settings.gameSpeed;
     if (this.state === "SHOP") {
+      if (G.Modal.isOpen("crate")) return;
       this.shopTimer -= dt;
       G.UI.el("shop-timer").textContent = `เริ่มเวฟถัดไปใน ${Math.max(0, Math.ceil(this.shopTimer))} วินาที`;
       G.UI.el("shop-money").textContent = this.player.money;
       if (this.shopTimer <= 0) this.leaveShop();
       return;
     }
+    G.UI.updateResumeHint();
     if (this.state !== "GAMEPLAY" || this.paused) return;
+    if (G.Modal.freezesWorld()) { this.updateFrozen(dt); return; }
 
     this.updatePlayerMovement(dt);
     this.updateShooting(dt);
@@ -1094,6 +1127,24 @@ G.Game = {
     // regular zombies actually gets a chance to trigger its boss spawn.
     this.checkWaveClear();
 
+    G.UI.updateHud(this.buildHudState());
+  },
+
+  // A question window is open: the world holds still -- no zombie steps,
+  // spawns, traps or player movement -- while the question's own timer runs
+  // and everything alive keeps breathing in place. (The boss still strikes,
+  // but only through a wrong answer or a timeout.)
+  updateFrozen(dt) {
+    this.zombies.forEach((z) => { if (z.alive) z.animate(dt, 0); });
+    this.updateDyingZombies(dt);
+    this.updateSwingProps(dt);
+    this.updateAudio(dt);
+    G.Perf.updateSparks(dt);
+    G.ViewModel.updateProps(dt, this.world);
+    G.updateSparks(this.scene, this.world, dt);
+    this.updateChallengeTimer(dt);
+    this.updateBossUI(dt);
+    if (this.state !== "GAMEPLAY") return;   // a wrong answer can end the run
     G.UI.updateHud(this.buildHudState());
   },
 
@@ -1552,10 +1603,13 @@ G.Game = {
     G.UI.pulseHudStat("money");
     this._mysteryHand = G.rollMysteryHand(this.level ? this.level.id : 1);
     this._mysteryPick = null;
-    // Freeze everything (zombies, timers, player) and hand the mouse back --
-    // same overlay pattern the crate/word popups use.
-    this.pauseForOverlay(true);
-    G.Input.exitPointerLock();
+    // Freeze everything (zombies, timers, player) and hand the mouse back.
+    // 1-4 pick a card, Enter/Space/E takes the revealed one.
+    G.Modal.open("mystery", { pause: true, keys: (e) => {
+      if (this._mysteryPick === null) return G.Modal.digitKeys(this._mysteryHand.length, (i) => this.pickMysteryCard(i))(e);
+      if (e.code === "Enter" || e.code === "Space" || e.code === "KeyE") { this.confirmMysteryPick(); return true; }
+      return false;
+    } });
     G.UI.setHudVisible(false);
     G.UI.showMysteryCards(this._mysteryHand, (idx) => this.pickMysteryCard(idx));
   },
@@ -1575,8 +1629,7 @@ G.Game = {
     if (this.world.mysteryBox) this.world.mysteryBox.uses++;
     G.UI.showScreen(null);
     G.UI.setHudVisible(true);
-    this.pauseForOverlay(false);
-    if (this.state === "GAMEPLAY" && G.Input.mode === "desktop") G.Input.requestPointerLock();
+    G.Modal.close("mystery");
   },
 
   // ---------------- Room doors (category B) ----------------
@@ -1869,12 +1922,18 @@ G.Game = {
       G.UI.setChallengeVisible(false);
       this.challenge = null;
       cb && cb();
-      if (this.state === "GAMEPLAY" && G.Input.mode === "desktop") G.Input.requestPointerLock();
+      // no click or key behind this one, so the browser may refuse the
+      // pointer lock: the "click to continue" hint covers that case
+      G.Modal.close("challenge");
     }
   },
 
   updateBossUI(dt) {
-    if (!G.BossFight.active) { G.UI.setBossBar(false); return; }
+    if (!G.BossFight.active) {
+      G.UI.setBossBar(false);
+      if (G.Modal.isOpen("boss")) G.Modal.close("boss");   // never leave its question window behind
+      return;
+    }
     G.BossFight.update(dt);
     const z = G.BossFight.zombie;
     G.UI.setBossBar(true, "ZOMBIE BOSS", (z.hp / z.maxHp) * 100);
@@ -1920,12 +1979,12 @@ G.Game = {
 // ---------------- Global input event wiring ----------------
 G.onKeyDown = function (e) {
   const Game = G.Game;
-  if (Game.state === "GAMEPLAY" && G.BossFight.active && ["Digit1", "Digit2", "Digit3", "Digit4"].includes(e.code)) {
-    Game.answerBossChoice(parseInt(e.code.slice(-1)) - 1);
-    return;
-  }
-  if (Game.state === "GAMEPLAY" && Game.challenge && ["Digit1", "Digit2", "Digit3", "Digit4"].includes(e.code)) {
-    Game.answerChallenge(parseInt(e.code.slice(-1)) - 1);
+  // A window is open (question, crate, mystery box, shop): its own keys only
+  // -- 1-4 answer instead of switching weapons, and nothing reaches
+  // gameplay. Pause still works over a question.
+  if ((Game.state === "GAMEPLAY" || Game.state === "SHOP") && G.Modal.isOpen()) {
+    if (Game.state === "GAMEPLAY" && e.code === G.save.settings.keybinds.pause && !G.Modal.pausesAll()) { Game.pause(); return; }
+    G.Modal.handleKey(e);
     return;
   }
   if (Game.state === "GAMEPLAY" && e.code === "KeyV") { Game.speakCurrentWord(); return; }
@@ -1941,7 +2000,9 @@ G.onKeyDown = function (e) {
     if (e.code === kb.slot4) { Game.switchSlot(3); return; }
     if (e.code === kb.slot5) { Game.switchSlot(4); return; }
   } else if (Game.state === "PAUSE") {
-    if (e.code === G.save.settings.keybinds.pause) Game.resume();
+    // (the Escape that just unlocked the mouse and paused the game can
+    // arrive here as a key press too -- it must not resume straight away)
+    if (e.code === G.save.settings.keybinds.pause && performance.now() - (Game._pausedAt || 0) > 250) Game.resume();
   } else if (Game.state === "MENU" || Game.state === "LEVEL_SELECT") {
     if (e.code === "Escape") Game.quitToMainMenu();
   }
@@ -1950,21 +2011,31 @@ G.onKeyUp = function () {};
 // A single trigger-pull edge, shared by the mouse and the touch FIRE button.
 G.onFirePress = function () {
   const Game = G.Game;
-  if (Game.state === "GAMEPLAY" && !Game.paused && !Game.challenge) Game._fireEdge = true;
+  if (G.Game.playing() && !Game.challenge) Game._fireEdge = true;
 };
 G.onMouseDown = function (e) {
   // Left button only -- right-click is ADS, and letting it through meant
-  // aiming also loosed a shot from every semi-automatic weapon.
+  // aiming also loosed a shot from every semi-automatic weapon. On desktop
+  // a click without pointer lock is the click that takes it back, not a shot.
+  if (G.Input.mode === "desktop" && !G.Input.pointerLocked) return;
   if (e.button === 0) G.onFirePress();
 };
-G.onInteractPress = function () { if (G.Game.state === "GAMEPLAY") G.Game.doInteract(); };
-G.onSlotPress = function (slot) { if (G.Game.state === "GAMEPLAY") G.Game.switchSlot(slot); };
+G.onInteractPress = function () { if (G.Game.playing()) G.Game.doInteract(); };
+G.onSlotPress = function (slot) { if (G.Game.playing()) G.Game.switchSlot(slot); };
 G.onPausePress = function () {
   const Game = G.Game;
-  if (Game.state === "GAMEPLAY") Game.pause();
+  if (Game.state === "GAMEPLAY" && !G.Modal.pausesAll()) Game.pause();
   else if (Game.state === "PAUSE") Game.resume();
 };
-G.onReloadPress = function () { if (G.Game.state === "GAMEPLAY") G.Game.reload(); };
+G.onReloadPress = function () { if (G.Game.playing()) G.Game.reload(); };
+// The mouse was unlocked by something other than one of our windows: Escape
+// (the browser takes that key for itself), alt-tab, a system dialog. That is
+// the player stepping away, so pause. Windows free the mouse through
+// G.Modal, which tells G.Input to expect the unlock, and never land here.
+G.onPointerLockLost = function () {
+  const Game = G.Game;
+  if (Game.state === "GAMEPLAY" && !Game.paused && !G.Modal.isOpen()) Game.pause();
+};
 
 // ---------------- Boot ----------------
 window.addEventListener("DOMContentLoaded", () => G.Game.init());

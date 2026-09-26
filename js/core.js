@@ -337,9 +337,18 @@ G.Input = {
       }
     });
     document.addEventListener("mousedown", (e) => {
+      // A tap on a touch screen is followed by a made-up mousedown. Taken as
+      // real, a tap on an answer button switched an iPad to desktop controls
+      // (touch buttons gone, "click to continue" over the view).
+      if (performance.now() - (this._lastTouchT || -1e9) < 900) return;
       this._noteDesktopInput();
-      if (e.button === 0) this.mouseDown = true;
-      if (e.button === 2) this.aimDown = true;
+      // while playing on desktop, a press without pointer lock is a click on
+      // a window or the click that re-locks the view -- never a held trigger
+      const g = G.Game, inGame = g && (g.state === "GAMEPLAY" || g.state === "PAUSE");
+      if (!inGame || this.pointerLocked) {
+        if (e.button === 0) this.mouseDown = true;
+        if (e.button === 2) this.aimDown = true;
+      }
       G.onMouseDown && G.onMouseDown(e);
     });
     document.addEventListener("mouseup", (e) => {
@@ -353,10 +362,16 @@ G.Input = {
       // Losing the lock (Escape, alt-tab, a popup opening) never delivers a
       // mouseup, so without this a button held at that moment would stay
       // "stuck" down (firing or aiming forever) once control returns.
-      if (!this.pointerLocked) { this.mouseDown = false; this.aimDown = false; }
+      if (!this.pointerLocked) {
+        this.mouseDown = false; this.aimDown = false;
+        // an unlock we asked for (a window opening) is not the player leaving
+        const expected = this._expectUnlock;
+        this._expectUnlock = false;
+        if (!expected) G.onPointerLockLost && G.onPointerLockLost();
+      }
     });
 
-    window.addEventListener("touchstart", () => this._noteTouchInput(), { passive: true });
+    window.addEventListener("touchstart", () => { this._lastTouchT = performance.now(); this._noteTouchInput(); }, { passive: true });
 
     window.addEventListener("gamepadconnected", (e) => { this.gamepadIndex = e.gamepad.index; });
     window.addEventListener("gamepaddisconnected", () => { this.gamepadIndex = null; });
@@ -394,7 +409,9 @@ G.Input = {
     } catch (e) { /* ignore */ }
   },
   exitPointerLock() {
-    if (document.exitPointerLock) document.exitPointerLock();
+    if (!document.exitPointerLock) return;
+    if (document.pointerLockElement) this._expectUnlock = true;
+    document.exitPointerLock();
   },
   // Drop every held input (used when a menu/overlay takes over mid-press, where
   // the matching touchend/mouseup never reaches us).

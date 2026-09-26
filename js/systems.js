@@ -83,11 +83,16 @@ G.BossFight = {
     this.totalWords = 5;
     this.wordsRemaining = 5;
     this.pool = hardWordPairs.slice();
+    this.words = hardWordPairs.slice();
+    this.missed = [];
     this.onDamageStep = onDamageStep;
     this.nextWord();
   },
   nextWord() {
-    if (this.pool.length === 0) { this.active = false; return; }
+    // The fight is won on 5 right answers out of 8 words. Running out of
+    // words used to end it quietly with the boss still standing and no way
+    // left to hurt it -- the wave could never clear. Missed words come back.
+    if (this.pool.length === 0) this.pool = this.missed.length ? this.missed.splice(0) : this.words.slice();
     const idx = Math.floor(G.rng() * this.pool.length);
     this.currentWord = this.pool.splice(idx, 1)[0];
     this.timeLeft = this.timeLimit;
@@ -113,6 +118,7 @@ G.BossFight = {
     return correct;
   },
   fail() {
+    if (this.currentWord) this.missed.push(this.currentWord);
     this.onDamageStep && this.onDamageStep(false, this.wordsRemaining);
     this.nextWord();
   },
