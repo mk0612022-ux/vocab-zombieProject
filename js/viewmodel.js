@@ -163,6 +163,9 @@ G.ViewModel = {
     rz += gait.sway * 0.03 * feel.swing * move;
     rx += gait.bob * 0.012 * move;
     ry += gait.sway * 0.02 * feel.swing * move;
+    // ...and on top of that it trails the camera's own bob (G.HeadBob)
+    const hb = G.HeadBob && G.HeadBob.gunLag;
+    if (hb) { px += hb.x; py += hb.y; rz += hb.rz; }
 
     // ---- secondary motion: the gun trails the view, the shoulders a little
     // less. Different spring rates are what make it read as a chain

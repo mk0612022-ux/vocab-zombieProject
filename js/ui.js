@@ -208,6 +208,10 @@ G.UI = {
         <select id="set-fontsize"><option value="small">เล็ก</option><option value="medium">กลาง</option><option value="large">ใหญ่</option></select></div>
       <div class="settings-row"><label>โหมดสีสำหรับผู้มีภาวะตาบอดสี (แสดงไอคอน rarity เพิ่ม)</label>
         <input type="checkbox" id="set-colorblind"></div>
+      <div class="settings-row"><label>ความแรงการโยกกล้องตอนเดิน/วิ่ง (${Math.round((s.headBob == null ? 1 : s.headBob) * 100)}%)</label>
+        <input type="range" id="set-headbob" min="0" max="1" step="0.05" value="${s.headBob == null ? 1 : s.headBob}" ${s.headBobOff ? "disabled" : ""}></div>
+      <div class="settings-row"><label>ปิดการโยกกล้องทั้งหมด (สำหรับผู้ที่เวียนหัวง่าย)</label>
+        <input type="checkbox" id="set-headbob-off"></div>
 
       <div class="settings-section-title">Save Data</div>
       <div class="row-center">
@@ -224,6 +228,15 @@ G.UI = {
     wrap.querySelector("#set-quality").value = s.graphicsQuality;
     wrap.querySelector("#set-fontsize").value = s.fontSize;
     wrap.querySelector("#set-colorblind").checked = s.colorblindMode;
+    wrap.querySelector("#set-headbob-off").checked = !!s.headBobOff;
+    // animation pass B: camera bob strength, live while playing (pause > settings)
+    const hbIn = wrap.querySelector("#set-headbob");
+    hbIn.oninput = (e) => {
+      s.headBob = parseFloat(e.target.value);
+      hbIn.previousElementSibling.textContent = hbIn.previousElementSibling.textContent.replace(/\(\d+%\)/, `(${Math.round(s.headBob * 100)}%)`);
+    };
+    hbIn.onchange = () => G.persist();
+    wrap.querySelector("#set-headbob-off").onchange = (e) => { s.headBobOff = e.target.checked; G.persist(); this.renderSettings(); };
 
     wrap.querySelector("#set-controlmode").onchange = (e) => { s.controlMode = e.target.value; G.persist(); G.Input.mode = e.target.value === "auto" ? G.Input.mode : e.target.value; this.applyControlMode(); };
     wrap.querySelector("#btn-touchcfg").onclick = () => G.TouchCfg.openEditor();

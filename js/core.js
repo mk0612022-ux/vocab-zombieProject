@@ -54,6 +54,8 @@ G.defaultSave = function () {
       gameSpeed: 1,
       fontSize: "medium",         // small | medium | large
       colorblindMode: false,
+      headBob: 1,                 // camera bob strength 0..1 (Accessibility)
+      headBobOff: false,          // turns the camera bob and sway off entirely
       mouseSensitivity: 1,
       keybinds: G.defaultKeybinds ? G.defaultKeybinds() : {},
       musicVolume: 0.6,

@@ -236,6 +236,7 @@ G.Game = {
     this._prevPos = null; this._prevYaw = undefined; this._prevPitch = undefined;
     this._sprintLatch = false; this._prevSprintHeld = false;
     G.ViewModel.reset();
+    G.HeadBob.reset(this);
     this.recoilRecover = 0;
     this.camera.fov = this.baseFov;
     this.camera.updateProjectionMatrix();
@@ -1298,6 +1299,10 @@ G.Game = {
     const rawFire = !this.challenge && ((G.Input.mode === "desktop" && G.Input.mouseDown) || G.Input.touchFire);
 
     G.PlayerBody.stepGait(dt, vel, yawNow, airborne);
+    // the camera rides the same gait (animation pass B), before the gun so
+    // the gun can trail it
+    G.HeadBob.update({ dt, rig: this, aimT: this.aimT, lookYaw, vel, yaw: yawNow,
+      weightKey: G.ViewModel.weightKey(def), airborne });
     G.ViewModel.update({
       dt, def, aimT: this.aimT, sprinting, firing: rawFire, lookYaw, lookPitch, airborne,
       recoilPos: a.recoilPos, recoilRot: a.recoilRot, switchP: this.switchProgress(),
