@@ -463,7 +463,9 @@ G.ViewModel = {
     const q = G.save && G.save.settings.graphicsQuality;
     mag.updateMatrixWorld(true);
     const c = mag.clone(true);
-    c.traverse((o) => { if (o.isMesh) { o.geometry = o.geometry.clone(); o.material = o.material.clone(); } });
+    // (back on the world layer: once it leaves the hand it is part of the
+    // world, and walls hide it again)
+    c.traverse((o) => { o.layers.set(0); if (o.isMesh) { o.geometry = o.geometry.clone(); o.material = o.material.clone(); } });
     const pos = new THREE.Vector3(), quat = new THREE.Quaternion(), scl = new THREE.Vector3();
     mag.matrixWorld.decompose(pos, quat, scl);
     c.position.copy(pos); c.quaternion.copy(quat); c.scale.copy(scl);

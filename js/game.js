@@ -87,6 +87,24 @@ G.Game = {
     // The body rig hangs off the persistent camera rig, so it is built once
     // here rather than rebuilt with every level.
     G.PlayerBody.build(this.yawObject, this.camera);
+    // The gun and arms are drawn in a pass of their own, over the finished
+    // frame with the depth buffer cleared, by a camera that sees only them
+    // (layer 1) and whose near plane is twice as close (0.05; no part of any
+    // gun or arm comes nearer than 0.17 in any pose, recoil included, so it
+    // keeps the depth precision the parts need). In the one scene
+    // with the world, the sprint carry swung parts of some guns through the
+    // 0.1 near plane (slivers at the edge of the view), and a gun held up to
+    // a wall went into it.
+    this.vmCamera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.05, 20);
+    this.vmCamera.layers.set(1);
+    this.renderer.info.autoReset = false;          // two passes a frame: count both
+    if (G.PlayerBody.armRig) {
+      this.toViewmodelLayer(G.PlayerBody.armRig.group);
+      // where a sleeve crosses the gun at a shallow angle the two surfaces are
+      // at nearly the same depth and fought over a thin line of pixels; a
+      // small depth bias lets the gun win there every time
+      G.PlayerBody.armRig.group.traverse((o) => { if (o.isMesh) { o.material.polygonOffset = true; o.material.polygonOffsetFactor = 1; o.material.polygonOffsetUnits = 4; } });
+    }
 
     window.addEventListener("resize", () => {
       this.camera.aspect = window.innerWidth / window.innerHeight;
@@ -109,6 +127,7 @@ G.Game = {
       this.scene.fog.far = q === "vlow" ? pal.fogFar * 0.5 : q === "low" ? pal.fogFar * 0.7 : pal.fogFar;
       if (this.world && this.world.fogBase) this.world.fogBase.far = this.scene.fog.far;
       G.Perf.resizePool(this.scene, q);
+      this.syncViewmodelLights();
       if (this.world.dressDetails && G.SchoolDress) G.SchoolDress.applyQuality(this.world, q);
     }
   },
@@ -186,6 +205,7 @@ G.Game = {
     // its fifty-odd lights for a small fixed pool
     this.perfReport = G.Perf.mergeStatic(this.scene, this.world, [this.yawObject]);
     G.Perf.initLightPool(this.scene, this.world, G.save.settings.graphicsQuality);
+    this.syncViewmodelLights();
     // compile every shader now, during the load, instead of as a hitch the
     // first time each material comes into view
     this.scene.updateMatrixWorld(true);
@@ -293,7 +313,7 @@ G.Game = {
   // already rendering the (paused) scene every frame.
   renderLayoutPreviewFrame() {
     if (!this._layoutPreview || !this.renderer || !this.scene || !this.camera) return;
-    this.renderer.render(this.scene, this.camera);
+    this.renderFrame();
   },
   teardownLevel() {
     if (G.Audio) G.Audio.stopLevel();
@@ -428,6 +448,37 @@ G.Game = {
     // as a huge, indistinct, wrongly-pointed blob instead of a small held gun.
     this.weaponViewGroup = mesh;
     this.camera.add(mesh);
+    this.toViewmodelLayer(mesh);
+  },
+  // held things live on layer 1 only, cast and take no shadows
+  toViewmodelLayer(root) {
+    root.traverse((o) => { o.layers.set(1); if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; } });
+  },
+  // every light lights both passes
+  syncViewmodelLights() {
+    if (this.scene) this.scene.traverse((o) => { if (o.isLight) o.layers.enable(1); });
+  },
+  // the frame: the world, then the gun and arms on top of it
+  renderFrame() {
+    const r = this.renderer, sc = this.scene, cam = this.camera;
+    if (!r || !sc || !cam) return;
+    r.info.reset();
+    r.autoClear = true;
+    r.render(sc, cam);
+    const vm = this.vmCamera;
+    if (!vm) return;
+    cam.updateMatrixWorld();
+    vm.matrixWorld.copy(cam.matrixWorld);
+    vm.matrixWorldInverse.copy(cam.matrixWorldInverse);
+    if (vm.fov !== cam.fov || vm.aspect !== cam.aspect) { vm.fov = cam.fov; vm.aspect = cam.aspect; vm.updateProjectionMatrix(); }
+    vm.matrixAutoUpdate = false;
+    r.autoClear = false;
+    r.clearDepth();
+    const bg = sc.background, su = r.shadowMap.autoUpdate;
+    sc.background = null; r.shadowMap.autoUpdate = false;      // keep the frame, reuse the shadows
+    r.render(sc, vm);
+    sc.background = bg; r.shadowMap.autoUpdate = su;
+    r.autoClear = true;
   },
 
   acquireWeapon(weaponId) {
@@ -2063,7 +2114,7 @@ G.Game = {
     this.clock.getDelta();
     this.update(delta);
 
-    if (this.scene && this.camera) this.renderer.render(this.scene, this.camera);
+    if (this.scene && this.camera) this.renderFrame();
   },
 };
 

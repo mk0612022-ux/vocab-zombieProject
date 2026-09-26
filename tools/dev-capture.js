@@ -5,7 +5,7 @@ window.addEventListener("error", (e) => window.__errs.push(e.message + " @" + (e
 window.__snap = async (name) => {
   const g = G.Game;
   g.scene.updateMatrixWorld(true);
-  g.renderer.render(g.scene, g.camera);
+  if (g.renderFrame) g.renderFrame(); else g.renderer.render(g.scene, g.camera);
   const url = g.renderer.domElement.toDataURL("image/png");
   await fetch("http://localhost:8091/?name=" + name, { method: "POST", body: url, mode: "no-cors" });
   return name;
@@ -38,7 +38,7 @@ window.__sheet = async (name, steps, opts) => {
   for (let i = 0; i < steps.length; i++) {
     const s = steps[i];
     if (s.run) s.run();
-    g.scene.updateMatrixWorld(true); g.renderer.render(g.scene, g.camera);
+    g.scene.updateMatrixWorld(true); if (g.renderFrame) g.renderFrame(); else g.renderer.render(g.scene, g.camera);
     const x = (i % cols) * W, y = Math.floor(i / cols) * (H + 18);
     ctx.drawImage(g.renderer.domElement, x, y, W, H);
     ctx.fillStyle = "#fff"; ctx.font = "13px sans-serif"; ctx.fillText(s.label || "", x + 6, y + H + 13);

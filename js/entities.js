@@ -402,6 +402,64 @@ G.inferArchetype = function (def) {
   return "rifle";
 };
 
+// Close the seams in a box-built gun. Parts meant to touch were placed
+// 1-4mm apart (a receiver over its grip, a sight on its rail): at arm's
+// length that is a line of background two to six pixels wide showing
+// through the gun, and while running the background slides behind it, so
+// it flickers. And a panel laid flush on a part of another colour shares
+// its plane exactly, so the two fight over every pixel (z-fighting).
+// For every pair of axis-aligned boxes: a gap under 4.5mm between faces
+// that face each other is closed by growing the smaller box across it; a
+// face flush with a differently coloured one is pushed out 0.8mm.
+G.weldGunParts = function (root) {
+  root.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(root.matrixWorld).invert(), rel = new THREE.Matrix4(), e = new THREE.Euler(), c = new THREE.Vector3();
+  const B = [];
+  root.traverse((o) => {
+    if (!o.isMesh || !o.geometry || o.geometry.type !== "BoxGeometry" || o.parent === null) return;
+    rel.multiplyMatrices(inv, o.matrixWorld);
+    e.setFromRotationMatrix(rel);
+    if (Math.abs(e.x) + Math.abs(e.y) + Math.abs(e.z) > 1e-6) return;          // tilted parts are left alone
+    c.setFromMatrixPosition(rel);
+    const p = o.geometry.parameters, h = [p.width / 2, p.height / 2, p.depth / 2];
+    const mat = o.material;
+    B.push({ o, min: [c.x - h[0], c.y - h[1], c.z - h[2]], max: [c.x + h[0], c.y + h[1], c.z + h[2]], vol: p.width * p.height * p.depth,
+      key: (mat.type || "") + (mat.color ? mat.color.getHex() : ""), lo: [0, 0, 0], hi: [0, 0, 0] });
+  });
+  // bounds as they will be once grown
+  const lo = (b, k) => b.min[k] - b.lo[k], hi = (b, k) => b.max[k] + b.hi[k];
+  const overlap = (a, b, k) => [0, 1, 2].every((ax) => ax === k || Math.min(hi(a, ax), hi(b, ax)) - Math.max(lo(a, ax), lo(b, ax)) > 0.0002);
+  const pairs = (fn) => { for (let i = 0; i < B.length; i++) for (let j = i + 1; j < B.length; j++) for (let k = 0; k < 3; k++) if (overlap(B[i], B[j], k)) fn(B[i], B[j], k); };
+  const smallOf = (a, b) => (a.vol <= b.vol ? [a, b] : [b, a]);
+  // 1. close the hairline gaps (the smaller part grows 0.6mm into the other)
+  pairs((a, b, k) => {
+    const [small, big] = smallOf(a, b);
+    const g1 = big.min[k] - small.max[k], g2 = small.min[k] - big.max[k];
+    if (g1 > 1e-5 && g1 < 0.0045) small.hi[k] = Math.max(small.hi[k], g1 + 0.0006);
+    if (g2 > 1e-5 && g2 < 0.0045) small.lo[k] = Math.max(small.lo[k], g2 + 0.0006);
+  });
+  // 2. then, on the grown bounds, faces left flush with a part of another
+  // colour (including the strip a closed gap leaves along a shared side)
+  // step out 0.8mm; twice, in case a step lands flush with a third part
+  for (let pass = 0; pass < 2; pass++) {
+    pairs((a, b, k) => {
+      if (a.key === b.key) return;
+      const [small] = smallOf(a, b);
+      if (Math.abs(hi(a, k) - hi(b, k)) < 5e-5) small.hi[k] += 0.0008;
+      if (Math.abs(lo(a, k) - lo(b, k)) < 5e-5) small.lo[k] += 0.0008;
+    });
+  }
+  B.forEach((b) => {
+    if (!b.lo.some((v) => v) && !b.hi.some((v) => v)) return;
+    const size = [0, 1, 2].map((k) => b.max[k] - b.min[k] + b.lo[k] + b.hi[k]);
+    b.o.geometry.dispose();
+    b.o.geometry = new THREE.BoxGeometry(size[0], size[1], size[2]);
+    // the part's parent is unrotated and unscaled, so this shift is local too
+    b.o.position.x += (b.hi[0] - b.lo[0]) / 2; b.o.position.y += (b.hi[1] - b.lo[1]) / 2; b.o.position.z += (b.hi[2] - b.lo[2]) / 2;
+  });
+  root.updateMatrixWorld(true);
+};
+
 G.buildWeaponModel = function (def) {
   const A = G.WEAPON_ARCHETYPES[def.archetype] || G.WEAPON_ARCHETYPES[G.inferArchetype(def)];
   const rnd = gunSeed(def.id || "gun");
@@ -623,14 +681,21 @@ G.buildWeaponModel = function (def) {
       box(0.045, 0.045, 0.16, s * (bw / 2 + 0.035), -bh * 0.1, recZ + bd * 0.1, S.dark);
       glow(0.05, 0.016, 0.05, s * (bw / 2 + 0.035), -bh * 0.1, recZ + bd * 0.1 - 0.08, 0xffd43b);
     });
-    const ring = new THREE.Group();
-    for (let i = 0; i < 8; i++) {
-      const a = (i / 8) * Math.PI * 2;
-      const seg = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.012, 0.012), new THREE.MeshBasicMaterial({ color: G.RAINBOW_COLORS[i % G.RAINBOW_COLORS.length] }));
-      seg.position.set(Math.cos(a) * 0.09, Math.sin(a) * 0.09, 0);
-      seg.rotation.z = a;
-      ring.add(seg);
+    // One continuous hoop with the rainbow running round it. It used to be
+    // eight separate 3cm bars spinning round the muzzle, and with the gun
+    // swung up into the sprint carry (muzzle near the middle of the view)
+    // they read as stray coloured dashes on the screen.
+    const ringGeo = new THREE.TorusGeometry(0.078, 0.011, 6, 40);
+    const rc = [], pc = ringGeo.attributes.position, col = new THREE.Color();
+    for (let i = 0; i < pc.count; i++) {
+      const a = (Math.atan2(pc.getY(i), pc.getX(i)) / (Math.PI * 2) + 1) % 1;
+      const k = a * G.RAINBOW_COLORS.length, i0 = Math.floor(k) % G.RAINBOW_COLORS.length, i1 = (i0 + 1) % G.RAINBOW_COLORS.length;
+      col.setHex(G.RAINBOW_COLORS[i0]).lerp(new THREE.Color(G.RAINBOW_COLORS[i1]), k - Math.floor(k));
+      rc.push(col.r, col.g, col.b);
     }
+    ringGeo.setAttribute("color", new THREE.Float32BufferAttribute(rc, 3));
+    const ring = new THREE.Group();
+    ring.add(new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ vertexColors: true })));
     ring.position.set(0, bh * 0.1, muzzleZ + 0.04);
     g.add(ring);
     g.userData.rainbowTrim = ring;
@@ -667,6 +732,7 @@ G.buildWeaponModel = function (def) {
   g.userData.magDepth = magDepth;
   g.userData.reloadStyle = archKey === "pistol" ? "pistol" : A.mag === "tube" ? "shotgun" : archKey === "sniper" ? "bolt"
     : archKey === "lmg" ? "belt" : (archKey === "launcher" || archKey === "cannon") ? "launcher" : "rifle";
+  G.weldGunParts(g);
   return g;
 };
 
