@@ -51,6 +51,7 @@ G.Perf = {
     if (world.mysteryBox) mark(world.mysteryBox.mesh);
     if (world.secondFloor) mark(world.secondFloor.barrierMesh);
     if (world.secretZone) mark(world.secretZone.barricadeMesh);
+    (world.noMerge || []).forEach(mark);            // animated decor (grass sway, a flag, flickering tubes)
     (extraSkip || []).forEach(mark);
 
     const CELL = 32;
@@ -220,7 +221,8 @@ G.Perf = {
       l.updateMatrixWorld(true);
       const p = new THREE.Vector3(); l.getWorldPosition(p);
       anchors.push({ pos: p, color: l.color.clone(), base: l.userData.base != null ? l.userData.base : l.intensity,
-        distance: l.distance || 13, phase: l.userData.phase || Math.random() * 10, speed: l.userData.speed || 1.4, intensity: 0 });
+        distance: l.distance || 13, phase: l.userData.phase || Math.random() * 10, speed: l.userData.speed || 1.4, intensity: 0,
+        mode: l.userData.mode || null, glow: l.userData.glow || null, glowBase: l.userData.glow ? l.userData.glow.color.clone() : null });
       if (l.parent) l.parent.remove(l);
     });
     this.anchors = anchors;
@@ -258,6 +260,13 @@ G.Perf = {
     for (const a of A) {
       let mult = 0.88 + 0.12 * Math.sin(tSec * a.speed + a.phase);
       if (Math.sin(tSec * 1.7 + a.phase * 3) > 0.985) mult *= 0.35;
+      // a failing tube (pass D3): stutters, dips and now and then dies for a
+      // moment -- its fixture on the ceiling goes with it
+      if (a.mode === "flicker") {
+        const f = Math.sin(tSec * 13.1 + a.phase) + Math.sin(tSec * 29.7 + a.phase * 1.7) + 1.4 * Math.sin(tSec * 3.3 + a.phase * 0.5);
+        mult = f > 0.3 ? 1 : f > -0.8 ? 0.3 : 0.04;
+      }
+      if (a.glow) a.glow.color.copy(a.glowBase).multiplyScalar(Math.min(1, 0.15 + 0.85 * mult));
       a.intensity = a.base * mult;
       const dx = a.pos.x - camPos.x, dy = (a.pos.y - camPos.y) * 1.6, dz = a.pos.z - camPos.z;
       const d = Math.sqrt(dx * dx + dy * dy + dz * dz);

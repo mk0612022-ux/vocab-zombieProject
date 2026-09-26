@@ -109,6 +109,7 @@ G.Game = {
       this.scene.fog.far = q === "vlow" ? pal.fogFar * 0.5 : q === "low" ? pal.fogFar * 0.7 : pal.fogFar;
       if (this.world && this.world.fogBase) this.world.fogBase.far = this.scene.fog.far;
       G.Perf.resizePool(this.scene, q);
+      if (this.world.dressDetails && G.SchoolDress) G.SchoolDress.applyQuality(this.world, q);
     }
   },
 
@@ -1112,6 +1113,7 @@ G.Game = {
     G.ViewModel.updateProps(dt, this.world);
     G.Perf.cullZombies(this);
     G.updateDriftingFog(this.scene, this.world, performance.now() / 1000);
+    if (this.world.dress) this.world.dress.update(dt);
     G.updateSparks(this.scene, this.world, dt);
     this.updateChallengeTimer(dt);
     this.updateBossUI(dt);
@@ -1136,6 +1138,7 @@ G.Game = {
   // and everything alive keeps breathing in place. (The boss still strikes,
   // but only through a wrong answer or a timeout.)
   updateFrozen(dt) {
+    if (this.world.dress) this.world.dress.update(dt);
     this.zombies.forEach((z) => { if (z.alive) z.animate(dt, 0); });
     this.updateDyingZombies(dt);
     this.updateSwingProps(dt);

@@ -32,7 +32,7 @@ G.THEME_PALETTES = {
   // red brick as the accent color, cooler quartz-white main light. Still
   // dim/desaturated enough (not literally white) to keep the horror mood.
   school: {
-    floor: 0x4a4740, floorLine: 0x2e2c27, floorStain: 0x3d3624, wall: 0x8a8578, accent: 0x8a3a2e,
+    floor: 0x4a4740, floorLine: 0x2e2c27, floorStain: 0x3d3624, wall: 0xb3a98c, accent: 0x8a3a2e,
     // C1: dusk outside. A cool blue-grey haze that the warm room lights inside
     // read against, and a far plane that actually reaches across the yard.
     fog: 0x1e2530, fogNear: 4, fogFar: 44, light: 0xdadad0, ambient: 0x3f4046,
@@ -323,7 +323,7 @@ G.buildLevelScene = function (scene, level, quality) {
   // of seconds, which is what keeps a fully-shut map from soft-locking a wave.
   const doorPanelMat = new THREE.MeshLambertMaterial({ color: level.theme === "school" ? 0x9c4a33 : pal.accent });
   const doorPullMat = new THREE.MeshLambertMaterial({ color: 0x1c1a18 });
-  const doorFrameMat = new THREE.MeshLambertMaterial({ color: level.theme === "school" ? 0xcfc6ae : level.theme === "hospital" ? 0xb9c4c2 : 0x55584f });
+  const doorFrameMat = new THREE.MeshLambertMaterial({ color: level.theme === "school" ? 0x6b4a2f : level.theme === "hospital" ? 0xb9c4c2 : 0x55584f });
   const doorRailMat = new THREE.MeshLambertMaterial({ color: 0x8e9296 });
   const DOOR_H = 2.9;
   function addRoomDoor(cx, cz, width, axis, baseY) {
@@ -711,6 +711,26 @@ G.buildLevelScene = function (scene, level, quality) {
   // entry hall dimensions, and the per-room furniture.
   function buildComplex(cfg) {
     const F1 = 0, F2 = cfg.f2 || 4.2, WH = cfg.wallH || 4.2, CEIL = 3.95;
+    // Pass D3: in the school some rooms light normally, some flicker and some
+    // are dead dark, so walking the building has a rhythm of light and dark.
+    // The ceiling fixtures are fitted later (G.SchoolDress) from this list.
+    world.fixtures = [];
+    function schoolLight(key, x, baseY, z, color, intensity, speed, w, d) {
+      const mode = level.theme === "school" && G.SchoolDress ? G.SchoolDress.lightMode(key) : "steady";
+      const l = mode === "off" ? null : addLight(x, baseY + CEIL - 0.45, z, color, intensity, speed);
+      if (l && mode === "flicker") l.userData.mode = "flicker";
+      // point lights ignore walls: at the default 13m a room lit its dark
+      // neighbours through them, so a dead room never looked dead
+      if (l && level.theme === "school") l.distance = /^C\d/.test(key) ? 11 : 8.5;
+      world.fixtures.push({ key, x, z, baseY, mode, light: l, w, d, color });
+      return l;
+    }
+    // what the school dressing (js/schooldress.js) gets to work with
+    function dressApi() {
+      return { scene, world, cfg, level, quality, M, ENTRY, BOSS, F1, F2, WH, CEIL, HALF, ROOM_W, WX, EX,
+        storeyList, corrZ0, corrZ1, wallMat, ceilingMat,
+        addSolid, addFloatBox, addGlowBox, addCanvasBox, addLight, addProp, addBloodStain };
+    }
     const HALF = cfg.half, ROOM_W = cfg.roomW;
     const WX = -(HALF + ROOM_W / 2), EX = HALF + ROOM_W / 2;
     const STOREYS = cfg.storeys;
@@ -849,7 +869,7 @@ G.buildLevelScene = function (scene, level, quality) {
         const key = "C" + fl + c.name;
         addSpace(key, 0, c.cz, HALF * 2, c.d, baseY);
         addCeiling(0, c.cz, HALF * 2, c.d, baseY, CEIL);
-        addLight(0, baseY + CEIL - 0.4, c.cz, rl[fl === 1 ? 0 : 1], 1.0, 1.2 + G.rng() * 0.7);
+        schoolLight("C" + fl + c.name, 0, baseY, c.cz, rl[fl === 1 ? 0 : 1], 1.0, 1.2 + G.rng() * 0.7, HALF * 2, c.d);
       });
       for (let i = 0; i < cfg.corrSegs.length - 1; i++) {
         link("C" + fl + cfg.corrSegs[i].name, "C" + fl + cfg.corrSegs[i + 1].name);
@@ -869,7 +889,7 @@ G.buildLevelScene = function (scene, level, quality) {
         ? { east: { center: row.cz, width: 3 } }
         : { west: { center: row.cz, width: 3 } };
       addRoomWalls(r, gaps, WH, baseY);
-      addLight(cx, baseY + CEIL - 0.45, row.cz, rl[spec.light % rl.length], 1.15, 1.0 + G.rng() * 0.9);
+      schoolLight(spec.key, cx, baseY, row.cz, rl[spec.light % rl.length], 1.15, 1.0 + G.rng() * 0.9, ROOM_W, row.d);
       addRoomDoor(spec.side === "W" ? -HALF : HALF, row.cz, 3, "z", baseY);
       // A room is entered through its door, not its wall: the route passes a
       // node just inside the corridor in front of the doorway. Without it a
@@ -1179,11 +1199,13 @@ G.buildLevelScene = function (scene, level, quality) {
     }
 
     if (cfg.dressEntry) cfg.dressEntry({ addSolid, addFloatBox, addCanvasBox, addGlowBox, addCorpse, addBloodStain, addProp, addLight, mountWallGun, scatterClutter, ENTRY, BOSS, F2, M, scene });
+    if (level.theme === "school" && G.SchoolDress) G.SchoolDress.facade(dressApi());
     if (cfg.dressBoss) cfg.dressBoss({ addSolid, addFloatBox, addCanvasBox, addGlowBox, addCorpse, addBloodStain, addProp, addLight, mountWallGun, scatterClutter, BOSS, ENTRY, F2, M, scene });
     if (cfg.yard) buildSchoolYard({ cz: ENTRY.cz, d: ENTRY.d, w: ENTRY.w }, cfg.yard);
     clearDoorways();
     buildSlidingDoors();
     fitWordDoorSlide();
+    if (level.theme === "school" && G.SchoolDress) G.SchoolDress.interior(dressApi());
 
     // ---- spawn points ----
     cfg.corrSegs.forEach((c) => world.extraSpawnPoints.push({ pos: new THREE.Vector3(0, 0, c.cz), types: ["normal", "fast"] }));
@@ -1219,7 +1241,7 @@ G.buildLevelScene = function (scene, level, quality) {
       school: {
         wood: 0x6b4a2f, woodDark: 0x4a3220, metal: 0x6d737a, crate: 0x8a6a3a, rubble: 0x5f5c55,
         rail: 0x3a3a34, barricade: 0x5c5438, board: 0x1f4436,
-        locker: [0x2f6fb0, 0xc9433c, 0xd9b23c, 0x3f9e5c], accent: 0x8a3a2e,
+        locker: [0x6f93b3, 0xb0615a, 0xc9b26a, 0x7a9a86], accent: 0x8a3a2e,   // faded blue, red, yellow (pass D2)
       },
       hospital: {
         wood: 0x9aa5a0, woodDark: 0x6d7a75, metal: 0xc6cdc9, crate: 0x7d8c84, rubble: 0x4d5a53,
@@ -1671,7 +1693,6 @@ G.buildLevelScene = function (scene, level, quality) {
         const mainD = zf - (B.cz + B.d / 2);
         a.addFloatBox(0, 8.75, (zf + B.cz + B.d / 2) / 2, E.w + 1, 0.5, mainD, wallDark);
         a.addFloatBox(0, 9.3, B.cz, B.w + 2, 0.5, B.d + 2, wallDark);
-        [[-11, 6.2], [12.4, 2.4]].forEach(([wx, wy]) => a.addGlowBox(wx, wy, zf + 0.5, 1.7, 1.2, 0.06, 0xffd9a0));
       },
       boss(a) {
         const M = a.M, B = a.BOSS, F2 = a.F2, gz = B.cz;
@@ -1909,51 +1930,10 @@ G.buildLevelScene = function (scene, level, quality) {
       }
     }
 
-    // ---- overgrown grass: one instanced draw call for the whole field ----
-    {
-      const COUNT = 760;
-      const geo = new THREE.BoxGeometry(0.09, 1, 0.09);
-      geo.translate(0, 0.5, 0);   // pivot at the base so the Y scale grows upward
-      const mesh = new THREE.InstancedMesh(geo, grassTuftMat, COUNT);
-      const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3();
-      const axis = new THREE.Vector3(0, 1, 0);
-      let n = 0;
-      for (let i = 0; i < COUNT; i++) {
-        const gx = x0 + 1 + G.rng() * (YARD.w - 2);
-        const gz = z0 + 1 + G.rng() * (YARD.d - 2);
-        if (Math.abs(gx) < 2.6) continue;                 // keep the path clear
-        p.set(gx, G.getFloorHeightAt(world, gx, gz), gz);
-        q.setFromAxisAngle(axis, G.rng() * Math.PI);
-        s.set(1, 0.3 + G.rng() * 0.7, 1);
-        m4.compose(p, q, s);
-        mesh.setMatrixAt(n++, m4);
-      }
-      mesh.count = n;
-      mesh.instanceMatrix.needsUpdate = true;
-      scene.add(mesh);
-    }
-
-    // ---- dead trees ----
-    const TREES = [[-19, 44], [-14, 55], [17, 37], [21, 55], [8, 45], [-7, 58]];
-    TREES.forEach(([tx, tz], i) => {
-      const h = 4.2 + G.rng() * 2.4;
-      const trunk = new THREE.Mesh(new THREE.BoxGeometry(0.62, h, 0.62), barkMat);
-      trunk.position.set(tx, h / 2, tz);
-      trunk.rotation.y = G.rng();
-      trunk.rotation.z = (G.rng() - 0.5) * 0.16;
-      scene.add(trunk);
-      world.colliders.push(new THREE.Box3().setFromObject(trunk));
-      for (let b = 0; b < 4; b++) {
-        const bl = 1.2 + G.rng() * 1.8;
-        const ang = (b / 4) * Math.PI * 2 + G.rng();
-        const br = new THREE.Mesh(new THREE.BoxGeometry(bl, 0.2, 0.2), branchMat);
-        br.position.set(tx + Math.cos(ang) * bl * 0.45, h * (0.55 + b * 0.1), tz + Math.sin(ang) * bl * 0.45);
-        br.rotation.y = -ang;
-        br.rotation.z = 0.3 + G.rng() * 0.4;
-        scene.add(br);
-      }
-      if (i % 2 === 0) addBloodStain(tx + 1.2, tz + 0.8, 0.9, G.rng() * 3);
-    });
+    // ---- grass, weeds, fallen leaves, vines, bushes, old trees and the
+    // junk of an abandoned school (pass D1, js/schooldress.js) ----
+    if (G.SchoolDress) G.SchoolDress.yard({ scene, world, level, quality, x0, x1, z0, z1, YARD, ENTRY_HALL,
+      addFloatBox, addBloodStain, addLight, addGlowBox, fenceMat, barkMat, branchMat });
 
     // ---- perimeter: steel railings and brick piers, wrecked but sealed ----
     function railRun(ax, from, to, fixed, broken) {
@@ -2025,8 +2005,21 @@ G.buildLevelScene = function (scene, level, quality) {
       const board = addCanvasBox(sx, 2.15, sz + 0.1, 4.6, 1.5, 0.16, (ctx, cv) => {
         ctx.fillStyle = "#2c4a63"; ctx.fillRect(0, 0, cv.width, cv.height);
         ctx.textAlign = "center";
+        // pass D1: the letters are separate pieces bolted on, and some are gone --
+        // two fell off, one hangs by a single screw (Thai drawn cluster by
+        // cluster so a vowel stays with its consonant)
         ctx.font = "bold 26px sans-serif"; ctx.fillStyle = "#d8e4ee";
-        ctx.fillText("โรงเรียนบ้านหนอง", 128, 52);
+        const clusters = ["โ", "ร", "ง", "เ", "รี", "ย", "น", "บ้", "า", "น", "ห", "น", "อ", "ง"];
+        const widths = clusters.map((c) => ctx.measureText(c).width);
+        let cxp = 128 - widths.reduce((s, w) => s + w, 0) / 2;
+        ctx.textAlign = "left";
+        clusters.forEach((c, i) => {
+          if (i === 4 || i === 10) { ctx.fillStyle = "rgba(10,14,18,0.35)"; ctx.fillRect(cxp + 2, 30, widths[i] - 4, 26); ctx.fillStyle = "#d8e4ee"; }   // a paler patch where it was
+          else if (i === 8) { ctx.save(); ctx.translate(cxp + 4, 38); ctx.rotate(0.9); ctx.fillText(c, 0, 14); ctx.restore(); }
+          else ctx.fillText(c, cxp, 52);
+          cxp += widths[i];
+        });
+        ctx.textAlign = "center";
         ctx.font = "bold 22px sans-serif"; ctx.fillStyle = "#9fb4c6";
         ctx.fillText("ยินดีต้อนรับ", 128, 92);
         ctx.fillStyle = "#101418";
@@ -2090,7 +2083,7 @@ G.buildLevelScene = function (scene, level, quality) {
     // One cheap directional fill so the grounds read as "just after sunset,
     // still legible" rather than a black void, biased cool against the warm
     // point lights burning inside the building.
-    const moon = new THREE.DirectionalLight(0x9fb8d8, 0.6);
+    const moon = new THREE.DirectionalLight(0x8fb0e8, 0.68);
     moon.position.set(-34, 46, 78);
     moon.target.position.set(0, 0, 42);
     scene.add(moon); scene.add(moon.target);
