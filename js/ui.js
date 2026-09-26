@@ -12,7 +12,7 @@ G.UI = {
     "screen-leaderboard", "screen-achievements", "screen-import", "screen-practice-setup",
     "screen-practice-play", "screen-shop", "screen-crate", "screen-pause",
     "screen-gameover", "screen-victory", "screen-vocablog", "screen-weaponlog",
-    "screen-mystery",
+    "screen-mystery", "screen-inventory", "screen-customvocab",
   ],
 
   showScreen(id) {
@@ -53,9 +53,11 @@ G.UI = {
     document.body.classList.toggle("touch-mode", mode === "touch");
   },
   // On-screen weapon switcher: one button per slot the player actually holds
-  // (knife + up to four guns), rebuilt only when the loadout or selection
-  // changes so it isn't re-rendered every frame.
+  // (knife + up to four guns, six with the Extra Weapon Slot perk), rebuilt
+  // only when the loadout or selection changes so it isn't re-rendered every
+  // frame. Empty slots get no button.
   refreshTouchSlots(slots, activeIndex) {
+    slots = slots.filter((s) => !s.empty);
     const wrap = this.el("touch-slots");
     const sig = slots.length + ":" + activeIndex;
     if (this._touchSlotSig === sig) return;
@@ -81,6 +83,7 @@ G.UI = {
     this.bindShop();
     this.bindCrate();
     this.bindMystery();
+    G.CustomVocabUI.bind();
     this.applyFontSizeClass();
   },
 
@@ -101,7 +104,8 @@ G.UI = {
     this.el("btn-achievements").onclick = () => { this.renderAchievements(); this.showScreen("screen-achievements"); };
     this.el("btn-vocablog").onclick = () => { this._logReturnScreen = "screen-mainmenu"; this.renderVocabLog(1); this.showScreen("screen-vocablog"); };
     this.el("btn-weaponlog").onclick = () => { this._logReturnScreen = "screen-mainmenu"; this.renderWeaponLog(1); this.showScreen("screen-weaponlog"); };
-    this.el("btn-import-vocab").onclick = () => { this.renderImportedSets(); this.showScreen("screen-import"); };
+    this.el("btn-import-vocab").onclick = () => this.openImport("screen-mainmenu");
+    this.el("btn-customvocab").onclick = () => G.CustomVocabUI.open("screen-mainmenu");
     this.el("btn-howtoplay").onclick = () => this.showScreen("screen-howtoplay");
     this.el("btn-tutorial-replay").onclick = () => { G.Tutorial.reset(); G.Game.startLevel(1); };
     this.el("btn-settings").onclick = () => { this._settingsReturn = "screen-mainmenu"; this.renderSettings(); this.showScreen("screen-settings"); };
@@ -150,8 +154,9 @@ G.UI = {
     const wrap = this.el("settings-content");
     const kb = s.keybinds;
     const T = G.T;
-    const actions = ["forward", "back", "left", "right", "sprint", "jump", "reload", "interact", "melee", "slot2", "slot3", "slot4", "slot5", "pause"];
+    const actions = ["forward", "back", "left", "right", "sprint", "jump", "reload", "interact", "melee", "slot2", "slot3", "slot4", "slot5", "slot6", "slot7", "pause"];
     const pct = (v, d) => Math.round((v == null ? d : v) * 100);
+    this._hudSlotSig = null;              // the HUD slot row shows these keys
     wrap.innerHTML = `
       <div class="settings-section-title">${T("settings.controls")}</div>
       <div class="settings-row"><label>${T("settings.controlMode")}</label>
@@ -169,7 +174,7 @@ G.UI = {
       <div class="settings-section-title">${T("settings.keybinds")}</div>
       ${actions.map((a) => `
         <div class="keybind-row"><span>${T("key." + a)}</span>
-          <button class="btn keybind-btn" data-action="${a}">${kb[a]}</button></div>`).join("")}
+          <button class="btn keybind-btn" data-action="${a}">${G.keyLabel(kb[a])}</button></div>`).join("")}
       <div class="row-center"><button class="btn" id="btn-reset-keybinds">${T("settings.resetKeys")}</button></div>
 
       <div class="settings-section-title">${T("settings.audio")}</div>
@@ -213,6 +218,10 @@ G.UI = {
         <input type="range" id="set-headbob" min="0" max="1" step="0.05" value="${s.headBob == null ? 1 : s.headBob}" ${s.headBobOff ? "disabled" : ""}></div>
       <div class="settings-row"><label>${T("settings.headBobOff")}</label>
         <input type="checkbox" id="set-headbob-off"></div>
+
+      <div class="settings-section-title">${T("settings.vocabulary")}</div>
+      <div class="settings-row"><label>${T("settings.customVocab", { n: G.CustomVocab.count() })}</label>
+        <button class="btn" id="btn-settings-customvocab">${T("settings.customVocabBtn")}</button></div>
 
       <div class="settings-section-title">${T("settings.saveData")}</div>
       <div class="row-center">
@@ -267,6 +276,7 @@ G.UI = {
     wrap.querySelectorAll(".keybind-btn").forEach((btn) => {
       btn.onclick = () => { btn.textContent = "..."; G.Input.rebindingAction = btn.dataset.action; };
     });
+    wrap.querySelector("#btn-settings-customvocab").onclick = () => G.CustomVocabUI.open("screen-settings");
     wrap.querySelector("#btn-export-save").onclick = () => G.exportSave();
     wrap.querySelector("#btn-import-save-settings").onclick = () => wrap.querySelector("#import-save-file").click();
     // Category L: the file is read and validated BEFORE asking, so the
@@ -347,7 +357,10 @@ G.UI = {
     tabs.querySelectorAll(".tab-btn").forEach((t) => (t.onclick = () => this.renderVocabLog(parseInt(t.dataset.id))));
     const level = G.getLevel(levelId);
     const words = G.WORD_SETS[level.wordsKey].words;
-    const items = words.map(([en, th]) => {
+    const builtinCount = G.CustomVocab.builtin(level.wordsKey).length;
+    const esc = G.escapeHtml;
+    const items = words.map(([en, th], i) => {
+      const mine = i >= builtinCount ? ` <span class="vocab-badge custom">${G.T("vocablog.custom")}</span>` : "";
       const stat = G.save.wordStats[en.toLowerCase()];
       let badge = `<span class="vocab-badge unseen">${G.T("vocablog.unseen")}</span>`;
       if (stat && (stat.correct > 0 || stat.wrong > 0)) {
@@ -356,7 +369,7 @@ G.UI = {
           ? `<span class="vocab-badge correct">${R}${stat.wrong ? ` / ${W}` : ""}</span>`
           : `<span class="vocab-badge wrong">${W}${stat.correct ? ` / ${R}` : ""}</span>`;
       }
-      return `<div class="vocab-item"><div><div class="vw-en">${en} <button class="speak-btn" data-word="${en}" aria-label="${G.T("vocablog.hear", { word: en })}">🔊</button></div><div class="vw-th">${th}</div></div>${badge}</div>`;
+      return `<div class="vocab-item"><div><div class="vw-en">${esc(en)} <button class="speak-btn" data-word="${esc(en)}" aria-label="${G.T("vocablog.hear", { word: esc(en) })}">🔊</button>${mine}</div><div class="vw-th">${esc(th)}</div></div>${badge}</div>`;
     }).join("");
     this.el("vocablog-content").innerHTML = `<div class="vocab-grid">${items}</div>`;
   },
@@ -437,8 +450,23 @@ G.UI = {
 
   // ---------------- Import vocabulary ----------------
   _pendingImport: null,
+  // The import page is reached from the main menu and from Custom
+  // Vocabulary (which opens it set to the level it was showing).
+  openImport(returnTo, levelKey) {
+    this._importReturn = returnTo || "screen-mainmenu";
+    const sel = this.el("import-dest");
+    sel.innerHTML = `<option value="practice">${G.T("import.destPractice")}</option>` +
+      G.CustomVocab.LEVEL_KEYS.map((k) => `<option value="${k}">${G.T("import.destLevel", { level: G.CustomVocab.levelName(k) })}</option>`).join("");
+    sel.value = levelKey || "practice";
+    this.el("import-summary").innerHTML = "";
+    this.renderImportedSets();
+    this.showScreen("screen-import");
+  },
   bindImport() {
-    this.el("btn-import-back").onclick = () => this.goToMainMenu();
+    this.el("btn-import-back").onclick = () => {
+      if (this._importReturn === "screen-customvocab") { G.CustomVocabUI.render(); this.showScreen("screen-customvocab"); }
+      else this.goToMainMenu();
+    };
     this.el("import-file-input").onchange = (e) => this.handleImportFile(e.target.files[0]);
     this.el("import-image-input").onchange = (e) => this.handleImportImage(e.target.files[0]);
     this.el("btn-import-save").onclick = () => this.saveImportedSet();
@@ -460,7 +488,7 @@ G.UI = {
   renderImportPreview(pairs) {
     const prev = this.el("import-preview");
     prev.innerHTML = pairs.length
-      ? pairs.slice(0, 50).map((p) => `<div>${p[0]} — ${p[1]}</div>`).join("") + (pairs.length > 50 ? `<div>${G.T("import.more", { n: pairs.length - 50 })}</div>` : "")
+      ? pairs.slice(0, 50).map((p) => `<div>${G.escapeHtml(p[0])} — ${G.escapeHtml(p[1])}</div>`).join("") + (pairs.length > 50 ? `<div>${G.T("import.more", { n: pairs.length - 50 })}</div>` : "")
       : `<div>${G.T("import.none")}</div>`;
     this.el("btn-import-save").disabled = pairs.length === 0;
   },
@@ -487,25 +515,47 @@ G.UI = {
     script.onerror = () => { status.textContent = G.T("import.ocrNoLib"); };
     document.head.appendChild(script);
   },
+  // Every row goes through the Custom Vocabulary checks (js/customvocab.js).
+  // Into a level: nothing already in the game anywhere, in any level, gets
+  // in twice. As a practice set: game words are the point of it, so only
+  // broken rows and the file's own repeats are dropped. Either way the page
+  // then says what went in and what was left out, and why.
   saveImportedSet() {
     if (!this._pendingImport || !this._pendingImport.words.length) return;
-    const id = "import_" + Date.now();
-    G.save.importedSets[id] = this._pendingImport;
-    G.persist();
+    const dest = this.el("import-dest").value;
+    const T = G.T, esc = G.escapeHtml;
+    let res, head;
+    if (dest === "practice") {
+      const clean = G.CustomVocab.cleanPracticeSet(this._pendingImport.words);
+      res = { added: clean.words.map((p) => p[0]), dupes: clean.dupes, invalid: clean.invalid, sameMeaning: [] };
+      if (clean.words.length) {
+        G.save.importedSets["import_" + Date.now()] = { name: this._pendingImport.name, words: clean.words };
+        G.persist();
+      }
+      head = T("import.sumPractice", { n: res.added.length });
+    } else {
+      res = G.CustomVocab.importPairs(this._pendingImport.words, dest);
+      head = T("import.sumLevel", { n: res.added.length, level: G.CustomVocab.levelName(dest) });
+    }
+    const reason = (d) => d.key ? T("import.whyDup", { level: G.CustomVocab.levelName(d.key) }) : T("import.whyDupFile");
+    let html = `<div class="sum-head">${head}</div>`;
+    if (res.dupes.length) html += `<div class="sum-skip"><b>${T("import.sumDupes", { n: res.dupes.length })}</b> ${res.dupes.map((d) => `${esc(d.en)} <i>(${reason(d)})</i>`).join(", ")}</div>`;
+    if (res.invalid.length) html += `<div class="sum-skip"><b>${T("import.sumInvalid", { n: res.invalid.length })}</b> ${res.invalid.map((d) => `${esc(d.en)} <i>(${T(d.reason)})</i>`).join(", ")}</div>`;
+    if (res.sameMeaning.length) html += `<div class="sum-warn">${T("import.sumSame", { words: res.sameMeaning.map(esc).join(", ") })}</div>`;
+    this.el("import-summary").innerHTML = html;
     this._pendingImport = null;
     this.el("import-preview").innerHTML = "";
     this.el("btn-import-save").disabled = true;
     this.el("import-file-input").value = "";
     this.el("import-image-input").value = "";
     this.renderImportedSets();
-    alert(G.T("import.saved"));
   },
   renderImportedSets() {
     const wrap = this.el("imported-sets-list");
     const ids = Object.keys(G.save.importedSets);
     wrap.innerHTML = ids.length ? ids.map((id) => {
       const set = G.save.importedSets[id];
-      return `<div class="imported-set-row"><span>${G.T("import.setRow", { name: set.name, n: set.words.length })}</span><button class="btn" data-id="${id}">${G.T("import.delete")}</button></div>`;
+      return `<div class="imported-set-row"><span>${G.T("import.setRow", { name: G.escapeHtml(set.name), n: set.words.length })}</span><button class="btn" data-id="${id}">${G.T("import.delete")}</button></div>`;
     }).join("") : `<div style='opacity:.6'>${G.T("import.empty")}</div>`;
     wrap.querySelectorAll("button[data-id]").forEach((b) => b.onclick = () => { delete G.save.importedSets[b.dataset.id]; G.persist(); this.renderImportedSets(); });
   },
@@ -611,7 +661,7 @@ G.UI = {
     const reviewWrap = this.el(kind === "win" ? "victory-review" : "gameover-review");
     const sorted = Object.entries(wrongWords || {}).sort((a, b) => b[1].count - a[1].count);
     reviewWrap.innerHTML = sorted.length
-      ? `<div style="opacity:.7;margin-bottom:6px">${G.T("result.review")}</div>` + sorted.map(([w, d]) => `<div class="review-item"><span>${w} — ${d.meaning}</span><span class="wrong-count">${G.T("result.wrongTimes", { n: d.count })}</span></div>`).join("")
+      ? `<div style="opacity:.7;margin-bottom:6px">${G.T("result.review")}</div>` + sorted.map(([w, d]) => `<div class="review-item"><span>${G.escapeHtml(w)} — ${G.escapeHtml(d.meaning)}</span><span class="wrong-count">${G.T("result.wrongTimes", { n: d.count })}</span></div>`).join("")
       : `<div style="opacity:.6">${G.T("result.perfect")}</div>`;
   },
 
@@ -619,29 +669,64 @@ G.UI = {
   bindShop() { this.el("btn-shop-continue").onclick = () => G.Game.leaveShop(); },
   renderShop() {
     this.el("shop-money").textContent = G.Game.player.money;
+    const g = G.Game, pl = g.player;
     const bonus = this.el("shop-bonus");
     if (bonus) {
-      const b = G.Game._waveBonus || 0;
-      bonus.textContent = b ? G.T("shop.bonus", { w: G.Game.wave, b }) : "";
-      bonus.classList.toggle("hidden", !b);
+      const b = g._waveBonus || 0, it = g._interest || 0;
+      const parts = [];
+      if (b) parts.push(G.T("shop.bonus", { w: g.wave, b }));
+      if (it) parts.push(G.T("shop.interest", { v: it }));
+      bonus.textContent = parts.join(" · ");
+      bonus.classList.toggle("hidden", !parts.length);
     }
+    // Three sections: what is always on sale, this wave's four perks (the
+    // shuffle bag, js/perks.js), and the armory.
     const grid = this.el("shop-grid");
     grid.innerHTML = "";
-    G.SHOP_ITEMS.forEach((item) => {
-      const owned = item.kind === "unlock" && G.Game.player.gunSlots.includes(item.weapon);
-      const stack = item.maxStack ? (G.Game.player.perks[item.id] || 0) : 0;
-      const maxedOut = item.maxStack && stack >= item.maxStack;
-      const price = G.Shop.priceFor(item.id, item.base, item.growth);
+    const section = (key) => {
+      const h = document.createElement("div");
+      h.className = "shop-section";
+      h.textContent = G.T(key);
+      grid.appendChild(h);
+    };
+    const card = (o) => {
       const div = document.createElement("div");
-      div.className = "shop-item";
-      div.innerHTML = `<div class="shop-item-title">${item.label}</div>
-        <div class="shop-item-desc">${item.maxStack ? G.T("shop.level", { s: stack, m: item.maxStack }) : ""}</div>
-        <div class="shop-item-price">💰 ${owned ? G.T("shop.owned") : maxedOut ? G.T("shop.max") : price}</div>
-        <button class="btn ${owned || maxedOut ? "" : "btn-primary"}" ${owned || maxedOut || G.Game.player.money < price ? "disabled" : ""}>${owned || maxedOut ? "-" : G.T("shop.buy")}</button>`;
-      if (!owned && !maxedOut) {
-        div.querySelector("button").onclick = () => { G.Game.buyShopItem(item, price); this.renderShop(); };
-      }
+      div.className = "shop-item" + (o.perk ? " shop-perk cat-" + o.perk.cat : "");
+      const blocked = o.owned || o.maxed || o.full;
+      div.innerHTML = `<div class="shop-item-title">${o.icon ? `<span class="shop-icon">${o.icon}</span>` : ""}${o.title}</div>
+        ${o.level ? `<div class="shop-item-level">${o.level}</div>` : ""}
+        <div class="shop-item-desc">${o.desc || ""}</div>
+        <div class="shop-item-price">💰 ${o.owned ? G.T("shop.owned") : o.maxed ? G.T("shop.max") : o.price}</div>
+        <button class="btn ${blocked ? "" : "btn-primary"}" ${blocked || pl.money < o.price ? "disabled" : ""}>${o.full ? G.T("shop.full") : blocked ? "-" : G.T("shop.buy")}</button>`;
+      if (!blocked) div.querySelector("button").onclick = () => { o.buy(); this.renderShop(); };
       grid.appendChild(div);
+    };
+    const cur = g.currentWeaponDef();
+    const itemCard = (item, extra) => {
+      const price = G.Shop.priceFor(item.id, item.base, item.growth);
+      const vars = { w: cur.name, hp: Math.round(pl.hp), max: pl.maxHp };
+      card(Object.assign({ title: item.label, price, desc: G.T("shopItem." + item.id + ".desc", vars), buy: () => g.buyShopItem(item, price) }, extra || {}));
+    };
+    section("shop.essentials");
+    // nothing to fill: not for sale (no paying for nothing)
+    const ammoFull = pl.gunSlots.every((id) => pl.ammo[id].mag >= Math.round(G.WEAPON_DEFS[id].magSize * pl.weaponLevels[id].mag) && pl.ammo[id].reserve >= g.fullReserve(id));
+    G.SHOP_ITEMS.filter((i) => i.section === "essential").forEach((item) => itemCard(item, {
+      icon: item.id === "heal" ? "❤" : "🔋",
+      full: item.id === "heal" ? pl.hp >= pl.maxHp : ammoFull,
+    }));
+    section("shop.perks");
+    (g._perkOffer || []).forEach((id) => {
+      const def = G.PERK_BY_ID[id], lvl = G.Perks.level(id), maxed = lvl >= def.max;
+      card({
+        perk: def, icon: def.icon, title: G.Perks.name(id), maxed, price: G.Perks.price(id),
+        level: G.T("shop.perkLevel", { l: lvl, m: def.max }) + " · " + G.T("perkCat." + def.cat),
+        desc: (lvl && !maxed ? `<b>${G.T("shop.nextLevel")}</b> ` : "") + G.Perks.describe(id, maxed ? lvl : lvl + 1),
+        buy: () => g.buyPerk(id),
+      });
+    });
+    section("shop.armory");
+    G.SHOP_ITEMS.filter((i) => i.section !== "essential").forEach((item) => {
+      itemCard(item, { owned: item.kind === "unlock" && pl.gunSlots.includes(item.weapon) });
     });
   },
 
@@ -655,6 +740,62 @@ G.UI = {
     this.el("crate-weapon-name").textContent = weaponDef.name;
     this.el("crate-weapon-stats").innerHTML = G.T("crate.stats", { d: weaponDef.damage, r: (1000 / weaponDef.fireRate).toFixed(1), m: weaponDef.magSize }) + this.weightLine(weaponDef);
     this.showScreen("screen-crate");
+  },
+
+  // ---------------- Inventory Full (js/loadout.js) ----------------
+  // The new gun on top, then one card per slot: that gun's numbers, and what
+  // each would become if this slot took the new one -- green when the new gun
+  // is better at it, red when it is worse. The whole card is the button.
+  gunStats(def, lvl) {
+    lvl = lvl || { dmg: 1, rate: 1, mag: 1 };
+    return {
+      dmg: Math.round(def.damage * lvl.dmg * (def.pellets || 1)),
+      dmgLabel: def.pellets ? `${Math.round(def.damage * lvl.dmg)}×${def.pellets}` : String(Math.round(def.damage * lvl.dmg)),
+      rate: Math.round(1000 / def.fireRate * lvl.rate * 10) / 10,
+      mag: Math.round(def.magSize * lvl.mag),
+      weight: G.weaponWeight(def),
+    };
+  },
+  renderInventoryFull(newId, opts) {
+    const g = G.Game, pl = g.player, T = G.T, esc = G.escapeHtml;
+    const nd = G.WEAPON_DEFS[newId];
+    const ns = this.gunStats(nd, opts.carry ? opts.carry.levels : null);
+    const col = (r) => "#" + G.RARITY[r].color.toString(16).padStart(6, "0");
+    const statRow = (label, v) => `<div class="inv-stat"><span>${label}</span><b>${v}</b></div>`;
+    this.el("inv-new").innerHTML = `
+      <div class="inv-new-tag">${T("inv.newGun")}</div>
+      <div class="inv-name" style="color:${col(nd.rarity)}">${esc(nd.name)}</div>
+      <div class="inv-rarity">${G.RARITY[nd.rarity].label} · ${G.fireModeLabel(nd)}</div>
+      <div class="inv-stats">${statRow(T("inv.damage"), nd.pellets ? `${ns.dmg} <small>(${ns.dmgLabel})</small>` : ns.dmg)}${statRow(T("inv.rate"), ns.rate + "/s")}${statRow(T("inv.mag"), ns.mag)}${statRow(T("inv.weight"), G.weightClass(nd).label + " " + ns.weight.toFixed(1))}</div>`;
+    const kb = G.save.settings.keybinds;
+    // + / - for the new gun against this slot's; `lowerBetter` for weight
+    const cmp = (label, oldV, newV, show, lowerBetter) => {
+      const diff = newV - oldV;
+      const better = lowerBetter ? diff < 0 : diff > 0;
+      const cls = Math.abs(diff) < 1e-6 ? "same" : better ? "up" : "down";
+      const arrow = cls === "same" ? "=" : better ? "▲" : "▼";
+      return `<div class="inv-stat ${cls}"><span>${label}</span><b>${show(oldV)} → ${show(newV)} <i>${arrow}</i></b></div>`;
+    };
+    this.el("inv-slots").innerHTML = pl.gunSlots.map((id, i) => {
+      const d = G.WEAPON_DEFS[id], s = this.gunStats(d, pl.weaponLevels[id]);
+      const a = pl.ammo[id];
+      return `<button class="inv-slot" data-idx="${i}">
+        <div class="inv-slot-head"><span class="inv-key">${G.keyLabel(kb["slot" + (i + 2)])}</span>
+          <span class="inv-name" style="color:${col(d.rarity)}">${esc(d.name)}</span>${pl.currentSlot === i + 1 ? `<span class="inv-held">${T("inv.held")}</span>` : ""}</div>
+        <div class="inv-stats">
+          ${cmp(T("inv.damage"), s.dmg, ns.dmg, (v) => v)}
+          ${cmp(T("inv.rate"), s.rate, ns.rate, (v) => v + "/s")}
+          ${cmp(T("inv.mag"), s.mag, ns.mag, (v) => v)}
+          ${cmp(T("inv.weight"), s.weight, ns.weight, (v) => v.toFixed(1), true)}
+        </div>
+        <div class="inv-ammo">${T("inv.ammo", { m: a.mag, r: a.reserve })}</div>
+        <div class="inv-replace">${T("inv.replace")}</div>
+      </button>`;
+    }).join("");
+    this.el("inv-slots").querySelectorAll(".inv-slot").forEach((b) => (b.onclick = () => G.Loadout.choose(parseInt(b.dataset.idx, 10))));
+    const keepNote = { wall: "inv.keepWall", shop: "inv.keepWall", mystery: "inv.keepBox", crate: "inv.keepFloor", drop: "inv.keepFloor", floor: "inv.keepStays" }[opts.source] || "inv.keepFloor";
+    this.el("inv-note").textContent = T("inv.dropNote", { s: G.Loadout.RETURN_SECONDS }) + " " + T(keepNote);
+    this.el("btn-inv-keep").onclick = () => G.Loadout.keep();
   },
 
   // ---------------- HUD update ----------------
@@ -703,17 +844,62 @@ G.UI = {
       const [d, t] = p.objectives.replace(/[^0-9/]/g, "").split("/").map(Number);
       obj.classList.toggle("done", d === t);
     } else obj.classList.add("hidden");
-    const slotsWrap = this.el("hud-slots");
-    slotsWrap.innerHTML = "";
-    p.slots.forEach((s, i) => {
-      const d = document.createElement("div");
-      d.className = "hud-slot" + (s.active ? " active" : "");
-      d.textContent = i === 0 ? "K" : String(i + 1);
-      slotsWrap.appendChild(d);
-    });
-    if (p.combo > 1) { this.el("hud-combo").classList.remove("hidden"); this.el("hud-combo").textContent = G.T("hud.combo", { n: p.combo }); }
+    // rebuilt only when something in it changes
+    const slotSig = p.slots.map((s) => (s.empty ? "e" : s.active ? "a" : "o")).join("");
+    if (slotSig !== this._hudSlotSig) {
+      this._hudSlotSig = slotSig;
+      const kb = G.save.settings.keybinds;
+      this.el("hud-slots").innerHTML = p.slots.map((s, i) =>
+        `<div class="hud-slot${s.active ? " active" : ""}${s.empty ? " empty" : ""}">${i === 0 ? "K" : G.keyLabel(kb["slot" + (i + 1)])}</div>`).join("");
+    }
+    if (this._comboSavedUntil > performance.now()) {
+      this.el("hud-combo").classList.remove("hidden");
+      this.el("hud-combo").textContent = G.T("hud.comboSaved", { n: p.combo });
+    } else if (p.combo > 1) { this.el("hud-combo").classList.remove("hidden"); this.el("hud-combo").textContent = G.T("hud.combo", { n: p.combo }); }
     else this.el("hud-combo").classList.add("hidden");
     if (G.Input.mode === "touch") this.refreshTouchSlots(p.slots, p.slots.findIndex((s) => s.active));
+    this.updateHudPerks();
+  },
+  noteComboSaved() { this._comboSavedUntil = performance.now() + 1600; },
+  // Small perk icons under the stats: out of the way of the crosshair. A
+  // spent Combo Shield or Second Life is dimmed until it is ready again;
+  // Focus Time and Adrenaline glow while they run.
+  updateHudPerks() {
+    const g = G.Game, pl = g.player;
+    const ids = G.PERKS.map((d) => d.id).filter((id) => pl.perks[id]);
+    const state = (id) => {
+      if (id === "combo_shield") return pl.comboShield && pl.comboShield.charged ? "" : " spent";
+      if (id === "second_life") return pl.secondLifeUsed ? " spent" : "";
+      if (id === "focus_time") return g._slowmoT > 0 ? " live" : "";
+      if (id === "adrenaline") return g._adrenalineT > 0 ? " live" : "";
+      return "";
+    };
+    const sig = ids.map((id) => id + pl.perks[id] + state(id)).join("|");
+    if (sig === this._hudPerkSig) return;
+    this._hudPerkSig = sig;
+    const wrap = this.el("hud-perks");
+    wrap.classList.toggle("hidden", !ids.length);
+    wrap.innerHTML = ids.map((id) => `<span class="hud-perk${state(id)}" title="${G.escapeHtml(G.Perks.name(id))}">${G.PERK_BY_ID[id].icon}${pl.perks[id] > 1 ? `<sub>${pl.perks[id]}</sub>` : ""}</span>`).join("");
+  },
+  // Pause screen: every perk owned, with what it does on hover, tap, focus
+  // or a controller's A.
+  renderPausePerks() {
+    const box = this.el("pause-perks");
+    const pl = G.Game.player;
+    const ids = pl ? G.PERKS.map((d) => d.id).filter((id) => pl.perks[id]) : [];
+    if (!ids.length) { box.innerHTML = `<h4>${G.T("pause.perks")}</h4><div class="pause-perk-detail">${G.T("pause.noPerks")}</div>`; return; }
+    box.innerHTML = `<h4>${G.T("pause.perks")}</h4><div class="pause-perk-icons">${ids.map((id) =>
+      `<button class="pause-perk" data-id="${id}" aria-label="${G.escapeHtml(G.Perks.name(id))}">${G.PERK_BY_ID[id].icon}${pl.perks[id] > 1 ? `<sub>${pl.perks[id]}</sub>` : ""}</button>`).join("")}</div>
+      <div class="pause-perk-detail" id="pause-perk-detail">${G.T("pause.perkHint")}</div>`;
+    const detail = box.querySelector("#pause-perk-detail");
+    const show = (b) => {
+      const id = b.dataset.id, def = G.PERK_BY_ID[id], lvl = pl.perks[id];
+      box.querySelectorAll(".pause-perk").forEach((x) => x.classList.toggle("sel", x === b));
+      detail.innerHTML = `<b>${def.icon} ${G.escapeHtml(G.Perks.name(id))}</b> <span class="pp-lvl">${G.T("shop.perkLevel", { l: lvl, m: def.max })}</span><br>${G.Perks.describe(id, lvl)}`;
+    };
+    box.querySelectorAll(".pause-perk").forEach((b) => {
+      b.onmouseenter = () => show(b); b.onfocus = () => show(b); b.onclick = () => show(b);
+    });
   },
   // Category I: the full checklist, shown on the pause screen.
   renderPauseObjectives() {
@@ -839,7 +1025,7 @@ G.UI = {
   setInteractPrompt(visible, text) {
     const el = this.el("hud-interact-prompt");
     el.classList.toggle("hidden", !visible);
-    if (text) el.textContent = text;
+    if (text && el.textContent !== text) el.textContent = text;
   },
   setBossBar(visible, name, hpPct) {
     this.el("hud-boss-bar").classList.toggle("hidden", !visible);
@@ -855,7 +1041,7 @@ G.UI = {
   // screen had none. Same buttons as the door/crate question now.
   setBossChoices(choices) {
     const wrap = this.el("hud-boss-choices");
-    wrap.innerHTML = (choices || []).map((c, i) => `<div class="hud-boss-choice" role="button" data-idx="${i}"><b>[${i + 1}]</b>${c}</div>`).join("");
+    wrap.innerHTML = (choices || []).map((c, i) => `<div class="hud-boss-choice" role="button" data-idx="${i}"><b>[${i + 1}]</b>${G.escapeHtml(c)}</div>`).join("");
     wrap.querySelectorAll(".hud-boss-choice").forEach((el) => {
       el.onclick = () => G.Game.answerBossChoice(parseInt(el.dataset.idx, 10));
     });
@@ -868,7 +1054,8 @@ G.UI = {
   // between asking for the lock and getting it don't flash it.
   updateResumeHint() {
     const g = G.Game, now = performance.now();
-    const want = G.Input.mode === "desktop" && g.state === "GAMEPLAY" && !g.paused && !G.Modal.isOpen() && !G.Input.pointerLocked;
+    // (a controller needs no mouse lock, so it never needs the hint)
+    const want = G.Input.mode === "desktop" && !G.Input.padActive && g.state === "GAMEPLAY" && !g.paused && !G.Modal.isOpen() && !G.Input.pointerLocked;
     if (!want) this._hintSince = 0; else if (!this._hintSince) this._hintSince = now;
     const show = want && now - this._hintSince > 350;
     if (show !== this._hintShown) { this._hintShown = show; this.el("hud-resume-hint").classList.toggle("hidden", !show); }
@@ -881,7 +1068,7 @@ G.UI = {
   setChallengeMeaning(meaning) { this.el("hud-challenge-meaning").textContent = meaning || ""; },
   setChallengeChoices(choices) {
     const wrap = this.el("hud-challenge-choices");
-    wrap.innerHTML = (choices || []).map((c, i) => `<div class="hud-boss-choice" role="button" data-idx="${i}"><b>[${i + 1}]</b>${c}</div>`).join("");
+    wrap.innerHTML = (choices || []).map((c, i) => `<div class="hud-boss-choice" role="button" data-idx="${i}"><b>[${i + 1}]</b>${G.escapeHtml(c)}</div>`).join("");
     wrap.querySelectorAll(".hud-boss-choice").forEach((el) => {
       el.onclick = () => G.Game.answerChallenge(parseInt(el.dataset.idx, 10));
     });

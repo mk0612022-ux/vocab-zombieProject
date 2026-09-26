@@ -176,6 +176,30 @@ G.UIAudit = {
       await step("resume", () => { UI.showScreen("screen-pause"); Game.resume(); });
       await step("shop", () => { Game._waveBonus = 300; G.save.tutorialDone = false; G.save.tutorialSeen = {}; Game.player.money = 99999; Game.openShop(); });
       await step("shop (maxed)", () => { Game.player.perks.perk_speed = 3; UI.renderShop(); });
+      Game.leaveShop();
+      // round 1: every perk owned (HUD icons, pause list), a full loadout of
+      // six, the Inventory Full window, a gun on the floor
+      await step("hud: all perks + 6 slots", () => {
+        Game.update = function () {};
+        G.PERKS.forEach((d) => { while (!G.Perks.maxed(d.id)) G.Perks.apply(d.id, Game); });
+        Object.values(G.WEAPON_DEFS).filter((w) => w.id !== "pistol" && !w.boxOnly).slice(0, 5).forEach((w) => G.Loadout.offer(Game, w.id, { source: "crate" }));
+        Game.targetPair = G.WORDS_LEVEL_1.slice().sort((a, b) => b[1].length - a[1].length)[0];
+        UI.updateHud(Game.buildHudState());
+      });
+      await step("pause: perks", () => { Game.state = "GAMEPLAY"; Game.pause(); const b = document.querySelector("#pause-perks .pause-perk:last-child"); b && b.click(); });
+      await step("inventory full", () => {
+        Game.resume();
+        const longest = Object.values(G.WEAPON_DEFS).filter((w) => !Game.player.gunSlots.includes(w.id)).sort((a, b) => b.name.length - a.name.length)[0];
+        G.Loadout.offer(Game, longest.id, { source: "mystery", dropPos: Game.yawObject.position.clone() });
+      });
+      await step("inventory: kept -> floor gun prompt", () => {
+        G.Loadout.keep();
+        const fg = Game.floorGuns[Game.floorGuns.length - 1];
+        Game.yawObject.position.x = fg.mesh.position.x; Game.yawObject.position.z = fg.mesh.position.z + 0.4;
+        Game.updateInteractRay();
+      });
+      await step("shop with perks", () => { Game._interest = 250; Game._waveBonus = 500; Game.player.money = 12345; Game.openShop(); });
+      Game.leaveShop();
       await step("crate", () => UI.showCrateScreen("secret", longest));
       const hand = Object.values(G.WEAPON_DEFS).slice(0, 6).map((d, i) => Object.assign({}, d, { boxTier: i === 2 ? "elite" : "normal" }));
       await step("mystery pick", () => UI.showMysteryCards(hand, () => {}));
@@ -193,6 +217,22 @@ G.UIAudit = {
       G.TouchCfg.closeEditor();
       G.save.tutorialDone = tutorial; G.save.tutorialSeen = seen;
       await step("back to menu", () => Game.quitToMainMenu());
+      // Custom Vocabulary: the page, an error, a warning, a long list, edit mode
+      const thaiWord = G.WORDS_LEVEL_2[3][1];
+      await step("custom vocab", () => {
+        G.save.customWords = { level1: [], level2: [], level3: [] };
+        ["Serendipity", "Ephemeral", "Well-being", "Quintessential", "Juxtaposition", "Idiosyncrasy"].forEach((w, i) => G.CustomVocab.save(w, G.WORDS_LEVEL_3[i][1] + " " + G.WORDS_LEVEL_3[i + 20][1], "level1"));
+        G.CustomVocabUI.open("screen-mainmenu");
+      });
+      await step("custom vocab: duplicate error", () => { document.getElementById("cv-en").value = "Abandon"; document.getElementById("cv-th").value = thaiWord; G.CustomVocabUI.submit(); });
+      await step("custom vocab: same-meaning warning", () => { document.getElementById("cv-en").value = "Forsake"; document.getElementById("cv-th").value = G.WORDS_LEVEL_1[0][1]; document.getElementById("cv-level").value = "level1"; G.CustomVocabUI.submit(); });
+      await step("custom vocab: edit + delete armed", () => { G.CustomVocabUI.startEdit("level1", 2); document.querySelector("#cv-list button[data-act=del]").click(); });
+      await step("import: into a level, summary", () => {
+        UI.openImport("screen-customvocab", "level2");
+        UI._pendingImport = { name: "t", words: [["Ubiquitous", thaiWord], ["abandon", thaiWord], ["bad1", thaiWord], ["Serendipity", thaiWord]] };
+        UI.el("btn-import-save").disabled = false;
+        UI.saveImportedSet();
+      });
     } finally {
       window.alert = realAlert; window.confirm = realConfirm; Game.update = realUpdate;
       G.save = JSON.parse(backup); G.persist();

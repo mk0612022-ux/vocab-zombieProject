@@ -16,10 +16,12 @@ window.G = window.G || {};
 
 // Registry of built-in word sets (extended at runtime by Import Vocabulary).
 // The names are internal (never shown); the Thai meanings live in words_*.js.
+// `words` is read live: the level's built-in list plus the words the player
+// added to it (G.levelWords, js/customvocab.js).
 G.WORD_SETS = {
-  level1: { name: "Level 1 words (school)", words: G.WORDS_LEVEL_1, builtin: true },
-  level2: { name: "Level 2 words (hospital)", words: G.WORDS_LEVEL_2, builtin: true },
-  level3: { name: "Level 3 words (bunker)", words: G.WORDS_LEVEL_3, builtin: true },
+  level1: { name: "Level 1 words (school)", get words() { return G.levelWords ? G.levelWords("level1") : G.WORDS_LEVEL_1; }, builtin: true },
+  level2: { name: "Level 2 words (hospital)", get words() { return G.levelWords ? G.levelWords("level2") : G.WORDS_LEVEL_2; }, builtin: true },
+  level3: { name: "Level 3 words (bunker)", get words() { return G.levelWords ? G.levelWords("level3") : G.WORDS_LEVEL_3; }, builtin: true },
 };
 
 G.getAllBuiltinWords = function () {

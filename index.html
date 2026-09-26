@@ -27,6 +27,7 @@
       <button class="btn" id="btn-achievements" data-i18n="menu.achievements"></button>
       <button class="btn" id="btn-vocablog" data-i18n="menu.vocablog"></button>
       <button class="btn" id="btn-weaponlog" data-i18n="menu.weaponlog"></button>
+      <button class="btn" id="btn-customvocab" data-i18n="menu.customvocab"></button>
       <button class="btn" id="btn-import-vocab" data-i18n="menu.import"></button>
       <button class="btn" id="btn-howtoplay" data-i18n="menu.howto"></button>
       <button class="btn" id="btn-tutorial-replay" data-i18n="menu.tutorial"></button>
@@ -99,9 +100,11 @@
     <input type="file" id="import-image-input" accept="image/*">
     <div id="import-ocr-status" class="import-status"></div>
     <div id="import-preview" class="import-preview"></div>
+    <div class="settings-row"><label for="import-dest" data-i18n="import.dest"></label><select id="import-dest"></select></div>
     <div class="row-center">
       <button class="btn btn-primary" id="btn-import-save" disabled data-i18n="import.save"></button>
     </div>
+    <div id="import-summary" class="import-summary"></div>
     <h3 style="margin-top:24px" data-i18n="import.sets"></h3>
     <div id="imported-sets-list" class="imported-sets-list"></div>
   </div>
@@ -157,7 +160,7 @@
   <!-- category N: sniper scope overlay and charge-weapon wind-up meter -->
   <div class="hud-scope hidden" id="hud-scope"><div class="hud-scope-ring"></div><div class="hud-scope-h"></div><div class="hud-scope-v"></div></div>
   <div class="hud-charge hidden" id="hud-charge"><div class="hud-charge-fill" id="hud-charge-fill"></div></div>
-  <div class="hud-interact-prompt hidden" id="hud-interact-prompt" data-i18n="hud.interact"></div>
+  <div class="hud-interact-prompt hidden" id="hud-interact-prompt"></div>
   <div class="hud-challenge-box hidden" id="hud-challenge-box">
     <div class="hud-challenge-label" id="hud-challenge-label" data-i18n="hud.answerToUnlock"></div>
     <div class="hud-challenge-meaning" id="hud-challenge-meaning"></div>
@@ -175,6 +178,7 @@
       <div class="hud-stat"><span class="hud-icon">⭐</span><span id="hud-score">0</span></div>
       <div class="hud-stat"><span id="hud-level-wave"></span></div>
       <div class="hud-stat"><span id="hud-zombies-left"></span></div>
+      <div class="hud-perks hidden" id="hud-perks"></div>
     </div>
     <div class="hud-right">
       <div class="hud-weapon-name" id="hud-weapon-name"></div>
@@ -271,12 +275,45 @@
   </div>
 </div>
 
+<!-- ===================== INVENTORY FULL (js/loadout.js) ===================== -->
+<div id="screen-inventory" class="screen hidden">
+  <h2 class="screen-title" data-i18n="inv.title"></h2>
+  <p class="inv-sub" data-i18n="inv.sub"></p>
+  <div class="inv-new" id="inv-new"></div>
+  <div class="inv-slots" id="inv-slots"></div>
+  <p class="inv-note" id="inv-note"></p>
+  <div class="row-center"><button class="btn" id="btn-inv-keep" data-pad-back><span data-i18n="inv.keep"></span> <span class="kbd-only">(Esc)</span></button></div>
+</div>
+
+<!-- ===================== CUSTOM VOCABULARY (js/customvocab.js) ===================== -->
+<div id="screen-customvocab" class="screen hidden">
+  <h2 class="screen-title" data-i18n="cv.title"></h2>
+  <div class="cv-content">
+    <p class="cv-intro" data-i18n="cv.intro"></p>
+    <div class="cv-form">
+      <label class="cv-field"><span data-i18n="cv.en"></span><input id="cv-en" type="text" maxlength="32" autocomplete="off" autocapitalize="off" spellcheck="false" lang="en"></label>
+      <label class="cv-field"><span data-i18n="cv.th"></span><input id="cv-th" type="text" maxlength="80" autocomplete="off" lang="th"></label>
+      <label class="cv-field"><span data-i18n="cv.level"></span><select id="cv-level"></select></label>
+      <div class="cv-buttons">
+        <button class="btn btn-primary" id="cv-save" data-i18n="cv.add"></button>
+        <button class="btn hidden" id="cv-cancel" data-i18n="cv.cancel"></button>
+        <button class="btn" id="cv-import" data-i18n="cv.import"></button>
+      </div>
+      <div id="cv-msg" class="cv-msg" role="status"></div>
+    </div>
+    <div class="cv-tabs" id="cv-tabs"></div>
+    <div class="cv-list" id="cv-list"></div>
+  </div>
+  <div class="row-center"><button class="btn" id="btn-cv-back" data-i18n="common.back"></button></div>
+</div>
+
 <!-- ===================== PAUSE ===================== -->
 <div id="screen-pause" class="screen hidden">
   <h2 class="screen-title" data-i18n="pause.title"></h2>
   <div class="menu-btns">
     <button class="btn btn-primary" id="btn-resume" data-i18n="pause.resume"></button>
     <div class="pause-objectives" id="pause-objectives"></div>
+    <div class="pause-perks" id="pause-perks"></div>
     <button class="btn" id="btn-pause-vocablog" data-i18n="menu.vocablog"></button>
     <button class="btn" id="btn-pause-weaponlog" data-i18n="menu.weaponlog"></button>
     <button class="btn" id="btn-pause-settings" data-i18n="menu.settings"></button>
@@ -330,6 +367,10 @@
 <script src="js/world.js"></script>
 <script src="js/schooldress.js"></script>
 <script src="js/systems.js"></script>
+<script src="js/perks.js"></script>
+<script src="js/loadout.js"></script>
+<script src="js/customvocab.js"></script>
+<script src="js/gamepad.js"></script>
 <script src="js/objectives.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/gunaudio.js"></script>

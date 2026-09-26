@@ -153,7 +153,9 @@ html, body {
 /* ---------------- HUD ---------------- */
 .hud { position: fixed; inset: 0; z-index: 10; pointer-events: none; font-family: 'Segoe UI', 'Tahoma', 'Leelawadee UI', 'Noto Sans Thai', 'Thonburi', sans-serif; }
 .hud-top { position: absolute; top: 16px; left: 0; right: 0; display: flex; flex-direction: column; align-items: center; gap: 8px; }
-.hud-meaning-box { background: rgba(5,10,7,0.75); border: 1px solid #6bff7a55; border-radius: 8px; padding: 8px 22px; text-align: center; }
+/* capped so a long meaning (plus the Hint Reader's "starts with ..., n
+   letters") wraps instead of pushing the 🔊 button off a portrait phone */
+.hud-meaning-box { background: rgba(5,10,7,0.75); border: 1px solid #6bff7a55; border-radius: 8px; padding: 8px 22px; text-align: center; max-width: calc(100vw - 72px); box-sizing: border-box; }
 .hud-meaning-label { font-size: 0.7rem; opacity: 0.7; letter-spacing: 1px; }
 .hud-meaning { font-size: 1.6rem; font-weight: 800; color: #fff29b; text-shadow: 0 0 8px rgba(255,242,155,0.5); }
 
@@ -618,3 +620,141 @@ body.modal-question .hud-crosshair { display: none !important; }
 /* pass C: the weapon log's "listen" button */
 .wl-listen { margin-top: 6px; padding: 3px 8px; font-size: 0.72rem; width: 100%; }
 .wl-listen.playing { border-color: #6bff7a; color: #6bff7a; box-shadow: 0 0 8px rgba(107,255,122,0.4); }
+
+/* ================= Round 1: loadout, perks, custom vocabulary ================= */
+/* ---- controller focus (js/gamepad.js) ---- */
+.pad-focus { outline: 3px solid #ffd43b !important; outline-offset: 3px; box-shadow: 0 0 16px rgba(255,212,59,0.55) !important; }
+
+/* ---- HUD: free weapon slots and owned perks ---- */
+.hud-slot.empty { opacity: 0.35; border-style: dashed; }
+.hud-perks { display: flex; flex-wrap: wrap; gap: 3px; max-width: 170px; margin-top: 2px; }
+.hud-perk {
+  position: relative; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center;
+  font-size: 0.78rem; line-height: 1; border-radius: 4px; background: rgba(255,255,255,0.08);
+}
+.hud-perk sub { position: absolute; right: -2px; bottom: -3px; font-size: 0.55rem; color: #ffd43b; font-weight: 800; }
+.hud-perk.spent { opacity: 0.3; filter: grayscale(1); }
+.hud-perk.live { background: rgba(107,255,122,0.35); box-shadow: 0 0 8px #6bff7a; }
+@media (max-height: 400px) { .hud-perk { width: 16px; height: 16px; font-size: 0.66rem; } }
+/* Focus Time: a cold edge on the view while the zombies are slowed */
+body.slowmo #hud::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(ellipse at center, rgba(70,160,255,0) 52%, rgba(70,160,255,0.38) 100%);
+}
+
+/* ---- shop sections and perk cards ---- */
+.shop-section {
+  grid-column: 1 / -1; font-weight: 800; letter-spacing: 1.5px; font-size: 0.8rem; text-transform: uppercase;
+  color: #ffd43b; border-bottom: 1px solid #3a4a30; padding: 4px 0 3px; margin-top: 4px;
+}
+.shop-icon { margin-right: 6px; }
+.shop-item-level { font-size: 0.7rem; color: #9fd6ff; margin-top: 2px; letter-spacing: 0.5px; }
+.shop-perk { border-color: #4a5a8a; }
+.shop-perk.cat-vocab { border-color: #b98cff; }
+.shop-perk.cat-move { border-color: #5fc8ff; }
+.shop-perk.cat-shoot { border-color: #ff9a4d; }
+.shop-perk.cat-survive { border-color: #ff5c7a; }
+.shop-perk.cat-money { border-color: #ffd43b; }
+.shop-item-desc { line-height: 1.35; }
+
+/* ---- pause: perks owned ---- */
+.pause-perks {
+  background: rgba(10,18,14,0.75); border: 1px solid #2f6b3c; border-radius: 8px;
+  padding: 10px 14px; text-align: left; font-size: 0.82rem; line-height: 1.45;
+}
+.pause-perks h4 { margin: 0 0 6px; color: #ffd43b; font-size: 0.9rem; }
+.pause-perk-icons { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.pause-perk {
+  position: relative; width: 36px; height: 36px; border-radius: 6px; border: 1px solid #3a5c40;
+  background: #101a14; font-size: 1.1rem; cursor: pointer; padding: 0; color: #fff;
+}
+.pause-perk sub { position: absolute; right: 2px; bottom: 0; font-size: 0.6rem; color: #ffd43b; font-weight: 800; }
+.pause-perk.sel, .pause-perk:hover { border-color: #6bff7a; background: #1c3b22; }
+.pause-perk-detail { opacity: 0.9; min-height: 2.6em; }
+.pause-perk-detail .pp-lvl { color: #9fd6ff; font-size: 0.75rem; }
+@media (max-height: 520px) { .pause-perks { font-size: 0.72rem; padding: 6px 10px; } .pause-perk { width: 30px; height: 30px; font-size: 0.95rem; } }
+
+/* ---- Inventory Full ---- */
+#screen-inventory { justify-content: flex-start; padding-top: 22px; }
+.inv-sub { margin: -8px 0 12px; opacity: 0.8; text-align: center; }
+.inv-new {
+  width: min(560px, 100%); background: rgba(20,28,16,0.85); border: 2px solid #ffd43b; border-radius: 10px;
+  padding: 10px 14px; box-shadow: 0 0 22px rgba(255,212,59,0.25); text-align: center;
+}
+.inv-new-tag { display: inline-block; font-size: 0.65rem; font-weight: 800; letter-spacing: 2px; color: #111; background: #ffd43b; border-radius: 4px; padding: 1px 8px; }
+.inv-name { font-weight: 800; font-size: 1.05rem; }
+.inv-new .inv-name { font-size: 1.35rem; margin-top: 4px; }
+.inv-rarity { font-size: 0.75rem; opacity: 0.75; letter-spacing: 1px; }
+.inv-new .inv-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 8px; }
+.inv-new .inv-stat { display: flex; flex-direction: column; font-size: 0.72rem; opacity: 0.9; }
+.inv-new .inv-stat b { font-size: 0.95rem; }
+.inv-slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; width: min(960px, 100%); margin-top: 14px; }
+.inv-slot {
+  text-align: left; background: rgba(12,20,15,0.85); border: 2px solid #345; border-radius: 10px; padding: 10px 12px;
+  color: #dff5df; cursor: pointer; font: inherit; transition: border-color .12s, transform .12s;
+}
+.inv-slot:hover { border-color: #6bff7a; transform: translateY(-2px); }
+.inv-slot-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.inv-key { min-width: 22px; height: 22px; border: 1px solid #6bff7a; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 800; }
+.inv-held { margin-left: auto; font-size: 0.65rem; color: #9fd6ff; border: 1px solid #9fd6ff66; border-radius: 8px; padding: 0 6px; }
+.inv-slot .inv-stat { display: flex; justify-content: space-between; gap: 8px; font-size: 0.8rem; padding: 1px 0; }
+.inv-slot .inv-stat b { font-weight: 700; font-variant-numeric: tabular-nums; }
+.inv-slot .inv-stat i { font-style: normal; margin-left: 2px; }
+.inv-stat.up b { color: #6bff7a; }
+.inv-stat.down b { color: #ff6b6b; }
+.inv-stat.same b { color: #cfd8cf; }
+.inv-ammo { font-size: 0.72rem; opacity: 0.6; margin-top: 4px; }
+.inv-replace { margin-top: 6px; font-size: 0.75rem; font-weight: 700; color: #ffd43b; }
+.inv-note { max-width: 720px; text-align: center; font-size: 0.82rem; opacity: 0.8; margin: 12px 0 0; }
+body.touch-mode .kbd-only { display: none; }
+@media (max-height: 520px) {
+  #screen-inventory { padding-top: 8px; }
+  .inv-new { padding: 6px 10px; }
+  .inv-new .inv-name { font-size: 1.05rem; }
+  .inv-slots { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 6px; margin-top: 8px; }
+  .inv-slot { padding: 6px 9px; }
+  .inv-slot .inv-stat { font-size: 0.72rem; }
+  .inv-note { font-size: 0.72rem; margin-top: 6px; }
+}
+
+/* ---- Custom Vocabulary ---- */
+.cv-content { max-width: 720px; width: 100%; background: rgba(15,22,18,0.6); border: 1px solid #345; border-radius: 8px; padding: 16px 18px; }
+.cv-intro { margin: 0 0 12px; font-size: 0.88rem; opacity: 0.8; line-height: 1.5; }
+.cv-form { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.cv-field { display: flex; flex-direction: column; gap: 4px; font-size: 0.8rem; font-weight: 700; color: #9fb; }
+.cv-field input, .cv-field select, #import-dest {
+  font: inherit; font-size: 1rem; font-weight: 400; color: #eaffea; background: #0b120d; border: 1px solid #3a5c40;
+  border-radius: 6px; padding: 9px 10px; min-width: 0;
+}
+.cv-field input:focus, .cv-field select:focus { outline: 2px solid #6bff7a; border-color: #6bff7a; }
+.cv-buttons { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
+.cv-msg { grid-column: 1 / -1; min-height: 1.4em; font-size: 0.85rem; line-height: 1.45; }
+.cv-msg.error { color: #ff7b7b; }
+.cv-msg.warn { color: #ffd43b; }
+.cv-msg.ok { color: #6bff7a; }
+.cv-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin: 16px 0 10px; }
+.cv-tabs .tab-btn { color: #dff5df; font: inherit; font-size: 0.85rem; }
+.cv-list { display: flex; flex-direction: column; gap: 6px; max-height: 40vh; overflow-y: auto; }
+.cv-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; background: #0e1710; border: 1px solid #23301f; border-radius: 6px; padding: 6px 10px; }
+.cv-row.editing { border-color: #ffd43b; }
+.cv-word { display: flex; flex-direction: column; min-width: 0; }
+.cv-word b { overflow-wrap: anywhere; }
+.cv-word span { font-size: 0.85rem; opacity: 0.8; overflow-wrap: anywhere; }
+.cv-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.cv-actions .btn { padding: 6px 10px; font-size: 0.8rem; }
+.btn.danger { background: #6b1e1e; border-color: #ff6b6b; }
+.cv-empty { opacity: 0.6; font-size: 0.9rem; padding: 6px 2px; }
+.vocab-badge.custom { background: #3b2a6b; color: #d9c7ff; margin-left: 4px; }
+.import-summary { margin-top: 12px; font-size: 0.85rem; line-height: 1.5; }
+.import-summary .sum-head { color: #6bff7a; font-weight: 700; }
+.import-summary .sum-skip { color: #ffb38a; margin-top: 4px; }
+.import-summary .sum-skip i { opacity: 0.8; font-style: normal; }
+.import-summary .sum-warn { color: #ffd43b; margin-top: 4px; }
+@media (max-width: 560px) { .cv-form { grid-template-columns: 1fr; } }
+@media (max-height: 520px) { .cv-content { padding: 10px 12px; } .cv-intro { font-size: 0.75rem; margin-bottom: 6px; } .cv-list { max-height: none; } .cv-field input, .cv-field select { padding: 6px 8px; } }
+/* the way out stays on screen however many slots there are to scroll through */
+#screen-inventory > .row-center {
+  position: sticky; bottom: -20px; margin-top: 10px; padding: 10px 0 14px; width: 100%;
+  background: linear-gradient(180deg, rgba(5,7,10,0), rgba(5,7,10,0.96) 35%);
+}
+@media (max-height: 520px) { #screen-inventory > .row-center { padding: 6px 0 8px; margin-top: 4px; } }

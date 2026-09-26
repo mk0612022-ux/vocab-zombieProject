@@ -149,19 +149,18 @@ G.Shop = {
   recordPurchase(baseKey) { this.prices[baseKey] = (this.prices[baseKey] || 0) + 1; },
 };
 
-// labels are "shopItem.<id>" in js/strings.js, set on load by G.localizeData
+// labels are "shopItem.<id>" in js/strings.js, set on load by G.localizeData.
+// Full Health and Full Ammo are on sale at every shop; the perks rotate
+// (G.PERKS and G.PerkBag in js/perks.js); the rest is the armory.
 G.SHOP_ITEMS = [
+  { id: "heal", base: 120, growth: 1.2, kind: "heal", section: "essential" },
+  { id: "ammo_refill", base: 80, growth: 1.15, kind: "refill_ammo", section: "essential" },
   { id: "dmg_up", base: 250, growth: 1.35, kind: "upgrade_damage" },
   { id: "firerate_up", base: 300, growth: 1.35, kind: "upgrade_firerate" },
   { id: "mag_up", base: 220, growth: 1.3, kind: "upgrade_mag" },
-  { id: "ammo_refill", base: 80, growth: 1.15, kind: "refill_ammo" },
-  { id: "heal", base: 120, growth: 1.2, kind: "heal" },
   { id: "unlock_shotgun", base: 400, growth: 1, kind: "unlock", weapon: "shotgun", once: true },
   { id: "unlock_smg", base: 900, growth: 1, kind: "unlock", weapon: "smg", once: true },
   { id: "unlock_rifle", base: 1200, growth: 1, kind: "unlock", weapon: "rifle", once: true },
-  { id: "perk_speed", base: 350, growth: 1.5, kind: "perk_speed", maxStack: 3 },
-  { id: "perk_armor", base: 400, growth: 1.5, kind: "perk_armor", maxStack: 3 },
-  { id: "perk_hint", base: 300, growth: 1.4, kind: "perk_hint", maxStack: 1 },
   { id: "crate_common", base: 600, growth: 1.2, kind: "crate" },
 ];
 

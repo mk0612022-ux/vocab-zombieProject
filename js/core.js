@@ -65,6 +65,7 @@ G.defaultSave = function () {
       speechMode: "after",        // off | after (read the word once answered) | before (read the new target aloud)
     },
     importedSets: {},             // {id: {name, words:[[en,th],...]}}
+    customWords: { level1: [], level2: [], level3: [] },   // words the player added to each level ([[en,th],...])
   };
 };
 
@@ -79,16 +80,33 @@ G.normalizeSave = function (data) {
   const def = G.defaultSave();
   const s = Object.assign({}, def, data);
   s.settings = Object.assign({}, def.settings, data.settings || {});
-  s.settings.keybinds = Object.assign({}, def.settings.keybinds, (data.settings || {}).keybinds || {});
+  const oldKb = (data.settings || {}).keybinds || {};
+  s.settings.keybinds = Object.assign({}, def.settings.keybinds, oldKb);
+  // An action added since the save was written (weapon slots 6 and 7) takes
+  // its default key only if the player has not already given that key to
+  // something else; otherwise it starts unbound rather than doubling up.
+  Object.keys(def.settings.keybinds).forEach((a) => {
+    if (a in oldKb) return;
+    const code = def.settings.keybinds[a];
+    if (Object.keys(oldKb).some((b) => oldKb[b] === code)) s.settings.keybinds[a] = "";
+  });
   s.leaderboards = Object.assign({}, def.leaderboards, data.leaderboards || {});
   if (!Array.isArray(s.unlockedLevels)) s.unlockedLevels = [1];
   s.unlockedLevels = s.unlockedLevels.filter((n) => Number.isInteger(n) && n >= 1 && n <= 3);
   if (!s.unlockedLevels.includes(1)) s.unlockedLevels.unshift(1);
   if (!Array.isArray(s.unlockedWeapons)) s.unlockedWeapons = ["pistol"];
   s.unlockedWeapons = s.unlockedWeapons.filter((id) => typeof id === "string");
-  ["wordStats", "achievements", "levelHighScores", "dailyHighScores", "importedSets"].forEach((k) => {
+  ["wordStats", "achievements", "levelHighScores", "dailyHighScores", "importedSets", "customWords"].forEach((k) => {
     if (!s[k] || typeof s[k] !== "object" || Array.isArray(s[k])) s[k] = def[k] || {};
   });
+  // custom words: three lists of [English, Thai] string pairs, nothing else
+  const cw = {};
+  Object.keys(def.customWords).forEach((key) => {
+    const list = Array.isArray(s.customWords[key]) ? s.customWords[key] : [];
+    cw[key] = list.filter((p) => Array.isArray(p) && typeof p[0] === "string" && typeof p[1] === "string" && p[0].trim() && p[1].trim())
+      .map((p) => [p[0], p[1]]);
+  });
+  s.customWords = cw;
   return s;
 };
 
@@ -257,8 +275,28 @@ G.defaultKeybinds = function () {
     forward: "KeyW", back: "KeyS", left: "KeyA", right: "KeyD",
     sprint: "ShiftLeft", jump: "Space", reload: "KeyR", interact: "KeyE",
     melee: "Digit1", slot2: "Digit2", slot3: "Digit3", slot4: "Digit4", slot5: "Digit5",
+    slot6: "Digit6", slot7: "Digit7",          // the slots the Extra Weapon Slot perk adds
     pause: "Escape",
   };
+};
+
+// A key code as the player knows it: "KeyE" -> "E", "Digit2" -> "2".
+G.keyLabel = function (code) {
+  if (!code) return "—";
+  const named = { Space: "Space", Escape: "Esc", ShiftLeft: "Shift", ShiftRight: "Shift", ControlLeft: "Ctrl", ControlRight: "Ctrl",
+    AltLeft: "Alt", AltRight: "Alt", Enter: "Enter", Tab: "Tab", Backspace: "Backspace",
+    ArrowUp: "↑", ArrowDown: "↓", ArrowLeft: "←", ArrowRight: "→" };
+  if (named[code]) return named[code];
+  const m = /^(?:Key|Digit|Numpad)(.+)$/.exec(code);
+  return m ? m[1] : code;
+};
+// The button that means "use" on whatever the player is holding: the key
+// they bound on a keyboard, the E button on a touch screen, Y on a controller.
+// (The prompts said "Press E" even after interact was bound to another key.)
+G.interactKeyLabel = function () {
+  if (G.Input.padActive) return "Y";
+  if (G.Input.mode === "touch") return "E";
+  return G.keyLabel(G.save.settings.keybinds.interact);
 };
 
 // ---------------- Input Manager (keyboard/mouse/touch/gamepad) ----------------
@@ -307,6 +345,9 @@ G.Input = {
   touchJump: false,
   touchSprint: false,
   gamepadIndex: null,
+  // held controller inputs, written each frame by G.Pad.poll (js/gamepad.js)
+  padFire: false, padAim: false, padJump: false, padSprint: false,
+  padActive: false,        // the controller was the last thing used
   rebindingAction: null,
 
   init() {
@@ -380,20 +421,38 @@ G.Input = {
     window.addEventListener("touchstart", () => { this._lastTouchT = performance.now(); this._noteTouchInput(); }, { passive: true });
 
     window.addEventListener("gamepadconnected", (e) => { this.gamepadIndex = e.gamepad.index; });
-    window.addEventListener("gamepaddisconnected", () => { this.gamepadIndex = null; });
+    window.addEventListener("gamepaddisconnected", () => { this.gamepadIndex = null; this.padActive = false; });
+    // the mouse wheel steps through the weapons (only while the view is
+    // locked -- in a menu the wheel scrolls)
+    document.addEventListener("wheel", (e) => {
+      if (!this.pointerLocked || !G.Game || !G.Game.playing()) return;
+      const now = performance.now();
+      if (now - (this._wheelT || 0) < 120 || Math.abs(e.deltaY) < 1) return;
+      this._wheelT = now;
+      G.Loadout.cycle(G.Game, e.deltaY > 0 ? 1 : -1);
+    }, { passive: true });
 
     this._setupTouchControls();
   },
 
   _noteDesktopInput() {
+    this.padActive = false;
     if (G.save.settings.controlMode === "auto") this.mode = "desktop";
     else this.mode = G.save.settings.controlMode;
     G.UI && G.UI.applyControlMode && G.UI.applyControlMode();
   },
   _noteTouchInput() {
+    this.padActive = false;
     if (G.save.settings.controlMode === "auto") this.mode = "touch";
     else this.mode = G.save.settings.controlMode;
     G.UI && G.UI.applyControlMode && G.UI.applyControlMode();
+  },
+  // A controller in use: the on-screen touch controls step aside (auto mode)
+  // and key hints show controller buttons.
+  notePadInput() {
+    if (this.padActive) return;
+    this.padActive = true;
+    if (G.save.settings.controlMode === "auto" && this.mode === "touch") { this.mode = "desktop"; G.UI && G.UI.applyControlMode && G.UI.applyControlMode(); }
   },
 
   isDown(action) {
@@ -423,6 +482,7 @@ G.Input = {
   // the matching touchend/mouseup never reaches us).
   clearHeldInputs() {
     this.mouseDown = false; this.aimDown = false;
+    this.padFire = false; this.padAim = false; this.padJump = false; this.padSprint = false;
     this.touchFire = false; this.touchJump = false; this.touchSprint = false;
     this.touchInteract = false; this.touchReload = false;
     this.touchMove = { x: 0, y: 0, active: false };

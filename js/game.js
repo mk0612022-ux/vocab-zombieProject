@@ -23,6 +23,7 @@ G.Game = {
   wave: 0, spawnedCount: 0, requiredKills: 0,
   zombies: [],
   drops: [],
+  floorGuns: [],          // guns lying on the floor waiting to be picked up (G.Loadout)
   wordPool: [],
   targetPair: null,
   player: null,
@@ -225,10 +226,16 @@ G.Game = {
       gunSlots: ["pistol"], currentSlot: 1,
       ammo: { pistol: { mag: G.WEAPON_DEFS.pistol.magSize, reserve: G.WEAPON_DEFS.pistol.magSize * 4 } },
       weaponLevels: { pistol: { dmg: 1, rate: 1, mag: 1 } },
-      perks: {}, moveSpeedMult: 1, armorPct: 0,
+      // perks ({id: level}, see js/perks.js) belong to the run, like the money
+      perks: {}, moveSpeedMult: 1, armorPct: 0, comboShield: null, secondLifeUsed: false,
       combo: 0, comboTimer: 0, wasHitThisLevel: false,
       fireCooldown: 0, reloading: false,
     };
+    G.PerkBag.reset();
+    G.Loadout.pending = null;
+    this._perkOffer = [];
+    this._slowmoT = 0; this._adrenalineT = 0;
+    this._crateWeapon = null; this._crateOpts = null;
     // Every new run/death starts with pistol + melee only. G.save.unlockedWeapons
     // is a permanent "ever discovered" record used by the Weapon Log (category F)
     // to show stats for weapons you've found before -- it must NOT be used to
@@ -241,6 +248,7 @@ G.Game = {
     this.zombies = [];
     this.drops.forEach((d) => { this.scene.remove(d.mesh); G.disposeObject3D(d.mesh); });
     this.drops = [];
+    this.floorGuns = [];
     this.targetPair = null;
     this.wave = 0;
     this.aimT = 0;
@@ -323,6 +331,7 @@ G.Game = {
     if (this.scene) {
       this.zombies.forEach((z) => { this.scene.remove(z.mesh); G.disposeObject3D(z.mesh); });
       this.drops.forEach((d) => { this.scene.remove(d.mesh); G.disposeObject3D(d.mesh); });
+      (this.floorGuns || []).forEach((f) => { this.scene.remove(f.mesh); G.disposeObject3D(f.mesh); });
       // yawObject (camera + weapon view model) is a PERSISTENT rig reused across
       // every run, not level-specific -- it must be detached before disposing
       // the rest of the scene, or its geometry/materials get freed too and the
@@ -333,8 +342,9 @@ G.Game = {
       // here rather than leaking it on each transition.
       G.disposeObject3D(this.scene);
     }
-    this.zombies = []; this.drops = [];
+    this.zombies = []; this.drops = []; this.floorGuns = [];
     this._swingProps = null;
+    document.body.classList.remove("slowmo");
     G.BossFight.stop();
     this.challenge = null;
     G.UI.setChallengeVisible(false);
@@ -344,6 +354,7 @@ G.Game = {
   startWave() {
     this.wave++;
     this.spawnedCount = 0;
+    if (this.player) this.player.secondLifeUsed = false;   // Second Life: once a wave
     // Wave-dependent growth is capped (via effWave) so Endless mode's difficulty
     // and per-wave kill quota keep climbing but never runs away: the previous
     // requiredKills formula was `(6+wave*2)*(1+wave*0.05)`, which is quadratic
@@ -388,8 +399,15 @@ G.Game = {
   },
 
   spawnZombieAt(type, pos) {
-    const usedWords = this.zombies.filter((z) => z.alive).map((z) => z.word);
-    let candidates = this.wordPool.filter((p) => !usedWords.includes(p[0]));
+    // Never two on the field with the same word -- or the same MEANING: a
+    // player's own word can share its Thai meaning with another in the level
+    // (G.CustomVocab warns, but allows it), and two zombies answering one
+    // prompt would make the shot a coin toss.
+    const alive = this.zombies.filter((z) => z.alive);
+    const usedWords = alive.map((z) => z.word);
+    const usedMeanings = alive.map((z) => (z.meaning || "").trim());
+    let candidates = this.wordPool.filter((p) => !usedWords.includes(p[0]) && !usedMeanings.includes(p[1].trim()));
+    if (candidates.length === 0) candidates = this.wordPool.filter((p) => !usedMeanings.includes(p[1].trim()));
     if (candidates.length === 0) candidates = this.wordPool;
     const pair = G.weightedSample(candidates, 1)[0] || G.pick(this.wordPool);
     const z = new G.Zombie(type, pos, pair);
@@ -481,19 +499,10 @@ G.Game = {
     r.autoClear = true;
   },
 
-  acquireWeapon(weaponId) {
-    if (this.player.gunSlots.includes(weaponId)) {
-      const cur = this.player.ammo[weaponId];
-      cur.reserve += G.WEAPON_DEFS[weaponId].magSize * 3;
-      return;
-    }
-    if (this.player.gunSlots.length < 4) this.player.gunSlots.push(weaponId);
-    else this.player.gunSlots[this.player.gunSlots.length - 1] = weaponId;
-    this.player.ammo[weaponId] = { mag: G.WEAPON_DEFS[weaponId].magSize, reserve: G.WEAPON_DEFS[weaponId].magSize * 4 };
-    this.player.weaponLevels[weaponId] = { dmg: 1, rate: 1, mag: 1 };
-    if (!G.save.unlockedWeapons.includes(weaponId)) { G.save.unlockedWeapons.push(weaponId); G.persist(); }
-    this.player.currentSlot = this.player.gunSlots.length;
-  },
+  // Every new gun goes through G.Loadout.offer (js/loadout.js), which asks
+  // before anything is replaced. This used to overwrite the last slot once
+  // four guns were held -- the slot-5 gun vanished whenever a new one came.
+  acquireWeapon(weaponId, opts) { return G.Loadout.offer(this, weaponId, opts || { source: "crate" }); },
 
   reload() {
     const id = this.currentWeaponId();
@@ -554,6 +563,8 @@ G.Game = {
     const ammo = this.player.ammo[id];
     const lvl = this.player.weaponLevels[id];
     if (ammo.mag <= 0) { this._burst = null; G.Audio.sfx("empty"); this.reload(); return; }
+    // Last Round: the final round(s) of a magazine hit three times as hard
+    const lastRound = G.Perks.has("last_round") && ammo.mag <= G.Perks.val("last_round");
     ammo.mag--;
     G.Audio.gunshot(def, chargeFrac);
     G.Tutorial.onShot();
@@ -564,6 +575,10 @@ G.Game = {
     }
     let dmg = def.damage * lvl.dmg;
     if (def.charge) dmg *= 1 + (def.charge.mult - 1) * Math.min(1, chargeFrac || 0);
+    if (lastRound) dmg *= 3;
+    // Marksman: a shot taken fully aimed hits harder and a shotgun holds tighter
+    const aimed = G.Perks.has("marksman") && this.aimT > 0.85;
+    if (aimed) dmg *= 1 + G.Perks.val("marksman") / 100;
     const dir = new THREE.Vector3();
     this.camera.getWorldDirection(dir);
     const origin = new THREE.Vector3();
@@ -577,7 +592,7 @@ G.Game = {
     for (let i = 0; i < shots; i++) {
       // Per-weapon spread: a tight combat shotgun and a wide scattergun are
       // different guns even at the same pellet count.
-      const spread = def.pellets ? (def.spread || 0.06) : 0.004;
+      const spread = (def.pellets ? (def.spread || 0.06) : 0.004) * (aimed ? 0.5 : 1);
       const d = dir.clone();
       d.x += (G.rng() - 0.5) * spread; d.y += (G.rng() - 0.5) * spread; d.z += (G.rng() - 0.5) * spread;
       d.normalize();
@@ -602,7 +617,8 @@ G.Game = {
     const hits = this.raycaster.intersectObjects(meshes, true);
     let hitAny = false;
     let through = 0;
-    const maxThrough = pierce ? (pierce === true ? 99 : pierce) : 1;
+    // Piercing Rounds: every bullet goes on through that many more zombies
+    const maxThrough = (pierce ? (pierce === true ? 99 : pierce) : 1) + (G.Perks.val("piercing_rounds") || 0);
     const hitZombieUids = new Set();
     for (const hit of hits) {
       let obj = hit.object;
@@ -761,7 +777,13 @@ G.Game = {
     if (z.type === "boss") { this.onBossDefeated(z); return; }
     this.totalZombiesKilled++;
     const wasCorrect = this.targetPair && z.word === this.targetPair[0];
+    const P = G.Perks, pl = this.player;
+    if (P.has("adrenaline")) this._adrenalineT = 3;
+    if (P.has("bloodthirst")) pl.hp = Math.min(pl.maxHp, pl.hp + P.val("bloodthirst")[wasCorrect ? 1 : 0]);
     if (wasCorrect) {
+      if (P.has("focus_time")) this._slowmoT = P.val("focus_time");
+      const sh = pl.comboShield;
+      if (sh && !sh.charged && ++sh.streak >= P.val("combo_shield")) { sh.charged = true; sh.streak = 0; }
       this.correctCount++;
       G.Audio.sfx("correct");
       // J3: pronounce the word once it has been earned (default), so the
@@ -773,6 +795,10 @@ G.Game = {
       if (this.player.combo >= 50) G.unlockAchievement("streak50");
       let reward = 10 + z.word.length * 3 + Math.min(this.player.combo, 20) * 2;
       if (prevWrong) reward = Math.round(reward * 1.6);
+      // Big Word Bounty: a hard word -- a long one, or one missed before -- pays more
+      if (P.has("word_bounty") && (z.word.replace(/[^A-Za-z]/g, "").length >= 8 || prevWrong)) {
+        reward = Math.round(reward * (1 + P.val("word_bounty") / 100));
+      }
       this.player.money += reward;
       this.player.score += 15 + z.word.length * 2 + this.player.combo * 3;
       this.rollLootDrop(z, true);
@@ -781,7 +807,12 @@ G.Game = {
       G.Audio.sfx("wrong");
       G.recordWordResult(z.word, false);
       this.trackWrongWord(z.word, z.meaning);
-      this.player.combo = 0;
+      // Combo Shield: one wrong answer does not cost the combo; it recharges
+      // after a run of right ones
+      if (pl.comboShield && pl.comboShield.charged && pl.combo > 0) {
+        pl.comboShield.charged = false; pl.comboShield.streak = 0;
+        G.UI.noteComboSaved && G.UI.noteComboSaved();
+      } else this.player.combo = 0;
       this.player.hp -= 22; // was 6, scaled 3.75x with player HP
       this.player.wasHitThisLevel = true;
       G.UI.flashDamage();
@@ -873,16 +904,27 @@ G.Game = {
       const id = this.currentWeaponId();
       if (id !== "melee") this.player.ammo[id].reserve += G.WEAPON_DEFS[id].magSize * 2;
     } else if (drop.kind === "health") this.player.hp = Math.min(this.player.maxHp, this.player.hp + 94); // was 25, scaled 3.75x with player HP
-    else if (drop.kind === "crate") this.openCrate(drop.rarity);
+    else if (drop.kind === "crate") this.openCrate(drop.rarity, null, null, { source: "drop", dropPos: drop.mesh.position.clone() });
   },
 
-  openCrate(rarityKey, guaranteedMin, onClose) {
+  // opts.source / opts.dropPos say where the gun waits if the player's slots
+  // are full and they keep their loadout (see G.Loadout.offer).
+  openCrate(rarityKey, guaranteedMin, onClose, opts) {
     if (guaranteedMin && G.RARITY_ORDER.indexOf(rarityKey) < G.RARITY_ORDER.indexOf(guaranteedMin)) rarityKey = guaranteedMin;
+    // Lucky Charm: the crate rolls its rarity again (twice at level 2) and
+    // keeps the best result
+    const rolls = G.Perks.val("lucky_charm") || 1;
+    for (let i = 1; i < rolls; i++) {
+      const again = G.rollRarity(guaranteedMin || undefined);
+      if (G.RARITY_ORDER.indexOf(again) > G.RARITY_ORDER.indexOf(rarityKey)) rarityKey = again;
+    }
     // Category H1: crates only ever contain guns from the level being played.
     const pool = G.weaponsForLevel(this.level ? this.level.id : 1,
       (w) => w.rarity === rarityKey && !w.wallExclusive && !w.boxOnly);
     const weaponDef = pool.length ? G.pick(pool) : G.WEAPON_DEFS.pistol;
-    this.acquireWeapon(weaponDef.id);
+    // shown first; taken (or offered, when the slots are full) as it closes
+    this._crateWeapon = weaponDef.id;
+    this._crateOpts = Object.assign({ source: "crate" }, opts || {});
     if (rarityKey === "secret") G.unlockAchievement("secret_crate");
     G.spawnCrateBurst(this.scene, this.yawObject.position.clone(), rarityKey, G.save.settings.graphicsQuality);
     this._onCrateClose = onClose || null;
@@ -901,7 +943,12 @@ G.Game = {
     G.UI.setHudVisible(this.state === "GAMEPLAY");
     const cb = this._onCrateClose;
     this._onCrateClose = null;
-    cb && cb();
+    const id = this._crateWeapon, opts = this._crateOpts || { source: "crate" };
+    this._crateWeapon = null; this._crateOpts = null;
+    // With the slots full this opens the Inventory Full window, and whatever
+    // came after the crate (the boss's crate leads on to the shop) waits for it.
+    const settled = id ? G.Loadout.offer(this, id, Object.assign({}, opts, { onDone: () => { cb && cb(); } })) : (cb && cb(), true);
+    if (settled && this.state === "SHOP") G.UI.renderShop();          // "owned" marks, the slot count
     // closed last, so a window the callback opened (the shop) keeps the cursor
     G.Modal.close("crate");
   },
@@ -915,7 +962,8 @@ G.Game = {
   openStaticCrateNow(crateRef) {
     crateRef.opened = true;
     crateRef.mesh.visible = false;
-    this.openCrate(G.rollRarity("uncommon"));
+    const at = crateRef.mesh.getWorldPosition(new THREE.Vector3());
+    this.openCrate(G.rollRarity("uncommon"), null, null, { source: "crate", dropPos: at });
   },
 
   // ---------------- Boss ----------------
@@ -929,6 +977,7 @@ G.Game = {
     // The boss is a quiz: while its questions run, the world holds still and
     // the boss only strikes on a wrong answer or a timeout.
     G.Modal.open("boss", { freeze: true, keys: G.Modal.digitKeys(4, (i) => this.answerBossChoice(i)) });
+    G.BossFight.timeLimit = 8 + (G.Perks.val("extra_time") || 0);      // Extra Time
     G.BossFight.start(z, hardWords, (correct, remaining) => {
       if (correct) {
         this.correctCount++;
@@ -955,7 +1004,7 @@ G.Game = {
     G.BossFight.stop();
     G.UI.setBossBar(false);
     this.zombies = [];
-    this.openCrate(G.rollRarity("rare"), "rare", () => this.afterWaveCleared());
+    this.openCrate(G.rollRarity("rare"), "rare", () => this.afterWaveCleared(), { source: "crate" });
     G.Modal.close("boss");
   },
 
@@ -998,33 +1047,66 @@ G.Game = {
   openShop() {
     this.state = "SHOP";
     this.shopTimer = 15;
+    // Savings Account: a cut of the money carried into the shop, capped
+    this._interest = 0;
+    if (G.Perks.has("interest")) {
+      const [pct, cap] = G.Perks.val("interest");
+      this._interest = Math.min(cap, Math.floor(this.player.money * pct / 100));
+      this.player.money += this._interest;
+    }
+    // this shop's four perks, from the shuffle bag (js/perks.js)
+    this._perkOffer = G.PerkBag.draw(this.player);
     G.UI.setHudVisible(false);
     G.Modal.open("shop", { pause: true, keys: (e) => {
-      if (e.code === "Enter" && !G.Modal.isOpen("crate")) { this.leaveShop(); return true; }
+      if (e.code === "Enter" && !G.Modal.isOpen("crate") && !G.Modal.isOpen("inventory")) { this.leaveShop(); return true; }
       return false;
     } });
     G.UI.renderShop();
     G.Tutorial.shopTip();
     G.UI.showScreen("screen-shop");
   },
+  // what Full Ammo tops a gun's reserve up to: the four spare magazines it
+  // comes with
+  fullReserve(id) { return Math.round(G.WEAPON_DEFS[id].magSize * this.player.weaponLevels[id].mag) * 4; },
   buyShopItem(item, price) {
     if (this.player.money < price) return;
-    this.player.money -= price;
-    G.Audio.sfx("purchase");
-    G.Shop.recordPurchase(item.id);
+    const pay = () => {
+      this.player.money -= price;
+      G.Audio.sfx("purchase");
+      G.Shop.recordPurchase(item.id);
+    };
     const curId = this.currentWeaponId();
+    // A gun unlock with every slot full asks which gun to give up BEFORE it
+    // takes the money; keeping the loadout costs nothing.
+    if (item.kind === "unlock") {
+      G.Loadout.offer(this, item.weapon, { source: "shop", onTake: pay });
+      return;
+    }
+    pay();
     switch (item.kind) {
       case "upgrade_damage": if (curId !== "melee") this.player.weaponLevels[curId].dmg *= 1.15; break;
       case "upgrade_firerate": if (curId !== "melee") this.player.weaponLevels[curId].rate *= 1.10; break;
       case "upgrade_mag": if (curId !== "melee") this.player.weaponLevels[curId].mag *= 1.20; break;
-      case "refill_ammo": Object.keys(this.player.ammo).forEach((id) => { const a = this.player.ammo[id]; a.mag = Math.round(G.WEAPON_DEFS[id].magSize * this.player.weaponLevels[id].mag); a.reserve += G.WEAPON_DEFS[id].magSize * 4; }); break;
+      // Full Ammo: every gun carried gets a full magazine and its reserve
+      // topped up to full (a reserve already above that is left alone)
+      case "refill_ammo": this.player.gunSlots.forEach((id) => {
+        const a = this.player.ammo[id];
+        a.mag = Math.round(G.WEAPON_DEFS[id].magSize * this.player.weaponLevels[id].mag);
+        a.reserve = Math.max(a.reserve, this.fullReserve(id));
+      }); break;
       case "heal": this.player.hp = this.player.maxHp; break;
-      case "unlock": this.acquireWeapon(item.weapon); break;
-      case "perk_speed": this.player.perks.perk_speed = (this.player.perks.perk_speed || 0) + 1; this.player.moveSpeedMult = 1 + 0.15 * this.player.perks.perk_speed; break;
-      case "perk_armor": this.player.perks.perk_armor = (this.player.perks.perk_armor || 0) + 1; this.player.armorPct = Math.min(0.3, 0.1 * this.player.perks.perk_armor); break;
-      case "perk_hint": this.player.perks.perk_hint = 1; break;
-      case "crate": this.openCrate(G.rollRarity()); break;
+      case "crate": this.openCrate(G.rollRarity(), null, null, { source: "crate" }); break;
     }
+  },
+  buyPerk(id) {
+    const P = G.Perks;
+    if (P.maxed(id)) return;
+    const price = P.price(id);
+    if (this.player.money < price) return;
+    this.player.money -= price;
+    G.Shop.recordPurchase(id);
+    G.Audio.sfx("purchase");
+    P.apply(id, this);
   },
   leaveShop() {
     if (G.Modal.isOpen("crate")) G.Modal.close("crate");
@@ -1041,9 +1123,11 @@ G.Game = {
   startWordChallenge(label, onSuccess, onFail) {
     if (this.challenge) return;
     const pair = G.pick(this.wordPool);
-    const allMeanings = G.getAllBuiltinWords().map((p) => p[0]).filter((w) => w !== pair[0]);
-    const choices = G.shuffle([pair[0], ...G.shuffle(allMeanings).slice(0, 3)]);
-    this.challenge = { pair, choices, timeLeft: 8, timeLimit: 8, onSuccess, onFail };
+    // the wrong answers are other words -- never one that means the same thing
+    const others = G.getAllBuiltinWords().filter((p) => p[0] !== pair[0] && p[1].trim() !== pair[1].trim()).map((p) => p[0]);
+    const choices = G.shuffle([pair[0], ...G.shuffle(others).slice(0, 3)]);
+    const limit = 8 + (G.Perks.val("extra_time") || 0);                  // Extra Time
+    this.challenge = { pair, choices, timeLeft: limit, timeLimit: limit, onSuccess, onFail };
     G.Modal.open("challenge", { freeze: true, keys: G.Modal.digitKeys(4, (i) => this.answerChallenge(i)) });
     G.UI.setChallengeVisible(true, label);
     G.UI.setChallengeMeaning(pair[1]);
@@ -1065,8 +1149,40 @@ G.Game = {
     G.Modal.close("challenge");
   },
 
+  // Shove a zombie `dist` along (dx, dz) in short steps, stopping at the
+  // first wall so it can't be pushed into one.
+  pushZombie(z, dx, dz, dist) {
+    const len = Math.hypot(dx, dz) || 1;
+    const ux = dx / len, uz = dz / len, p = z.mesh.position;
+    const box = new THREE.Box3();
+    for (let s = 0; s < dist; s += 0.2) {
+      const x = p.x + ux * 0.2, zz = p.z + uz * 0.2;
+      box.min.set(x - 0.3, p.y + 0.2, zz - 0.3); box.max.set(x + 0.3, p.y + 1.6, zz + 0.3);
+      if (this.world.colliders.some((c) => c.intersectsBox(box))) break;
+      p.x = x; p.z = zz;
+    }
+  },
+
   // ---------------- Player death / results ----------------
-  checkPlayerDeath() { if (this.player.hp <= 0) this.onGameOver(); },
+  checkPlayerDeath() {
+    if (this.player.hp > 0) return;
+    // Second Life: once a wave, the blow that would have killed you leaves
+    // you on a quarter of your health instead and throws back whatever is close
+    if (G.Perks.has("second_life") && !this.player.secondLifeUsed) {
+      this.player.secondLifeUsed = true;
+      this.player.hp = this.player.maxHp * G.Perks.val("second_life") / 100;
+      const p = this.yawObject.position;
+      this.zombies.forEach((z) => {
+        if (!z.alive || z.type === "boss") return;
+        const dx = z.mesh.position.x - p.x, dz = z.mesh.position.z - p.z;
+        if (Math.hypot(dx, dz) < 4.5) this.pushZombie(z, dx, dz, 3);
+      });
+      G.Audio.sfx("unlock");
+      G.UI.flashPurchaseBanner(G.T("perk.second_life.name"), G.T("banner.secondLife"));
+      return;
+    }
+    this.onGameOver();
+  },
   onGameOver() {
     this.state = "GAME_OVER";
     G.Modal.reset();
@@ -1114,6 +1230,7 @@ G.Game = {
     G.Input.clearHeldInputs();
     G.UI.applyControlMode();
     G.UI.renderPauseObjectives();
+    G.UI.renderPausePerks();
     G.UI.showScreen("screen-pause");
   },
   resume() {
@@ -1134,7 +1251,7 @@ G.Game = {
   update(dt) {
     dt *= G.save.settings.gameSpeed;
     if (this.state === "SHOP") {
-      if (G.Modal.isOpen("crate")) return;
+      if (G.Modal.isOpen("crate") || G.Modal.isOpen("inventory")) return;
       this.shopTimer -= dt;
       G.UI.el("shop-timer").textContent = G.T("shop.timer", { s: Math.max(0, Math.ceil(this.shopTimer)) });
       G.UI.el("shop-money").textContent = this.player.money;
@@ -1145,13 +1262,21 @@ G.Game = {
     if (this.state !== "GAMEPLAY" || this.paused) return;
     if (G.Modal.freezesWorld()) { this.updateFrozen(dt); return; }
 
+    // Focus Time: right after a right answer the zombies (and their spawns
+    // and the traps) run at a third of the speed; the player does not
+    this._slowmoT = Math.max(0, (this._slowmoT || 0) - dt);
+    this._adrenalineT = Math.max(0, (this._adrenalineT || 0) - dt);
+    const worldDt = this._slowmoT > 0 ? dt * 0.35 : dt;
+    document.body.classList.toggle("slowmo", this._slowmoT > 0);
+
     this.updatePlayerMovement(dt);
     this.updateShooting(dt);
-    this.updateZombies(dt);
+    this.updateZombies(worldDt);
     this.updateDyingZombies(dt);
     this.updateDrops(dt);
+    G.Loadout.update(this, dt);
     this.updateInteractRay();
-    this.updateTraps(dt);
+    this.updateTraps(worldDt);
     this.updateRoomDoors(dt);
     this.updateSwingProps(dt);
     if (this.mode === "campaign") G.Objectives.update(dt, this);
@@ -1175,7 +1300,7 @@ G.Game = {
     // cleared the field before the next spawn tick -- the playtest bot sat in
     // wave 1 with 16 of 8 spawned and no end in sight.
     if (!G.BossFight.active && !this.isBossWave() && this.spawnedCount < this.requiredKills) {
-      G.Spawner.update(dt, this.world, this.zombies.length, this.level.maxAliveZombies, (type, pos) => this.spawnZombieAt(type, pos), this.currentDiff, this.yawObject.position);
+      G.Spawner.update(worldDt, this.world, this.zombies.length, this.level.maxAliveZombies, (type, pos) => this.spawnZombieAt(type, pos), this.currentDiff, this.yawObject.position);
     }
     // Must run every frame (not just non-boss frames) so a boss wave with zero
     // regular zombies actually gets a chance to trigger its boss spawn.
@@ -1208,9 +1333,18 @@ G.Game = {
     const def = this.currentWeaponDef();
     const ammoInMag = id === "melee" ? 0 : this.player.ammo[id].mag;
     const ammoReserve = id === "melee" ? 0 : this.player.ammo[id].reserve;
+    // the knife, every gun held, then any free slots (shown empty, so the
+    // capacity the Extra Weapon Slot perk adds can be seen)
     const slots = [{ active: this.player.currentSlot === 0 }].concat(this.player.gunSlots.map((_, i) => ({ active: this.player.currentSlot === i + 1 })));
+    for (let i = this.player.gunSlots.length; i < G.Loadout.maxSlots(this); i++) slots.push({ active: false, empty: true });
     let meaning = this.targetPair ? this.targetPair[1] : (this.zombies.length ? "-" : G.T("hud.waiting"));
-    if (this.player.perks.perk_hint && this.targetPair) meaning += G.T("hud.hintFirst", { c: this.targetPair[0][0].toUpperCase() });
+    // Hint Reader: the first letter, and at level 2 how many letters
+    const hint = G.Perks.level("perk_hint");
+    if (hint && this.targetPair) {
+      const w = this.targetPair[0];
+      meaning += hint >= 2 ? G.T("hud.hintLen", { c: w[0].toUpperCase(), n: w.replace(/[^A-Za-z]/g, "").length })
+        : G.T("hud.hintFirst", { c: w[0].toUpperCase() });
+    }
     const campaign = this.mode === "campaign";
     return {
       hp: (this.player.hp / this.player.maxHp) * 100, stamina: (this.stamina / this.maxStamina) * 100,
@@ -1270,7 +1404,7 @@ G.Game = {
     // Sprint is gated by stamina (category I): held sprint only speeds you up
     // while stamina remains, and only actually drains while you're moving --
     // holding the key while standing still costs nothing.
-    const sprintHeld = (G.Input.mode === "desktop" && G.Input.isDown("sprint")) || G.Input.touchSprint;
+    const sprintHeld = (G.Input.mode === "desktop" && G.Input.isDown("sprint")) || G.Input.touchSprint || G.Input.padSprint;
     // Animation pass A3: a fresh press of sprint abandons a reload in progress
     // (the magazine never goes in, so no ammo is added). A sprint that was
     // already held when the reload began is ignored until it is released.
@@ -1284,16 +1418,24 @@ G.Game = {
     // sprint at empty alternated drain/regen frames and still moved you at
     // roughly sprint speed forever. Now running out latches an exhausted state
     // that only clears once stamina is back above 20%.
+    // Second Wind: stamina comes back twice as fast, and running dry locks
+    // sprint out only until 10% is back instead of 20%
+    const secondWind = G.Perks.has("second_wind");
     if (this.stamina <= 0) this.staminaExhausted = true;
-    else if (this.staminaExhausted && this.stamina >= this.maxStamina * 0.2) this.staminaExhausted = false;
+    else if (this.staminaExhausted && this.stamina >= this.maxStamina * (secondWind ? 0.1 : 0.2)) this.staminaExhausted = false;
     const sprinting = wantSprint && !this.staminaExhausted && len > 0.05;
     // Category E: what you are carrying slows you down, and tires you faster.
     // A pistol costs nothing; a grenade launcher takes a quarter off your top
     // speed and burns stamina half again as fast.
     const wcls = G.weightClass(this.currentWeaponDef());
-    if (sprinting) this.stamina = Math.max(0, this.stamina - 22 * wcls.staminaMult * dt);
-    else this.stamina = Math.min(this.maxStamina, this.stamina + 14 * dt);
-    const speed = (sprinting ? 5.2 : 3.2) * this.player.moveSpeedMult * wcls.speedMult * dt;
+    // Pack Mule: half of that penalty is gone
+    const mule = G.Perks.has("pack_mule") ? G.Perks.val("pack_mule") / 100 : 0;
+    const speedMult = 1 - (1 - wcls.speedMult) * (1 - mule), staminaMult = 1 + (wcls.staminaMult - 1) * (1 - mule);
+    if (sprinting) this.stamina = Math.max(0, this.stamina - 22 * staminaMult * dt);
+    else this.stamina = Math.min(this.maxStamina, this.stamina + 14 * (secondWind ? G.Perks.val("second_wind") : 1) * dt);
+    // Adrenaline: a burst of speed for three seconds after every kill
+    const rush = this._adrenalineT > 0 ? 1 + G.Perks.val("adrenaline") / 100 : 1;
+    const speed = (sprinting ? 5.2 : 3.2) * this.player.moveSpeedMult * speedMult * rush * dt;
     const forward = new THREE.Vector3(-Math.sin(this.yawObject.rotation.y), 0, -Math.cos(this.yawObject.rotation.y));
     // right = forward rotated -90 deg around Y. (forward.z, 0, -forward.x) was
     // actually pointing left, which swapped A/D: D (mx=+1) moved the player
@@ -1311,7 +1453,7 @@ G.Game = {
     // no real "standing on geometry" physics, so the player's eye height just
     // tracks whatever height zone they're currently over, on top of jump gravity.
     const baseEyeY = 1.7 + G.getFloorHeightAt(this.world, this.yawObject.position.x, this.yawObject.position.z, this.yawObject.position.y - 1.7);
-    const jumpPressed = (G.Input.mode === "desktop" && G.Input.isDown("jump")) || G.Input.touchJump;
+    const jumpPressed = (G.Input.mode === "desktop" && G.Input.isDown("jump")) || G.Input.touchJump || G.Input.padJump;
     if (jumpPressed && this.yawObject.position.y <= baseEyeY + 0.01 && this.velocityY === 0) this.velocityY = 4.2;
     this.velocityY -= 9.8 * dt;
     this.yawObject.position.y += this.velocityY * dt;
@@ -1321,7 +1463,7 @@ G.Game = {
     // and pulls the weapon toward center, blended over time (not an instant
     // snap) so it reads as a deliberate aim rather than a jump-cut.
     const def = this.currentWeaponDef();
-    const wantAim = G.Input.aimDown && def.id !== "melee" && !this.challenge;
+    const wantAim = (G.Input.aimDown || G.Input.padAim) && def.id !== "melee" && !this.challenge;
     const aimSpeed = 10;
     this.aimT += ((wantAim ? 1 : 0) - this.aimT) * Math.min(1, aimSpeed * dt);
     if (Math.abs(this.aimT) < 0.002) this.aimT = 0;
@@ -1353,7 +1495,7 @@ G.Game = {
     const lookYaw = dYaw / dt, lookPitch = this._prevPitch === undefined ? 0 : (pitchNow - this._prevPitch) / dt;
     this._prevYaw = yawNow; this._prevPitch = pitchNow;
     const airborne = this.velocityY !== 0;
-    const rawFire = !this.challenge && ((G.Input.mode === "desktop" && G.Input.mouseDown) || G.Input.touchFire);
+    const rawFire = !this.challenge && ((G.Input.mode === "desktop" && G.Input.mouseDown) || G.Input.touchFire || G.Input.padFire);
 
     G.PlayerBody.stepGait(dt, vel, yawNow, airborne);
     // the camera rides the same gait (animation pass B), before the gun so
@@ -1440,8 +1582,11 @@ G.Game = {
     // the reload routine: its events (magazine seated, a shell pushed in) are
     // what actually move ammo -- see reload() and onReloadEvent()
     const R = this.reloadState;
+    // Quick Hands: the whole reload routine (and its animation, which reads
+    // R.t) plays faster
+    const hands = 1 + (G.Perks.val("quick_hands") || 0) / 100;
     if (this.player.reloading && R) {
-      R.t += dt;
+      R.t += dt * hands;
       const evs = R.plan.events;
       while (R.next < evs.length && evs[R.next].t <= R.t) this.onReloadEvent(evs[R.next++].kind, R);
       if (R.t >= R.plan.dur) { this.player.reloading = false; this.reloadState = null; }
@@ -1457,7 +1602,7 @@ G.Game = {
       else {
         // a heavy gun takes longer to put away and to bring up
         const from = G.ViewModel.def, to = this.currentWeaponDef();
-        this.weaponAnim.switchDur = (G.ViewModel.switchDuration(from) + G.ViewModel.switchDuration(to)) / 2;
+        this.weaponAnim.switchDur = (G.ViewModel.switchDuration(from) + G.ViewModel.switchDuration(to)) / 2 / hands;
         this.weaponAnim.switchT = this.weaponAnim.switchDur;
         this.weaponAnim.pendingRebuild = true;
         // the old gun put away, the new one drawn -- each with its own sound
@@ -1571,6 +1716,14 @@ G.Game = {
         G.Audio.sfx("hurt");
         this.player.wasHitThisLevel = true;
         G.UI.flashDamage();
+        // Thorns: the biter takes damage back and is thrown off. Never the
+        // killing blow -- a kill the player did not aim would count as a
+        // wrong answer.
+        if (G.Perks.has("thorns") && z.type !== "boss") {
+          z.hp = Math.max(1, z.hp - G.Perks.val("thorns"));
+          G.spawnHitParticles(this.scene, z.mesh.position.clone().setY(z.mesh.position.y + 1.2), 0x9be86b, G.save.settings.graphicsQuality);
+          this.pushZombie(z, z.mesh.position.x - playerPos.x, z.mesh.position.z - playerPos.z, 1.8);
+        }
         this.checkPlayerDeath();
       }
     }
@@ -1600,6 +1753,9 @@ G.Game = {
     this.raycaster.camera = this.camera;
     const targets = this.world.interactables.map((i) => i.mesh);
     const hits = this.raycaster.intersectObjects(targets, true);
+    const T = G.T, key = G.interactKeyLabel();
+    let label = "";
+    this._lookedAtInteractable = null;
     if (hits.length) {
       // Walk the whole parent chain: interactables are groups now (doors have
       // a panel + handle under a hinge pivot), so a single .parent hop isn't
@@ -1608,16 +1764,15 @@ G.Game = {
       while (obj && !found) { found = this.world.interactables.find((i) => i.mesh === obj); obj = obj.parent; }
       this._lookedAtInteractable = found;
       if (found) {
-        const T = G.T;
-        let label = T("hud.interact");
-        if (found.kind === "door") label = found.ref.opened ? "" : T("prompt.wordDoor");
-        if (found.kind === "button") label = T(found.ref.pressed ? "prompt.buttonDone" : "prompt.button");
-        if (found.kind === "crate") label = found.ref.opened ? "" : T("prompt.crate");
-        if (found.kind === "trap") label = found.ref.active ? T("prompt.trap") : "";
-        if (found.kind === "hatch") label = found.ref.opened ? "" : T("prompt.hatch");
-        if (found.kind === "roomdoor") label = T(found.ref.open ? "prompt.doorClose" : "prompt.doorOpen");
+        label = T("hud.interact", { key });
+        if (found.kind === "door") label = found.ref.opened ? "" : T("prompt.wordDoor", { key });
+        if (found.kind === "button") label = found.ref.pressed ? T("prompt.buttonDone") : T("prompt.button", { key });
+        if (found.kind === "crate") label = found.ref.opened ? "" : T("prompt.crate", { key });
+        if (found.kind === "trap") label = found.ref.active ? T("prompt.trap", { key }) : "";
+        if (found.kind === "hatch") label = found.ref.opened ? "" : T("prompt.hatch", { key });
+        if (found.kind === "roomdoor") label = T(found.ref.open ? "prompt.doorClose" : "prompt.doorOpen", { key });
         if (found.kind === "mysterybox") {
-          label = T("prompt.mystery", { cost: G.MYSTERY_BOX_COST }) + (this.player.money < G.MYSTERY_BOX_COST ? T("prompt.notEnough") : "");
+          label = T("prompt.mystery", { key, cost: G.MYSTERY_BOX_COST }) + (this.player.money < G.MYSTERY_BOX_COST ? T("prompt.notEnough") : "");
         }
         if (found.kind === "wallweapon") {
           const wdef = G.WEAPON_DEFS[found.ref.id];
@@ -1625,17 +1780,26 @@ G.Game = {
           // the prompt rather than only in the log.
           const wc = G.weightClass(wdef);
           label = found.ref.purchased ? "" : T("prompt.wallGun", {
-            name: wdef.name, price: wdef.price, weight: wc.label,
+            key, name: wdef.name, price: wdef.price, weight: wc.label,
             short: this.player.money < wdef.price ? T("prompt.notEnough") : "",
           });
         }
-        G.UI.setInteractPrompt(!!label, label);
       }
-    } else { this._lookedAtInteractable = null; G.UI.setInteractPrompt(false); }
+    }
+    // a gun on the floor within reach, when nothing in view has a use
+    this._nearFloorGun = label ? null : G.Loadout.nearest(this);
+    if (this._nearFloorGun) {
+      const fg = this._nearFloorGun, def = G.WEAPON_DEFS[fg.id];
+      label = T("prompt.pickUp", { key, name: def.name });
+      if (fg.expires) label += T("prompt.pickUpTimer", { s: Math.max(0, Math.ceil(fg.expires - fg.t)) });
+    }
+    G.UI.setInteractPrompt(!!label, label);
   },
   doInteract() {
     if (this.challenge) return;
     const found = this._lookedAtInteractable;
+    // (set only when nothing in view has a use -- see updateInteractRay)
+    if (this._nearFloorGun) { G.Loadout.pickUp(this, this._nearFloorGun); return; }
     if (!found) return;
     if (found.kind === "door") {
       if (found.ref.opened) return;
@@ -1702,10 +1866,11 @@ G.Game = {
     if (!this._mysteryHand || this._mysteryPick === null) return;
     const picked = this._mysteryHand[this._mysteryPick];
     this._mysteryHand = null; this._mysteryPick = null;
-    this.acquireWeapon(picked.id);
     if (this.world.mysteryBox) this.world.mysteryBox.uses++;
-    G.UI.showScreen(null);
-    G.UI.setHudVisible(true);
+    // already paid for: with the slots full and the loadout kept, the gun is
+    // left on the floor beside the box to collect later
+    const settled = G.Loadout.offer(this, picked.id, { source: "mystery", dropPos: G.Loadout.besideBox(this) });
+    if (settled) { G.UI.showScreen(null); G.UI.setHudVisible(true); }
     G.Modal.close("mystery");
   },
 
@@ -1903,15 +2068,18 @@ G.Game = {
   // The blocking box is the panel's own world AABB, recomputed as it swings.
   // A fixed box either blocks a door that is already open, or lets you walk
   // through one that is still closing.
+  // With every slot full the Inventory Full window asks first, and the money
+  // only goes when a slot is actually given up for the gun.
   buyWallWeapon(ref) {
     if (ref.purchased || this.player.money < ref.price) return;
-    this.player.money -= ref.price;
-    G.Audio.sfx("purchase");
-    ref.purchased = true;
-    this.acquireWeapon(ref.id);
-    G.spawnCrateBurst(this.scene, ref.gunMesh.getWorldPosition(new THREE.Vector3()), "secret", G.save.settings.graphicsQuality);
-    G.UI.pulseHudStat("money");
-    G.UI.flashPurchaseBanner(G.WEAPON_DEFS[ref.id].name);
+    G.Loadout.offer(this, ref.id, { source: "wall", onTake: () => {
+      this.player.money -= ref.price;
+      G.Audio.sfx("purchase");
+      ref.purchased = true;
+      G.spawnCrateBurst(this.scene, ref.gunMesh.getWorldPosition(new THREE.Vector3()), "secret", G.save.settings.graphicsQuality);
+      G.UI.pulseHudStat("money");
+      G.UI.flashPurchaseBanner(G.WEAPON_DEFS[ref.id].name);
+    } });
   },
 
   // Hides an obstacle's mesh AND removes its collider (doors/traps previously
@@ -2054,7 +2222,7 @@ G.Game = {
       t.cooldown -= dt;
       if (t.active && t.cooldown <= 0 && t.mesh.position.distanceTo(this.yawObject.position) < 1.3) {
         t.cooldown = 1.0;
-        this.player.hp -= t.damage;
+        this.player.hp -= t.damage * (1 - this.player.armorPct);    // Riot Gear covers traps too
         this.player.wasHitThisLevel = true;
         G.UI.flashDamage();
         this.checkPlayerDeath();
@@ -2091,7 +2259,8 @@ G.Game = {
     if (G.BossFight.currentWord) {
       if (!this._bossChoices || this._bossChoiceWord !== G.BossFight.currentWord[0]) {
         this._bossChoiceWord = G.BossFight.currentWord[0];
-        const distract = G.shuffle(G.getAllBuiltinWords().map((p) => p[0]).filter((w) => w !== G.BossFight.currentWord[0])).slice(0, 3);
+        const cw = G.BossFight.currentWord;
+        const distract = G.shuffle(G.getAllBuiltinWords().filter((p) => p[0] !== cw[0] && p[1].trim() !== cw[1].trim()).map((p) => p[0])).slice(0, 3);
         this._bossChoices = G.shuffle([G.BossFight.currentWord[0], ...distract]);
         G.UI.setBossChoices(this._bossChoices);
       }
@@ -2117,6 +2286,7 @@ G.Game = {
     this.lastFrameTime = t;
     this.fpsSmoothed = this.fpsSmoothed * 0.9 + (1 / Math.max(delta, 0.0001)) * 0.1;
     G.UI.updateFpsCounter(this.fpsSmoothed);
+    G.Pad.poll(delta);
 
     this.clock.getDelta();
     this.update(delta);
@@ -2131,6 +2301,7 @@ G.onKeyDown = function (e) {
   // A window is open (question, crate, mystery box, shop): its own keys only
   // -- 1-4 answer instead of switching weapons, and nothing reaches
   // gameplay. Pause still works over a question.
+  G.Pad && G.Pad.clearFocus();
   if ((Game.state === "GAMEPLAY" || Game.state === "SHOP") && G.Modal.isOpen()) {
     if (Game.state === "GAMEPLAY" && e.code === G.save.settings.keybinds.pause && !G.Modal.pausesAll()) { Game.pause(); return; }
     G.Modal.handleKey(e);
@@ -2144,10 +2315,8 @@ G.onKeyDown = function (e) {
     if (e.code === kb.reload) { Game.reload(); return; }
     if (e.code === kb.interact) { Game.doInteract(); return; }
     if (e.code === kb.melee) { Game.switchSlot(0); return; }
-    if (e.code === kb.slot2) { Game.switchSlot(1); return; }
-    if (e.code === kb.slot3) { Game.switchSlot(2); return; }
-    if (e.code === kb.slot4) { Game.switchSlot(3); return; }
-    if (e.code === kb.slot5) { Game.switchSlot(4); return; }
+    // slot2..slot7: the four gun slots, and the two Extra Weapon Slot adds
+    for (let s = 2; s <= 7; s++) if (kb["slot" + s] && e.code === kb["slot" + s]) { Game.switchSlot(s - 1); return; }
   } else if (Game.state === "PAUSE") {
     // (the Escape that just unlocked the mouse and paused the game can
     // arrive here as a key press too -- it must not resume straight away)

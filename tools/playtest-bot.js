@@ -350,6 +350,16 @@ G.Bot = {
           waveStart = t; waveEarned = 0;
           continue;
         }
+        // Inventory Full: swap the weakest gun for the new one when it is
+        // stronger, otherwise keep the loadout
+        if (G.Loadout.pending) {
+          const newId = G.Loadout.pending.id;
+          const weakest = g.player.gunSlots.reduce((b, id, i) => (dps(id) < dps(g.player.gunSlots[b]) ? i : b), 0);
+          if (dps(newId) > dps(g.player.gunSlots[weakest])) { R.purchases.push(Math.round(t) + "s swap " + g.player.gunSlots[weakest] + " -> " + newId); G.Loadout.choose(weakest); }
+          else { R.purchases.push(Math.round(t) + "s kept loadout over " + newId); G.Loadout.keep(); }
+          R.overlaySeconds += 3;
+          continue;
+        }
         const crateOpen = !document.getElementById("screen-crate").classList.contains("hidden");
         if (g.paused && crateOpen) { R.overlaySeconds += 2.5; g.closeCrateScreen(); continue; }
         if (g._mysteryHand) {
