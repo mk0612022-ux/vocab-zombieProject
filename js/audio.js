@@ -3,10 +3,8 @@
 // -------------------------------------------------------------------
 // Every sound in the game is synthesised with the Web Audio API -- there
 // are no audio files. That keeps the game a plain static site with no
-// build step and nothing extra to download, and it lets one gun sound
-// family cover eighty-five weapons: a shot is shaped from the weapon's
-// archetype and lightly randomised so an automatic doesn't machine-gun
-// one identical sample.
+// build step and nothing extra to download. Each of the 85 guns has its own
+// shot, reload and draw sound, built in js/gunaudio.js.
 //
 // Four buses, each with its own saved volume (J4):
 //   sfx      guns, zombies, footsteps, doors, pickups, warnings
@@ -54,6 +52,7 @@ G.Audio = {
       this.bus[k] = g;
     });
     this.applyVolumes();
+    G.GunAudio && G.GunAudio.ensureReverb();
     // iOS: a silent one-sample buffer played inside the gesture is what
     // actually opens the output
     const b = ctx.createBuffer(1, 1, 22050);
@@ -141,6 +140,7 @@ G.Audio = {
     }
     node.connect(g);
     g.connect(this._out(o.bus || "sfx", o.pos));
+    if (o.rev && this.revIn) { const sg = ctx.createGain(); sg.gain.value = o.rev; g.connect(sg); sg.connect(this.revIn); }
     osc.start(t); osc.stop(t + o.dur + 0.05);
   },
 
@@ -161,6 +161,7 @@ G.Audio = {
     g.gain.exponentialRampToValueAtTime(Math.max(0.0002, o.gain || 0.3), t + (o.attack || 0.004));
     g.gain.exponentialRampToValueAtTime(0.0001, t + o.dur);
     src.connect(f); f.connect(g); g.connect(this._out(o.bus || "sfx", o.pos));
+    if (o.rev && this.revIn) { const sg = ctx.createGain(); sg.gain.value = o.rev; g.connect(sg); sg.connect(this.revIn); }
     src.start(t, Math.random() * 1.5); src.stop(t + o.dur + 0.05);
   },
 
@@ -183,84 +184,23 @@ G.Audio = {
   },
 
   // ---------------- weapons (J1) ----------------
-  gunshot(def) {
+  // Every gun has its own voice now (animation/audio pass C): see js/gunaudio.js.
+  // chargeFrac: how far a charge weapon was wound up (0..1), if it is one.
+  gunshot(def, chargeFrac) {
     if (!this.ctx || !def) return;
-    const r = () => 0.95 + Math.random() * 0.1;
-    const arch = def.archetype || G.inferArchetype(def);
-    const heavy = G.weightClass ? G.weightClass(def).key : "medium";
-    const body = heavy === "very_heavy" ? 1.35 : heavy === "heavy" ? 1.18 : heavy === "light" ? 0.85 : 1;
-    switch (arch) {
-      case "pistol":
-        this.noise({ dur: 0.11, freq: 2200 * r(), q: 0.9, gain: 0.5 });
-        this.tone({ type: "triangle", freq: 170 * r(), freqEnd: 55, dur: 0.12, gain: 0.35 });
-        break;
-      case "smg":
-        this.noise({ dur: 0.07, freq: 2600 * r(), q: 1.1, gain: 0.4 });
-        this.tone({ type: "triangle", freq: 150 * r(), freqEnd: 60, dur: 0.07, gain: 0.25 });
-        break;
-      case "rifle":
-        this.noise({ dur: 0.1, freq: 1800 * r(), q: 0.9, gain: 0.5 * body });
-        this.noise({ dur: 0.04, filter: "highpass", freq: 4200, gain: 0.25 });
-        this.tone({ type: "triangle", freq: 130 * r(), freqEnd: 45, dur: 0.14, gain: 0.35 * body });
-        break;
-      case "lmg":
-        this.noise({ dur: 0.12, filter: "lowpass", freq: 1600 * r(), gain: 0.55 });
-        this.tone({ type: "sine", freq: 100 * r(), freqEnd: 40, dur: 0.16, gain: 0.45 });
-        break;
-      case "shotgun":
-        this.noise({ dur: 0.34 * body, filter: "lowpass", freq: 1300 * r(), freqEnd: 300, gain: 0.7 });
-        this.tone({ type: "sine", freq: 95 * r(), freqEnd: 35, dur: 0.3, gain: 0.6 });
-        this.tone({ type: "square", freq: 900, dur: 0.02, gain: 0.08, at: 0.34 });   // pump
-        break;
-      case "sniper":
-        this.noise({ dur: 0.05, filter: "highpass", freq: 3200, gain: 0.55 });
-        this.tone({ type: "sine", freq: 90, freqEnd: 32, dur: 0.35, gain: 0.55 });
-        this.noise({ dur: 0.9, filter: "lowpass", freq: 700, freqEnd: 150, gain: 0.22, attack: 0.02 });   // rolling echo
-        break;
-      case "launcher":
-        this.tone({ type: "sine", freq: 130 * r(), freqEnd: 45, dur: 0.25, gain: 0.6 });
-        this.noise({ dur: 0.4, filter: "bandpass", freq: 600, freqEnd: 2400, q: 0.6, gain: 0.28, attack: 0.03 });
-        break;
-      case "energy":
-        this.tone({ type: "sawtooth", freq: 900 * r(), freqEnd: 180, dur: 0.18, gain: 0.22, filter: { type: "lowpass", freq: 3000 } });
-        this.tone({ type: "sine", freq: 1800 * r(), freqEnd: 420, dur: 0.16, gain: 0.18 });
-        break;
-      case "beam":
-        this.tone({ type: "sawtooth", freq: 1400 * r(), freqEnd: 380, dur: 0.24, gain: 0.2, filter: { type: "bandpass", freq: 1800, q: 2 } });
-        this.tone({ type: "sine", freq: 2800, freqEnd: 900, dur: 0.2, gain: 0.12 });
-        this.noise({ dur: 0.08, filter: "highpass", freq: 5000, gain: 0.15 });
-        break;
-      case "cannon":
-        this.tone({ type: "sine", freq: 70, freqEnd: 26, dur: 0.6, gain: 0.8 });
-        this.noise({ dur: 0.5, filter: "lowpass", freq: 480, freqEnd: 120, gain: 0.6 });
-        break;
-      default:
-        this.noise({ dur: 0.1, freq: 2000, gain: 0.45 });
-    }
+    G.GunAudio.shot(def, { charge: chargeFrac });
   },
   explosion(pos, big) {
-    this.tone({ type: "sine", freq: big ? 60 : 85, freqEnd: 24, dur: big ? 1.0 : 0.6, gain: 0.9, pos });
-    this.noise({ dur: big ? 1.2 : 0.7, filter: "lowpass", freq: 900, freqEnd: 90, gain: 0.8, pos });
+    this.tone({ type: "sine", freq: big ? 60 : 85, freqEnd: 24, dur: big ? 1.0 : 0.6, gain: 0.9, pos, rev: 0.6 });
+    this.noise({ dur: big ? 1.2 : 0.7, filter: "lowpass", freq: 900, freqEnd: 90, gain: 0.8, pos, rev: 0.8 });
   },
   // Animation pass A3: reload sounds are triggered by the reload routine's
   // own steps (G.Game.onReloadEvent), so each click lands on the frame the
   // hand does the thing -- whatever the weapon type and however long it is.
+  // ...and each gun's reload clicks at its own pitch and material (pass C).
   reloadEvent(kind, def) {
     if (!this.ctx) return;
-    const click = (freq, gain, at) => this.tone({ type: "square", freq, dur: 0.025, gain, at: at || 0, filter: { type: "bandpass", freq: freq * 1.6, q: 3 } });
-    switch (kind) {
-      case "start": this.noise({ dur: 0.16, filter: "lowpass", freq: 700, gain: 0.05 }); break;          // cloth, the hand moving
-      case "out": click(1300, 0.08); this.noise({ dur: 0.1, freq: 900, gain: 0.1, at: 0.03 }); break;     // release, slide out
-      case "grab": this.noise({ dur: 0.12, filter: "lowpass", freq: 1100, gain: 0.07 }); break;          // out of the pouch
-      case "in": this.noise({ dur: 0.07, freq: 1500, gain: 0.12 }); click(900, 0.12, 0.05); break;        // slides in, catch clicks
-      case "slap": this.noise({ dur: 0.05, filter: "lowpass", freq: 600, gain: 0.14 }); break;           // palm on the base
-      case "bolt": click(1100, 0.1); this.noise({ dur: 0.06, freq: 2000, gain: 0.07, at: 0.02 }); click(700, 0.14, 0.09); break;
-      case "cover": click(800, 0.1); this.noise({ dur: 0.08, freq: 1200, gain: 0.07 }); break;
-      case "coverClose": click(600, 0.15); break;
-      case "shell": this.noise({ dur: 0.04, freq: 1800, gain: 0.08 }); click(1400, 0.06, 0.03); break;
-      case "pump": this.noise({ dur: 0.07, freq: 1000, gain: 0.12 }); this.noise({ dur: 0.07, freq: 1300, gain: 0.13, at: 0.13 }); click(700, 0.1, 0.19); break;
-      case "land": this.tone({ type: "triangle", freq: 520 + Math.random() * 120, dur: 0.06, gain: 0.05 }); break;   // spent magazine hits the floor
-    }
+    G.GunAudio.reload(kind, def);
   },
   // kept for any older caller: a whole reload's worth of clicks by duration
   reload(dur) {
@@ -484,6 +424,7 @@ G.Audio = {
   update(dt, game) {
     const ctx = this.ctx, L = this._level;
     if (!ctx || !L) return;
+    G.GunAudio.updateEnv(dt, game);
     this.updateListener(game.camera);
     const now = ctx.currentTime;
     // tension: boss on the field, or the last wave or two

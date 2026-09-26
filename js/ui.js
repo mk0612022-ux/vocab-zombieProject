@@ -398,6 +398,16 @@ G.UI = {
       }).join("")}</div>`;
     }
     this.el("weaponlog-content").innerHTML = html;
+    // pass C: every gun sounds different, so let it be heard before it is
+    // bought or picked up (a locked one too -- only its name is secret)
+    this.el("weaponlog-content").querySelectorAll(".wl-listen").forEach((b) => {
+      b.onclick = () => {
+        const len = G.GunAudio.preview(G.WEAPON_DEFS[b.dataset.id]);
+        this.el("weaponlog-content").querySelectorAll(".wl-listen.playing").forEach((o) => o.classList.remove("playing"));
+        b.classList.add("playing");
+        clearTimeout(b._t); b._t = setTimeout(() => b.classList.remove("playing"), (len || 1) * 1000);
+      };
+    });
   },
   // Category E: weight is a real stat now -- it costs movement speed and
   // stamina -- so it is shown everywhere a weapon's numbers are: the log, the
@@ -412,16 +422,18 @@ G.UI = {
       + `<span style="color:${c.color}">น้ำหนัก: ${c.label} (${G.weaponWeight(def).toFixed(1)})</span>`
       + (pen ? ` <span style="opacity:.75">ความเร็ว -${pen}%</span>` : ` <span style="opacity:.75">ไม่ลดความเร็ว</span>`);
   },
+  listenBtn(w) { return `<button class="btn wl-listen" data-id="${w.id}">🔊 ทดลองฟังเสียง</button>`; },
   weaponLogCardHtml(w, dropChance) {
     const unlocked = (G.save.unlockedWeapons || []).includes(w.id);
     const odds = dropChance ? `<br>โอกาสออก: ${dropChance}` : "";
     if (!unlocked) {
-      return `<div class="weaponlog-card locked"><div class="wl-icon">🔒</div><div class="wl-name">???</div><div class="wl-stats">ยังไม่ปลดล็อก${odds}</div></div>`;
+      return `<div class="weaponlog-card locked"><div class="wl-icon">🔒</div><div class="wl-name">???</div><div class="wl-stats">ยังไม่ปลดล็อก${odds}</div>${this.listenBtn(w)}</div>`;
     }
     const dps = Math.round(w.damage * (w.pellets || 1) * (1000 / w.fireRate));
     return `<div class="weaponlog-card border-${w.rarity}" style="border-style:solid">
       <div class="wl-icon">🔫</div><div class="wl-name rarity-${w.rarity}">${w.name}</div>
       <div class="wl-stats">ดาเมจ: ${w.damage}${w.pellets ? ` x${w.pellets} นัด` : ""}<br>อัตรายิง: ${(1000 / w.fireRate).toFixed(1)}/วิ<br>แม็กกาซีน: ${w.magSize}<br>DPS โดยประมาณ: ${dps}<br>${this.weightLine(w)}${w.price ? `<br>ราคา: $${w.price}` : ""}${odds}</div>
+      ${this.listenBtn(w)}
     </div>`;
   },
 

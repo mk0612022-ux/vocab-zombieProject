@@ -503,7 +503,7 @@ G.Game = {
     const lvl = this.player.weaponLevels[id];
     if (ammo.mag <= 0) { this._burst = null; G.Audio.sfx("empty"); this.reload(); return; }
     ammo.mag--;
-    G.Audio.gunshot(def);
+    G.Audio.gunshot(def, chargeFrac);
     G.Tutorial.onShot();
     if (!inBurst) this.player.fireCooldown = (def.fireRate / 1000) / lvl.rate;
     // Category N: a burst weapon looses the rest of its rounds on a timer.
@@ -1327,9 +1327,11 @@ G.Game = {
     if (def.charge) {
       if (wantFire) {
         this._chargeT = Math.min(def.charge.time, (this._chargeT || 0) + dt);
+        G.GunAudio.chargeUpdate(def, this._chargeT / def.charge.time);   // the hum climbs
       } else if (this._chargeT > 0) {
         const frac = this._chargeT / def.charge.time;
         this._chargeT = 0;
+        G.GunAudio.chargeStop();
         if (frac > 0.12) this.fireWeapon(frac);
       }
     } else {
@@ -1401,7 +1403,9 @@ G.Game = {
         this.weaponAnim.switchDur = (G.ViewModel.switchDuration(from) + G.ViewModel.switchDuration(to)) / 2;
         this.weaponAnim.switchT = this.weaponAnim.switchDur;
         this.weaponAnim.pendingRebuild = true;
-        G.Audio.sfx("switch");
+        // the old gun put away, the new one drawn -- each with its own sound
+        G.GunAudio.swap(from, to, this.weaponAnim.switchDur);
+        G.GunAudio.chargeStop();
         this.cancelReload();
       }
     } else if (!this.weaponViewGroup) {

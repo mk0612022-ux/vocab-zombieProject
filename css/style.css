@@ -589,3 +589,7 @@ body.modal-question .hud-crosshair { display: none !important; }
   color: #e8f5e9; font-weight: 700; font-size: 0.95rem; animation: resume-hint-kf 1.6s ease-in-out infinite;
 }
 @keyframes resume-hint-kf { 50% { opacity: 0.55; } }
+
+/* pass C: the weapon log's "listen" button */
+.wl-listen { margin-top: 6px; padding: 3px 8px; font-size: 0.72rem; width: 100%; }
+.wl-listen.playing { border-color: #6bff7a; color: #6bff7a; box-shadow: 0 0 8px rgba(107,255,122,0.4); }
