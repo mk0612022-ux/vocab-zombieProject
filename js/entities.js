@@ -5,12 +5,13 @@
 window.G = window.G || {};
 
 // ---------------- Rarity ----------------
+// (labels, like every name the player reads, come from js/strings.js)
 G.RARITY = {
-  common:   { key: "common",   label: "COMMON",   color: 0x8fb3c9, chance: 0.50, badge: "square" },
-  uncommon: { key: "uncommon", label: "UNCOMMON", color: 0x3ee066, chance: 0.30, badge: "diamond" },
-  rare:     { key: "rare",     label: "RARE",     color: 0x3b82f5, chance: 0.13, badge: "cross" },
-  epic:     { key: "epic",     label: "EPIC",     color: 0xd23bef, chance: 0.06, badge: "triangle" },
-  secret:   { key: "secret",   label: "SECRET",   color: 0xffd43b, chance: 0.01, badge: "star" },
+  common:   { key: "common",   label: "",   color: 0x8fb3c9, chance: 0.50, badge: "square" },
+  uncommon: { key: "uncommon", label: "", color: 0x3ee066, chance: 0.30, badge: "diamond" },
+  rare:     { key: "rare",     label: "",     color: 0x3b82f5, chance: 0.13, badge: "cross" },
+  epic:     { key: "epic",     label: "",     color: 0xd23bef, chance: 0.06, badge: "triangle" },
+  secret:   { key: "secret",   label: "",   color: 0xffd43b, chance: 0.01, badge: "star" },
 };
 G.RARITY_ORDER = ["common", "uncommon", "rare", "epic", "secret"];
 // Rainbow accent cycle used only by the Secret-tier weapon's always-on sparkle trim.
@@ -32,25 +33,27 @@ G.rollRarity = function (minRarity) {
 // within the weapon's rarity family (see G.RARITY) but differ per weapon so
 // two guns of the same rarity still read as distinct pieces of hardware.
 G.WEAPON_DEFS = {
+  // Display names are in js/strings.js ("weapon.<id>"), set on load by
+  // G.localizeData; nothing here or in a save refers to a gun by its name.
   // `recoil` (category E3) scales the per-shot kick: how far the model punches
   // back, how hard it tilts up, and how much the view itself is thrown.
-  pistol: { id: "pistol", name: "Pistol", rarity: "common", damage: 14, fireRate: 320, magSize: 12,
+  pistol: { id: "pistol", rarity: "common", damage: 14, fireRate: 320, magSize: 12,
     reloadTime: 1000, auto: false, recoil: 0.7, price: 0, color: 0x9fb9c9, accent: 0x2b3a42 },
-  shotgun: { id: "shotgun", name: "Shotgun", rarity: "common", damage: 9, pellets: 6, fireRate: 750, magSize: 6,
+  shotgun: { id: "shotgun", rarity: "common", damage: 9, pellets: 6, fireRate: 750, magSize: 6,
     reloadTime: 1600, auto: false, recoil: 1.7, price: 400, color: 0x7d97ab, accent: 0x35424c },
-  smg: { id: "smg", name: "SMG", rarity: "uncommon", damage: 10, fireRate: 110, magSize: 30,
+  smg: { id: "smg", rarity: "uncommon", damage: 10, fireRate: 110, magSize: 30,
     reloadTime: 1300, auto: true, recoil: 0.5, price: 900, color: 0x2fae54, accent: 0x1f3d2a },
-  rifle: { id: "rifle", name: "Assault Rifle", rarity: "uncommon", damage: 18, fireRate: 160, magSize: 25,
+  rifle: { id: "rifle", rarity: "uncommon", damage: 18, fireRate: 160, magSize: 25,
     reloadTime: 1500, auto: true, recoil: 0.75, price: 1200, color: 0x39c463, accent: 0x224a2e },
-  lmg: { id: "lmg", name: "LMG", rarity: "rare", damage: 15, fireRate: 90, magSize: 60,
+  lmg: { id: "lmg", rarity: "rare", damage: 15, fireRate: 90, magSize: 60,
     reloadTime: 2200, auto: true, recoil: 0.6, price: 2200, color: 0x2f6fd6, accent: 0x18325e },
-  sniper: { id: "sniper", name: "Sniper", rarity: "rare", damage: 90, fireRate: 950, magSize: 5,
+  sniper: { id: "sniper", rarity: "rare", damage: 90, fireRate: 950, magSize: 5,
     reloadTime: 1800, auto: false, recoil: 2.2, price: 2400, color: 0x3b82f5, accent: 0x15234a },
-  railgun: { id: "railgun", name: "Piercing Railgun", rarity: "epic", damage: 45, fireRate: 500, magSize: 8,
+  railgun: { id: "railgun", rarity: "epic", damage: 45, fireRate: 500, magSize: 8,
     reloadTime: 1700, auto: false, pierce: true, recoil: 1.5, price: 4200, color: 0xc23bef, accent: 0x3d1a4a },
-  grenadelauncher: { id: "grenadelauncher", name: "Grenade Launcher", rarity: "epic", damage: 70, fireRate: 900, magSize: 4,
+  grenadelauncher: { id: "grenadelauncher", rarity: "epic", damage: 70, fireRate: 900, magSize: 4,
     reloadTime: 2000, auto: false, splash: true, splashRadius: 4.5, recoil: 2.4, price: 4600, color: 0xa63bd6, accent: 0x3a1a44 },
-  golden_smg: { id: "golden_smg", name: "Golden Vocabulary SMG", rarity: "secret", damage: 55, fireRate: 70, magSize: 50,
+  golden_smg: { id: "golden_smg", rarity: "secret", damage: 55, fireRate: 70, magSize: 50,
     reloadTime: 1000, auto: true, recoil: 0.65, price: 9999, color: 0xffd43b, accent: 0xa87d1a, legendary: true },
 
   // Wall-mounted exclusives (category C3): one per level, bought with saved-up
@@ -65,35 +68,35 @@ G.WEAPON_DEFS = {
   // end -- so price scales with how long/hard the level is (5/6/7 waves),
   // keeping each a real "save up for it" goal without being unreachable in
   // one normal playthrough.
-  school_wall: { id: "school_wall", name: "Faculty Enforcer", rarity: "secret", damage: 20, fireRate: 90, magSize: 45,
+  school_wall: { id: "school_wall", rarity: "secret", damage: 20, fireRate: 90, magSize: 45,
     reloadTime: 1500, auto: true, recoil: 0.7, price: 1800, color: 0xd4a017, accent: 0x5a3d0a, wallExclusive: true },
-  hospital_wall: { id: "hospital_wall", name: "Trauma Cannon", rarity: "secret", damage: 22, pellets: 8, fireRate: 500, magSize: 10,
+  hospital_wall: { id: "hospital_wall", rarity: "secret", damage: 22, pellets: 8, fireRate: 500, magSize: 10,
     reloadTime: 1800, auto: false, recoil: 1.9, price: 2400, color: 0xe8e8e0, accent: 0xd6423c, wallExclusive: true },
-  bunker_wall: { id: "bunker_wall", name: "Vault Breaker", rarity: "secret", damage: 140, fireRate: 750, magSize: 6,
+  bunker_wall: { id: "bunker_wall", rarity: "secret", damage: 140, fireRate: 750, magSize: 6,
     reloadTime: 2000, auto: false, recoil: 2.5, price: 3200, color: 0x4a5c3a, accent: 0x2a2a26, wallExclusive: true },
 
   // Eight more wall mounts for the rebuilt school -- four on each floor, each
   // in its own room. Ground-floor guns are affordable mid-run pickups; the
   // upstairs four sit behind the 2nd-floor unlock so they're priced as
   // end-of-run goals (a boss alone pays 500, a full run nets low thousands).
-  hall_monitor: { id: "hall_monitor", name: "Hallway Monitor", rarity: "rare", damage: 24, fireRate: 110, magSize: 35,
+  hall_monitor: { id: "hall_monitor", rarity: "rare", damage: 24, fireRate: 110, magSize: 35,
     reloadTime: 1400, auto: true, recoil: 0.6, price: 1200, color: 0x4fa3d9, accent: 0x1d3f57, wallExclusive: true },
-  detention_slug: { id: "detention_slug", name: "Detention Slugger", rarity: "rare", damage: 18, pellets: 6, fireRate: 780, magSize: 8,
+  detention_slug: { id: "detention_slug", rarity: "rare", damage: 18, pellets: 6, fireRate: 780, magSize: 8,
     reloadTime: 1900, auto: false, recoil: 1.8, price: 1600, color: 0xc96a2f, accent: 0x4a2611, wallExclusive: true },
-  pop_quiz: { id: "pop_quiz", name: "Pop Quiz", rarity: "epic", damage: 34, fireRate: 200, magSize: 24,
+  pop_quiz: { id: "pop_quiz", rarity: "epic", damage: 34, fireRate: 200, magSize: 24,
     reloadTime: 1600, auto: true, recoil: 0.9, price: 2000, color: 0x8ad94f, accent: 0x2f4a1a, wallExclusive: true },
-  cafeteria_cleaver: { id: "cafeteria_cleaver", name: "Cafeteria Cleaver", rarity: "epic", damage: 72, fireRate: 520, magSize: 8,
+  cafeteria_cleaver: { id: "cafeteria_cleaver", rarity: "epic", damage: 72, fireRate: 520, magSize: 8,
     reloadTime: 1700, auto: false, recoil: 1.6, price: 2300, color: 0xd94f7a, accent: 0x4d162c, wallExclusive: true },
   // The four upstairs guns cost 20% less since the category P playtest: the
   // upper floor opens around wave 3, and at the old prices ($2,800-4,200) a
   // new player could not afford one before the level was over.
-  honor_roll: { id: "honor_roll", name: "Honor Roll", rarity: "epic", damage: 110, fireRate: 620, magSize: 10,
+  honor_roll: { id: "honor_roll", rarity: "epic", damage: 110, fireRate: 620, magSize: 10,
     reloadTime: 1800, auto: false, recoil: 1.7, price: 2250, color: 0xd9c04f, accent: 0x4d4211, wallExclusive: true },
-  science_fair: { id: "science_fair", name: "Science Fair", rarity: "secret", damage: 45, fireRate: 105, magSize: 40,
+  science_fair: { id: "science_fair", rarity: "secret", damage: 45, fireRate: 105, magSize: 40,
     reloadTime: 2000, auto: true, recoil: 0.8, price: 2550, color: 0x4fd9c0, accent: 0x134a40, wallExclusive: true },
-  art_attack: { id: "art_attack", name: "Art Attack", rarity: "secret", damage: 120, fireRate: 950, magSize: 5,
+  art_attack: { id: "art_attack", rarity: "secret", damage: 120, fireRate: 950, magSize: 5,
     reloadTime: 2300, auto: false, splash: true, splashRadius: 4.5, recoil: 2.3, price: 2900, color: 0xb84fd9, accent: 0x3d134a, wallExclusive: true },
-  principals_verdict: { id: "principals_verdict", name: "Principal's Verdict", rarity: "secret", damage: 150, fireRate: 700, magSize: 6,
+  principals_verdict: { id: "principals_verdict", rarity: "secret", damage: 150, fireRate: 700, magSize: 6,
     reloadTime: 2000, auto: false, pierce: true, recoil: 2.0, price: 3350, color: 0xff6a3d, accent: 0x5c1f08, wallExclusive: true },
 
   // ---------------- Mystery box pool (category C2) ----------------
@@ -104,35 +107,35 @@ G.WEAPON_DEFS = {
   // each tier, always weighted against power -- the weakest standard gun is
   // over five times as likely as the strongest, and the level-ending Meteor
   // Detention is the rarest thing in the game at 1%.
-  scrap_spitter: { id: "scrap_spitter", name: "Scrap Spitter", rarity: "common", damage: 11, fireRate: 85, magSize: 32,
+  scrap_spitter: { id: "scrap_spitter", rarity: "common", damage: 11, fireRate: 85, magSize: 32,
     reloadTime: 1600, auto: true, recoil: 0.5, color: 0x8a8f7a, accent: 0x3d4036, boxOnly: true, boxTier: "standard", boxWeight: 16 },
-  nail_driver: { id: "nail_driver", name: "Nail Driver", rarity: "common", damage: 16, fireRate: 150, magSize: 24,
+  nail_driver: { id: "nail_driver", rarity: "common", damage: 16, fireRate: 150, magSize: 24,
     reloadTime: 1400, auto: true, recoil: 0.6, color: 0xd2a63c, accent: 0x54401a, boxOnly: true, boxTier: "standard", boxWeight: 15 },
-  hall_sweeper: { id: "hall_sweeper", name: "Hall Sweeper", rarity: "common", damage: 12, pellets: 5, fireRate: 720, magSize: 6,
+  hall_sweeper: { id: "hall_sweeper", rarity: "common", damage: 12, pellets: 5, fireRate: 720, magSize: 6,
     reloadTime: 2000, auto: false, recoil: 1.6, color: 0x6f7d86, accent: 0x2f3940, boxOnly: true, boxTier: "standard", boxWeight: 13 },
-  chalk_burster: { id: "chalk_burster", name: "Chalk Burster", rarity: "uncommon", damage: 21, burst: 3, burstDelay: 55, fireRate: 340, magSize: 21,
+  chalk_burster: { id: "chalk_burster", rarity: "uncommon", damage: 21, burst: 3, burstDelay: 55, fireRate: 340, magSize: 21,
     reloadTime: 1700, auto: false, recoil: 0.8, color: 0x58b5a0, accent: 0x224740, boxOnly: true, boxTier: "standard", boxWeight: 12 },
-  detention_deuce: { id: "detention_deuce", name: "Detention Deuce", rarity: "uncommon", damage: 19, burst: 2, burstDelay: 70, fireRate: 340, magSize: 16,
+  detention_deuce: { id: "detention_deuce", rarity: "uncommon", damage: 19, burst: 2, burstDelay: 70, fireRate: 340, magSize: 16,
     reloadTime: 1200, auto: false, recoil: 0.7, color: 0x9c6bd6, accent: 0x3b2a52, boxOnly: true, boxTier: "standard", boxWeight: 11 },
-  rust_repeater: { id: "rust_repeater", name: "Rust Repeater", rarity: "uncommon", damage: 28, fireRate: 420, magSize: 10,
+  rust_repeater: { id: "rust_repeater", rarity: "uncommon", damage: 28, fireRate: 420, magSize: 10,
     reloadTime: 1500, auto: false, recoil: 1.0, color: 0xa2603a, accent: 0x40261a, boxOnly: true, boxTier: "standard", boxWeight: 10 },
-  gym_grinder: { id: "gym_grinder", name: "Gym Class Grinder", rarity: "rare", damage: 9, fireRate: 55, magSize: 60,
+  gym_grinder: { id: "gym_grinder", rarity: "rare", damage: 9, fireRate: 55, magSize: 60,
     reloadTime: 3000, auto: true, recoil: 0.45, color: 0x3f6fb5, accent: 0x1b2c47, boxOnly: true, boxTier: "standard", boxWeight: 9 },
-  copper_coil: { id: "copper_coil", name: "Copper Coil", rarity: "rare", damage: 44, charge: { time: 0.85, mult: 2.6 }, fireRate: 900, magSize: 5,
+  copper_coil: { id: "copper_coil", rarity: "rare", damage: 44, charge: { time: 0.85, mult: 2.6 }, fireRate: 900, magSize: 5,
     reloadTime: 1900, auto: false, recoil: 1.5, color: 0xc9723f, accent: 0x3f2a1b, boxOnly: true, boxTier: "standard", boxWeight: 7 },
-  locker_lancer: { id: "locker_lancer", name: "Locker Lancer", rarity: "rare", damage: 50, fireRate: 520, magSize: 12,
+  locker_lancer: { id: "locker_lancer", rarity: "rare", damage: 50, fireRate: 520, magSize: 12,
     reloadTime: 1800, auto: false, recoil: 1.3, color: 0x2f6fb0, accent: 0x14314f, boxOnly: true, boxTier: "standard", boxWeight: 4 },
-  bus_bulldog: { id: "bus_bulldog", name: "Bus Stop Bulldog", rarity: "rare", damage: 58, fireRate: 650, magSize: 6,
+  bus_bulldog: { id: "bus_bulldog", rarity: "rare", damage: 58, fireRate: 650, magSize: 6,
     reloadTime: 2100, auto: false, recoil: 1.8, color: 0xb0b6bd, accent: 0x3a2f2a, boxOnly: true, boxTier: "standard", boxWeight: 3 },
-  thunder_chalk: { id: "thunder_chalk", name: "Thunder Chalk", rarity: "epic", damage: 72, charge: { time: 0.75, mult: 2.4 }, fireRate: 480, magSize: 18,
+  thunder_chalk: { id: "thunder_chalk", rarity: "epic", damage: 72, charge: { time: 0.75, mult: 2.4 }, fireRate: 480, magSize: 18,
     reloadTime: 2000, auto: false, recoil: 1.1, color: 0x7fe6ff, accent: 0x1d4c63, boxOnly: true, boxTier: "elite", boxWeight: 32 },
-  void_principal: { id: "void_principal", name: "Void Principal", rarity: "epic", damage: 42, fireRate: 95, magSize: 40,
+  void_principal: { id: "void_principal", rarity: "epic", damage: 42, fireRate: 95, magSize: 40,
     reloadTime: 2100, auto: true, recoil: 0.9, color: 0x5b3fa8, accent: 0x211640, boxOnly: true, boxTier: "elite", boxWeight: 28 },
-  prism_lance: { id: "prism_lance", name: "Prism Lance", rarity: "epic", damage: 95, fireRate: 480, magSize: 8,
+  prism_lance: { id: "prism_lance", rarity: "epic", damage: 95, fireRate: 480, magSize: 8,
     reloadTime: 1800, auto: false, pierce: true, recoil: 1.4, color: 0xef5fd0, accent: 0x4a1a42, boxOnly: true, boxTier: "elite", boxWeight: 20 },
-  final_bell: { id: "final_bell", name: "Final Bell", rarity: "secret", damage: 30, pellets: 8, fireRate: 420, magSize: 10,
+  final_bell: { id: "final_bell", rarity: "secret", damage: 30, pellets: 8, fireRate: 420, magSize: 10,
     reloadTime: 2400, auto: true, recoil: 2.0, color: 0xffd43b, accent: 0x6b4a08, boxOnly: true, boxTier: "elite", boxWeight: 14 },
-  meteor_detention: { id: "meteor_detention", name: "Meteor Detention", rarity: "secret", damage: 165, fireRate: 1100, magSize: 4,
+  meteor_detention: { id: "meteor_detention", rarity: "secret", damage: 165, fireRate: 1100, magSize: 4,
     reloadTime: 2600, auto: false, splash: true, splashRadius: 5, recoil: 2.6, color: 0xff6a2b, accent: 0x5c1f08, boxOnly: true, boxTier: "elite", boxWeight: 6 },
 };
 
@@ -159,59 +162,59 @@ G.MYSTERY_CARD_COUNT = 6;
 // Clean, clinical, sci-fi: white and mint hardware, glass, coils.
 Object.assign(G.WEAPON_DEFS, {
   // -- shop / crate pool (5) --
-  sterile_slug: { id: "sterile_slug", name: "Sterile Slug", rarity: "common", damage: 10, pellets: 6, spread: 0.075, fireRate: 720, magSize: 6,
+  sterile_slug: { id: "sterile_slug", rarity: "common", damage: 10, pellets: 6, spread: 0.075, fireRate: 720, magSize: 6,
     reloadTime: 1600, auto: false, recoil: 1.7, price: 420, color: 0xe4ece8, accent: 0x5f736c, level: 2, archetype: "shotgun" },
-  rebound_pistol: { id: "rebound_pistol", name: "Rebound Pistol", rarity: "common", damage: 20, fireRate: 290, magSize: 14,
+  rebound_pistol: { id: "rebound_pistol", rarity: "common", damage: 20, fireRate: 290, magSize: 14,
     reloadTime: 1000, auto: false, recoil: 0.7, price: 300, color: 0xbcd6cf, accent: 0x36514a, level: 2, archetype: "pistol" },
-  scalpel_smg: { id: "scalpel_smg", name: "Scalpel SMG", rarity: "uncommon", damage: 12, fireRate: 100, magSize: 32,
+  scalpel_smg: { id: "scalpel_smg", rarity: "uncommon", damage: 12, fireRate: 100, magSize: 32,
     reloadTime: 1300, auto: true, recoil: 0.5, price: 920, color: 0x6fd9bd, accent: 0x1f4a40, level: 2, archetype: "smg" },
-  triage_carbine: { id: "triage_carbine", name: "Triage Carbine", rarity: "uncommon", damage: 20, burst: 3, burstDelay: 60, fireRate: 340, magSize: 24,
+  triage_carbine: { id: "triage_carbine", rarity: "uncommon", damage: 20, burst: 3, burstDelay: 60, fireRate: 340, magSize: 24,
     reloadTime: 1400, auto: false, recoil: 0.8, price: 1250, color: 0x4fbfd9, accent: 0x18414f, level: 2, archetype: "rifle" },
-  crash_cart: { id: "crash_cart", name: "Crash Cart", rarity: "epic", damage: 72, fireRate: 900, magSize: 4,
+  crash_cart: { id: "crash_cart", rarity: "epic", damage: 72, fireRate: 900, magSize: 4,
     reloadTime: 2000, auto: false, splash: true, splashRadius: 4.5, recoil: 2.4, price: 4400, color: 0xd94f6a, accent: 0x4d1522, level: 2, archetype: "launcher" },
 
   // -- wall mounts (8) --
-  iv_repeater: { id: "iv_repeater", name: "IV Repeater", rarity: "rare", damage: 22, fireRate: 95, magSize: 40,
+  iv_repeater: { id: "iv_repeater", rarity: "rare", damage: 22, fireRate: 95, magSize: 40,
     reloadTime: 1500, auto: true, recoil: 0.55, price: 1300, color: 0x8fd6ff, accent: 0x1d3f57, level: 2, archetype: "smg", wallExclusive: true },
-  bone_saw: { id: "bone_saw", name: "Bone Saw", rarity: "rare", damage: 16, pellets: 7, spread: 0.05, fireRate: 700, magSize: 8,
+  bone_saw: { id: "bone_saw", rarity: "rare", damage: 16, pellets: 7, spread: 0.05, fireRate: 700, magSize: 8,
     reloadTime: 1800, auto: false, recoil: 1.8, price: 1700, color: 0xd9d2c4, accent: 0x4a4436, level: 2, archetype: "shotgun", wallExclusive: true },
-  morphine_mist: { id: "morphine_mist", name: "Morphine Mist", rarity: "epic", damage: 26, burst: 4, burstDelay: 55, fireRate: 420, magSize: 28,
+  morphine_mist: { id: "morphine_mist", rarity: "epic", damage: 26, burst: 4, burstDelay: 55, fireRate: 420, magSize: 28,
     reloadTime: 1600, auto: false, recoil: 0.9, price: 2100, color: 0xb48fd9, accent: 0x3a2352, level: 2, archetype: "rifle", wallExclusive: true },
-  quarantine_lance: { id: "quarantine_lance", name: "Quarantine Lance", rarity: "epic", damage: 62, pierce: 4, fireRate: 520, magSize: 10,
+  quarantine_lance: { id: "quarantine_lance", rarity: "epic", damage: 62, pierce: 4, fireRate: 520, magSize: 10,
     reloadTime: 1800, auto: false, recoil: 1.4, price: 2500, color: 0x4fd9a8, accent: 0x134a36, level: 2, archetype: "beam", wallExclusive: true },
-  autoclave: { id: "autoclave", name: "Autoclave", rarity: "epic", damage: 80, fireRate: 950, magSize: 5,
+  autoclave: { id: "autoclave", rarity: "epic", damage: 80, fireRate: 950, magSize: 5,
     reloadTime: 2200, auto: false, splash: true, splashRadius: 4.0, recoil: 2.2, price: 2900, color: 0xff9a5b, accent: 0x5c2c0f, level: 2, archetype: "launcher", wallExclusive: true },
-  defib_driver: { id: "defib_driver", name: "Defib Driver", rarity: "secret", damage: 46, charge: { time: 1.0, mult: 3.2 }, fireRate: 500, magSize: 12,
+  defib_driver: { id: "defib_driver", rarity: "secret", damage: 46, charge: { time: 1.0, mult: 3.2 }, fireRate: 500, magSize: 12,
     reloadTime: 2000, auto: false, recoil: 1.3, price: 3300, color: 0xffe14d, accent: 0x5c4a08, level: 2, archetype: "energy", wallExclusive: true },
-  vital_sign: { id: "vital_sign", name: "Vital Sign", rarity: "secret", damage: 165, scope: 26, fireRate: 1000, magSize: 5,
+  vital_sign: { id: "vital_sign", rarity: "secret", damage: 165, scope: 26, fireRate: 1000, magSize: 5,
     reloadTime: 1900, auto: false, recoil: 2.3, price: 3900, color: 0x7dffc0, accent: 0x14493a, level: 2, archetype: "sniper", wallExclusive: true },
-  code_blue: { id: "code_blue", name: "Code Blue", rarity: "secret", damage: 50, fireRate: 90, magSize: 45,
+  code_blue: { id: "code_blue", rarity: "secret", damage: 50, fireRate: 90, magSize: 45,
     reloadTime: 2000, auto: true, recoil: 0.8, price: 4400, color: 0x5b9bff, accent: 0x142a52, level: 2, archetype: "lmg", wallExclusive: true },
 
   // -- mystery box (12) --
-  gauze_gun: { id: "gauze_gun", name: "Gauze Gun", rarity: "common", damage: 12, fireRate: 90, magSize: 30,
+  gauze_gun: { id: "gauze_gun", rarity: "common", damage: 12, fireRate: 90, magSize: 30,
     reloadTime: 1500, auto: true, recoil: 0.45, color: 0xe8e4d8, accent: 0x53504a, level: 2, archetype: "smg", boxOnly: true, boxTier: "standard", boxWeight: 16 },
-  syringe_spitter: { id: "syringe_spitter", name: "Syringe Spitter", rarity: "common", damage: 18, fireRate: 160, magSize: 20,
+  syringe_spitter: { id: "syringe_spitter", rarity: "common", damage: 18, fireRate: 160, magSize: 20,
     reloadTime: 1300, auto: false, recoil: 0.5, color: 0xa8d6e8, accent: 0x2d4650, level: 2, archetype: "pistol", boxOnly: true, boxTier: "standard", boxWeight: 15 },
-  plaster_popper: { id: "plaster_popper", name: "Plaster Popper", rarity: "common", damage: 11, pellets: 5, spread: 0.09, fireRate: 740, magSize: 6,
+  plaster_popper: { id: "plaster_popper", rarity: "common", damage: 11, pellets: 5, spread: 0.09, fireRate: 740, magSize: 6,
     reloadTime: 1900, auto: false, recoil: 1.6, color: 0xcfc6b4, accent: 0x453f34, level: 2, archetype: "shotgun", boxOnly: true, boxTier: "standard", boxWeight: 13 },
-  oxygen_burst: { id: "oxygen_burst", name: "Oxygen Burst", rarity: "uncommon", damage: 22, burst: 3, burstDelay: 60, fireRate: 360, magSize: 21,
+  oxygen_burst: { id: "oxygen_burst", rarity: "uncommon", damage: 22, burst: 3, burstDelay: 60, fireRate: 360, magSize: 21,
     reloadTime: 1600, auto: false, recoil: 0.8, color: 0x5fd6e8, accent: 0x1a4650, level: 2, archetype: "rifle", boxOnly: true, boxTier: "standard", boxWeight: 12 },
-  reflex_hammer: { id: "reflex_hammer", name: "Reflex Hammer", rarity: "uncommon", damage: 34, fireRate: 430, magSize: 10,
+  reflex_hammer: { id: "reflex_hammer", rarity: "uncommon", damage: 34, fireRate: 430, magSize: 10,
     reloadTime: 1400, auto: false, recoil: 1.1, color: 0xd98f4f, accent: 0x4d2f15, level: 2, archetype: "pistol", boxOnly: true, boxTier: "standard", boxWeight: 11 },
-  dialysis_drum: { id: "dialysis_drum", name: "Dialysis Drum", rarity: "uncommon", damage: 14, fireRate: 70, magSize: 55,
+  dialysis_drum: { id: "dialysis_drum", rarity: "uncommon", damage: 14, fireRate: 70, magSize: 55,
     reloadTime: 2600, auto: true, recoil: 0.5, color: 0x6f9c8f, accent: 0x243a34, level: 2, archetype: "lmg", boxOnly: true, boxTier: "standard", boxWeight: 10 },
-  x_ray_beam: { id: "x_ray_beam", name: "X-Ray Beam", rarity: "rare", damage: 52, pierce: 3, fireRate: 560, magSize: 9,
+  x_ray_beam: { id: "x_ray_beam", rarity: "rare", damage: 52, pierce: 3, fireRate: 560, magSize: 9,
     reloadTime: 1800, auto: false, recoil: 1.2, color: 0xb9a8ff, accent: 0x2f2452, level: 2, archetype: "beam", boxOnly: true, boxTier: "standard", boxWeight: 8 },
-  anesthetic_arc: { id: "anesthetic_arc", name: "Anesthetic Arc", rarity: "rare", damage: 40, charge: { time: 0.9, mult: 2.8 }, fireRate: 700, magSize: 8,
+  anesthetic_arc: { id: "anesthetic_arc", rarity: "rare", damage: 40, charge: { time: 0.9, mult: 2.8 }, fireRate: 700, magSize: 8,
     reloadTime: 1900, auto: false, recoil: 1.3, color: 0x8f6fd9, accent: 0x2a1c4d, level: 2, archetype: "energy", boxOnly: true, boxTier: "standard", boxWeight: 6 },
-  cardiac_coil: { id: "cardiac_coil", name: "Cardiac Coil", rarity: "rare", damage: 110, scope: 30, fireRate: 950, magSize: 5,
+  cardiac_coil: { id: "cardiac_coil", rarity: "rare", damage: 110, scope: 30, fireRate: 950, magSize: 5,
     reloadTime: 1800, auto: false, recoil: 2.1, color: 0xff6b8f, accent: 0x50182c, level: 2, archetype: "sniper", boxOnly: true, boxTier: "standard", boxWeight: 4 },
-  plague_thrower: { id: "plague_thrower", name: "Plague Thrower", rarity: "epic", damage: 88, fireRate: 700, magSize: 8,
+  plague_thrower: { id: "plague_thrower", rarity: "epic", damage: 88, fireRate: 700, magSize: 8,
     reloadTime: 2100, auto: false, splash: true, splashRadius: 4.2, recoil: 1.9, color: 0x9cd94f, accent: 0x2f4a15, level: 2, archetype: "launcher", boxOnly: true, boxTier: "elite", boxWeight: 34 },
-  gene_splicer: { id: "gene_splicer", name: "Gene Splicer", rarity: "epic", damage: 70, pierce: 5, charge: { time: 0.7, mult: 2.2 }, fireRate: 640, magSize: 10,
+  gene_splicer: { id: "gene_splicer", rarity: "epic", damage: 70, pierce: 5, charge: { time: 0.7, mult: 2.2 }, fireRate: 640, magSize: 10,
     reloadTime: 2000, auto: false, recoil: 1.5, color: 0xef5fd0, accent: 0x4a1a42, level: 2, archetype: "beam", boxOnly: true, boxTier: "elite", boxWeight: 26 },
-  flatline: { id: "flatline", name: "Flatline", rarity: "secret", damage: 240, scope: 22, pierce: 6, fireRate: 1200, magSize: 3,
+  flatline: { id: "flatline", rarity: "secret", damage: 240, scope: 22, pierce: 6, fireRate: 1200, magSize: 3,
     reloadTime: 2400, auto: false, recoil: 2.7, color: 0xffd43b, accent: 0x5c4608, level: 2, archetype: "sniper", boxOnly: true, boxTier: "elite", boxWeight: 8 },
 });
 
@@ -219,59 +222,59 @@ Object.assign(G.WEAPON_DEFS, {
 // Military and industrial: welded steel, olive drab, rust, reactor orange.
 Object.assign(G.WEAPON_DEFS, {
   // -- shop / crate pool (5) --
-  rebar_repeater: { id: "rebar_repeater", name: "Rebar Repeater", rarity: "common", damage: 22, fireRate: 300, magSize: 14,
+  rebar_repeater: { id: "rebar_repeater", rarity: "common", damage: 22, fireRate: 300, magSize: 14,
     reloadTime: 1100, auto: false, recoil: 0.8, price: 520, color: 0x9a8f78, accent: 0x3a352a, level: 3, archetype: "pistol" },
-  breach_gauge: { id: "breach_gauge", name: "Breach Gauge", rarity: "common", damage: 11, pellets: 7, spread: 0.085, fireRate: 780, magSize: 5,
+  breach_gauge: { id: "breach_gauge", rarity: "common", damage: 11, pellets: 7, spread: 0.085, fireRate: 780, magSize: 5,
     reloadTime: 1700, auto: false, recoil: 1.9, price: 470, color: 0x7a6a4a, accent: 0x2f281c, level: 3, archetype: "shotgun" },
-  scrap_auto: { id: "scrap_auto", name: "Scrap Auto", rarity: "uncommon", damage: 13, fireRate: 95, magSize: 35,
+  scrap_auto: { id: "scrap_auto", rarity: "uncommon", damage: 13, fireRate: 95, magSize: 35,
     reloadTime: 1400, auto: true, recoil: 0.55, price: 980, color: 0x6f7a5a, accent: 0x2a2f1f, level: 3, archetype: "smg" },
-  service_rifle: { id: "service_rifle", name: "Service Rifle", rarity: "uncommon", damage: 24, burst: 3, burstDelay: 55, fireRate: 330, magSize: 30,
+  service_rifle: { id: "service_rifle", rarity: "uncommon", damage: 24, burst: 3, burstDelay: 55, fireRate: 330, magSize: 30,
     reloadTime: 1500, auto: false, recoil: 0.85, price: 1350, color: 0x5a6b45, accent: 0x222a1a, level: 3, archetype: "rifle" },
-  pipe_mortar: { id: "pipe_mortar", name: "Pipe Mortar", rarity: "epic", damage: 84, fireRate: 950, magSize: 4,
+  pipe_mortar: { id: "pipe_mortar", rarity: "epic", damage: 84, fireRate: 950, magSize: 4,
     reloadTime: 2100, auto: false, splash: true, splashRadius: 5.0, recoil: 2.5, price: 4800, color: 0xb5651f, accent: 0x3f2109, level: 3, archetype: "launcher" },
 
   // -- wall mounts (8) --
-  vent_ripper: { id: "vent_ripper", name: "Vent Ripper", rarity: "rare", damage: 24, fireRate: 85, magSize: 45,
+  vent_ripper: { id: "vent_ripper", rarity: "rare", damage: 24, fireRate: 85, magSize: 45,
     reloadTime: 1700, auto: true, recoil: 0.6, price: 1400, color: 0x8a9aa5, accent: 0x2f3940, level: 3, archetype: "lmg", wallExclusive: true },
-  bolt_thrower: { id: "bolt_thrower", name: "Bolt Thrower", rarity: "rare", damage: 58, pierce: 3, fireRate: 560, magSize: 8,
+  bolt_thrower: { id: "bolt_thrower", rarity: "rare", damage: 58, pierce: 3, fireRate: 560, magSize: 8,
     reloadTime: 1700, auto: false, recoil: 1.4, price: 1800, color: 0xc9923f, accent: 0x453213, level: 3, archetype: "beam", wallExclusive: true },
-  siege_slug: { id: "siege_slug", name: "Siege Slug", rarity: "epic", damage: 20, pellets: 8, spread: 0.055, fireRate: 820, magSize: 6,
+  siege_slug: { id: "siege_slug", rarity: "epic", damage: 20, pellets: 8, spread: 0.055, fireRate: 820, magSize: 6,
     reloadTime: 2000, auto: false, recoil: 2.1, price: 2200, color: 0x6b7f8a, accent: 0x263036, level: 3, archetype: "shotgun", wallExclusive: true },
-  drum_hammer: { id: "drum_hammer", name: "Drum Hammer", rarity: "rare", damage: 18, fireRate: 65, magSize: 70,
+  drum_hammer: { id: "drum_hammer", rarity: "rare", damage: 18, fireRate: 65, magSize: 70,
     reloadTime: 2800, auto: true, recoil: 0.5, price: 2000, color: 0x4f6b8a, accent: 0x1b2a3a, level: 3, archetype: "lmg", wallExclusive: true },
-  capacitor_lance: { id: "capacitor_lance", name: "Capacitor Lance", rarity: "epic", damage: 52, charge: { time: 1.0, mult: 3.0 }, fireRate: 640, magSize: 9,
+  capacitor_lance: { id: "capacitor_lance", rarity: "epic", damage: 52, charge: { time: 1.0, mult: 3.0 }, fireRate: 640, magSize: 9,
     reloadTime: 1900, auto: false, recoil: 1.5, price: 2600, color: 0x5fd6ff, accent: 0x153f52, level: 3, archetype: "energy", wallExclusive: true },
-  thermite_tube: { id: "thermite_tube", name: "Thermite Tube", rarity: "epic", damage: 95, fireRate: 1000, magSize: 4,
+  thermite_tube: { id: "thermite_tube", rarity: "epic", damage: 95, fireRate: 1000, magSize: 4,
     reloadTime: 2300, auto: false, splash: true, splashRadius: 4.6, recoil: 2.4, price: 3000, color: 0xff7a3d, accent: 0x54220c, level: 3, archetype: "launcher", wallExclusive: true },
-  overwatch: { id: "overwatch", name: "Overwatch", rarity: "secret", damage: 200, scope: 24, fireRate: 1050, magSize: 4,
+  overwatch: { id: "overwatch", rarity: "secret", damage: 200, scope: 24, fireRate: 1050, magSize: 4,
     reloadTime: 2000, auto: false, recoil: 2.5, price: 4000, color: 0x3f5a3a, accent: 0x18261a, level: 3, archetype: "sniper", wallExclusive: true },
-  warhead: { id: "warhead", name: "Warhead", rarity: "secret", damage: 220, fireRate: 1400, magSize: 2,
+  warhead: { id: "warhead", rarity: "secret", damage: 220, fireRate: 1400, magSize: 2,
     reloadTime: 2800, auto: false, splash: true, splashRadius: 6.5, recoil: 2.9, price: 5200, color: 0xff4d4d, accent: 0x5c0f0f, level: 3, archetype: "cannon", wallExclusive: true },
 
   // -- mystery box (12) --
-  nut_cracker: { id: "nut_cracker", name: "Nut Cracker", rarity: "common", damage: 20, fireRate: 280, magSize: 12,
+  nut_cracker: { id: "nut_cracker", rarity: "common", damage: 20, fireRate: 280, magSize: 12,
     reloadTime: 1100, auto: false, recoil: 0.75, color: 0xa5926b, accent: 0x3a3224, level: 3, archetype: "pistol", boxOnly: true, boxTier: "standard", boxWeight: 16 },
-  chain_feeder: { id: "chain_feeder", name: "Chain Feeder", rarity: "common", damage: 11, fireRate: 75, magSize: 40,
+  chain_feeder: { id: "chain_feeder", rarity: "common", damage: 11, fireRate: 75, magSize: 40,
     reloadTime: 2400, auto: true, recoil: 0.45, color: 0x757d6a, accent: 0x2b3026, level: 3, archetype: "lmg", boxOnly: true, boxTier: "standard", boxWeight: 16 },
-  blast_door: { id: "blast_door", name: "Blast Door", rarity: "common", damage: 13, pellets: 6, spread: 0.08, fireRate: 800, magSize: 5,
+  blast_door: { id: "blast_door", rarity: "common", damage: 13, pellets: 6, spread: 0.08, fireRate: 800, magSize: 5,
     reloadTime: 1800, auto: false, recoil: 1.8, color: 0x8a8578, accent: 0x33302a, level: 3, archetype: "shotgun", boxOnly: true, boxTier: "standard", boxWeight: 14 },
-  tri_burst: { id: "tri_burst", name: "Tri-Burst", rarity: "uncommon", damage: 25, burst: 3, burstDelay: 55, fireRate: 350, magSize: 27,
+  tri_burst: { id: "tri_burst", rarity: "uncommon", damage: 25, burst: 3, burstDelay: 55, fireRate: 350, magSize: 27,
     reloadTime: 1500, auto: false, recoil: 0.85, color: 0x4f8a5a, accent: 0x1b3320, level: 3, archetype: "rifle", boxOnly: true, boxTier: "standard", boxWeight: 12 },
-  sledge_shot: { id: "sledge_shot", name: "Sledge Shot", rarity: "uncommon", damage: 40, fireRate: 480, magSize: 8,
+  sledge_shot: { id: "sledge_shot", rarity: "uncommon", damage: 40, fireRate: 480, magSize: 8,
     reloadTime: 1600, auto: false, recoil: 1.4, color: 0xa2603a, accent: 0x40261a, level: 3, archetype: "cannon", boxOnly: true, boxTier: "standard", boxWeight: 11 },
-  rail_spike: { id: "rail_spike", name: "Rail Spike", rarity: "rare", damage: 62, pierce: 4, fireRate: 600, magSize: 8,
+  rail_spike: { id: "rail_spike", rarity: "rare", damage: 62, pierce: 4, fireRate: 600, magSize: 8,
     reloadTime: 1900, auto: false, recoil: 1.4, color: 0x6fa8d9, accent: 0x1e3850, level: 3, archetype: "beam", boxOnly: true, boxTier: "standard", boxWeight: 8 },
-  arc_welder: { id: "arc_welder", name: "Arc Welder", rarity: "rare", damage: 44, charge: { time: 0.85, mult: 2.7 }, fireRate: 680, magSize: 9,
+  arc_welder: { id: "arc_welder", rarity: "rare", damage: 44, charge: { time: 0.85, mult: 2.7 }, fireRate: 680, magSize: 9,
     reloadTime: 1800, auto: false, recoil: 1.2, color: 0x7fe6ff, accent: 0x1d4c63, level: 3, archetype: "energy", boxOnly: true, boxTier: "standard", boxWeight: 7 },
-  mag_driver: { id: "mag_driver", name: "Mag Driver", rarity: "rare", damage: 125, scope: 28, fireRate: 980, magSize: 5,
+  mag_driver: { id: "mag_driver", rarity: "rare", damage: 125, scope: 28, fireRate: 980, magSize: 5,
     reloadTime: 1900, auto: false, recoil: 2.2, color: 0x9c6bd6, accent: 0x33225c, level: 3, archetype: "sniper", boxOnly: true, boxTier: "standard", boxWeight: 4 },
-  mortar_pup: { id: "mortar_pup", name: "Mortar Pup", rarity: "rare", damage: 66, fireRate: 880, magSize: 5,
+  mortar_pup: { id: "mortar_pup", rarity: "rare", damage: 66, fireRate: 880, magSize: 5,
     reloadTime: 2000, auto: false, splash: true, splashRadius: 3.8, recoil: 1.9, color: 0xd9b23c, accent: 0x4a3a10, level: 3, archetype: "launcher", boxOnly: true, boxTier: "standard", boxWeight: 3 },
-  reactor_core: { id: "reactor_core", name: "Reactor Core", rarity: "epic", damage: 78, charge: { time: 1.2, mult: 3.6 }, fireRate: 900, magSize: 6,
+  reactor_core: { id: "reactor_core", rarity: "epic", damage: 78, charge: { time: 1.2, mult: 3.6 }, fireRate: 900, magSize: 6,
     reloadTime: 2300, auto: false, recoil: 2.0, color: 0xff9a4d, accent: 0x50290c, level: 3, archetype: "cannon", boxOnly: true, boxTier: "elite", boxWeight: 32 },
-  last_stand: { id: "last_stand", name: "Last Stand", rarity: "epic", damage: 46, fireRate: 80, magSize: 60,
+  last_stand: { id: "last_stand", rarity: "epic", damage: 46, fireRate: 80, magSize: 60,
     reloadTime: 2500, auto: true, recoil: 0.9, color: 0xc23bef, accent: 0x3d1a4a, level: 3, archetype: "lmg", boxOnly: true, boxTier: "elite", boxWeight: 26 },
-  doomsday: { id: "doomsday", name: "Doomsday", rarity: "secret", damage: 260, fireRate: 1500, magSize: 2,
+  doomsday: { id: "doomsday", rarity: "secret", damage: 260, fireRate: 1500, magSize: 2,
     reloadTime: 3000, auto: false, splash: true, splashRadius: 7.0, recoil: 3.0, color: 0xffd43b, accent: 0x6b3a08, level: 3, archetype: "cannon", boxOnly: true, boxTier: "elite", boxWeight: 10 },
 });
 
@@ -314,15 +317,15 @@ G.weaponsForLevel = function (levelId, filter) {
 // A short label for how a weapon fires, shown wherever its stats are.
 G.fireModeLabel = function (def) {
   if (!def) return "";
-  if (def.id === "melee") return "ระยะประชิด";
-  if (def.charge) return "ชาร์จพลัง";
-  if (def.splash) return "ระเบิดเป็นวง";
-  if (def.pellets) return "ลูกปราย x" + def.pellets;
-  if (def.scope) return "สไนเปอร์ (มีกล้อง)";
-  if (def.burst) return "ยิงชุด " + def.burst + " นัด";
-  if (def.pierce) return "ทะลุ " + (def.pierce >= 99 ? "ไม่จำกัด" : def.pierce) + " ตัว";
-  if (def.auto) return "อัตโนมัติ";
-  return "กึ่งอัตโนมัติ";
+  if (def.id === "melee") return G.T("fire.melee");
+  if (def.charge) return G.T("fire.charge");
+  if (def.splash) return G.T("fire.splash");
+  if (def.pellets) return G.T("fire.pellets", { n: def.pellets });
+  if (def.scope) return G.T("fire.scope");
+  if (def.burst) return G.T("fire.burst", { n: def.burst });
+  if (def.pierce) return def.pierce >= 99 ? G.T("fire.pierceAll") : G.T("fire.pierce", { n: def.pierce });
+  if (def.auto) return G.T("fire.auto");
+  return G.T("fire.semi");
 };
 G.rollMysteryHand = function (levelId) {
   const pick = (pool) => {
@@ -344,7 +347,7 @@ G.rollMysteryHand = function (levelId) {
   return G.shuffle(hand);
 };
 
-G.MELEE_DEF = { id: "melee", name: "Combat Knife", damage: 35, fireRate: 450, range: 2.6 };
+G.MELEE_DEF = { id: "melee", damage: 35, fireRate: 450, range: 2.6 };
 
 // ---------------- Voxel builders (BoxGeometry only) ----------------
 G.makeBoxMat = (color) => new THREE.MeshLambertMaterial({ color });
@@ -786,12 +789,13 @@ G.weaponWeight = function (def) {
 };
 
 // Four bands, each with the movement penalty category E applies and the label
-// shown in the weapon log, the mystery box and the shop.
+// shown in the weapon log, the mystery box and the shop (the labels are
+// filled in from js/strings.js by G.localizeData).
 G.WEIGHT_CLASSES = [
-  { key: "light", max: 2.2, label: "เบา", speedMult: 1.0, staminaMult: 1.0, color: "#6bff7a" },
-  { key: "medium", max: 3.3, label: "ปานกลาง", speedMult: 0.93, staminaMult: 1.12, color: "#ffd43b" },
-  { key: "heavy", max: 4.4, label: "หนัก", speedMult: 0.84, staminaMult: 1.3, color: "#ff9a4d" },
-  { key: "very_heavy", max: Infinity, label: "หนักมาก", speedMult: 0.74, staminaMult: 1.5, color: "#ff5c5c" },
+  { key: "light", max: 2.2, label: "", speedMult: 1.0, staminaMult: 1.0, color: "#6bff7a" },
+  { key: "medium", max: 3.3, label: "", speedMult: 0.93, staminaMult: 1.12, color: "#ffd43b" },
+  { key: "heavy", max: 4.4, label: "", speedMult: 0.84, staminaMult: 1.3, color: "#ff9a4d" },
+  { key: "very_heavy", max: Infinity, label: "", speedMult: 0.74, staminaMult: 1.5, color: "#ff5c5c" },
 ];
 G.weightClass = function (def) {
   const w = G.weaponWeight(def);

@@ -433,7 +433,7 @@
       this.setEnv(envForRegion(G.getRegionAt(game.world, p.x, p.z, p.y - 1.7)));
     },
 
-    // ---- "ทดลองฟังเสียง" in the weapon log -------------------------------
+    // ---- "Listen" (sound test) in the weapon log -------------------------------
     // A few rounds the way the gun fires them, then its reload.
     preview(def) {
       const A = G.Audio;

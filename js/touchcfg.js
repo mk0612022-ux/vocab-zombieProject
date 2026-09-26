@@ -12,12 +12,8 @@
 // and the two would clobber each other.
 // ===================================================================
 G.TouchCfg = {
+  // also the save keys of touchLayout.pos / .scale; names are "touchcfg.<id>"
   IDS: ["joystick", "fire", "ads", "interact", "reload", "jump", "sprint", "pause", "slots"],
-  LABELS: {
-    joystick: "จอยสติ๊กเดิน", fire: "ปุ่มยิง (FIRE)", ads: "ปุ่มเล็ง", interact: "ปุ่มใช้งาน (E)",
-    reload: "ปุ่มรีโหลด (R)", jump: "ปุ่มกระโดด", sprint: "ปุ่มวิ่ง", pause: "ปุ่มหยุดเกม",
-    slots: "แถวสลับอาวุธ",
-  },
   MIN_SCALE: 0.6, MAX_SCALE: 1.8,
   editing: false,
   _sel: null,
@@ -173,8 +169,10 @@ G.TouchCfg = {
   sampleHud() {
     return {
       hp: 100, stamina: 100, staminaExhausted: false, money: 1500, score: 2400,
-      levelLabel: "โรงเรียนร้าง · Wave 1/5", zombiesLeft: 3, weaponName: "Pistol",
-      ammoInMag: 12, ammoReserve: 48, currentMeaning: "ตัวอย่างความหมายภาษาไทย",
+      levelLabel: G.T("hud.levelWave", { level: G.getLevel(1).name, wave: "1/" + G.getLevel(1).waves }), zombiesLeft: 3,
+      weaponName: G.WEAPON_DEFS.pistol.name,
+      // a real meaning from the level-1 word list, so the preview shows Thai text at its true width
+      ammoInMag: 12, ammoReserve: 48, currentMeaning: G.WORDS_LEVEL_1[0][1],
       slots: [{ active: false }, { active: true }, { active: false }, { active: false }, { active: false }],
       combo: 1,
     };
@@ -236,7 +234,7 @@ G.TouchCfg = {
     p("touchcfg-collapse").onclick = () => {
       const panel = p("touchcfg-panel");
       panel.classList.toggle("collapsed");
-      p("touchcfg-collapse").textContent = panel.classList.contains("collapsed") ? "ขยาย" : "ย่อ";
+      p("touchcfg-collapse").textContent = G.T(panel.classList.contains("collapsed") ? "touchcfg.show" : "touchcfg.hide");
     };
     p("touchcfg-size").oninput = (e) => {
       if (!this._sel) return;
@@ -263,7 +261,7 @@ G.TouchCfg = {
     };
     p("touchcfg-sens").onchange = () => G.persist();
     p("touchcfg-reset").onclick = () => {
-      if (!confirm("คืนค่าตำแหน่ง ขนาด ความโปร่งใส และความไวทั้งหมดเป็นค่าเริ่มต้นหรือไม่?")) return;
+      if (!confirm(G.T("touchcfg.confirmReset"))) return;
       this.resetAll(); this.renderPanel();
     };
     p("touchcfg-done").onclick = () => this.closeEditor();
@@ -282,7 +280,7 @@ G.TouchCfg = {
     const p = (id) => document.getElementById(id);
     if (!p("touchcfg-selname")) return;
     const sel = this._sel;
-    p("touchcfg-selname").textContent = sel ? this.LABELS[sel] : "— แตะปุ่มบนจอเพื่อเลือก —";
+    p("touchcfg-selname").textContent = G.T(sel ? "touchcfg." + sel : "touchcfg.none");
     const scale = sel ? (this.cfg().scale[sel] || 1) : 1;
     p("touchcfg-size").value = scale;
     p("touchcfg-size").disabled = !sel;

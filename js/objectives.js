@@ -55,7 +55,7 @@ G.Objectives = {
       const name = G.getRegionAt(game.world, p.x, p.z, p.y - 1.7);
       if (name && game.world.roomNames && game.world.roomNames.has(name) && !s.visited.has(name)) {
         s.visited.add(name);
-        if (s.visited.size === s.roomsNeeded) G.UI.flashPurchaseBanner("สำรวจครบแล้ว!", `เข้าไปแล้ว ${s.visited.size} ห้อง`);
+        if (s.visited.size === s.roomsNeeded) G.UI.flashPurchaseBanner(G.T("banner.explored"), G.T("banner.exploredText", { n: s.visited.size }));
       }
     }
     // keys: walk over them
@@ -68,7 +68,7 @@ G.Objectives = {
         k.taken = true;
         k.mesh.visible = false;
         s.keysFound++;
-        G.UI.flashPurchaseBanner("พบกุญแจ!", `${s.keysFound} / ${s.keysTotal} ดอก`);
+        G.UI.flashPurchaseBanner(G.T("banner.key"), G.T("banner.keyText", { k: s.keysFound, n: s.keysTotal }));
         if (G.Audio) G.Audio.sfx("pickup_key");
       }
     });
@@ -83,7 +83,7 @@ G.Objectives = {
       // moment the list is complete, instead of making the player clear one
       // more (the playtest bot finished everything and died doing that).
       if (game._finalWaveCleared) { game._winNow = true; return; }
-      G.UI.flashPurchaseBanner("ภารกิจครบแล้ว!", game.wave >= game.level.waves ? "เคลียร์เวฟนี้เพื่อผ่านด่าน" : "เอาตัวรอดให้ครบทุกเวฟเพื่อผ่านด่าน");
+      G.UI.flashPurchaseBanner(G.T("banner.allObjectives"), G.T(game.wave >= game.level.waves ? "banner.clearThisWave" : "banner.surviveAll"));
     }
   },
 
@@ -102,14 +102,15 @@ G.Objectives = {
     const c = s.cfg;
     const acc = this.accuracy(game);
     const L = !!s.latched;
+    const T = G.T;
     const rows = [
-      { label: `เอาตัวรอดให้ครบ ${game.level.waves} เวฟ`, value: `${Math.min(game.wave, game.level.waves)} / ${game.level.waves}`, done: game.wave > game.level.waves || (game.wave === game.level.waves && game._finalWaveCleared) },
-      { label: `ตอบคำศัพท์ถูกอย่างน้อย ${c.minCorrect} คำ`, value: `${game.correctCount} / ${c.minCorrect}`, done: L || game.correctCount >= c.minCorrect },
-      { label: `ความแม่นยำคำศัพท์ ${Math.round(c.accuracy * 100)}% ขึ้นไป`, value: `${Math.round(acc * 100)}%`, done: L || (acc >= c.accuracy && (game.correctCount + game.wrongCount) > 0) },
-      { label: `สำรวจห้องให้ได้ ${s.roomsNeeded} ห้อง`, value: `${s.visited.size} / ${s.roomsNeeded}`, done: s.visited.size >= s.roomsNeeded },
-      { label: `ตามหากุญแจที่ซ่อนอยู่ ${s.keysTotal} ดอก`, value: `${s.keysFound} / ${s.keysTotal}`, done: s.keysFound >= s.keysTotal },
+      { label: T("obj.survive", { n: game.level.waves }), value: `${Math.min(game.wave, game.level.waves)} / ${game.level.waves}`, done: game.wave > game.level.waves || (game.wave === game.level.waves && game._finalWaveCleared) },
+      { label: T("obj.correct", { n: c.minCorrect }), value: `${game.correctCount} / ${c.minCorrect}`, done: L || game.correctCount >= c.minCorrect },
+      { label: T("obj.accuracy", { p: Math.round(c.accuracy * 100) }), value: `${Math.round(acc * 100)}%`, done: L || (acc >= c.accuracy && (game.correctCount + game.wrongCount) > 0) },
+      { label: T("obj.explore", { n: s.roomsNeeded }), value: `${s.visited.size} / ${s.roomsNeeded}`, done: s.visited.size >= s.roomsNeeded },
+      { label: T("obj.keys", { n: s.keysTotal }), value: `${s.keysFound} / ${s.keysTotal}`, done: s.keysFound >= s.keysTotal },
     ];
-    if (c.boss) rows.push({ label: "ล้มบอสประจำด่าน", value: s.bossDown ? "สำเร็จ" : "ยังไม่ล้ม", done: s.bossDown });
+    if (c.boss) rows.push({ label: T("obj.boss"), value: T(s.bossDown ? "obj.bossDone" : "obj.bossNot"), done: s.bossDown });
     return rows;
   },
 

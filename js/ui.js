@@ -123,9 +123,9 @@ G.UI = {
       card.innerHTML = `
         <div class="level-card-thumb">${lvl.icon}</div>
         <div class="level-card-body">
-          <div class="level-card-title">ด่าน ${lvl.id}: ${lvl.name}</div>
-          <div class="level-card-sub">${lvl.waves} เวฟ · ความยาก ${lvl.difficulty.toFixed(1)}x</div>
-          ${unlocked ? `<div class="level-card-score">คะแนนสูงสุด: ${hs || "-"}</div>` : `<div class="level-card-lock">🔒 ผ่านด่านก่อนหน้าเพื่อปลดล็อก</div>`}
+          <div class="level-card-title">${G.T("common.levelNamed", { n: lvl.id, name: lvl.name })}</div>
+          <div class="level-card-sub">${G.T("levels.info", { waves: lvl.waves, diff: lvl.difficulty.toFixed(1) })}</div>
+          ${unlocked ? `<div class="level-card-score">${G.T("levels.best", { score: hs || "-" })}</div>` : `<div class="level-card-lock">${G.T("levels.locked")}</div>`}
         </div>`;
       if (unlocked) card.onclick = () => G.Game.startLevel(lvl.id);
       wrap.appendChild(card);
@@ -149,74 +149,75 @@ G.UI = {
     const s = G.save.settings;
     const wrap = this.el("settings-content");
     const kb = s.keybinds;
-    const actionLabels = { forward: "เดินหน้า", back: "ถอยหลัง", left: "ซ้าย", right: "ขวา", sprint: "วิ่ง", jump: "กระโดด",
-      reload: "Reload", interact: "Interact", melee: "มีด", slot2: "อาวุธช่อง 2", slot3: "อาวุธช่อง 3", slot4: "อาวุธช่อง 4", slot5: "อาวุธช่อง 5", pause: "Pause" };
+    const T = G.T;
+    const actions = ["forward", "back", "left", "right", "sprint", "jump", "reload", "interact", "melee", "slot2", "slot3", "slot4", "slot5", "pause"];
+    const pct = (v, d) => Math.round((v == null ? d : v) * 100);
     wrap.innerHTML = `
-      <div class="settings-section-title">ควบคุม</div>
-      <div class="settings-row"><label>โหมดควบคุม</label>
+      <div class="settings-section-title">${T("settings.controls")}</div>
+      <div class="settings-row"><label>${T("settings.controlMode")}</label>
         <select id="set-controlmode">
-          <option value="auto">อัตโนมัติ</option>
-          <option value="desktop">Desktop Controls</option>
-          <option value="touch">Touch Controls</option>
+          <option value="auto">${T("settings.controlAuto")}</option>
+          <option value="desktop">${T("settings.controlDesktop")}</option>
+          <option value="touch">${T("settings.controlTouch")}</option>
         </select>
       </div>
-      <div class="settings-row"><label>ความไวเมาส์ (${s.mouseSensitivity.toFixed(2)})</label>
+      <div class="settings-row"><label>${T("settings.mouseSens", { v: s.mouseSensitivity.toFixed(2) })}</label>
         <input type="range" id="set-sens" min="0.2" max="2.5" step="0.05" value="${s.mouseSensitivity}"></div>
-      <div class="settings-row"><label>ปุ่มควบคุมบนจอสัมผัส (ตำแหน่ง / ขนาด / ความโปร่งใส / ความไว)</label>
-        <button class="btn" id="btn-touchcfg">ปรับแต่งปุ่มควบคุม</button></div>
+      <div class="settings-row"><label>${T("settings.touchLayout")}</label>
+        <button class="btn" id="btn-touchcfg">${T("settings.touchLayoutBtn")}</button></div>
 
-      <div class="settings-section-title">Key Bindings</div>
-      ${Object.keys(actionLabels).map((a) => `
-        <div class="keybind-row"><span>${actionLabels[a]}</span>
+      <div class="settings-section-title">${T("settings.keybinds")}</div>
+      ${actions.map((a) => `
+        <div class="keybind-row"><span>${T("key." + a)}</span>
           <button class="btn keybind-btn" data-action="${a}">${kb[a]}</button></div>`).join("")}
-      <div class="row-center"><button class="btn" id="btn-reset-keybinds">Reset to Default</button></div>
+      <div class="row-center"><button class="btn" id="btn-reset-keybinds">${T("settings.resetKeys")}</button></div>
 
-      <div class="settings-section-title">เสียง</div>
-      ${[["sfxVolume", "เสียงเอฟเฟกต์ (ปืน ซอมบี้ เดิน)"], ["musicVolume", "เพลงประกอบ"], ["ambientVolume", "เสียงบรรยากาศ"], ["speechVolume", "เสียงอ่านคำศัพท์"]].map(([k, label]) => `
-      <div class="settings-row"><label>${label} (${Math.round((s[k] == null ? 0.7 : s[k]) * 100)}%)</label>
+      <div class="settings-section-title">${T("settings.audio")}</div>
+      ${["sfxVolume", "musicVolume", "ambientVolume", "speechVolume"].map((k) => `
+      <div class="settings-row"><label>${T("settings." + k, { v: pct(s[k], 0.7) })}</label>
         <input type="range" class="set-vol" data-key="${k}" min="0" max="1" step="0.05" value="${s[k] == null ? 0.7 : s[k]}"></div>`).join("")}
-      <div class="settings-row"><label>อ่านออกเสียงคำศัพท์อัตโนมัติ</label>
+      <div class="settings-row"><label>${T("settings.speechMode")}</label>
         <select id="set-speechmode">
-          <option value="after">หลังตอบถูก (แนะนำ)</option>
-          <option value="before">ทันทีที่คำใหม่ปรากฏ (ง่ายขึ้น)</option>
-          <option value="off">ปิด</option>
+          <option value="after">${T("settings.speechAfter")}</option>
+          <option value="before">${T("settings.speechBefore")}</option>
+          <option value="off">${T("settings.speechOff")}</option>
         </select></div>
-      <div class="row-center"><button class="btn" id="btn-speech-test">ทดสอบเสียงอ่าน</button></div>
+      <div class="row-center"><button class="btn" id="btn-speech-test">${T("settings.speechTest")}</button></div>
 
-      <div class="settings-section-title">Performance</div>
-      <div class="settings-row"><label>FPS Cap</label>
+      <div class="settings-section-title">${T("settings.performance")}</div>
+      <div class="settings-row"><label>${T("settings.fpsCap")}</label>
         <select id="set-fpscap">
           <option value="60">60</option><option value="90">90</option><option value="120">120</option>
-          <option value="144">144</option><option value="0">Unlimited</option>
+          <option value="144">144</option><option value="0">${T("settings.unlimited")}</option>
         </select>
       </div>
-      <div class="settings-row"><label>แสดง FPS Counter</label>
+      <div class="settings-row"><label>${T("settings.showFps")}</label>
         <input type="checkbox" id="set-showfps"></div>
-      <div class="settings-row"><label>แสดงจำนวน draw call</label>
+      <div class="settings-row"><label>${T("settings.showDraws")}</label>
         <input type="checkbox" id="set-showdraws"></div>
-      <div class="settings-row"><label>คุณภาพกราฟิก</label>
+      <div class="settings-row"><label>${T("settings.quality")}</label>
         <select id="set-quality">
-          <option value="vlow">ต่ำมาก</option><option value="low">ต่ำ</option><option value="medium">ปานกลาง</option>
-          <option value="high">สวย</option><option value="vhigh">สวยมาก</option>
+          <option value="vlow">${T("settings.qVlow")}</option><option value="low">${T("settings.qLow")}</option><option value="medium">${T("settings.qMedium")}</option>
+          <option value="high">${T("settings.qHigh")}</option><option value="vhigh">${T("settings.qVhigh")}</option>
         </select>
       </div>
-      <div class="settings-row"><label>ความเร็วเกม (${s.gameSpeed.toFixed(2)}x)</label>
+      <div class="settings-row"><label>${T("settings.gameSpeed", { v: s.gameSpeed.toFixed(2) })}</label>
         <input type="range" id="set-gamespeed" min="0.5" max="1.5" step="0.05" value="${s.gameSpeed}"></div>
 
-      <div class="settings-section-title">Accessibility</div>
-      <div class="settings-row"><label>ขนาดตัวอักษร</label>
-        <select id="set-fontsize"><option value="small">เล็ก</option><option value="medium">กลาง</option><option value="large">ใหญ่</option></select></div>
-      <div class="settings-row"><label>โหมดสีสำหรับผู้มีภาวะตาบอดสี (แสดงไอคอน rarity เพิ่ม)</label>
+      <div class="settings-section-title">${T("settings.accessibility")}</div>
+      <div class="settings-row"><label>${T("settings.fontSize")}</label>
+        <select id="set-fontsize"><option value="small">${T("settings.fontSmall")}</option><option value="medium">${T("settings.fontMedium")}</option><option value="large">${T("settings.fontLarge")}</option></select></div>
+      <div class="settings-row"><label>${T("settings.colorblind")}</label>
         <input type="checkbox" id="set-colorblind"></div>
-      <div class="settings-row"><label>ความแรงการโยกกล้องตอนเดิน/วิ่ง (${Math.round((s.headBob == null ? 1 : s.headBob) * 100)}%)</label>
+      <div class="settings-row"><label>${T("settings.headBob", { v: pct(s.headBob, 1) })}</label>
         <input type="range" id="set-headbob" min="0" max="1" step="0.05" value="${s.headBob == null ? 1 : s.headBob}" ${s.headBobOff ? "disabled" : ""}></div>
-      <div class="settings-row"><label>ปิดการโยกกล้องทั้งหมด (สำหรับผู้ที่เวียนหัวง่าย)</label>
+      <div class="settings-row"><label>${T("settings.headBobOff")}</label>
         <input type="checkbox" id="set-headbob-off"></div>
 
-      <div class="settings-section-title">Save Data</div>
+      <div class="settings-section-title">${T("settings.saveData")}</div>
       <div class="row-center">
-        <button class="btn" id="btn-export-save">Export Save</button>
-        <button class="btn" id="btn-import-save-settings">Import Save</button>
+        <button class="btn" id="btn-export-save">${T("settings.exportSave")}</button>
+        <button class="btn" id="btn-import-save-settings">${T("settings.importSave")}</button>
         <input type="file" id="import-save-file" accept="application/json" style="display:none">
       </div>
     `;
@@ -275,18 +276,14 @@ G.UI = {
       e.target.value = "";                    // picking the same file twice should still fire
       if (!f) return;
       G.readSaveFile(f, (err, res) => {
-        if (err) { alert("นำเข้าไม่ได้: " + err.message); return; }
+        if (err) { alert(G.T("save.importFailed", { msg: err.message })); return; }
         const a = res.summary, b = G.saveSummary(G.save);
-        const when = res.exportedAt ? new Date(res.exportedAt).toLocaleString("th-TH") : "ไม่ทราบ";
-        const msg = "การนำเข้าจะเขียนทับข้อมูลปัจจุบันทั้งหมด\n\n"
-          + `ไฟล์ที่นำเข้า (ส่งออกเมื่อ ${when}):\n`
-          + `  ด่านที่ปลดล็อก ${a.levels} · คำศัพท์ที่มีสถิติ ${a.words} · Achievement ${a.achievements} · ปืนที่เคยได้ ${a.weapons}\n\n`
-          + "ข้อมูลปัจจุบันที่จะถูกแทนที่:\n"
-          + `  ด่านที่ปลดล็อก ${b.levels} · คำศัพท์ที่มีสถิติ ${b.words} · Achievement ${b.achievements} · ปืนที่เคยได้ ${b.weapons}\n\n`
-          + "ยืนยันการนำเข้าหรือไม่?";
+        const when = res.exportedAt ? new Date(res.exportedAt).toLocaleString("en-GB") : G.T("common.unknown");
+        const msg = G.T("save.importConfirm", { when, al: a.levels, aw: a.words, aa: a.achievements, ag: a.weapons,
+          bl: b.levels, bw: b.words, ba: b.achievements, bg: b.weapons });
         if (!confirm(msg)) return;
         G.applyImportedSave(res.save);
-        alert("นำเข้าสำเร็จ");
+        alert(G.T("save.importDone"));
         this.renderSettings();
       });
     };
@@ -297,13 +294,13 @@ G.UI = {
   renderLeaderboard(cat) {
     const content = this.el("leaderboard-content");
     const cats = [
-      { id: "level1", label: "ด่าน 1" }, { id: "level2", label: "ด่าน 2" }, { id: "level3", label: "ด่าน 3" },
-      { id: "daily", label: "Daily" }, { id: "endless", label: "Endless" },
+      { id: "level1", label: G.T("common.level", { n: 1 }) }, { id: "level2", label: G.T("common.level", { n: 2 }) }, { id: "level3", label: G.T("common.level", { n: 3 }) },
+      { id: "daily", label: G.T("leaderboard.daily") }, { id: "endless", label: G.T("leaderboard.endless") },
     ];
     const tabs = cats.map((c) => `<div class="tab-btn ${c.id === cat ? "active" : ""}" data-cat="${c.id}">${c.label}</div>`).join("");
     const list = (G.save.leaderboards[cat] || []);
     content.innerHTML = `<div class="leaderboard-tabs">${tabs}</div>
-      <ul class="leaderboard-list">${list.length ? list.map((e, i) => `<li><span>#${i + 1} ${e.date}</span><span>${e.score}</span></li>`).join("") : "<li>ยังไม่มีสถิติ</li>"}</ul>`;
+      <ul class="leaderboard-list">${list.length ? list.map((e, i) => `<li><span>#${i + 1} ${e.date}</span><span>${e.score}</span></li>`).join("") : `<li>${G.T("leaderboard.empty")}</li>`}</ul>`;
     content.querySelectorAll(".tab-btn").forEach((t) => t.onclick = () => this.renderLeaderboard(t.dataset.cat));
   },
 
@@ -323,7 +320,7 @@ G.UI = {
     const a = G.ACHIEVEMENTS.find((x) => x.id === id);
     if (!a) return;
     const toast = this.el("hud-achievement-toast");
-    toast.innerHTML = `<b>🏅 ปลดล็อก Achievement!</b><br>${a.icon} ${a.name}`;
+    toast.innerHTML = `<b>${G.T("achievements.unlocked")}</b><br>${a.icon} ${a.name}`;
     toast.classList.remove("hidden");
     toast.style.opacity = "1"; toast.style.transform = "translateX(0)";
     clearTimeout(this._toastTimer);
@@ -346,19 +343,20 @@ G.UI = {
   renderVocabLog(levelId) {
     this._vocabLogLevel = levelId;
     const tabs = this.el("vocablog-tabs");
-    tabs.innerHTML = G.LEVELS.map((l) => `<div class="tab-btn ${l.id === levelId ? "active" : ""}" data-id="${l.id}">ด่าน ${l.id}: ${l.name}</div>`).join("");
+    tabs.innerHTML = G.LEVELS.map((l) => `<div class="tab-btn ${l.id === levelId ? "active" : ""}" data-id="${l.id}">${G.T("common.levelNamed", { n: l.id, name: l.name })}</div>`).join("");
     tabs.querySelectorAll(".tab-btn").forEach((t) => (t.onclick = () => this.renderVocabLog(parseInt(t.dataset.id))));
     const level = G.getLevel(levelId);
     const words = G.WORD_SETS[level.wordsKey].words;
     const items = words.map(([en, th]) => {
       const stat = G.save.wordStats[en.toLowerCase()];
-      let badge = `<span class="vocab-badge unseen">ยังไม่เคยเจอ</span>`;
+      let badge = `<span class="vocab-badge unseen">${G.T("vocablog.unseen")}</span>`;
       if (stat && (stat.correct > 0 || stat.wrong > 0)) {
+        const R = G.T("vocablog.right", { n: stat.correct }), W = G.T("vocablog.wrong", { n: stat.wrong });
         badge = stat.correct >= stat.wrong
-          ? `<span class="vocab-badge correct">ถูก ${stat.correct}${stat.wrong ? ` / ผิด ${stat.wrong}` : ""}</span>`
-          : `<span class="vocab-badge wrong">ผิด ${stat.wrong}${stat.correct ? ` / ถูก ${stat.correct}` : ""}</span>`;
+          ? `<span class="vocab-badge correct">${R}${stat.wrong ? ` / ${W}` : ""}</span>`
+          : `<span class="vocab-badge wrong">${W}${stat.correct ? ` / ${R}` : ""}</span>`;
       }
-      return `<div class="vocab-item"><div><div class="vw-en">${en} <button class="speak-btn" data-word="${en}" aria-label="ฟังเสียง ${en}">🔊</button></div><div class="vw-th">${th}</div></div>${badge}</div>`;
+      return `<div class="vocab-item"><div><div class="vw-en">${en} <button class="speak-btn" data-word="${en}" aria-label="${G.T("vocablog.hear", { word: en })}">🔊</button></div><div class="vw-th">${th}</div></div>${badge}</div>`;
     }).join("");
     this.el("vocablog-content").innerHTML = `<div class="vocab-grid">${items}</div>`;
   },
@@ -370,7 +368,7 @@ G.UI = {
   renderWeaponLog(levelId) {
     this._weaponLogLevel = levelId;
     const tabs = this.el("weaponlog-tabs");
-    tabs.innerHTML = G.LEVELS.map((l) => `<div class="tab-btn ${l.id === levelId ? "active" : ""}" data-id="${l.id}">ด่าน ${l.id}: ${l.name}</div>`).join("");
+    tabs.innerHTML = G.LEVELS.map((l) => `<div class="tab-btn ${l.id === levelId ? "active" : ""}" data-id="${l.id}">${G.T("common.levelNamed", { n: l.id, name: l.name })}</div>`).join("");
     tabs.querySelectorAll(".tab-btn").forEach((t) => (t.onclick = () => this.renderWeaponLog(parseInt(t.dataset.id))));
     const level = G.getLevel(levelId);
     // Derived, not hand-listed: the wall guns for a level are simply its
@@ -384,14 +382,14 @@ G.UI = {
       html += `<div class="weaponlog-grid">${weapons.map((w) => this.weaponLogCardHtml(w)).join("")}</div>`;
     });
     if (wallIds.length) {
-      html += `<div class="weaponlog-section-title rarity-secret">🔒 ปืนติดผนังประจำด่านนี้ (${wallIds.length} กระบอก)</div>`;
+      html += `<div class="weaponlog-section-title rarity-secret">${G.T("weaponlog.wall", { n: wallIds.length })}</div>`;
       html += `<div class="weaponlog-grid">${wallIds.map((id) => this.weaponLogCardHtml(G.WEAPON_DEFS[id])).join("")}</div>`;
     }
     const boxGuns = G.weaponsForLevel(levelId, (w) => w.boxOnly);
     if (boxGuns.length) {
       const eliteTotal = boxGuns.filter((w) => w.boxTier === "elite").reduce((s, w) => s + w.boxWeight, 0);
       const stdTotal = boxGuns.filter((w) => w.boxTier === "standard").reduce((s, w) => s + w.boxWeight, 0);
-      html += `<div class="weaponlog-section-title rarity-epic">🎴 กล่องสุ่มปืน ($${G.MYSTERY_BOX_COST} ต่อครั้ง)</div>`;
+      html += `<div class="weaponlog-section-title rarity-epic">${G.T("weaponlog.box", { cost: G.MYSTERY_BOX_COST })}</div>`;
       html += `<div class="weaponlog-grid">${boxGuns.map((w) => {
         const pct = w.boxTier === "elite" ? (100 / 6) * (w.boxWeight / eliteTotal) : (500 / 6) * (w.boxWeight / stdTotal);
         return this.weaponLogCardHtml(w, pct.toFixed(2) + "%");
@@ -418,21 +416,21 @@ G.UI = {
   weightLine(def) {
     const c = G.weightClass(def);
     const pen = Math.round((1 - c.speedMult) * 100);
-    return `<span style="color:#9fd6ff">โหมด: ${G.fireModeLabel(def)}</span><br>`
-      + `<span style="color:${c.color}">น้ำหนัก: ${c.label} (${G.weaponWeight(def).toFixed(1)})</span>`
-      + (pen ? ` <span style="opacity:.75">ความเร็ว -${pen}%</span>` : ` <span style="opacity:.75">ไม่ลดความเร็ว</span>`);
+    return `<span style="color:#9fd6ff">${G.T("weapon.mode", { m: G.fireModeLabel(def) })}</span><br>`
+      + `<span style="color:${c.color}">${G.T("weapon.weight", { w: c.label, v: G.weaponWeight(def).toFixed(1) })}</span>`
+      + ` <span style="opacity:.75">${pen ? G.T("weapon.speedPenalty", { p: pen }) : G.T("weapon.noPenalty")}</span>`;
   },
-  listenBtn(w) { return `<button class="btn wl-listen" data-id="${w.id}">🔊 ทดลองฟังเสียง</button>`; },
+  listenBtn(w) { return `<button class="btn wl-listen" data-id="${w.id}">${G.T("weaponlog.listen")}</button>`; },
   weaponLogCardHtml(w, dropChance) {
     const unlocked = (G.save.unlockedWeapons || []).includes(w.id);
-    const odds = dropChance ? `<br>โอกาสออก: ${dropChance}` : "";
+    const odds = dropChance ? `<br>${G.T("weaponlog.odds", { p: dropChance })}` : "";
     if (!unlocked) {
-      return `<div class="weaponlog-card locked"><div class="wl-icon">🔒</div><div class="wl-name">???</div><div class="wl-stats">ยังไม่ปลดล็อก${odds}</div>${this.listenBtn(w)}</div>`;
+      return `<div class="weaponlog-card locked"><div class="wl-icon">🔒</div><div class="wl-name">???</div><div class="wl-stats">${G.T("weaponlog.locked")}${odds}</div>${this.listenBtn(w)}</div>`;
     }
     const dps = Math.round(w.damage * (w.pellets || 1) * (1000 / w.fireRate));
     return `<div class="weaponlog-card border-${w.rarity}" style="border-style:solid">
       <div class="wl-icon">🔫</div><div class="wl-name rarity-${w.rarity}">${w.name}</div>
-      <div class="wl-stats">ดาเมจ: ${w.damage}${w.pellets ? ` x${w.pellets} นัด` : ""}<br>อัตรายิง: ${(1000 / w.fireRate).toFixed(1)}/วิ<br>แม็กกาซีน: ${w.magSize}<br>DPS โดยประมาณ: ${dps}<br>${this.weightLine(w)}${w.price ? `<br>ราคา: $${w.price}` : ""}${odds}</div>
+      <div class="wl-stats">${G.T("weaponlog.damage", { d: w.damage })}${w.pellets ? G.T("weaponlog.pellets", { n: w.pellets }) : ""}<br>${G.T("weaponlog.rate", { r: (1000 / w.fireRate).toFixed(1) })}<br>${G.T("weaponlog.mag", { n: w.magSize })}<br>${G.T("weaponlog.dps", { n: dps })}<br>${this.weightLine(w)}${w.price ? `<br>${G.T("weaponlog.price", { p: w.price })}` : ""}${odds}</div>
       ${this.listenBtn(w)}
     </div>`;
   },
@@ -462,31 +460,31 @@ G.UI = {
   renderImportPreview(pairs) {
     const prev = this.el("import-preview");
     prev.innerHTML = pairs.length
-      ? pairs.slice(0, 50).map((p) => `<div>${p[0]} — ${p[1]}</div>`).join("") + (pairs.length > 50 ? `<div>... และอีก ${pairs.length - 50} คำ</div>` : "")
-      : "<div>ไม่พบคำศัพท์ที่ถูกต้อง</div>";
+      ? pairs.slice(0, 50).map((p) => `<div>${p[0]} — ${p[1]}</div>`).join("") + (pairs.length > 50 ? `<div>${G.T("import.more", { n: pairs.length - 50 })}</div>` : "")
+      : `<div>${G.T("import.none")}</div>`;
     this.el("btn-import-save").disabled = pairs.length === 0;
   },
   handleImportImage(file) {
     if (!file) return;
     const status = this.el("import-ocr-status");
-    status.textContent = "กำลังโหลดไลบรารี OCR (ครั้งแรกอาจใช้เวลาสักครู่)...";
+    status.textContent = G.T("import.ocrLoading");
     const run = () => {
-      status.textContent = "กำลังอ่านตัวอักษรจากภาพ...";
+      status.textContent = G.T("import.ocrReading");
       const url = URL.createObjectURL(file);
       Tesseract.recognize(url, "eng").then(({ data }) => {
-        status.textContent = "อ่านเสร็จแล้ว กรุณาตรวจสอบ/แก้ไขคำก่อนบันทึก";
+        status.textContent = G.T("import.ocrDone");
         const lines = data.text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
         // OCR only reliably gives English words; pair each with a blank Thai meaning for manual edit
         const pairs = lines.map((l) => [l.split(/\s+/)[0], ""]);
         this._pendingImport = { name: file.name.replace(/\.[^.]+$/, "") + "_ocr", words: pairs };
         this.renderImportPreview(pairs);
-      }).catch((err) => { status.textContent = "OCR ล้มเหลว: " + err.message + " — ลองใช้ไฟล์ CSV แทน"; });
+      }).catch((err) => { status.textContent = G.T("import.ocrFailed", { msg: err.message }); });
     };
     if (window.Tesseract) { run(); return; }
     const script = document.createElement("script");
     script.src = "https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.1/tesseract.min.js";
     script.onload = run;
-    script.onerror = () => { status.textContent = "ไม่สามารถโหลดไลบรารี OCR ได้ (ต้องใช้อินเทอร์เน็ต) — ใช้ไฟล์ CSV แทน"; };
+    script.onerror = () => { status.textContent = G.T("import.ocrNoLib"); };
     document.head.appendChild(script);
   },
   saveImportedSet() {
@@ -500,15 +498,15 @@ G.UI = {
     this.el("import-file-input").value = "";
     this.el("import-image-input").value = "";
     this.renderImportedSets();
-    alert("บันทึกชุดคำศัพท์เรียบร้อย ใช้งานได้ใน Practice Mode");
+    alert(G.T("import.saved"));
   },
   renderImportedSets() {
     const wrap = this.el("imported-sets-list");
     const ids = Object.keys(G.save.importedSets);
     wrap.innerHTML = ids.length ? ids.map((id) => {
       const set = G.save.importedSets[id];
-      return `<div class="imported-set-row"><span>${set.name} (${set.words.length} คำ)</span><button class="btn" data-id="${id}">ลบ</button></div>`;
-    }).join("") : "<div style='opacity:.6'>ยังไม่มีชุดคำศัพท์ที่นำเข้า</div>";
+      return `<div class="imported-set-row"><span>${G.T("import.setRow", { name: set.name, n: set.words.length })}</span><button class="btn" data-id="${id}">${G.T("import.delete")}</button></div>`;
+    }).join("") : `<div style='opacity:.6'>${G.T("import.empty")}</div>`;
     wrap.querySelectorAll("button[data-id]").forEach((b) => b.onclick = () => { delete G.save.importedSets[b.dataset.id]; G.persist(); this.renderImportedSets(); });
   },
 
@@ -521,15 +519,13 @@ G.UI = {
     const wrap = this.el("practice-setup-content");
     const importedIds = Object.keys(G.save.importedSets);
     wrap.innerHTML = `
-      <p>เลือกชุดคำศัพท์ที่จะฝึก:</p>
+      <p>${G.T("practice.choose")}</p>
       <div class="tabs">
-        <div class="tab-btn" data-src="level1">ด่าน 1</div>
-        <div class="tab-btn" data-src="level2">ด่าน 2</div>
-        <div class="tab-btn" data-src="level3">ด่าน 3</div>
-        <div class="tab-btn" data-src="weak">คำที่เคยตอบผิดบ่อย</div>
+        ${[1, 2, 3].map((n) => `<div class="tab-btn" data-src="level${n}">${G.T("common.levelNamed", { n, name: G.getLevel(n).name })}</div>`).join("")}
+        <div class="tab-btn" data-src="weak">${G.T("practice.weak")}</div>
         ${importedIds.map((id) => `<div class="tab-btn" data-src="${id}">${G.save.importedSets[id].name}</div>`).join("")}
       </div>
-      <div class="row-center"><button class="btn btn-primary" id="btn-practice-start" disabled>เริ่มฝึก</button></div>
+      <div class="row-center"><button class="btn btn-primary" id="btn-practice-start" disabled>${G.T("practice.start")}</button></div>
     `;
     let selected = null;
     wrap.querySelectorAll(".tab-btn").forEach((t) => t.onclick = () => {
@@ -547,7 +543,7 @@ G.UI = {
   },
   showPracticeCard() {
     if (this.practiceIdx >= this.practicePairs.length) {
-      alert(`จบการฝึก! ตอบถูก ${this.practiceCorrect}/${this.practicePairs.length}`);
+      alert(G.T("practice.done", { c: this.practiceCorrect, n: this.practicePairs.length }));
       G.Game.endPractice();
       return;
     }
@@ -570,7 +566,7 @@ G.UI = {
         G.recordWordResult(word, correct);
         btn.classList.add(correct ? "correct" : "wrong");
         if (correct) this.practiceCorrect++;
-        this.el("practice-feedback").textContent = correct ? "ถูกต้อง!" : `ผิด — คำตอบคือ "${meaning}"`;
+        this.el("practice-feedback").textContent = correct ? G.T("practice.correct") : G.T("practice.wrong", { a: meaning });
         Array.from(cWrap.children).forEach((b) => (b.onclick = null));
         setTimeout(() => { this.practiceIdx++; G.persist(); this.showPracticeCard(); }, 700);
       };
@@ -610,18 +606,13 @@ G.UI = {
   },
   renderResultScreen(kind, stats, wrongWords) {
     const statsWrap = this.el(kind === "win" ? "victory-stats" : "gameover-stats");
-    statsWrap.innerHTML = `
-      <div class="result-stat"><div class="result-stat-value">${stats.score}</div><div class="result-stat-label">คะแนน</div></div>
-      <div class="result-stat"><div class="result-stat-value">${stats.wave}</div><div class="result-stat-label">เวฟที่ไปถึง</div></div>
-      <div class="result-stat"><div class="result-stat-value">${stats.correct}</div><div class="result-stat-label">ตอบถูก</div></div>
-      <div class="result-stat"><div class="result-stat-value">${stats.wrong}</div><div class="result-stat-label">ตอบผิด</div></div>
-      <div class="result-stat"><div class="result-stat-value">${stats.money}</div><div class="result-stat-label">เงินที่ได้</div></div>
-    `;
+    statsWrap.innerHTML = ["score", "wave", "correct", "wrong", "money"].map((k) =>
+      `<div class="result-stat"><div class="result-stat-value">${stats[k]}</div><div class="result-stat-label">${G.T("result." + k)}</div></div>`).join("");
     const reviewWrap = this.el(kind === "win" ? "victory-review" : "gameover-review");
     const sorted = Object.entries(wrongWords || {}).sort((a, b) => b[1].count - a[1].count);
     reviewWrap.innerHTML = sorted.length
-      ? `<div style="opacity:.7;margin-bottom:6px">คำศัพท์ที่ควรทบทวน</div>` + sorted.map(([w, d]) => `<div class="review-item"><span>${w} — ${d.meaning}</span><span class="wrong-count">ผิด ${d.count} ครั้ง</span></div>`).join("")
-      : `<div style="opacity:.6">เยี่ยมมาก ไม่มีคำที่ตอบผิดเลย!</div>`;
+      ? `<div style="opacity:.7;margin-bottom:6px">${G.T("result.review")}</div>` + sorted.map(([w, d]) => `<div class="review-item"><span>${w} — ${d.meaning}</span><span class="wrong-count">${G.T("result.wrongTimes", { n: d.count })}</span></div>`).join("")
+      : `<div style="opacity:.6">${G.T("result.perfect")}</div>`;
   },
 
   // ---------------- Shop ----------------
@@ -631,7 +622,7 @@ G.UI = {
     const bonus = this.el("shop-bonus");
     if (bonus) {
       const b = G.Game._waveBonus || 0;
-      bonus.textContent = b ? `เคลียร์เวฟ ${G.Game.wave} · โบนัส +$${b}` : "";
+      bonus.textContent = b ? G.T("shop.bonus", { w: G.Game.wave, b }) : "";
       bonus.classList.toggle("hidden", !b);
     }
     const grid = this.el("shop-grid");
@@ -644,9 +635,9 @@ G.UI = {
       const div = document.createElement("div");
       div.className = "shop-item";
       div.innerHTML = `<div class="shop-item-title">${item.label}</div>
-        <div class="shop-item-desc">${item.maxStack ? `ระดับ: ${stack}/${item.maxStack}` : ""}</div>
-        <div class="shop-item-price">💰 ${owned ? "ปลดล็อกแล้ว" : maxedOut ? "MAX" : price}</div>
-        <button class="btn ${owned || maxedOut ? "" : "btn-primary"}" ${owned || maxedOut || G.Game.player.money < price ? "disabled" : ""}>${owned || maxedOut ? "-" : "ซื้อ"}</button>`;
+        <div class="shop-item-desc">${item.maxStack ? G.T("shop.level", { s: stack, m: item.maxStack }) : ""}</div>
+        <div class="shop-item-price">💰 ${owned ? G.T("shop.owned") : maxedOut ? G.T("shop.max") : price}</div>
+        <button class="btn ${owned || maxedOut ? "" : "btn-primary"}" ${owned || maxedOut || G.Game.player.money < price ? "disabled" : ""}>${owned || maxedOut ? "-" : G.T("shop.buy")}</button>`;
       if (!owned && !maxedOut) {
         div.querySelector("button").onclick = () => { G.Game.buyShopItem(item, price); this.renderShop(); };
       }
@@ -662,7 +653,7 @@ G.UI = {
     this.el("crate-rarity-label").className = "crate-rarity-label rarity-" + rarityKey;
     this.el("crate-rarity-label").textContent = G.RARITY[rarityKey].label + (G.save.settings.colorblindMode ? ` [${rarityKey[0].toUpperCase()}]` : "");
     this.el("crate-weapon-name").textContent = weaponDef.name;
-    this.el("crate-weapon-stats").innerHTML = `ดาเมจ: ${weaponDef.damage}<br>อัตรายิง: ${(1000 / weaponDef.fireRate).toFixed(1)} นัด/วิ<br>แม็กกาซีน: ${weaponDef.magSize}<br>${this.weightLine(weaponDef)}`;
+    this.el("crate-weapon-stats").innerHTML = G.T("crate.stats", { d: weaponDef.damage, r: (1000 / weaponDef.fireRate).toFixed(1), m: weaponDef.magSize }) + this.weightLine(weaponDef);
     this.showScreen("screen-crate");
   },
 
@@ -698,12 +689,12 @@ G.UI = {
     this.el("hud-money").textContent = Math.round(dispMoney);
     this.el("hud-score").textContent = Math.round(dispScore);
     this.el("hud-level-wave").textContent = p.levelLabel;
-    this.el("hud-zombies-left").textContent = "Zombies: " + p.zombiesLeft;
+    this.el("hud-zombies-left").textContent = G.T("hud.zombies", { n: p.zombiesLeft });
     // Category E: the speed penalty is otherwise invisible, so the HUD names
     // the weight band of whatever is in hand.
     this.el("hud-weapon-name").innerHTML = p.weaponName +
       (p.weightLabel ? ` <span style="color:${p.weightColor};font-size:0.78em">[${p.weightLabel}]</span>` : "");
-    this.el("hud-ammo").textContent = p.weaponName === "Combat Knife" ? "∞" : `${p.ammoInMag} / ${p.ammoReserve}`;
+    this.el("hud-ammo").textContent = p.isMelee ? G.T("hud.ammoMelee") : `${p.ammoInMag} / ${p.ammoReserve}`;
     this.el("hud-meaning").textContent = p.currentMeaning || "-";
     const obj = this.el("hud-objectives");
     if (p.objectives) {
@@ -720,7 +711,7 @@ G.UI = {
       d.textContent = i === 0 ? "K" : String(i + 1);
       slotsWrap.appendChild(d);
     });
-    if (p.combo > 1) { this.el("hud-combo").classList.remove("hidden"); this.el("hud-combo").textContent = "COMBO x" + p.combo; }
+    if (p.combo > 1) { this.el("hud-combo").classList.remove("hidden"); this.el("hud-combo").textContent = G.T("hud.combo", { n: p.combo }); }
     else this.el("hud-combo").classList.add("hidden");
     if (G.Input.mode === "touch") this.refreshTouchSlots(p.slots, p.slots.findIndex((s) => s.active));
   },
@@ -731,7 +722,7 @@ G.UI = {
     if (!G.Objectives.state) { box.classList.add("hidden"); return; }
     box.classList.remove("hidden");
     const rows = G.Objectives.list(game);
-    box.innerHTML = `<h4>ภารกิจผ่านด่าน (${rows.filter((r) => r.done).length}/${rows.length})</h4>` +
+    box.innerHTML = `<h4>${G.T("obj.title", { d: rows.filter((r) => r.done).length, n: rows.length })}</h4>` +
       rows.map((r) => `<div class="obj-row ${r.done ? "done" : "todo"}"><span>${r.done ? "✔" : "○"} ${r.label}</span><span class="obj-val">${r.value}</span></div>`).join("");
   },
   setAimingVisual(v) { this.el("hud-crosshair").classList.toggle("aiming", !!v); },
@@ -757,8 +748,8 @@ G.UI = {
   showMysteryCards(hand, onPick) {
     const wrap = this.el("mystery-cards");
     this.el("mystery-result").classList.add("hidden");
-    this.el("mystery-title").textContent = "เลือกการ์ด 1 ใบ";
-    this.el("mystery-sub").textContent = "มี 1 ใบเป็นปืนระดับโหด — เสี่ยงดวงเลย";
+    this.el("mystery-title").textContent = G.T("mystery.pick");
+    this.el("mystery-sub").textContent = G.T("mystery.pickSub");
     // Face-down colours are deliberately NOT the weapon's rarity colour, so
     // the backs can't be read as a hint about which card is the elite one.
     const backs = ["#3dff9e", "#ff4fd8", "#4fd2ff", "#3dff9e", "#ff4fd8", "#4fd2ff"];
@@ -774,8 +765,8 @@ G.UI = {
   },
   revealMysteryCards(hand, pickedIdx) {
     const wrap = this.el("mystery-cards");
-    this.el("mystery-title").textContent = "เปิดการ์ดทั้งหมด";
-    this.el("mystery-sub").textContent = "ดูสิว่าพลาดใบไหนไปบ้าง";
+    this.el("mystery-title").textContent = G.T("mystery.reveal");
+    this.el("mystery-sub").textContent = G.T("mystery.revealSub");
     wrap.querySelectorAll(".mcard").forEach((el, i) => {
       const w = hand[i];
       const col = G.RARITY[w.rarity].color;
@@ -789,21 +780,21 @@ G.UI = {
       el.querySelector(".mc-face").innerHTML =
         `<div class="mc-name" style="color:${hex}">${w.name}</div>
          <div class="mc-tier">${G.RARITY[w.rarity].label}${w.boxTier === "elite" ? " ★" : ""}</div>
-         <div class="mc-dps">DPS ~${dps}</div>
-         ${i === pickedIdx ? '<div class="mc-tier" style="margin-top:6px;color:#fff">← ที่เลือก</div>' : ""}`;
+         <div class="mc-dps">${G.T("mystery.dps", { n: dps })}</div>
+         ${i === pickedIdx ? `<div class="mc-tier" style="margin-top:6px;color:#fff">${G.T("mystery.yourPick")}</div>` : ""}`;
     });
     const picked = hand[pickedIdx];
     const pcol = "#" + G.RARITY[picked.rarity].color.toString(16).padStart(6, "0");
     const res = this.el("mystery-result");
     res.classList.remove("hidden");
-    this.el("mystery-result-rarity").textContent = G.RARITY[picked.rarity].label + (picked.boxTier === "elite" ? "  ★ ELITE" : "");
+    this.el("mystery-result-rarity").textContent = G.RARITY[picked.rarity].label + (picked.boxTier === "elite" ? G.T("mystery.elite") : "");
     this.el("mystery-result-rarity").style.color = pcol;
     this.el("mystery-result-name").textContent = picked.name;
     const dps = Math.round(picked.damage * (picked.pellets || 1) * (1000 / picked.fireRate));
     this.el("mystery-result-stats").innerHTML =
-      `ดาเมจ: ${picked.damage}${picked.pellets ? ` x${picked.pellets} นัด` : ""} · อัตรายิง: ${(1000 / picked.fireRate).toFixed(1)}/วิ<br>
-       แม็กกาซีน: ${picked.magSize} · รีโหลด: ${(picked.reloadTime / 1000).toFixed(1)} วิ · แรงดีด: ${picked.recoil.toFixed(1)}<br>
-       DPS โดยประมาณ: ${dps}${picked.pierce ? " · ทะลุเป้า" : ""}${picked.splash ? " · ระเบิดเป็นวงกว้าง" : ""}<br>${this.weightLine(picked)}`;
+      `${G.T("weaponlog.damage", { d: picked.damage })}${picked.pellets ? G.T("weaponlog.pellets", { n: picked.pellets }) : ""} · ${G.T("weaponlog.rate", { r: (1000 / picked.fireRate).toFixed(1) })}<br>
+       ${G.T("weaponlog.mag", { n: picked.magSize })} · ${G.T("weapon.reload", { s: (picked.reloadTime / 1000).toFixed(1) })} · ${G.T("weapon.recoil", { r: picked.recoil.toFixed(1) })}<br>
+       ${G.T("weaponlog.dps", { n: dps })}${picked.pierce ? " · " + G.T("weapon.pierce") : ""}${picked.splash ? " · " + G.T("weapon.splash") : ""}<br>${this.weightLine(picked)}`;
     // rarer pull = bigger screen flash
     const flash = this.el("mystery-flash");
     const strength = { common: 0, uncommon: 0, rare: 1, epic: 1, secret: 1 }[picked.rarity];
@@ -823,7 +814,7 @@ G.UI = {
   // achievement toast since these are rarer, deliberate player achievements.
   flashPurchaseBanner(name, subtitle) {
     const el = this.el("hud-purchase-banner");
-    el.innerHTML = `<div class="pb-title">${subtitle || "ปลดล็อกแล้ว"}</div><div class="pb-name">${name}</div>`;
+    el.innerHTML = `<div class="pb-title">${subtitle || G.T("banner.unlocked")}</div><div class="pb-name">${name}</div>`;
     el.classList.remove("hidden", "showing");
     void el.offsetWidth;
     el.classList.add("showing");
@@ -831,7 +822,7 @@ G.UI = {
     this._pbTimer = setTimeout(() => el.classList.add("hidden"), 2200);
   },
   // Brief pulse on the relevant HUD stat when a drop is collected (item A1's
-  // "ไอเทมเด้งเข้าหา HUD" feedback).
+  // "items fly into the HUD" feedback).
   pulseHudStat(kind) {
     const idMap = { money: "hud-money", ammo: "hud-ammo", health: "hud-hp-text" };
     const el = this.el(idMap[kind]);
@@ -853,12 +844,12 @@ G.UI = {
   setBossBar(visible, name, hpPct) {
     this.el("hud-boss-bar").classList.toggle("hidden", !visible);
     if (!visible) return;
-    const hint = G.Input.mode === "touch" ? "แตะคำตอบที่ถูก" : "คลิกคำตอบ หรือกด 1-4";
+    const hint = G.T(G.Input.mode === "touch" ? "hud.bossHintTouch" : "hud.bossHintDesk");
     if (this.el("hud-boss-hint").textContent !== hint) this.el("hud-boss-hint").textContent = hint;
     this.el("hud-boss-name").textContent = name;
     this.el("hud-boss-hp-fill").style.width = Math.max(0, hpPct) + "%";
   },
-  setBossWord(meaning) { this.el("hud-boss-word").textContent = meaning ? `แปลว่า: ${meaning}` : ""; },
+  setBossWord(meaning) { this.el("hud-boss-word").textContent = meaning ? G.T("hud.meaning", { m: meaning }) : ""; },
   // The answers used to be plain text with no click handler, in a layer that
   // ignores the mouse: keys 1-4 were the only way to answer, and a touch
   // screen had none. Same buttons as the door/crate question now.
@@ -903,10 +894,10 @@ G.UI = {
     if (!s.showFpsCounter && !s.showDrawCalls) { el.classList.add("hidden"); return; }
     el.classList.remove("hidden");
     const parts = [];
-    if (s.showFpsCounter) parts.push(Math.round(fps) + " FPS");
+    if (s.showFpsCounter) parts.push(G.T("hud.fps", { n: Math.round(fps) }));
     if (s.showDrawCalls && G.Game.renderer) {
       const r = G.Game.renderer.info.render;
-      parts.push(r.calls + " draw calls", Math.round(r.triangles / 1000) + "k tris");
+      parts.push(G.T("hud.draws", { n: r.calls }), G.T("hud.tris", { n: Math.round(r.triangles / 1000) }));
     }
     const txt = parts.join(" · ");
     if (el.textContent !== txt) el.textContent = txt;

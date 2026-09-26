@@ -4,19 +4,20 @@
 window.G = window.G || {};
 
 // ---------------- Level definitions ----------------
+// names are "level.<id>" in js/strings.js, set on load by G.localizeData
 G.LEVELS = [
   {
-    id: 1, name: "โรงเรียนร้าง", theme: "school", icon: "🏚️", wordsKey: "level1",
+    id: 1, theme: "school", icon: "🏚️", wordsKey: "level1",
     waves: 5, difficulty: 1, bossEvery: 3,
     spawnBaseInterval: 5.0, maxAliveZombies: 7,
   },
   {
-    id: 2, name: "โรงพยาบาลร้าง", theme: "hospital", icon: "🏥", wordsKey: "level2",
+    id: 2, theme: "hospital", icon: "🏥", wordsKey: "level2",
     waves: 6, difficulty: 1.35, bossEvery: 3,
     spawnBaseInterval: 4.2, maxAliveZombies: 9,
   },
   {
-    id: 3, name: "บังเกอร์ใต้ดิน", theme: "bunker", icon: "🛡️", wordsKey: "level3",
+    id: 3, theme: "bunker", icon: "🛡️", wordsKey: "level3",
     waves: 7, difficulty: 1.7, bossEvery: 3,
     spawnBaseInterval: 3.4, maxAliveZombies: 11,
   },
@@ -211,7 +212,7 @@ G.buildLevelScene = function (scene, level, quality) {
 
   // ---- Floor texture: a tiled canvas pattern (grid lines + random stains/
   // scratches) cloned per room so each can repeat at its own scale, instead of
-  // one flat MeshLambertMaterial color -- item 2's "ลายกระเบื้อง / รอยขีดข่วน / คราบสกปรก".
+  // one flat MeshLambertMaterial color -- item 2's "tile pattern / scratches / grime".
   const floorCanvas = document.createElement("canvas");
   floorCanvas.width = floorCanvas.height = 256;
   const fctx = floorCanvas.getContext("2d");
@@ -850,11 +851,12 @@ G.buildLevelScene = function (scene, level, quality) {
       addCanvasBox(mx + sign * 0.08, y + 1.0, mz, 1.5, 0.42, 0.05, (ctx, cv) => {
         ctx.fillStyle = "#0a0a0a"; ctx.fillRect(0, 0, cv.width, cv.height);
         ctx.textAlign = "center";
-        ctx.font = "bold 20px sans-serif"; ctx.fillStyle = "#ffd43b"; ctx.fillText(wdef.name, 128, 28);
+        G.fitFont(ctx, wdef.name, 20, 240); ctx.fillStyle = "#ffd43b"; ctx.fillText(wdef.name, 128, 28);
         ctx.font = "bold 24px monospace"; ctx.fillStyle = "#6bff7a"; ctx.fillText("$" + wdef.price, 128, 62);
         const wc = G.weightClass(wdef);
-        ctx.font = "bold 17px sans-serif"; ctx.fillStyle = wc.color;
-        ctx.fillText("น้ำหนัก: " + wc.label, 128, 92);
+        const wt = G.T("world.wallWeight", { w: wc.label });
+        G.fitFont(ctx, wt, 17, 240); ctx.fillStyle = wc.color;
+        ctx.fillText(wt, 128, 92);
       }, 0x1a1a1a, facingWest ? Math.PI / 2 : -Math.PI / 2);
       const ref = { id, price: wdef.price, purchased: false, gunMesh };
       world.wallWeapons.push(ref);
@@ -1645,8 +1647,8 @@ G.buildLevelScene = function (scene, level, quality) {
         a.addFloatBox(-6.5, 1.15, E.cz + 3.5, 3.2, 0.1, 1.0, M.woodDark);
         a.addCanvasBox(-6.5, 1.55, E.cz + 3.0, 1.1, 0.5, 0.06, (ctx, cv) => {
           ctx.fillStyle = "#101014"; ctx.fillRect(0, 0, cv.width, cv.height);
-          ctx.textAlign = "center"; ctx.font = "bold 34px sans-serif"; ctx.fillStyle = "#cfe8ff";
-          ctx.fillText("ประชาสัมพันธ์", 128, 80);
+          ctx.textAlign = "center"; G.fitFont(ctx, G.T("world.info"), 34, 236); ctx.fillStyle = "#cfe8ff";
+          ctx.fillText(G.T("world.info"), 128, 80);
         }, 0x222222);
         for (let i = 0; i < 3; i++) a.addProp(9 + i * 1.5, E.cz + 4.8, 1.2, 2.0, 0.6, M.metal);
         a.addCanvasBox(0, 2.2, E.cz - E.d / 2 + 0.35, 3.0, 1.4, 0.08, (ctx, cv) => {
@@ -1684,8 +1686,8 @@ G.buildLevelScene = function (scene, level, quality) {
         a.addCanvasBox(0, 6.4, zf + 0.4, 7.0, 1.3, 0.16, (ctx, cv) => {
           ctx.fillStyle = "#1d2a33"; ctx.fillRect(0, 0, cv.width, cv.height);
           ctx.textAlign = "center";
-          ctx.font = "bold 28px sans-serif"; ctx.fillStyle = "#cddbe6";
-          ctx.fillText("โรงเรียนบ้านหนอง", 128, 74);
+          G.fitFont(ctx, G.T("world.schoolName"), 28, 236); ctx.fillStyle = "#cddbe6";
+          ctx.fillText(G.T("world.schoolName"), 128, 74);
           ctx.fillStyle = "#101418";
           for (let i = 0; i < 5; i++) ctx.fillRect(G.rng() * 230, G.rng() * 110, 8 + G.rng() * 24, 5 + G.rng() * 10);
         }, 0x3a3a34);
@@ -1720,11 +1722,11 @@ G.buildLevelScene = function (scene, level, quality) {
           a.addFloatBox(bx, 3.3, gz, 0.14, 1.1, 1.8, boardMat2);
           [-0.42, 0, 0.42].forEach((dz) => a.addFloatBox(bx - s * 0.5, 2.85, gz + dz, 0.9, 0.07, 0.07, hoopMat));
         });
-        ["ชนะ", "สู้ๆ", "ทีมเรา"].forEach((t, i) => {
+        [G.T("world.banner1"), G.T("world.banner2"), G.T("world.banner3")].forEach((t, i) => {
           [-1, 1].forEach((s) => {
             a.addCanvasBox(-9 + i * 9, 6.2, s * (B.d / 2 - 0.35) + gz, 3.0, 1.6, 0.08, (ctx, cv) => {
               ctx.fillStyle = i % 2 ? "#7a2f2a" : "#2f4a7a"; ctx.fillRect(0, 0, cv.width, cv.height);
-              ctx.textAlign = "center"; ctx.font = "bold 56px sans-serif"; ctx.fillStyle = "#f0e6cf";
+              ctx.textAlign = "center"; G.fitFont(ctx, t, 56, 232); ctx.fillStyle = "#f0e6cf";
               ctx.fillText(t, 128, 88);
             }, 0x2a2a26, s > 0 ? Math.PI : 0);
           });
@@ -1733,7 +1735,7 @@ G.buildLevelScene = function (scene, level, quality) {
           ctx.fillStyle = "#111"; ctx.fillRect(0, 0, cv.width, cv.height);
           ctx.textAlign = "center";
           ctx.font = "bold 22px monospace"; ctx.fillStyle = "#ffcc55";
-          ctx.fillText("HOME", 64, 34); ctx.fillText("AWAY", 192, 34);
+          ctx.fillText(G.T("world.home"), 64, 34); ctx.fillText(G.T("world.away"), 192, 34);
           ctx.font = "bold 54px monospace"; ctx.fillStyle = "#ff3b3b";
           ctx.fillText("00 : 00", 128, 96);
         }, 0x1a1a1a);
@@ -1768,10 +1770,10 @@ G.buildLevelScene = function (scene, level, quality) {
         }
         a.addCanvasBox(0, 2.6, E.cz - E.d / 2 + 0.35, 4.0, 1.2, 0.08, (ctx, cv) => {
           ctx.fillStyle = "#08281c"; ctx.fillRect(0, 0, cv.width, cv.height);
-          ctx.textAlign = "center"; ctx.font = "bold 30px sans-serif"; ctx.fillStyle = "#9fe1cb";
-          ctx.fillText("แผนกฉุกเฉิน", 128, 52);
-          ctx.font = "bold 20px sans-serif"; ctx.fillStyle = "#6fb79c";
-          ctx.fillText("EMERGENCY  →", 128, 92);
+          ctx.textAlign = "center"; G.fitFont(ctx, G.T("world.emergency"), 30, 236); ctx.fillStyle = "#9fe1cb";
+          ctx.fillText(G.T("world.emergency"), 128, 52);
+          G.fitFont(ctx, G.T("world.emergencySub"), 20, 236); ctx.fillStyle = "#6fb79c";
+          ctx.fillText(G.T("world.emergencySub"), 128, 92);
         }, 0x123b2c);
         a.scatterClutter(-10, E.cz, 8, 9, 0, 3, { axis: "z", at: 0, half: 5 });
         a.scatterClutter(10, E.cz, 8, 9, 0, 3, { axis: "z", at: 0, half: 5 });
@@ -1796,8 +1798,8 @@ G.buildLevelScene = function (scene, level, quality) {
         a.addSolid(0, 0, gz - B.d / 2 + 1.4, 7.0, 1.1, 1.0, M.locker[0]);
         a.addCanvasBox(0, 4.8, gz - B.d / 2 + 0.3, 5.0, 1.6, 0.14, (ctx, cv) => {
           ctx.fillStyle = "#06170f"; ctx.fillRect(0, 0, cv.width, cv.height);
-          ctx.textAlign = "center"; ctx.font = "bold 40px sans-serif"; ctx.fillStyle = "#ff6b6b";
-          ctx.fillText("TRIAGE", 128, 58);
+          ctx.textAlign = "center"; G.fitFont(ctx, G.T("world.triage"), 40, 236); ctx.fillStyle = "#ff6b6b";
+          ctx.fillText(G.T("world.triage"), 128, 58);
           ctx.strokeStyle = "#7dffc0"; ctx.lineWidth = 3; ctx.beginPath();
           for (let i = 0; i <= 256; i += 6) ctx.lineTo(i, 96 + Math.sin(i * 0.24) * 16);
           ctx.stroke();
@@ -1817,10 +1819,10 @@ G.buildLevelScene = function (scene, level, quality) {
         a.addGlowBox(0, 4.5, E.cz + E.d / 2 - 0.55, 2.0, 0.16, 0.14, 0xff5c3d);
         a.addCanvasBox(0, 2.6, E.cz + E.d / 2 - 0.58, 3.4, 1.0, 0.08, (ctx, cv) => {
           ctx.fillStyle = "#1a1408"; ctx.fillRect(0, 0, cv.width, cv.height);
-          ctx.textAlign = "center"; ctx.font = "bold 28px sans-serif"; ctx.fillStyle = "#ffcf4d";
-          ctx.fillText("ประตูกันระเบิด", 128, 48);
+          ctx.textAlign = "center"; G.fitFont(ctx, G.T("world.blastDoor"), 28, 236); ctx.fillStyle = "#ffcf4d";
+          ctx.fillText(G.T("world.blastDoor"), 128, 48);
           ctx.font = "bold 19px monospace"; ctx.fillStyle = "#ff7a7a";
-          ctx.fillText("SEALED", 128, 86);
+          ctx.fillText(G.T("world.sealed"), 128, 86);
         }, 0x2a2118);
         // kept clear of the stair shaft down the middle of the hall
         [-9.5, -5, 5, 9.5].forEach((px) => {
@@ -1855,10 +1857,10 @@ G.buildLevelScene = function (scene, level, quality) {
         });
         a.addCanvasBox(0, 5.4, gz - B.d / 2 + 0.3, 4.6, 1.5, 0.14, (ctx, cv) => {
           ctx.fillStyle = "#170d04"; ctx.fillRect(0, 0, cv.width, cv.height);
-          ctx.textAlign = "center"; ctx.font = "bold 34px sans-serif"; ctx.fillStyle = "#ff9a4d";
-          ctx.fillText("ห้องเตาปฏิกรณ์", 128, 52);
+          ctx.textAlign = "center"; G.fitFont(ctx, G.T("world.reactor"), 34, 236); ctx.fillStyle = "#ff9a4d";
+          ctx.fillText(G.T("world.reactor"), 128, 52);
           ctx.font = "bold 20px monospace"; ctx.fillStyle = "#ff5c3d";
-          ctx.fillText("CORE  UNSTABLE", 128, 92);
+          ctx.fillText(G.T("world.coreUnstable"), 128, 92);
         }, 0x2a1a0c);
         a.addCorpse(-4, gz + 4, 1.7, 0x54503f);
         a.addBloodStain(-4, gz + 4, 1.2, 0.8);
@@ -2006,24 +2008,26 @@ G.buildLevelScene = function (scene, level, quality) {
         ctx.fillStyle = "#2c4a63"; ctx.fillRect(0, 0, cv.width, cv.height);
         ctx.textAlign = "center";
         // pass D1: the letters are separate pieces bolted on, and some are gone --
-        // two fell off, one hangs by a single screw (Thai drawn cluster by
-        // cluster so a vowel stays with its consonant)
-        ctx.font = "bold 26px sans-serif"; ctx.fillStyle = "#d8e4ee";
-        const clusters = ["โ", "ร", "ง", "เ", "รี", "ย", "น", "บ้", "า", "น", "ห", "น", "อ", "ง"];
-        const widths = clusters.map((c) => ctx.measureText(c).width);
+        // two fell off, one hangs by a single screw
+        const name = G.T("world.schoolName");
+        G.fitFont(ctx, name, 26, 236); ctx.fillStyle = "#d8e4ee";
+        const letters = Array.from(name);
+        const solid = letters.map((c, i) => (c.trim() ? i : -1)).filter((i) => i >= 0);
+        const gone = [solid[3], solid[8]], hanging = solid[6];   // picked among real letters, never a space
+        const widths = letters.map((c) => ctx.measureText(c).width);
         let cxp = 128 - widths.reduce((s, w) => s + w, 0) / 2;
         ctx.textAlign = "left";
-        clusters.forEach((c, i) => {
-          if (i === 4 || i === 10) { ctx.fillStyle = "rgba(10,14,18,0.35)"; ctx.fillRect(cxp + 2, 30, widths[i] - 4, 26); ctx.fillStyle = "#d8e4ee"; }   // a paler patch where it was
-          else if (i === 8) { ctx.save(); ctx.translate(cxp + 4, 38); ctx.rotate(0.9); ctx.fillText(c, 0, 14); ctx.restore(); }
+        letters.forEach((c, i) => {
+          if (gone.includes(i)) { ctx.fillStyle = "rgba(10,14,18,0.35)"; ctx.fillRect(cxp + 2, 30, widths[i] - 4, 26); ctx.fillStyle = "#d8e4ee"; }   // a paler patch where it was
+          else if (i === hanging) { ctx.save(); ctx.translate(cxp + 4, 38); ctx.rotate(0.9); ctx.fillText(c, 0, 14); ctx.restore(); }
           else ctx.fillText(c, cxp, 52);
           cxp += widths[i];
         });
         ctx.textAlign = "center";
-        ctx.font = "bold 22px sans-serif"; ctx.fillStyle = "#9fb4c6";
-        ctx.fillText("ยินดีต้อนรับ", 128, 92);
+        G.fitFont(ctx, G.T("world.welcome"), 22, 236); ctx.fillStyle = "#9fb4c6";
+        ctx.fillText(G.T("world.welcome"), 128, 92);
         ctx.fillStyle = "#101418";
-        ctx.fillRect(178, 0, 78, 44);                  // the corner that broke off
+        ctx.fillRect(196, 98, 60, 30);                 // the corner that broke off (clear of the name)
         for (let i = 0; i < 7; i++) ctx.fillRect(G.rng() * 240, G.rng() * 120, 6 + G.rng() * 26, 4 + G.rng() * 9);
       }, 0x3a3a34);
       board.rotation.z = -0.07;

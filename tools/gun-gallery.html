@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="th">
+<html lang="en">
 <head>
 <meta charset="utf-8">
-<title>คลังโมเดลปืน</title>
+<title>Gun Model Gallery</title>
 <style>
   body { margin: 0; background: #0d120f; color: #dff5e2; font-family: system-ui, sans-serif; }
   #bar { padding: 10px 14px; font-size: 0.85rem; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
@@ -12,13 +12,14 @@
 </head>
 <body>
 <div id="bar">
-  <label>ด่าน <select id="lvl"><option value="all">ทั้งหมด</option><option value="0">เริ่มต้น</option><option value="1">1 โรงเรียน</option><option value="2">2 โรงพยาบาล</option><option value="3">3 บังเกอร์</option></select></label>
+  <label>Level <select id="lvl"><option value="all">All</option><option value="0">Starter</option><option value="1">1 School</option><option value="2">2 Hospital</option><option value="3">3 Bunker</option></select></label>
   <span id="count"></span>
-  <button id="spin">หมุน/หยุด</button>
+  <button id="spin">Spin/Stop</button>
 </div>
 <canvas id="c"></canvas>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="../js/strings.js"></script>
 <script src="../js/data/words_school.js"></script>
 <script src="../js/data/words_hospital.js"></script>
 <script src="../js/data/words_bunker.js"></script>
@@ -55,7 +56,7 @@
     scene.remove(group); G.disposeObject3D(group);
     group = new THREE.Group(); scene.add(group);
     const defs = Object.values(G.WEAPON_DEFS).filter((d) => want === "all" || String(d.level == null ? 1 : d.level) === want);
-    document.getElementById("count").textContent = defs.length + " กระบอก";
+    document.getElementById("count").textContent = defs.length + " guns";
     defs.forEach((d, i) => {
       const cell = new THREE.Group();
       const m = G.buildWeaponMesh(d);
@@ -82,6 +83,7 @@
   document.getElementById("lvl").onchange = rebuild;
   document.getElementById("spin").onclick = () => { spinning = !spinning; };
   G.loadSave();
+  G.localizeData();   // gun names live in js/strings.js
   rebuild();
   let t = 0;
   (function loop() {

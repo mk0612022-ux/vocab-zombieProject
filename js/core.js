@@ -114,7 +114,7 @@ G.persist = function () {
     console.warn("Save failed", e);
     if (!G._persistFailedShown && G.UI && G.UI.flashPurchaseBanner) {
       G._persistFailedShown = true;
-      G.UI.flashPurchaseBanner("บันทึกความคืบหน้าไม่ได้", "เบราว์เซอร์ไม่ให้เก็บข้อมูล (โหมดส่วนตัว?) — ใช้ Export Save เก็บไว้เองได้");
+      G.UI.flashPurchaseBanner(G.T("save.persistFailTitle"), G.T("save.persistFailText"));
     }
     G._persistFailed = true;
   }
@@ -166,18 +166,18 @@ G.exportSave = function () {
 // -- an arbitrary JSON file used to "import successfully" and wipe the save.
 G.readSaveFile = function (file, cb) {
   const reader = new FileReader();
-  reader.onerror = () => cb(new Error("อ่านไฟล์ไม่ได้"));
+  reader.onerror = () => cb(new Error(G.T("save.errRead")));
   reader.onload = () => {
     let data;
-    try { data = JSON.parse(reader.result); } catch (e) { cb(new Error("ไฟล์นี้ไม่ใช่ JSON")); return; }
+    try { data = JSON.parse(reader.result); } catch (e) { cb(new Error(G.T("save.errJson"))); return; }
     let raw = null, exportedAt = null;
     if (data && data.format === G.SAVE_FORMAT && data.save) { raw = data.save; exportedAt = data.exportedAt || null; }
     else if (data && (Array.isArray(data.unlockedLevels) || (data.wordStats && typeof data.wordStats === "object"))) raw = data;
-    if (!raw) { cb(new Error("ไฟล์นี้ไม่ใช่ไฟล์เซฟของ Vocab Zombie")); return; }
+    if (!raw) { cb(new Error(G.T("save.errNotSave"))); return; }
     try {
       const save = G.normalizeSave(raw);
       cb(null, { save, exportedAt, summary: G.saveSummary(save) });
-    } catch (e) { cb(new Error("ข้อมูลในไฟล์เสียหาย")); }
+    } catch (e) { cb(new Error(G.T("save.errCorrupt"))); }
   };
   reader.readAsText(file);
 };

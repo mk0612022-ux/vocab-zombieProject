@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="th">
+<html lang="en">
 <head>
 <meta charset="utf-8">
-<title>ตรวจสอบคลังคำศัพท์</title>
+<title>Word List Check</title>
 <style>
   body { font-family: system-ui, sans-serif; background: #0d120f; color: #dff5e2; padding: 24px; line-height: 1.6; }
   h1 { font-size: 1.3rem; }
@@ -15,8 +15,8 @@
 </style>
 </head>
 <body>
-<h1>ตรวจสอบคลังคำศัพท์ (หมวด G)</h1>
-<div id="out">กำลังโหลด…</div>
+<h1>Word list check (category G)</h1>
+<div id="out">Loading…</div>
 
 <script src="../js/data/words_school.js"></script>
 <script src="../js/data/words_hospital.js"></script>
@@ -28,15 +28,15 @@
   const rows = r.sets.map((s) =>
     `<tr><td>${esc(s.key)}</td><td>${esc(s.file)}</td><td>${esc(s.label)}</td>
      <td>${s.count}</td><td>${s.unique}</td>
-     <td class="${s.count === 100 && s.unique === s.count ? "pass" : "fail"}">${s.count === 100 && s.unique === s.count ? "OK" : "ผิดพลาด"}</td></tr>`).join("");
-  const list = (arr, fmt) => arr.length ? `<ul>${arr.map((x) => `<li>${esc(fmt(x))}</li>`).join("")}</ul>` : '<span class="pass">ไม่พบ</span>';
+     <td class="${s.count === 100 && s.unique === s.count ? "pass" : "fail"}">${s.count === 100 && s.unique === s.count ? "OK" : "ERROR"}</td></tr>`).join("");
+  const list = (arr, fmt) => arr.length ? `<ul>${arr.map((x) => `<li>${esc(fmt(x))}</li>`).join("")}</ul>` : '<span class="pass">none</span>';
   document.getElementById("out").innerHTML = `
-    <table><tr><th>ด่าน</th><th>ไฟล์</th><th>ระดับ</th><th>จำนวนคำ</th><th>ไม่ซ้ำในชุด</th><th>ผล</th></tr>${rows}</table>
-    <p>รวมทั้งหมด: <b>${r.total}</b> คำ · ไม่ซ้ำกันทั่วทั้งเกม: <b>${r.uniqueOverall}</b> คำ</p>
-    <p>คำซ้ำข้ามด่าน: ${list(r.crossLevelDuplicates, (d) => `${d.word} (${d.inSets.join(" + ")})`)}</p>
-    <p>คำซ้ำภายในด่านเดียวกัน: ${list(r.withinSetDuplicates, (d) => `${d.word} (${d.set})`)}</p>
-    <p>รายการที่รูปแบบผิด / ไม่มีคำแปล: ${list(r.malformed, (m) => `${m.set}[${m.index}] = ${m.value}`)}</p>
-    <h2 class="${r.ok ? "pass" : "fail"}">ผลรวม: ${r.ok ? "ผ่านทั้งหมด" : "ไม่ผ่าน"}</h2>`;
+    <table><tr><th>Set</th><th>File</th><th>Level</th><th>Words</th><th>Unique in set</th><th>Result</th></tr>${rows}</table>
+    <p>Total: <b>${r.total}</b> words · unique across the game: <b>${r.uniqueOverall}</b></p>
+    <p>Duplicates across levels: ${list(r.crossLevelDuplicates, (d) => `${d.word} (${d.inSets.join(" + ")})`)}</p>
+    <p>Duplicates within a level: ${list(r.withinSetDuplicates, (d) => `${d.word} (${d.set})`)}</p>
+    <p>Malformed entries / missing meaning: ${list(r.malformed, (m) => `${m.set}[${m.index}] = ${m.value}`)}</p>
+    <h2 class="${r.ok ? "pass" : "fail"}">Overall: ${r.ok ? "ALL PASS" : "FAIL"}</h2>`;
   window.__AUDIT__ = r;
 </script>
 </body>

@@ -246,11 +246,12 @@
     const c = cv.getContext("2d");
     const cell = (i) => ({ x: (i % 4) * 256, y: Math.floor(i / 4) * 256 });
     const tear = (x, y) => {
-      // torn edges and a missing corner: cut to transparent
+      // torn edges and a missing corner: cut to transparent. The corner is the
+      // bottom-right one -- torn off at the top it bit into the titles.
       c.save(); c.globalCompositeOperation = "destination-out";
-      c.beginPath(); c.moveTo(x + 256, y); c.lineTo(x + 256, y + 60 + R() * 70);
-      for (let k = 0; k < 6; k++) c.lineTo(x + 256 - (k + 1) * (16 + R() * 12), y + 50 + R() * 60 - k * 9);
-      c.lineTo(x + 150 + R() * 40, y); c.closePath(); c.fill();
+      c.beginPath(); c.moveTo(x + 256, y + 256); c.lineTo(x + 256, y + 256 - (60 + R() * 70));
+      for (let k = 0; k < 6; k++) c.lineTo(x + 256 - (k + 1) * (16 + R() * 12), y + 256 - (50 + R() * 60 - k * 9));
+      c.lineTo(x + 150 + R() * 40, y + 256); c.closePath(); c.fill();
       for (let k = 0; k < 26; k++) {   // ragged border
         const t = R(), side = Math.floor(R() * 4), s = 3 + R() * 8;
         const px = side === 0 ? x + t * 256 : side === 1 ? x + 256 - s : side === 2 ? x + t * 256 : x;
@@ -262,19 +263,20 @@
       c.fillStyle = "rgba(90,70,40,0.18)";
       for (let k = 0; k < 3; k++) { c.beginPath(); c.arc(x + R() * 256, y + 140 + R() * 110, 20 + R() * 40, 0, 7); c.fill(); }
     };
+    const T = G.T;
     const title = (x, y, t, bg, fg, size) => {
       c.fillStyle = bg; c.fillRect(x + 6, y + 6, 244, 244);
-      c.fillStyle = fg; c.font = `bold ${size || 34}px sans-serif`; c.textAlign = "center"; c.fillText(t, x + 128, y + 58);
+      c.fillStyle = fg; G.fitFont(c, t, size || 34, 228); c.textAlign = "center"; c.fillText(t, x + 128, y + 58);
     };
     const P = [
-      (x, y) => { title(x, y, "ห้ามวิ่ง", "#f2eee2", "#c0302a", 44); c.fillStyle = "#c0302a"; c.beginPath(); c.arc(x + 128, y + 150, 62, 0, 7); c.lineWidth = 12; c.strokeStyle = "#c0302a"; c.stroke(); c.fillStyle = "#333"; c.fillRect(x + 110, y + 110, 18, 60); c.fillRect(x + 98, y + 150, 50, 12); c.fillRect(x + 84, y + 186, 88, 12); },
-      (x, y) => { title(x, y, "ABC", "#fdf6d8", "#2a4a8a", 44); const L = "ABCDEFGHIJKLMNOP"; c.font = "bold 30px sans-serif"; for (let i = 0; i < 16; i++) { c.fillStyle = ["#c0302a", "#2a7a3a", "#2a4a8a", "#b8861a"][i % 4]; c.fillText(L[i], x + 42 + (i % 4) * 58, y + 110 + Math.floor(i / 4) * 38); } },
-      (x, y) => { title(x, y, "ก ข ค", "#e8f2e0", "#2a6a3a", 40); const L = "กขฃคฅฆงจฉชซฌญฎฏฐ"; c.font = "bold 30px sans-serif"; c.fillStyle = "#1f3a28"; for (let i = 0; i < 16; i++) c.fillText(L[i], x + 42 + (i % 4) * 58, y + 112 + Math.floor(i / 4) * 38); },
-      (x, y) => { c.fillStyle = "#5f8fb8"; c.fillRect(x + 6, y + 6, 244, 244); c.fillStyle = "#6e9a52"; [[70, 90, 40], [150, 120, 55], [190, 190, 30], [90, 180, 26]].forEach(([a, b, r]) => { c.beginPath(); c.ellipse(x + a, y + b, r, r * 0.7, 0.5, 0, 7); c.fill(); }); c.fillStyle = "#fff"; c.font = "bold 26px sans-serif"; c.textAlign = "center"; c.fillText("แผนที่โลก", x + 128, y + 40); },
-      (x, y) => { title(x, y, "รักษาความสะอาด", "#e2f0f2", "#1f5a6a", 28); c.fillStyle = "#3a6a4a"; c.fillRect(x + 96, y + 110, 64, 90); c.fillRect(x + 88, y + 98, 80, 14); c.fillStyle = "#e2f0f2"; for (let i = 0; i < 3; i++) c.fillRect(x + 106 + i * 18, y + 120, 6, 70); },
-      (x, y) => { title(x, y, "ตารางธาตุ", "#f0ece2", "#333", 30); for (let i = 0; i < 40; i++) { c.fillStyle = ["#e0a0a0", "#a0c8e0", "#e0d890", "#b0e0a8"][(i * 7) % 4]; if (i % 10 === 1 || i % 10 === 2) continue; c.fillRect(x + 20 + (i % 10) * 22, y + 90 + Math.floor(i / 10) * 30, 19, 26); } },
-      (x, y) => { title(x, y, "สู้ O-NET!", "#2a3a6a", "#ffd23a", 40); c.fillStyle = "#ffd23a"; c.beginPath(); for (let k = 0; k < 10; k++) { const r = k % 2 ? 30 : 70, a = k * Math.PI / 5 - Math.PI / 2; c.lineTo(x + 128 + Math.cos(a) * r, y + 160 + Math.sin(a) * r); } c.fill(); },
-      (x, y) => { title(x, y, "กินผักผลไม้", "#f6f0dc", "#3a7a2a", 30); [["#d8402a", 80, 140], ["#f0a020", 150, 130], ["#6ab03a", 110, 195], ["#e8d040", 180, 190]].forEach(([f, a, b]) => { c.fillStyle = f; c.beginPath(); c.arc(x + a, y + b, 30, 0, 7); c.fill(); }); },
+      (x, y) => { title(x, y, T("poster.noRunning"), "#f2eee2", "#c0302a", 44); c.fillStyle = "#c0302a"; c.beginPath(); c.arc(x + 128, y + 150, 62, 0, 7); c.lineWidth = 12; c.strokeStyle = "#c0302a"; c.stroke(); c.fillStyle = "#333"; c.fillRect(x + 110, y + 110, 18, 60); c.fillRect(x + 98, y + 150, 50, 12); c.fillRect(x + 84, y + 186, 88, 12); },
+      (x, y) => { title(x, y, T("poster.abc"), "#fdf6d8", "#2a4a8a", 44); const L = "ABCDEFGHIJKLMNOP"; c.font = "bold 30px sans-serif"; for (let i = 0; i < 16; i++) { c.fillStyle = ["#c0302a", "#2a7a3a", "#2a4a8a", "#b8861a"][i % 4]; c.fillText(L[i], x + 42 + (i % 4) * 58, y + 110 + Math.floor(i / 4) * 38); } },
+      (x, y) => { title(x, y, T("poster.numbers"), "#e8f2e0", "#2a6a3a", 40); c.font = "bold 30px sans-serif"; c.fillStyle = "#1f3a28"; for (let i = 0; i < 16; i++) c.fillText(String(i + 1), x + 42 + (i % 4) * 58, y + 112 + Math.floor(i / 4) * 38); },
+      (x, y) => { c.fillStyle = "#5f8fb8"; c.fillRect(x + 6, y + 6, 244, 244); c.fillStyle = "#6e9a52"; [[70, 90, 40], [150, 120, 55], [190, 190, 30], [90, 180, 26]].forEach(([a, b, r]) => { c.beginPath(); c.ellipse(x + a, y + b, r, r * 0.7, 0.5, 0, 7); c.fill(); }); c.fillStyle = "#fff"; G.fitFont(c, T("poster.worldMap"), 26, 236); c.textAlign = "center"; c.fillText(T("poster.worldMap"), x + 128, y + 40); },
+      (x, y) => { title(x, y, T("poster.clean"), "#e2f0f2", "#1f5a6a", 28); c.fillStyle = "#3a6a4a"; c.fillRect(x + 96, y + 110, 64, 90); c.fillRect(x + 88, y + 98, 80, 14); c.fillStyle = "#e2f0f2"; for (let i = 0; i < 3; i++) c.fillRect(x + 106 + i * 18, y + 120, 6, 70); },
+      (x, y) => { title(x, y, T("poster.periodic"), "#f0ece2", "#333", 30); for (let i = 0; i < 40; i++) { c.fillStyle = ["#e0a0a0", "#a0c8e0", "#e0d890", "#b0e0a8"][(i * 7) % 4]; if (i % 10 === 1 || i % 10 === 2) continue; c.fillRect(x + 20 + (i % 10) * 22, y + 90 + Math.floor(i / 10) * 30, 19, 26); } },
+      (x, y) => { title(x, y, T("poster.exams"), "#2a3a6a", "#ffd23a", 40); c.fillStyle = "#ffd23a"; c.beginPath(); for (let k = 0; k < 10; k++) { const r = k % 2 ? 30 : 70, a = k * Math.PI / 5 - Math.PI / 2; c.lineTo(x + 128 + Math.cos(a) * r, y + 160 + Math.sin(a) * r); } c.fill(); },
+      (x, y) => { title(x, y, T("poster.greens"), "#f6f0dc", "#3a7a2a", 30); [["#d8402a", 80, 140], ["#f0a020", 150, 130], ["#6ab03a", 110, 195], ["#e8d040", 180, 190]].forEach(([f, a, b]) => { c.fillStyle = f; c.beginPath(); c.arc(x + a, y + b, 30, 0, 7); c.fill(); }); },
     ];
     P.forEach((draw, i) => { const { x, y } = cell(i); draw(x, y); tear(x, y); });
     // 8-13: notices (handwritten lines), 14: fire extinguisher sign, 15: a clock-less spare
@@ -282,11 +284,11 @@
       const { x, y } = cell(i);
       c.fillStyle = ["#f2efe4", "#f5e9a8", "#f2c8d0", "#d8ecf2", "#f2efe4", "#e8f0c8"][i - 8]; c.fillRect(x + 20, y + 10, 216, 236);
       c.fillStyle = "rgba(40,40,60,0.75)";
-      c.font = "bold 20px sans-serif"; c.textAlign = "left"; c.fillText(["ประกาศ", "งดเรียน", "กีฬาสี", "สอบกลางภาค", "หาย! แมว", "ชมรม"][i - 8], x + 34, y + 44);
+      c.font = "bold 20px sans-serif"; c.textAlign = "left"; const note = T("notice." + (i - 7)); G.fitFont(c, note, 20, 190); c.fillText(note, x + 34, y + 44);
       for (let k = 0; k < 8; k++) c.fillRect(x + 34, y + 64 + k * 20, 120 + R() * 60, 3);
       c.fillStyle = "rgba(90,70,40,0.15)"; c.beginPath(); c.arc(x + 60 + R() * 140, y + 180, 30, 0, 7); c.fill();
     }
-    { const { x, y } = cell(14); c.fillStyle = "#c0201a"; c.fillRect(x + 8, y + 60, 240, 136); c.fillStyle = "#fff"; c.font = "bold 30px sans-serif"; c.textAlign = "center"; c.fillText("ถังดับเพลิง", x + 128, y + 140); }
+    { const { x, y } = cell(14); c.fillStyle = "#c0201a"; c.fillRect(x + 8, y + 60, 240, 136); c.fillStyle = "#fff"; G.fitFont(c, T("sign.extinguisher"), 30, 224); c.textAlign = "center"; c.fillText(T("sign.extinguisher"), x + 128, y + 140); }
     { const { x, y } = cell(15); c.fillStyle = "#e8e4d8"; c.fillRect(x, y, 256, 256); }
     const tex = new THREE.CanvasTexture(cv);
     tex.anisotropy = 2;

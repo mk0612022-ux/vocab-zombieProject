@@ -14,8 +14,10 @@
 //   the shop            ->  the first time it opens
 //   the level goal      ->  after the first correct kill
 //
-// Each card has desktop and touch wording. The whole thing can be skipped
-// from the card itself, and replayed from the main menu or the pause screen.
+// Each card has desktop and touch wording ("tut.<id>.title/desk/touch" in
+// js/strings.js). The whole thing can be skipped from the card itself, and
+// replayed from the main menu or the pause screen. The ids are save keys
+// (G.save.tutorialSeen), so they must not be renamed.
 // ===================================================================
 G.Tutorial = {
   current: null,
@@ -26,77 +28,49 @@ G.Tutorial = {
   STEPS: [
     {
       id: "move",
-      title: "เคลื่อนที่และมองรอบ",
-      desk: "เดินด้วย W A S D · ขยับเมาส์เพื่อหันมอง · Shift วิ่ง · Space กระโดด",
-      touch: "ลากจอยสติ๊กซ้ายล่างเพื่อเดิน · ลากนิ้วที่ครึ่งขวาของจอเพื่อหันมอง · ปุ่ม “วิ่ง” เพื่อวิ่ง",
       when: () => true,
       done: (g, s) => s.moved > 4,
     },
     {
       id: "rule",
-      title: "กติกาหลัก",
-      desk: "อ่านความหมายภาษาไทยด้านบน แล้วยิงซอมบี้ที่ถือ “คำภาษาอังกฤษ” ที่ตรงกัน — ยิงผิดคำจะเสียเลือดและซอมบี้จะเร็วขึ้น",
-      touch: "อ่านความหมายภาษาไทยด้านบน แล้วยิงซอมบี้ที่ถือ “คำภาษาอังกฤษ” ที่ตรงกัน — ยิงผิดคำจะเสียเลือดและซอมบี้จะเร็วขึ้น",
       when: (g) => !!g.targetPair,
       done: (g) => g.correctCount >= 1,
       hold: 9,
     },
     {
       id: "shoot",
-      title: "การยิง",
-      desk: "คลิกซ้ายยิง · คลิกขวาค้างเพื่อเล็ง · R รีโหลด · 1-5 สลับอาวุธ · V ฟังเสียงคำศัพท์อีกครั้ง",
-      touch: "ปุ่ม FIRE ยิง · ปุ่ม “เล็ง” ซูม · R รีโหลด · แถวตัวเลขด้านล่างสลับอาวุธ · 🔊 ฟังเสียงคำศัพท์",
       when: (g, s) => s.moved > 4,
       done: (g, s) => s.shots > 2,
     },
     {
       id: "door",
-      title: "ประตู",
-      desk: "กด E เพื่อเปิด/ปิดประตู — ประตูที่ปิดอยู่ช่วยขวางซอมบี้ได้ชั่วคราว",
-      touch: "กดปุ่ม E เพื่อเปิด/ปิดประตู — ประตูที่ปิดอยู่ช่วยขวางซอมบี้ได้ชั่วคราว",
       when: (g) => g._lookedAtInteractable && g._lookedAtInteractable.kind === "roomdoor",
       done: (g) => (g.world.roomDoors || []).some((d) => d.open),
     },
     {
       id: "pickup",
-      title: "ไอเทม",
-      desk: "เดินผ่านไอเทมเพื่อเก็บ: เงิน กระสุน เลือด และลังปืน",
-      touch: "เดินผ่านไอเทมเพื่อเก็บ: เงิน กระสุน เลือด และลังปืน",
       when: (g) => g.drops.some((d) => d.mesh.position.distanceTo(g.yawObject.position) < 10),
       done: (g, s) => s.pickups > 0,
     },
     {
       id: "objectives",
-      title: "เป้าหมายของด่าน",
-      desk: "เอาตัวรอดอย่างเดียวไม่พอ — ดูภารกิจที่ “ภารกิจ x/6” มุมขวา หรือกด ESC เพื่อดูรายการเต็ม (กุญแจ 3 ดอก ห้องที่ต้องสำรวจ ความแม่นยำ และบอส)",
-      touch: "เอาตัวรอดอย่างเดียวไม่พอ — ดูภารกิจที่ “ภารกิจ x/6” มุมขวา หรือกดปุ่ม II เพื่อดูรายการเต็ม (กุญแจ 3 ดอก ห้องที่ต้องสำรวจ ความแม่นยำ และบอส)",
       when: (g) => g.mode === "campaign" && g.correctCount >= 1,
       done: () => false,
       hold: 10,
     },
     {
       id: "wallgun",
-      title: "ปืนติดผนัง",
-      desk: "ปืนบนผนังซื้อได้ด้วยเงิน (กด E เมื่อเงินพอ) — ปืนยิ่งหนักยิ่งเดินช้าและเหนื่อยเร็ว",
-      touch: "ปืนบนผนังซื้อได้ด้วยเงิน (กด E เมื่อเงินพอ) — ปืนยิ่งหนักยิ่งเดินช้าและเหนื่อยเร็ว",
       when: (g) => g._lookedAtInteractable && g._lookedAtInteractable.kind === "wallweapon",
       done: () => false,
       hold: 7,
     },
     {
       id: "mystery",
-      title: "กล่องสุ่มปืน",
-      desk: "กล่องสุ่ม $1,000 ต่อครั้ง: เลือกการ์ด 1 ใน 6 ใบ — มีการ์ดระดับโหดอยู่ 1 ใบเสมอ",
-      touch: "กล่องสุ่ม $1,000 ต่อครั้ง: เลือกการ์ด 1 ใน 6 ใบ — มีการ์ดระดับโหดอยู่ 1 ใบเสมอ",
       when: (g) => g._lookedAtInteractable && g._lookedAtInteractable.kind === "mysterybox",
       done: () => false,
       hold: 7,
     },
   ],
-
-  // Shown inside the shop screen rather than on the HUD, since the HUD is
-  // hidden while shopping.
-  SHOP_TIP: "ร้านค้าเปิดระหว่างเวฟ: ใช้เงินจากการตอบถูกเพื่ออัปเกรดปืน ซื้อ Perk หรือลังปืนสุ่ม — มีเวลาจำกัด",
 
   enabled() { return G.save && !G.save.tutorialDone; },
   seen() { G.save.tutorialSeen = G.save.tutorialSeen || {}; return G.save.tutorialSeen; },
@@ -150,8 +124,8 @@ G.Tutorial = {
     this._age = 0;
     const touch = G.Input.mode === "touch";
     const el = document.getElementById("hud-tip");
-    document.getElementById("hud-tip-title").textContent = "💡 " + st.title;
-    document.getElementById("hud-tip-text").textContent = touch ? st.touch : st.desk;
+    document.getElementById("hud-tip-title").textContent = "💡 " + G.T("tut." + st.id + ".title");
+    document.getElementById("hud-tip-text").textContent = G.T("tut." + st.id + (touch ? ".touch" : ".desk"));
     el.classList.remove("hidden");
     el.classList.remove("tip-in"); void el.offsetWidth; el.classList.add("tip-in");
   },
@@ -161,13 +135,14 @@ G.Tutorial = {
     if (el) el.classList.add("hidden");
   },
 
-  // Shop screen: a one-off note on the first visit.
+  // Shop screen: a one-off note on the first visit (shown there rather than on
+  // the HUD, since the HUD is hidden while shopping).
   shopTip() {
     const box = document.getElementById("shop-tip");
     if (!box) return;
     const seen = this.enabled() ? this.seen() : null;
     if (!seen || seen.shop) { box.classList.add("hidden"); return; }
-    box.textContent = "💡 " + this.SHOP_TIP;
+    box.textContent = "💡 " + G.T("tut.shopTip");
     box.classList.remove("hidden");
     seen.shop = true;
     G.persistSoon();

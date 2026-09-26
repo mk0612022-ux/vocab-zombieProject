@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="th">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
@@ -7,6 +7,8 @@
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+<!-- Every visible string comes from js/strings.js: data-i18n fills text,
+     data-i18n-html fills text with markup, data-i18n-aria fills aria-label. -->
 
 <canvas id="gameCanvas"></canvas>
 
@@ -14,136 +16,126 @@
 <div id="screen-mainmenu" class="screen">
   <div class="menu-bg-fog"></div>
   <div class="menu-panel">
-    <h1 class="game-title">VOCAB <span class="accent">ZOMBIE</span></h1>
-    <p class="game-subtitle">IELTS Survival FPS</p>
+    <h1 class="game-title" data-i18n-html="menu.title"></h1>
+    <p class="game-subtitle" data-i18n="menu.subtitle"></p>
     <div class="menu-btns">
-      <button class="btn btn-primary" id="btn-start-game">Start Game</button>
-      <button class="btn" id="btn-practice">Practice Mode</button>
-      <button class="btn" id="btn-daily">Daily Challenge</button>
-      <button class="btn" id="btn-endless">Endless Mode</button>
-      <button class="btn" id="btn-leaderboard">Leaderboard</button>
-      <button class="btn" id="btn-achievements">Achievements</button>
-      <button class="btn" id="btn-vocablog">คลังคำศัพท์</button>
-      <button class="btn" id="btn-weaponlog">คลังปืน</button>
-      <button class="btn" id="btn-import-vocab">Import Vocabulary</button>
-      <button class="btn" id="btn-howtoplay">How to Play</button>
-      <button class="btn" id="btn-tutorial-replay">เล่นบทสอนอีกครั้ง</button>
-      <button class="btn" id="btn-settings">Settings</button>
+      <button class="btn btn-primary" id="btn-start-game" data-i18n="menu.start"></button>
+      <button class="btn" id="btn-practice" data-i18n="menu.practice"></button>
+      <button class="btn" id="btn-daily" data-i18n="menu.daily"></button>
+      <button class="btn" id="btn-endless" data-i18n="menu.endless"></button>
+      <button class="btn" id="btn-leaderboard" data-i18n="menu.leaderboard"></button>
+      <button class="btn" id="btn-achievements" data-i18n="menu.achievements"></button>
+      <button class="btn" id="btn-vocablog" data-i18n="menu.vocablog"></button>
+      <button class="btn" id="btn-weaponlog" data-i18n="menu.weaponlog"></button>
+      <button class="btn" id="btn-import-vocab" data-i18n="menu.import"></button>
+      <button class="btn" id="btn-howtoplay" data-i18n="menu.howto"></button>
+      <button class="btn" id="btn-tutorial-replay" data-i18n="menu.tutorial"></button>
+      <button class="btn" id="btn-settings" data-i18n="menu.settings"></button>
     </div>
   </div>
-  <div class="menu-footer">v0.1 · Made with Three.js</div>
+  <div class="menu-footer" data-i18n="menu.footer"></div>
 </div>
 
 <!-- ===================== LEVEL SELECT ===================== -->
 <div id="screen-levelselect" class="screen hidden">
-  <h2 class="screen-title">เลือกด่าน</h2>
+  <h2 class="screen-title" data-i18n="levels.title"></h2>
   <div id="level-cards" class="level-cards"></div>
   <div class="row-center">
-    <button class="btn" id="btn-levelselect-back">กลับเมนูหลัก</button>
+    <button class="btn" id="btn-levelselect-back" data-i18n="levels.back"></button>
   </div>
 </div>
 
 <!-- ===================== HOW TO PLAY ===================== -->
 <div id="screen-howtoplay" class="screen hidden">
-  <h2 class="screen-title">วิธีเล่น</h2>
-  <div class="howto-content">
-    <p>ด้านบนจอจะแสดง<strong>ความหมายภาษาไทย</strong>ของคำศัพท์ — มองหาซอมบี้ที่มีคำศัพท์ภาษาอังกฤษตรงกับความหมายนั้น แล้วยิงมัน!</p>
-    <ul>
-      <li><b>WASD</b> เดิน, <b>เมาส์</b> หมุนกล้อง, <b>คลิกซ้าย</b> ยิง, <b>คลิกขวาค้าง</b> เล็ง (ซูมเข้า)</li>
-      <li><b>R</b> reload, <b>E</b> ใช้งาน/เก็บของ, <b>Shift</b> วิ่ง (ใช้พลังวิ่ง/Stamina หลอดสีฟ้า วิ่งได้จนกว่าจะหมดแล้วค่อยฟื้นตัว)</li>
-      <li><b>1</b> มีด (melee ไม่จำกัด), <b>2-5</b> สลับปืนในกระเป๋า</li>
-      <li><b>ESC</b> หยุดเกมชั่วคราว</li>
-      <li>ยิงถูกตัว = ได้คะแนน+เงิน / ยิงผิดตัว = เสียเลือดและซอมบี้ที่เหลือไล่เร็วขึ้น</li>
-      <li>ระหว่างเวฟจะมีร้านค้าให้ซื้ออัปเกรด อาวุธ และไอเทม</li>
-    </ul>
-  </div>
-  <div class="row-center"><button class="btn" id="btn-howtoplay-back">กลับ</button></div>
+  <h2 class="screen-title" data-i18n="howto.title"></h2>
+  <div class="howto-content" data-i18n-html="howto.body"></div>
+  <div class="row-center"><button class="btn" id="btn-howtoplay-back" data-i18n="common.back"></button></div>
 </div>
 
 <!-- ===================== SETTINGS ===================== -->
 <div id="screen-settings" class="screen hidden">
-  <h2 class="screen-title">ตั้งค่า</h2>
+  <h2 class="screen-title" data-i18n="settings.title"></h2>
   <div class="settings-content" id="settings-content"></div>
-  <div class="row-center"><button class="btn" id="btn-settings-back">กลับ</button></div>
+  <div class="row-center"><button class="btn" id="btn-settings-back" data-i18n="common.back"></button></div>
 </div>
 
 <!-- ===================== LEADERBOARD ===================== -->
 <div id="screen-leaderboard" class="screen hidden">
-  <h2 class="screen-title">Leaderboard</h2>
+  <h2 class="screen-title" data-i18n="leaderboard.title"></h2>
   <div id="leaderboard-content" class="leaderboard-content"></div>
-  <div class="row-center"><button class="btn" id="btn-leaderboard-back">กลับ</button></div>
+  <div class="row-center"><button class="btn" id="btn-leaderboard-back" data-i18n="common.back"></button></div>
 </div>
 
 <!-- ===================== ACHIEVEMENTS ===================== -->
 <div id="screen-achievements" class="screen hidden">
-  <h2 class="screen-title">Achievements</h2>
+  <h2 class="screen-title" data-i18n="achievements.title"></h2>
   <div id="achievements-content" class="achievements-content"></div>
-  <div class="row-center"><button class="btn" id="btn-achievements-back">กลับ</button></div>
+  <div class="row-center"><button class="btn" id="btn-achievements-back" data-i18n="common.back"></button></div>
 </div>
 
 <!-- ===================== VOCABULARY LOG (category F) ===================== -->
 <div id="screen-vocablog" class="screen hidden">
-  <h2 class="screen-title">คลังคำศัพท์</h2>
+  <h2 class="screen-title" data-i18n="vocablog.title"></h2>
   <div class="leaderboard-tabs" id="vocablog-tabs"></div>
   <div id="vocablog-content" class="log-content"></div>
-  <div class="row-center"><button class="btn" id="btn-vocablog-back">กลับ</button></div>
+  <div class="row-center"><button class="btn" id="btn-vocablog-back" data-i18n="common.back"></button></div>
 </div>
 
 <!-- ===================== WEAPON LOG (category F) ===================== -->
 <div id="screen-weaponlog" class="screen hidden">
-  <h2 class="screen-title">คลังปืน</h2>
+  <h2 class="screen-title" data-i18n="weaponlog.title"></h2>
   <div class="leaderboard-tabs" id="weaponlog-tabs"></div>
   <div id="weaponlog-content" class="log-content"></div>
-  <div class="row-center"><button class="btn" id="btn-weaponlog-back">กลับ</button></div>
+  <div class="row-center"><button class="btn" id="btn-weaponlog-back" data-i18n="common.back"></button></div>
 </div>
 
 <!-- ===================== IMPORT VOCAB ===================== -->
 <div id="screen-import" class="screen hidden">
-  <h2 class="screen-title">นำเข้าคำศัพท์</h2>
+  <h2 class="screen-title" data-i18n="import.title"></h2>
   <div class="import-content">
-    <p>อัปโหลดไฟล์ .csv หรือ .txt รูปแบบ <code>english,ความหมายไทย</code> ต่อบรรทัด</p>
+    <p data-i18n-html="import.fileHint"></p>
     <input type="file" id="import-file-input" accept=".csv,.txt">
-    <p style="margin-top:14px">หรือถ่ายรูปหน้าคำศัพท์ (OCR เบื้องต้น ต้องใช้อินเทอร์เน็ตโหลดไลบรารีครั้งแรก):</p>
+    <p style="margin-top:14px" data-i18n="import.ocrHint"></p>
     <input type="file" id="import-image-input" accept="image/*">
     <div id="import-ocr-status" class="import-status"></div>
     <div id="import-preview" class="import-preview"></div>
     <div class="row-center">
-      <button class="btn btn-primary" id="btn-import-save" disabled>บันทึกชุดคำศัพท์นี้</button>
+      <button class="btn btn-primary" id="btn-import-save" disabled data-i18n="import.save"></button>
     </div>
-    <h3 style="margin-top:24px">ชุดคำศัพท์ที่นำเข้าแล้ว</h3>
+    <h3 style="margin-top:24px" data-i18n="import.sets"></h3>
     <div id="imported-sets-list" class="imported-sets-list"></div>
   </div>
-  <div class="row-center"><button class="btn" id="btn-import-back">กลับ</button></div>
+  <div class="row-center"><button class="btn" id="btn-import-back" data-i18n="common.back"></button></div>
 </div>
 
 <!-- ===================== PRACTICE MODE SETUP ===================== -->
 <div id="screen-practice-setup" class="screen hidden">
-  <h2 class="screen-title">Practice Mode</h2>
+  <h2 class="screen-title" data-i18n="practice.title"></h2>
   <div class="practice-setup-content" id="practice-setup-content"></div>
-  <div class="row-center"><button class="btn" id="btn-practice-back">กลับ</button></div>
+  <div class="row-center"><button class="btn" id="btn-practice-back" data-i18n="common.back"></button></div>
 </div>
 
 <!-- ===================== PRACTICE MODE PLAY ===================== -->
 <div id="screen-practice-play" class="screen hidden">
   <div class="practice-card" id="practice-card">
     <div class="practice-progress" id="practice-progress"></div>
-    <div class="practice-word" id="practice-word">word</div>
+    <div class="practice-word" id="practice-word"></div>
     <div class="practice-choices" id="practice-choices"></div>
     <div class="practice-feedback" id="practice-feedback"></div>
   </div>
-  <div class="row-center"><button class="btn" id="btn-practice-quit">จบการฝึก</button></div>
+  <div class="row-center"><button class="btn" id="btn-practice-quit" data-i18n="practice.quit"></button></div>
 </div>
 
 <!-- ===================== HUD (Gameplay) ===================== -->
 <div id="hud" class="hud hidden">
   <div class="hud-top">
     <div class="hud-meaning-box">
-      <div class="hud-meaning-label">ยิงคำที่แปลว่า</div>
+      <div class="hud-meaning-label" data-i18n="hud.shootMeaning"></div>
       <div class="hud-meaning" id="hud-meaning">-</div>
-      <button class="hud-speak" id="hud-speak" aria-label="ฟังเสียงคำศัพท์อีกครั้ง">🔊</button>
+      <button class="hud-speak" id="hud-speak" data-i18n-aria="hud.hearAgain">🔊</button>
     </div>
     <div class="hud-boss-bar hidden" id="hud-boss-bar">
-      <div class="hud-boss-name" id="hud-boss-name">BOSS</div>
+      <div class="hud-boss-name" id="hud-boss-name" data-i18n="hud.boss"></div>
       <div class="hud-boss-hp-track"><div class="hud-boss-hp-fill" id="hud-boss-hp-fill"></div></div>
       <div class="hud-boss-word" id="hud-boss-word"></div>
       <div class="hud-boss-choices" id="hud-boss-choices"></div>
@@ -155,19 +147,19 @@
     <div class="hud-tip hidden" id="hud-tip">
       <div class="hud-tip-title" id="hud-tip-title"></div>
       <div class="hud-tip-text" id="hud-tip-text"></div>
-      <button class="hud-tip-skip" id="hud-tip-skip">ข้ามบทสอน <span class="kbd-only">(T)</span></button>
+      <button class="hud-tip-skip" id="hud-tip-skip"><span data-i18n="hud.skipTutorial"></span> <span class="kbd-only">(T)</span></button>
     </div>
-    <div class="hud-combo hidden" id="hud-combo">COMBO x0</div>
+    <div class="hud-combo hidden" id="hud-combo"></div>
   </div>
-  <div class="hud-resume-hint hidden" id="hud-resume-hint">คลิกที่จอเพื่อเล่นต่อ</div>
+  <div class="hud-resume-hint hidden" id="hud-resume-hint" data-i18n="hud.resume"></div>
 
   <div class="hud-crosshair" id="hud-crosshair"></div>
   <!-- category N: sniper scope overlay and charge-weapon wind-up meter -->
   <div class="hud-scope hidden" id="hud-scope"><div class="hud-scope-ring"></div><div class="hud-scope-h"></div><div class="hud-scope-v"></div></div>
   <div class="hud-charge hidden" id="hud-charge"><div class="hud-charge-fill" id="hud-charge-fill"></div></div>
-  <div class="hud-interact-prompt hidden" id="hud-interact-prompt">กด E เพื่อโต้ตอบ</div>
+  <div class="hud-interact-prompt hidden" id="hud-interact-prompt" data-i18n="hud.interact"></div>
   <div class="hud-challenge-box hidden" id="hud-challenge-box">
-    <div class="hud-challenge-label" id="hud-challenge-label">ตอบคำศัพท์เพื่อปลดล็อก</div>
+    <div class="hud-challenge-label" id="hud-challenge-label" data-i18n="hud.answerToUnlock"></div>
     <div class="hud-challenge-meaning" id="hud-challenge-meaning"></div>
     <div class="hud-boss-choices" id="hud-challenge-choices"></div>
     <div class="hud-boss-timer-track"><div class="hud-boss-timer-fill" id="hud-challenge-timer-fill"></div></div>
@@ -181,17 +173,17 @@
       <div class="hud-stat hud-stamina"><span class="hud-icon">⚡</span><div class="bar-track"><div class="bar-fill stamina-fill" id="hud-stamina-fill"></div></div></div>
       <div class="hud-stat"><span class="hud-icon">💰</span><span id="hud-money">0</span></div>
       <div class="hud-stat"><span class="hud-icon">⭐</span><span id="hud-score">0</span></div>
-      <div class="hud-stat"><span id="hud-level-wave">Level 1 - Wave 1</span></div>
-      <div class="hud-stat"><span id="hud-zombies-left">Zombies: 0</span></div>
+      <div class="hud-stat"><span id="hud-level-wave"></span></div>
+      <div class="hud-stat"><span id="hud-zombies-left"></span></div>
     </div>
     <div class="hud-right">
-      <div class="hud-weapon-name" id="hud-weapon-name">Pistol</div>
-      <div class="hud-ammo" id="hud-ammo">12 / 48</div>
+      <div class="hud-weapon-name" id="hud-weapon-name"></div>
+      <div class="hud-ammo" id="hud-ammo"></div>
       <div class="hud-objectives hidden" id="hud-objectives"></div>
       <div class="hud-slots" id="hud-slots"></div>
     </div>
   </div>
-  <div class="hud-fps-counter hidden" id="hud-fps-counter">0 FPS</div>
+  <div class="hud-fps-counter hidden" id="hud-fps-counter"></div>
   <div class="hud-achievement-toast hidden" id="hud-achievement-toast"></div>
   <div class="hud-purchase-banner hidden" id="hud-purchase-banner"></div>
   <div class="mystery-flash" id="mystery-flash"></div>
@@ -201,13 +193,13 @@
 <div id="touch-controls" class="touch-controls hidden">
   <div id="touch-joystick" class="touch-joystick"><div id="touch-joystick-knob" class="touch-joystick-knob"></div></div>
   <div id="touch-lookzone" class="touch-lookzone"></div>
-  <button id="touch-fire" class="touch-btn touch-fire">FIRE</button>
-  <button id="touch-ads" class="touch-btn touch-ads">เล็ง</button>
-  <button id="touch-interact" class="touch-btn touch-interact">E</button>
-  <button id="touch-reload" class="touch-btn touch-reload">R</button>
-  <button id="touch-jump" class="touch-btn touch-jump">JUMP</button>
-  <button id="touch-sprint" class="touch-btn touch-sprint">วิ่ง</button>
-  <button id="touch-pause" class="touch-btn touch-pause">II</button>
+  <button id="touch-fire" class="touch-btn touch-fire" data-i18n="touch.fire"></button>
+  <button id="touch-ads" class="touch-btn touch-ads" data-i18n="touch.aim"></button>
+  <button id="touch-interact" class="touch-btn touch-interact" data-i18n="touch.interact"></button>
+  <button id="touch-reload" class="touch-btn touch-reload" data-i18n="touch.reload"></button>
+  <button id="touch-jump" class="touch-btn touch-jump" data-i18n="touch.jump"></button>
+  <button id="touch-sprint" class="touch-btn touch-sprint" data-i18n="touch.sprint"></button>
+  <button id="touch-pause" class="touch-btn touch-pause" data-i18n="touch.pause"></button>
   <div id="touch-slots" class="touch-slots"></div>
 </div>
 
@@ -218,109 +210,111 @@
 <div id="touchcfg-capture" class="hidden"></div>
 <div id="touchcfg-panel" class="touchcfg-panel hidden">
   <div class="touchcfg-head">
-    <strong>ปรับแต่งปุ่มควบคุม</strong>
-    <button id="touchcfg-collapse">ย่อ</button>
+    <strong data-i18n="touchcfg.title"></strong>
+    <button id="touchcfg-collapse" data-i18n="touchcfg.hide"></button>
   </div>
   <div class="touchcfg-body">
-    <div class="touchcfg-hint">ลากปุ่มบนจอเพื่อย้ายตำแหน่ง · แตะปุ่มหนึ่งครั้งเพื่อเลือกแล้วปรับขนาดด้านล่าง</div>
-    <div class="touchcfg-row"><label>ปุ่มที่เลือก</label><span class="touchcfg-sel" id="touchcfg-selname">— แตะปุ่มบนจอเพื่อเลือก —</span></div>
-    <div class="touchcfg-row"><label>ขนาดปุ่ม <span id="touchcfg-sizeval"></span></label>
+    <div class="touchcfg-hint" data-i18n="touchcfg.hint"></div>
+    <div class="touchcfg-row"><label data-i18n="touchcfg.selected"></label><span class="touchcfg-sel" id="touchcfg-selname" data-i18n="touchcfg.none"></span></div>
+    <div class="touchcfg-row"><label><span data-i18n="touchcfg.size"></span> <span id="touchcfg-sizeval"></span></label>
       <input type="range" id="touchcfg-size" min="0.6" max="1.8" step="0.05" value="1" disabled></div>
     <div class="touchcfg-row"><label></label><div class="touchcfg-presets">
-      <button class="touchcfg-preset" data-scale="0.8" disabled>เล็ก</button>
-      <button class="touchcfg-preset" data-scale="1" disabled>กลาง</button>
-      <button class="touchcfg-preset" data-scale="1.3" disabled>ใหญ่</button>
-      <button id="touchcfg-resetone" disabled>คืนค่าปุ่มนี้</button>
+      <button class="touchcfg-preset" data-scale="0.8" disabled data-i18n="touchcfg.small"></button>
+      <button class="touchcfg-preset" data-scale="1" disabled data-i18n="touchcfg.medium"></button>
+      <button class="touchcfg-preset" data-scale="1.3" disabled data-i18n="touchcfg.large"></button>
+      <button id="touchcfg-resetone" disabled data-i18n="touchcfg.resetOne"></button>
     </div></div>
-    <div class="touchcfg-row"><label>ความโปร่งใสของปุ่ม <span id="touchcfg-opval"></span></label>
+    <div class="touchcfg-row"><label><span data-i18n="touchcfg.opacity"></span> <span id="touchcfg-opval"></span></label>
       <input type="range" id="touchcfg-op" min="0.2" max="1" step="0.05" value="1"></div>
-    <div class="touchcfg-row"><label>ความไวการลากหมุนกล้อง <span id="touchcfg-sensval"></span></label>
+    <div class="touchcfg-row"><label><span data-i18n="touchcfg.sens"></span> <span id="touchcfg-sensval"></span></label>
       <input type="range" id="touchcfg-sens" min="0.3" max="3" step="0.05" value="1"></div>
     <div class="touchcfg-actions">
-      <button id="touchcfg-reset">รีเซ็ตทั้งหมด</button>
-      <button id="touchcfg-done" class="primary">เสร็จสิ้น</button>
+      <button id="touchcfg-reset" data-i18n="touchcfg.resetAll"></button>
+      <button id="touchcfg-done" class="primary" data-i18n="touchcfg.done"></button>
     </div>
   </div>
 </div>
 
 <!-- ===================== SHOP (between waves) ===================== -->
 <div id="screen-shop" class="screen hidden">
-  <h2 class="screen-title">ร้านค้า</h2>
-  <div class="shop-timer" id="shop-timer">เริ่มเวฟถัดไปใน 15 วินาที</div>
+  <h2 class="screen-title" data-i18n="shop.title"></h2>
+  <div class="shop-timer" id="shop-timer"></div>
   <div class="shop-tip hidden" id="shop-tip"></div>
   <div class="shop-bonus hidden" id="shop-bonus"></div>
-  <div class="shop-money">เงินสะสม: <span id="shop-money">0</span></div>
+  <div class="shop-money"><span data-i18n="shop.money"></span><span id="shop-money">0</span></div>
   <div class="shop-grid" id="shop-grid"></div>
-  <div class="row-center"><button class="btn btn-primary" id="btn-shop-continue">เริ่มเวฟถัดไป</button></div>
+  <div class="row-center"><button class="btn btn-primary" id="btn-shop-continue" data-i18n="shop.continue"></button></div>
 </div>
 
 <!-- ===================== CRATE OPEN ===================== -->
 <div id="screen-crate" class="screen hidden">
   <div class="crate-open-panel" id="crate-open-panel">
-    <div class="crate-rarity-label" id="crate-rarity-label">RARE</div>
-    <div class="crate-weapon-name" id="crate-weapon-name">Weapon Name</div>
+    <div class="crate-rarity-label" id="crate-rarity-label"></div>
+    <div class="crate-weapon-name" id="crate-weapon-name"></div>
     <div class="crate-weapon-stats" id="crate-weapon-stats"></div>
-    <button class="btn btn-primary" id="btn-crate-continue">ตกลง</button>
+    <button class="btn btn-primary" id="btn-crate-continue" data-i18n="crate.ok"></button>
   </div>
 </div>
 
 <!-- ===================== MYSTERY WEAPON BOX ===================== -->
 <div id="screen-mystery" class="screen hidden">
   <div class="mystery-wrap">
-    <div class="mystery-title" id="mystery-title">เลือกการ์ด 1 ใบ</div>
-    <div class="mystery-sub" id="mystery-sub">มี 1 ใบเป็นปืนระดับโหด — เสี่ยงดวงเลย</div>
+    <div class="mystery-title" id="mystery-title" data-i18n="mystery.pick"></div>
+    <div class="mystery-sub" id="mystery-sub" data-i18n="mystery.pickSub"></div>
     <div class="mystery-cards" id="mystery-cards"></div>
     <div class="mystery-result hidden" id="mystery-result">
       <div class="mystery-result-rarity" id="mystery-result-rarity"></div>
       <div class="mystery-result-name" id="mystery-result-name"></div>
       <div class="mystery-result-stats" id="mystery-result-stats"></div>
-      <button class="btn btn-primary" id="btn-mystery-take">รับปืน</button>
+      <button class="btn btn-primary" id="btn-mystery-take" data-i18n="mystery.take"></button>
     </div>
   </div>
 </div>
 
 <!-- ===================== PAUSE ===================== -->
 <div id="screen-pause" class="screen hidden">
-  <h2 class="screen-title">หยุดเกมชั่วคราว</h2>
+  <h2 class="screen-title" data-i18n="pause.title"></h2>
   <div class="menu-btns">
-    <button class="btn btn-primary" id="btn-resume">Resume</button>
+    <button class="btn btn-primary" id="btn-resume" data-i18n="pause.resume"></button>
     <div class="pause-objectives" id="pause-objectives"></div>
-    <button class="btn" id="btn-pause-vocablog">คลังคำศัพท์</button>
-    <button class="btn" id="btn-pause-weaponlog">คลังปืน</button>
-    <button class="btn" id="btn-pause-settings">Settings</button>
-    <button class="btn" id="btn-pause-tutorial">เริ่มบทสอนใหม่</button>
-    <button class="btn" id="btn-pause-mainmenu">กลับ Main Menu</button>
+    <button class="btn" id="btn-pause-vocablog" data-i18n="menu.vocablog"></button>
+    <button class="btn" id="btn-pause-weaponlog" data-i18n="menu.weaponlog"></button>
+    <button class="btn" id="btn-pause-settings" data-i18n="menu.settings"></button>
+    <button class="btn" id="btn-pause-tutorial" data-i18n="pause.tutorial"></button>
+    <button class="btn" id="btn-pause-mainmenu" data-i18n="common.mainMenu"></button>
   </div>
 </div>
 
 <!-- ===================== GAME OVER ===================== -->
 <div id="screen-gameover" class="screen hidden">
-  <h2 class="screen-title lose">GAME OVER</h2>
+  <h2 class="screen-title lose" data-i18n="result.gameOver"></h2>
   <div class="result-stats" id="gameover-stats"></div>
   <div id="gameover-review" class="review-list"></div>
   <div class="menu-btns row">
-    <button class="btn btn-primary" id="btn-gameover-retry">Retry</button>
-    <button class="btn" id="btn-gameover-menu">Main Menu</button>
+    <button class="btn btn-primary" id="btn-gameover-retry" data-i18n="result.retry"></button>
+    <button class="btn" id="btn-gameover-menu" data-i18n="common.mainMenu"></button>
   </div>
 </div>
 
 <!-- ===================== VICTORY ===================== -->
 <div id="screen-victory" class="screen hidden">
-  <h2 class="screen-title win">VICTORY!</h2>
+  <h2 class="screen-title win" data-i18n="result.victory"></h2>
   <div class="result-stats" id="victory-stats"></div>
   <div id="victory-review" class="review-list"></div>
   <div class="menu-btns row">
-    <button class="btn" id="btn-victory-levelselect">Level Select</button>
-    <button class="btn btn-primary" id="btn-victory-retry">เล่นใหม่</button>
-    <button class="btn" id="btn-victory-menu">Main Menu</button>
+    <button class="btn" id="btn-victory-levelselect" data-i18n="result.levelSelect"></button>
+    <button class="btn btn-primary" id="btn-victory-retry" data-i18n="result.playAgain"></button>
+    <button class="btn" id="btn-victory-menu" data-i18n="common.mainMenu"></button>
   </div>
 </div>
 
+<!-- shown before any script has loaded, so it keeps a literal fallback -->
 <div id="loading-overlay" class="loading-overlay">
-  <div class="loading-text">Loading...</div>
+  <div class="loading-text" data-i18n="common.loading">Loading...</div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="js/strings.js"></script>
 <script src="js/data/words_school.js"></script>
 <script src="js/data/words_hospital.js"></script>
 <script src="js/data/words_bunker.js"></script>

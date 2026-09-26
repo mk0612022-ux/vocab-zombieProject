@@ -2,7 +2,8 @@
 html, body {
   margin: 0; padding: 0; width: 100%; height: 100%;
   overflow: hidden; background: #05070a;
-  font-family: 'Segoe UI', 'Tahoma', sans-serif;
+  /* English UI, but the word meanings are Thai: keep Thai-capable fallbacks */
+  font-family: 'Segoe UI', 'Tahoma', 'Leelawadee UI', 'Noto Sans Thai', 'Thonburi', sans-serif;
   color: #eaf2f2;
   user-select: none;
   -webkit-user-select: none;
@@ -20,6 +21,9 @@ html, body {
 .screen {
   position: fixed; inset: 0; z-index: 20;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
+  /* "safe": when a screen is taller than a landscape phone, plain centring
+     pushes its top (the title) above the scroll origin, out of reach */
+  justify-content: safe center;
   background: radial-gradient(ellipse at center, rgba(15,20,25,0.92) 0%, rgba(5,7,10,0.98) 100%);
   padding: 20px; overflow-y: auto;
 }
@@ -79,7 +83,9 @@ html, body {
 .howto-content ul { padding-left: 20px; }
 .settings-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid #23301f; }
 .settings-row label { flex: 1; }
-.settings-row select, .settings-row input[type=range] { flex: 1; }
+/* min-width 0: a select is otherwise as wide as its longest option and pushes
+   the row off a portrait phone */
+.settings-row select, .settings-row input[type=range] { flex: 1; min-width: 0; }
 .settings-section-title { margin-top: 18px; font-weight: 700; color: #6bff7a; }
 .keybind-row { display:flex; justify-content: space-between; align-items:center; padding: 6px 0; }
 .keybind-btn { min-width: 90px; }
@@ -145,7 +151,7 @@ html, body {
 .practice-feedback { margin-top: 14px; min-height: 20px; font-weight: 700; }
 
 /* ---------------- HUD ---------------- */
-.hud { position: fixed; inset: 0; z-index: 10; pointer-events: none; font-family: 'Segoe UI', sans-serif; }
+.hud { position: fixed; inset: 0; z-index: 10; pointer-events: none; font-family: 'Segoe UI', 'Tahoma', 'Leelawadee UI', 'Noto Sans Thai', 'Thonburi', sans-serif; }
 .hud-top { position: absolute; top: 16px; left: 0; right: 0; display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .hud-meaning-box { background: rgba(5,10,7,0.75); border: 1px solid #6bff7a55; border-radius: 8px; padding: 8px 22px; text-align: center; }
 .hud-meaning-label { font-size: 0.7rem; opacity: 0.7; letter-spacing: 1px; }
@@ -398,7 +404,7 @@ body.touch-mode .hud-interact-prompt { top: 62%; }
 .touchcfg-row { display: flex; align-items: center; gap: 8px; margin: 7px 0; }
 .touchcfg-row > label { flex: 0 0 42%; font-size: 0.76rem; }
 .touchcfg-row > input[type="range"] { flex: 1; }
-.touchcfg-presets { display: flex; gap: 6px; }
+.touchcfg-presets { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; min-width: 0; }
 .touchcfg-panel button {
   background: rgba(30,60,38,0.85); border: 1px solid #3f8a50; color: #dff5e2;
   border-radius: 7px; padding: 5px 10px; font-size: 0.76rem; font-weight: 700; cursor: pointer;
@@ -429,6 +435,10 @@ body.touch-mode .hud-interact-prompt { top: 62%; }
   .hud-challenge-meaning { font-size: 1.05rem; margin: 3px 0; }
   .mcard { width: clamp(64px, 12vw, 104px); height: clamp(92px, 17vw, 150px); }
   .mystery-title { font-size: 1.2rem; }
+  .mystery-sub { margin-bottom: 10px; }
+  .mystery-result { margin-top: 10px; }
+  .mystery-result-name { font-size: 1.25rem; margin: 2px 0 4px; }
+  .mystery-result-stats { font-size: 0.78rem; line-height: 1.35; margin-bottom: 8px; }
   .log-content, .shop-grid { max-height: 52vh; }
 }
 /* Very short landscape phones (≈320px tall). The stats panel at the 520px
@@ -460,6 +470,21 @@ body.touch-mode .hud-interact-prompt { top: 62%; }
 .shop-item-desc { font-size: 0.8rem; opacity: 0.75; margin: 6px 0; min-height: 32px; }
 .shop-item-price { color: #ffdd66; font-weight: 700; margin-bottom: 8px; }
 .shop-item .btn { width: 100%; padding: 8px; }
+/* Landscape phones: the header above the grid used to leave the grid about
+   60px tall, with every Buy button below the fold. The grid now takes all
+   the height that is left and scrolls on its own. */
+@media (max-height: 520px) {
+  #screen-shop { padding: 8px 16px; justify-content: flex-start; }
+  #screen-shop .screen-title { margin-bottom: 2px; }
+  .shop-timer, .shop-bonus { font-size: 0.78rem; margin-bottom: 2px; }
+  .shop-money { font-size: 1rem; margin-bottom: 6px; }
+  .shop-tip { font-size: 0.72rem; padding: 4px 10px; margin: 2px auto 4px; }
+  .shop-grid { gap: 8px; max-height: none; flex: 1 1 auto; min-height: 0; }
+  .shop-item { padding: 8px 10px; }
+  .shop-item-desc { min-height: 0; margin: 2px 0; }
+  .shop-item-price { margin-bottom: 4px; }
+  .shop-item .btn { padding: 5px; }
+}
 
 /* ---------------- Crate open ---------------- */
 .crate-open-panel { text-align: center; background: rgba(10,16,12,0.9); border: 2px solid #6bff7a; border-radius: 12px; padding: 40px; animation: crate-pop .25s ease; }

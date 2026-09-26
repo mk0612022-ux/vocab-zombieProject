@@ -163,7 +163,7 @@ G.Game = {
     } else {
       pairs = G.getAllBuiltinWords();
     }
-    if (!pairs || pairs.length < 4) { alert("ชุดคำศัพท์นี้มีคำไม่พอสำหรับฝึก (ต้องมีความหมายอย่างน้อย 4 คำ)"); return; }
+    if (!pairs || pairs.length < 4) { alert(G.T("practice.notEnough")); return; }
     this.state = "PRACTICE_PLAY";
     G.UI.showScreen("screen-practice-play");
     G.UI.startPracticeRound(pairs);
@@ -179,13 +179,13 @@ G.Game = {
   },
   startDailyChallenge() {
     this.mode = "daily";
-    this.level = Object.assign({}, G.getLevel(1), { waves: 5, bossEvery: 3, name: "Daily Challenge" });
+    this.level = Object.assign({}, G.getLevel(1), { waves: 5, bossEvery: 3, name: G.T("level.daily") });
     this.wordPool = G.getDailyWordSet();
     this.beginRun();
   },
   startEndless() {
     this.mode = "endless";
-    this.level = Object.assign({}, G.getLevel(3), { waves: 999999, bossEvery: 3, name: "Endless" });
+    this.level = Object.assign({}, G.getLevel(3), { waves: 999999, bossEvery: 3, name: G.T("level.endless") });
     this.wordPool = G.getAllBuiltinWords();
     this.beginRun();
   },
@@ -622,7 +622,7 @@ G.Game = {
       const end = origin.clone().addScaledVector(dir, Math.min(40, Math.max(0, wallAt - 0.2)));
       this.splashDamage(end, def, dmg);
     }
-    // also allow shooting the static locked crate to attempt opening (per spec: "ยิงหรือกด E เพื่อเปิด")
+    // also allow shooting the static locked crate to attempt opening (per spec: "shoot it or press E to open")
     if (this.world) {
       const crateMeshes = this.world.crates.filter((c) => !c.opened).map((c) => c.mesh);
       // a crate is itself a collider, so it IS the wall the ray stopped at
@@ -909,7 +909,7 @@ G.Game = {
   tryOpenStaticCrate(crateRef) {
     if (!crateRef || crateRef.opened) return;
     if (crateRef.locked) {
-      this.startWordChallenge("ตอบคำศัพท์เพื่อปลดล็อกกล่อง", () => { crateRef.locked = false; this.openStaticCrateNow(crateRef); }, () => {});
+      this.startWordChallenge(G.T("challenge.crate"), () => { crateRef.locked = false; this.openStaticCrateNow(crateRef); }, () => {});
     } else this.openStaticCrateNow(crateRef);
   },
   openStaticCrateNow(crateRef) {
@@ -981,7 +981,7 @@ G.Game = {
       if (!G.Objectives.state || G.Objectives.allDone(this)) { this.onVictory(); return; }
       if (!this._overtimeAnnounced) {
         this._overtimeAnnounced = true;
-        G.UI.flashPurchaseBanner("ภารกิจยังไม่ครบ!", "ซอมบี้จะมาต่อเรื่อยๆ จนกว่าจะทำภารกิจครบ (ดูได้ที่ HUD / หน้าหยุดเกม)");
+        G.UI.flashPurchaseBanner(G.T("banner.objectivesLeft"), G.T("banner.objectivesLeftText"));
       }
     }
     // Category P: a cleared wave pays. Kill money alone came to roughly
@@ -1136,7 +1136,7 @@ G.Game = {
     if (this.state === "SHOP") {
       if (G.Modal.isOpen("crate")) return;
       this.shopTimer -= dt;
-      G.UI.el("shop-timer").textContent = `เริ่มเวฟถัดไปใน ${Math.max(0, Math.ceil(this.shopTimer))} วินาที`;
+      G.UI.el("shop-timer").textContent = G.T("shop.timer", { s: Math.max(0, Math.ceil(this.shopTimer)) });
       G.UI.el("shop-money").textContent = this.player.money;
       if (this.shopTimer <= 0) this.leaveShop();
       return;
@@ -1209,16 +1209,19 @@ G.Game = {
     const ammoInMag = id === "melee" ? 0 : this.player.ammo[id].mag;
     const ammoReserve = id === "melee" ? 0 : this.player.ammo[id].reserve;
     const slots = [{ active: this.player.currentSlot === 0 }].concat(this.player.gunSlots.map((_, i) => ({ active: this.player.currentSlot === i + 1 })));
-    let meaning = this.targetPair ? this.targetPair[1] : (this.zombies.length ? "-" : "รอศัตรูปรากฏตัว...");
-    if (this.player.perks.perk_hint && this.targetPair) meaning += `  (ขึ้นต้นด้วย "${this.targetPair[0][0].toUpperCase()}")`;
+    let meaning = this.targetPair ? this.targetPair[1] : (this.zombies.length ? "-" : G.T("hud.waiting"));
+    if (this.player.perks.perk_hint && this.targetPair) meaning += G.T("hud.hintFirst", { c: this.targetPair[0][0].toUpperCase() });
+    const campaign = this.mode === "campaign";
     return {
       hp: (this.player.hp / this.player.maxHp) * 100, stamina: (this.stamina / this.maxStamina) * 100,
       staminaExhausted: this.staminaExhausted, money: this.player.money, score: this.player.score,
-      levelLabel: `${this.level.name} · Wave ${this.wave}${this.mode === "campaign" ? "/" + this.level.waves : ""}${this.mode === "campaign" && this.wave > this.level.waves ? " (ต่อเวลา)" : ""}`,
-      objectives: G.Objectives.state ? `ภารกิจ ${G.Objectives.doneCount(this)}/${G.Objectives.list(this).length}` : null,
+      levelLabel: G.T("hud.levelWave", { level: this.level.name, wave: this.wave + (campaign ? "/" + this.level.waves : "") }) +
+        (campaign && this.wave > this.level.waves ? G.T("hud.overtime") : ""),
+      objectives: G.Objectives.state ? G.T("hud.objectives", { d: G.Objectives.doneCount(this), n: G.Objectives.list(this).length }) : null,
       // what is still between the player and the end of the wave: the ones
       // alive plus the rest of the quota still to come
       zombiesLeft: this.zombies.length + (this.isBossWave() ? 0 : Math.max(0, this.requiredKills - this.spawnedCount)), weaponName: def.name,
+      isMelee: id === "melee",
       weightLabel: def.id === "melee" ? null : G.weightClass(def).label,
       weightColor: def.id === "melee" ? null : G.weightClass(def).color,
       ammoInMag, ammoReserve, currentMeaning: meaning, slots, combo: this.player.combo,
@@ -1605,22 +1608,26 @@ G.Game = {
       while (obj && !found) { found = this.world.interactables.find((i) => i.mesh === obj); obj = obj.parent; }
       this._lookedAtInteractable = found;
       if (found) {
-        let label = "กด E เพื่อโต้ตอบ";
-        if (found.kind === "door") label = found.ref.opened ? "" : "กด E เพื่อลองเปิดประตู (ต้องตอบคำศัพท์)";
-        if (found.kind === "button") label = found.ref.pressed ? "กดแล้ว" : "กด E เพื่อกดปุ่ม";
-        if (found.kind === "crate") label = found.ref.opened ? "" : "กด E เพื่อเปิดกล่อง";
-        if (found.kind === "trap") label = found.ref.active ? "กด E เพื่อปิดกับดัก (ต้องตอบคำศัพท์)" : "";
-        if (found.kind === "hatch") label = found.ref.opened ? "" : "กด E เพื่อเปิดฝาปิด (ต้องตอบคำศัพท์)";
-        if (found.kind === "roomdoor") label = found.ref.open ? "กด E เพื่อปิดประตู" : "กด E เพื่อเปิดประตู";
+        const T = G.T;
+        let label = T("hud.interact");
+        if (found.kind === "door") label = found.ref.opened ? "" : T("prompt.wordDoor");
+        if (found.kind === "button") label = T(found.ref.pressed ? "prompt.buttonDone" : "prompt.button");
+        if (found.kind === "crate") label = found.ref.opened ? "" : T("prompt.crate");
+        if (found.kind === "trap") label = found.ref.active ? T("prompt.trap") : "";
+        if (found.kind === "hatch") label = found.ref.opened ? "" : T("prompt.hatch");
+        if (found.kind === "roomdoor") label = T(found.ref.open ? "prompt.doorClose" : "prompt.doorOpen");
         if (found.kind === "mysterybox") {
-          label = `กด E เพื่อสุ่มปืน ($${G.MYSTERY_BOX_COST})` + (this.player.money < G.MYSTERY_BOX_COST ? " - เงินไม่พอ" : "");
+          label = T("prompt.mystery", { cost: G.MYSTERY_BOX_COST }) + (this.player.money < G.MYSTERY_BOX_COST ? T("prompt.notEnough") : "");
         }
         if (found.kind === "wallweapon") {
           const wdef = G.WEAPON_DEFS[found.ref.id];
           // Weight is part of the buying decision (category E), so it is on
           // the prompt rather than only in the log.
           const wc = G.weightClass(wdef);
-          label = found.ref.purchased ? "" : `กด E เพื่อซื้อ ${wdef.name} ($${wdef.price}${this.player.money < wdef.price ? " - เงินไม่พอ" : ""}) · น้ำหนัก${wc.label}`;
+          label = found.ref.purchased ? "" : T("prompt.wallGun", {
+            name: wdef.name, price: wdef.price, weight: wc.label,
+            short: this.player.money < wdef.price ? T("prompt.notEnough") : "",
+          });
         }
         G.UI.setInteractPrompt(!!label, label);
       }
@@ -1632,13 +1639,13 @@ G.Game = {
     if (!found) return;
     if (found.kind === "door") {
       if (found.ref.opened) return;
-      this.startWordChallenge("ตอบคำศัพท์เพื่อเปิดประตู", () => this.clearBlockingObstacle(found.ref, "opened"), () => {});
+      this.startWordChallenge(G.T("challenge.door"), () => this.clearBlockingObstacle(found.ref, "opened"), () => {});
     } else if (found.kind === "trap") {
       if (!found.ref.active) return;
-      this.startWordChallenge("ตอบคำศัพท์เพื่อปิดกับดัก", () => this.clearBlockingObstacle(found.ref, "active", false), () => {});
+      this.startWordChallenge(G.T("challenge.trap"), () => this.clearBlockingObstacle(found.ref, "active", false), () => {});
     } else if (found.kind === "hatch") {
       if (found.ref.opened) return;
-      this.startWordChallenge("ตอบคำศัพท์เพื่อเปิดฝาปิด", () => this.openHatch(found.ref), () => {});
+      this.startWordChallenge(G.T("challenge.hatch"), () => this.openHatch(found.ref), () => {});
     } else if (found.kind === "button") {
       found.ref.pressed = true; found.mesh.material.color.set(0x44ff44);
       const sz = this.world.secretZone;
@@ -1665,8 +1672,8 @@ G.Game = {
   openMysteryBox() {
     if (this._mysteryHand) return;
     if (this.player.money < G.MYSTERY_BOX_COST) {
-      G.UI.flashPurchaseBanner("เงินไม่พอ",
-        `ต้องใช้ $${G.MYSTERY_BOX_COST} · มีอยู่ $${Math.floor(this.player.money)}`);
+      G.UI.flashPurchaseBanner(G.T("banner.noMoney"),
+        G.T("banner.noMoneyText", { cost: G.MYSTERY_BOX_COST, have: Math.floor(this.player.money) }));
       return;
     }
     this.player.money -= G.MYSTERY_BOX_COST;
@@ -2038,7 +2045,7 @@ G.Game = {
     const idx = this.world.colliders.indexOf(sf.barrierCollider);
     if (idx >= 0) this.world.colliders.splice(idx, 1);
     sf.cratePositions.forEach((p) => this.spawnDrop("crate", p));
-    G.UI.flashPurchaseBanner("ชั้น 2 ปลดล็อกแล้ว!", `ฆ่าซอมบี้ครบ ${sf.killsNeeded} ตัว`);
+    G.UI.flashPurchaseBanner(G.T("banner.upstairs"), G.T("banner.upstairsText", { n: sf.killsNeeded }));
   },
 
   updateTraps(dt) {
@@ -2078,7 +2085,7 @@ G.Game = {
     }
     G.BossFight.update(dt);
     const z = G.BossFight.zombie;
-    G.UI.setBossBar(true, "ZOMBIE BOSS", (z.hp / z.maxHp) * 100);
+    G.UI.setBossBar(true, G.T("hud.zombieBoss"), (z.hp / z.maxHp) * 100);
     G.UI.setBossWord(G.BossFight.currentWord ? G.BossFight.currentWord[1] : "");
     G.UI.setBossTimer(G.BossFight.timeLeft / G.BossFight.timeLimit);
     if (G.BossFight.currentWord) {

@@ -14,11 +14,12 @@
 // ============================================================
 window.G = window.G || {};
 
-// Registry of built-in word sets (extended at runtime by Import Vocabulary)
+// Registry of built-in word sets (extended at runtime by Import Vocabulary).
+// The names are internal (never shown); the Thai meanings live in words_*.js.
 G.WORD_SETS = {
-  level1: { name: "ชุดคำศัพท์ด่าน 1 (โรงเรียน)", words: G.WORDS_LEVEL_1, builtin: true },
-  level2: { name: "ชุดคำศัพท์ด่าน 2 (โรงพยาบาล)", words: G.WORDS_LEVEL_2, builtin: true },
-  level3: { name: "ชุดคำศัพท์ด่าน 3 (บังเกอร์)", words: G.WORDS_LEVEL_3, builtin: true },
+  level1: { name: "Level 1 words (school)", words: G.WORDS_LEVEL_1, builtin: true },
+  level2: { name: "Level 2 words (hospital)", words: G.WORDS_LEVEL_2, builtin: true },
+  level3: { name: "Level 3 words (bunker)", words: G.WORDS_LEVEL_3, builtin: true },
 };
 
 G.getAllBuiltinWords = function () {
@@ -34,9 +35,9 @@ G.getAllBuiltinWords = function () {
 // it can be run from a page, a console, or a test harness.
 G.auditWordSets = function () {
   const sets = [
-    { key: "level1", file: "words_school.js", label: "โรงเรียน (ง่ายสุด)", words: G.WORDS_LEVEL_1 },
-    { key: "level2", file: "words_hospital.js", label: "โรงพยาบาล (กลาง)", words: G.WORDS_LEVEL_2 },
-    { key: "level3", file: "words_bunker.js", label: "บังเกอร์ (ยากสุด)", words: G.WORDS_LEVEL_3 },
+    { key: "level1", file: "words_school.js", label: "School (easiest)", words: G.WORDS_LEVEL_1 },
+    { key: "level2", file: "words_hospital.js", label: "Hospital (medium)", words: G.WORDS_LEVEL_2 },
+    { key: "level3", file: "words_bunker.js", label: "Bunker (hardest)", words: G.WORDS_LEVEL_3 },
   ];
   const report = { sets: [], crossLevelDuplicates: [], withinSetDuplicates: [], malformed: [], total: 0, ok: false };
   const seen = new Map(); // lowercased word -> set key it was first found in
