@@ -143,7 +143,7 @@ G.Bot = {
       I.touchMove = { x: 0, y: 0, active: true }; I.touchFire = false; I.touchSprint = false;
       if (opt.weapon) { g.acquireWeapon(opt.weapon); }
       const world = g.world;
-      const doorColliders = new Set(world.roomDoors.map((d) => d.collider));
+      const doorColliders = new Set([].concat(...world.roomDoors.map((d) => d.colliders || [d.collider])));
       const wordDoor = (world.doors || []).find((d) => d.kind === "word");
       const nav = this.makeNav(world, (c) => doorColliders.has(c) || (wordDoor && c === wordDoor.collider));
       const R = {

@@ -15,6 +15,9 @@ G.NavTest = {
     opts = Object.assign({ limit: 120, from: null }, opts || {});
     const g = G.Game;
     G.save.tutorialDone = true;
+    // stepped by hand: no pointer lock, or losing it (focus moving to the
+    // devtools) would pause the run the way alt-tab pauses the game
+    G.Input.mode = "touch";
     g.startLevel(levelId);
     const upd = g.update;
     g.update = function () {};

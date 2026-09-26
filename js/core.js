@@ -359,6 +359,10 @@ G.Input = {
     document.getElementById("gameCanvas").addEventListener("contextmenu", (e) => e.preventDefault());
     document.addEventListener("pointerlockchange", () => {
       this.pointerLocked = document.pointerLockElement === document.getElementById("gameCanvas");
+      // A lock asked for just before a window opened (or the game paused) can
+      // arrive after it: hand it straight back rather than hide the cursor
+      // over a question.
+      if (this.pointerLocked && G.Game && !G.Game.playing()) { this.exitPointerLock(); return; }
       // Losing the lock (Escape, alt-tab, a popup opening) never delivers a
       // mouseup, so without this a button held at that moment would stay
       // "stuck" down (firing or aiming forever) once control returns.

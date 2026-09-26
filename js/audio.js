@@ -334,12 +334,34 @@ G.Audio = {
     if (idx >= 4) this.noise({ dur: 1.4, filter: "highpass", freq: 7000, gain: 0.08, at: notes * 0.08, attack: 0.2 });
   },
 
-  door(open, pos) {
+  // Sliding doors (category B): rollers rumbling along the top rail for as
+  // long as the panel moves, a click from the latch as it lets go. A wide
+  // pair is heavier and lower. Every door is pitched a little differently.
+  slideDoor(open, pos, dur, heavy) {
     if (!this.ctx) return;
-    this.tone({ type: "sawtooth", freq: open ? 190 : 150, freqEnd: open ? 130 : 210, dur: 0.55, gain: 0.12,
-      vibrato: { rate: 23, depth: 14 }, filter: { type: "bandpass", freq: 900, q: 5 }, pos });
-    this.noise({ dur: 0.4, freq: 1200, q: 2, gain: 0.05, pos });
-    if (!open) this.tone({ type: "sine", freq: 90, freqEnd: 50, dur: 0.14, gain: 0.35, at: 0.36, pos });   // it shuts
+    const v = 0.96 + Math.random() * 0.08, len = dur + 0.06;
+    this.noise({ dur: len, filter: "lowpass", freq: (heavy ? 520 : 760) * v, freqEnd: (heavy ? 420 : 600) * v, gain: heavy ? 0.1 : 0.075, attack: 0.07, pos });
+    this.tone({ type: "triangle", freq: (heavy ? 46 : 62) * v, dur: len, gain: heavy ? 0.07 : 0.05, attack: 0.06,
+      vibrato: { rate: 17 * v, depth: 5 }, filter: { type: "lowpass", freq: 320 }, pos });
+    if (open) this.noise({ dur: 0.04, freq: 2300 * v, q: 3, gain: 0.05, pos });   // the latch
+  },
+  // The end of the travel: shut is a soft thump against the jamb (or the other
+  // panel), open a light knock on the stop, and a door that ran into somebody
+  // a dull rubber bump before it slides back.
+  doorStop(shut, pos, heavy, blocked) {
+    if (!this.ctx) return;
+    const v = 0.96 + Math.random() * 0.08;
+    if (blocked) {
+      this.tone({ type: "sine", freq: 95 * v, freqEnd: 60, dur: 0.11, gain: 0.2, pos });
+      this.noise({ dur: 0.08, filter: "lowpass", freq: 320, gain: 0.06, pos });
+    } else if (shut) {
+      this.tone({ type: "sine", freq: (heavy ? 96 : 122) * v, freqEnd: heavy ? 44 : 55, dur: 0.16, gain: heavy ? 0.4 : 0.3, pos });
+      this.noise({ dur: 0.08, filter: "lowpass", freq: 520 * v, gain: 0.08, pos });
+      this.noise({ dur: 0.06, freq: 1800 * v, q: 4, gain: 0.025, at: 0.02, pos });   // the glass rattles
+    } else {
+      this.tone({ type: "sine", freq: 170 * v, freqEnd: 100, dur: 0.08, gain: 0.12, pos });
+      this.noise({ dur: 0.04, freq: 1400 * v, q: 2, gain: 0.04, pos });
+    }
   },
 
   footstep(surface, running) {

@@ -1178,7 +1178,9 @@ G.Zombie.prototype.update = function (dt, moveTarget, attackTarget, colliders, g
   const dir = new THREE.Vector3().subVectors(moveTarget, this.mesh.position);
   dir.y = 0;
   const moveDist = dir.length();
-  if (moveDist > 0.9) {
+  // it stops short of what it chases (0.9, arm's length); a waypoint can
+  // ask to be walked right up to (a doorway's approach node)
+  if (moveDist > (moveTarget.stopAt || 0.9)) {
     dir.normalize();
     const moveSpeed = this.speed * this.speedMultiplier * dt;
     // Stuck guard (category P): steering can still wedge a zombie in a pocket
@@ -1187,9 +1189,19 @@ G.Zombie.prototype.update = function (dt, moveTarget, attackTarget, colliders, g
     // live. If it has not closed on its target for a few seconds, it wanders
     // off in a random direction for a moment and then tries again.
     const tgtMoved = !this._lastTgt || Math.hypot(moveTarget.x - this._lastTgt.x, moveTarget.z - this._lastTgt.z) > 1;
-    if (tgtMoved) { this._lastTgt = { x: moveTarget.x, z: moveTarget.z }; this._bestDist = moveDist; this._stuckT = 0; }
+    // (a new target also drops the remembered avoid side: that belonged to
+    // the last obstacle, and in a doorway -- where the route flips between
+    // the room and the corridor as the zombie crosses the wall line -- it
+    // kept turning it back into the end of the wall)
+    if (tgtMoved) { this._lastTgt = { x: moveTarget.x, z: moveTarget.z }; this._bestDist = moveDist; this._stuckT = 0; this._avoidT = 0; }
     if (moveDist < this._bestDist - 0.3) { this._bestDist = moveDist; this._stuckT = 0; }
     this._stuckT += dt;
+    // ...and a target that keeps changing never counts as stuck above, so
+    // also: trying to move but still within 0.6m of where it was 3s ago
+    if (!this._posRef) { this._posRef = { x: this.mesh.position.x, z: this.mesh.position.z }; this._posT = 0; }
+    if (Math.hypot(this.mesh.position.x - this._posRef.x, this.mesh.position.z - this._posRef.z) > 0.6) {
+      this._posRef.x = this.mesh.position.x; this._posRef.z = this.mesh.position.z; this._posT = 0;
+    } else if ((this._posT += dt) > 3) { this._posT = 0; this._stuckT = 99; }
     if (this._stuckT > 2.5) {
       this._stuckT = 0; this._bestDist = moveDist;
       this._escapeT = 0.9;
@@ -1252,6 +1264,7 @@ G.Zombie.prototype.update = function (dt, moveTarget, attackTarget, colliders, g
       this._faceYaw = Math.atan2(moveDir.x, moveDir.z);
     }
   } else {
+    this._posT = 0;
     // close enough to bite: square up to the player
     this._faceYaw = Math.atan2(attackTarget.x - this.mesh.position.x, attackTarget.z - this.mesh.position.z);
   }

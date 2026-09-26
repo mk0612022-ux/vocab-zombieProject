@@ -1456,12 +1456,18 @@ G.Game = {
           const node = this.world.waypointNodes[z.navPath[z.navIndex]];
           // reached = close AND on the same floor: the gallery node sits right
           // above the hall floor, and a zombie under it had not "reached" it
-          if (Math.hypot(node.x - z.mesh.position.x, node.z - z.mesh.position.z) < 1.3 &&
+          // A door's approach node (DW1, DENTRY...) must be reached properly:
+          // counted from 1.3 away, a zombie that had just bashed its way out
+          // still stood in line with the wall, turned for the next node and
+          // caught the end of the wall -- back and forth at the doorway.
+          const reach = /^D[A-Z]/.test(z.navPath[z.navIndex]) ? 0.75 : 1.3;
+          if (Math.hypot(node.x - z.mesh.position.x, node.z - z.mesh.position.z) < reach &&
             (node.y === undefined || Math.abs(node.y - z.mesh.position.y) < 1.5)) z.navIndex++;
         }
         if (z.navPath.length && z.navIndex < z.navPath.length) {
           const node = this.world.waypointNodes[z.navPath[z.navIndex]];
           moveTarget = new THREE.Vector3(node.x, 0, node.z);
+          if (/^D[A-Z]/.test(z.navPath[z.navIndex])) moveTarget.stopAt = 0.3;
         }
       } else {
         z.navPath = null;
@@ -1485,6 +1491,7 @@ G.Game = {
         moveTarget = new THREE.Vector3(z.mesh.position.x, 0, sb.max.z + 1.5);
         stairKeepOut = null;
       }
+      z._goal = moveTarget;          // where it is headed (see updateRoomDoors)
       const dist = z.update(dt, moveTarget, playerPos, this.world.colliders, G.save.settings.gameSpeed, stairKeepOut);
       z.mesh.position.y = G.getFloorHeightAt(this.world, z.mesh.position.x, z.mesh.position.z, z.mesh.position.y);
       // a bite needs the same floor too -- the distance is measured flat, so a
@@ -1632,74 +1639,126 @@ G.Game = {
     G.Modal.close("mystery");
   },
 
-  // ---------------- Room doors (category B) ----------------
+  // ---------------- Room doors (category B: sliding) ----------------
+  // The panels slide on their rail (see G.placeDoorLeaves in world.js):
+  // eased in and out, a small rebound off the stop, 0.4-0.6s in all. Their
+  // colliders ride with them the whole way, so a half-open door blocks
+  // exactly the half that is still shut.
   toggleRoomDoor(ref, forceOpen) {
     const willOpen = forceOpen === undefined ? !ref.open : forceOpen;
-    if (willOpen === ref.open && ref.animT >= 1) return;
+    if (willOpen === ref.open) return;
     ref.open = willOpen;
     ref.bashTimer = 0;
-    // Category F: the blocking box now follows the panel through its swing
-    // rather than being yanked out the instant the door is TOLD to open. A
-    // door that is still half shut still blocks; a door that is still closing
-    // blocks progressively more. It is only dropped once the panel is fully
-    // clear of the doorway, and comes straight back the moment a close starts.
-    if (this.world.colliders.indexOf(ref.collider) < 0) this.world.colliders.push(ref.collider);
-    ref.colliderDropped = false;
-    ref.shakeT = 0;
-    G.Audio.door(willOpen, new THREE.Vector3(ref.x, (ref.baseY || 0) + 1.5, ref.z));
+    ref.from = ref.p; ref.to = willOpen ? 1 : 0;
+    // a wide pair is heavier; a reversal only has what is left to travel
+    const full = ref.double ? 0.46 : 0.4;
+    ref.dur = Math.max(0.16, full * Math.abs(ref.to - ref.from));
+    ref.animT = 0; ref.settleT = 0; ref.held = false;
+    const pos = new THREE.Vector3(ref.x, (ref.baseY || 0) + 1.5, ref.z);
+    G.Audio.slideDoor(willOpen, pos, ref.dur, ref.double);
     // A door nobody has touched since the outbreak coughs dust off its frame.
     if (!ref.dusted) {
       ref.dusted = true;
-      G.spawnDustPuff(this.scene, new THREE.Vector3(ref.x, (ref.baseY || 0) + 1.5, ref.z), G.save.settings.graphicsQuality, 1.4);
+      G.spawnDustPuff(this.scene, new THREE.Vector3(ref.x, (ref.baseY || 0) + 2.7, ref.z), G.save.settings.graphicsQuality, ref.double ? 2 : 1.4);
     }
-    // The swing is stepped by updateRoomDoors from the game loop's own dt.
-    // A requestAnimationFrame chain would keep running while the game is
-    // paused and, worse, stall out entirely if the tab is backgrounded --
-    // which left the door stuck half-open and un-interactable.
-    ref.fromRot = ref.mesh.rotation.y;
-    ref.toRot = willOpen ? (ref.axis === "x" ? -Math.PI / 2 : Math.PI / 2) : 0;
-    ref.animT = 0;
   },
+  // everybody a sliding panel could run into
+  doorBodies() {
+    const P = this.yawObject.position;
+    const out = [{ x: P.x, z: P.z, y: P.y - 1.7, r: 0.36, pos: P }];
+    for (const z of this.zombies) {
+      if (z.alive) out.push({ x: z.mesh.position.x, z: z.mesh.position.z, y: z.mesh.position.y, r: z.type === "boss" ? 0.9 : 0.42, pos: z.mesh.position });
+    }
+    return out;
+  },
+  // push a body standing on an opening panel's rail line straight out from
+  // the wall, a little each frame, unless that would put it in something
+  shoveFromDoor(d, h, dt) {
+    const lf = h.leaf, s = Math.sign(lf.n) || 1;
+    const nNow = d.axis === "x" ? h.pos.z - d.z : h.pos.x - d.x;
+    const want = lf.n + s * (0.25 + h.r + 0.04);
+    const step = Math.sign(want - nNow) * Math.min(Math.abs(want - nNow), 2.2 * dt);
+    const x = h.pos.x + (d.axis === "x" ? 0 : step), z = h.pos.z + (d.axis === "x" ? step : 0);
+    const r = h.pos === this.yawObject.position ? 0.35 : 0.12;
+    const y0 = h.y + 0.1, y1 = h.y + 1.6;
+    const own = new Set(d.colliders);
+    if (this.world.colliders.some((c) => !own.has(c) && c.max.y >= y0 && c.min.y <= y1 && x + r > c.min.x && x - r < c.max.x && z + r > c.min.z && z - r < c.max.z)) return;
+    h.pos.x = x; h.pos.z = z;
+  },
+  // Stepped from the game loop's dt: a requestAnimationFrame chain would keep
+  // running while the game is paused and stall if the tab is backgrounded.
   // A closed door blocks zombies too, so one held up against it leans on it
   // until it gives way -- without this, shutting every door would strand a
   // wave's remaining zombies and the level could never be cleared.
   updateRoomDoors(dt) {
     const doors = this.world.roomDoors;
     if (!doors || !doors.length) return;
+    let bodies = null;
+    const SETTLE = 0.12;
     for (const d of doors) {
+      if (!d.leaves.length) continue;
       if (d.animT < 1) {
-        d.animT = Math.min(1, d.animT + dt / 0.38);
-        // Ease out hard: the panel leaves fast and arrives slowly, the way a
-        // door someone shoved actually moves.
-        const e = 1 - Math.pow(1 - d.animT, 3);
-        d.mesh.rotation.y = d.fromRot + (d.toRot - d.fromRot) * e;
-        if (d.animT >= 1) d.shakeT = 0.24;          // hits the end of its travel
-        this.syncDoorCollider(d);
-      } else if (d.shakeT > 0) {
-        // A damped judder as the panel slams against the stop / the frame.
-        d.shakeT = Math.max(0, d.shakeT - dt);
-        const k = d.shakeT / 0.24;
-        d.mesh.rotation.y = d.toRot + Math.sin(d.shakeT * 62) * 0.06 * k * k;
-        if (d.shakeT <= 0) d.mesh.rotation.y = d.toRot;
-        this.syncDoorCollider(d);
-      } else if (d.open && !d.colliderDropped) {
-        // fully open and settled -- now the doorway is genuinely clear
-        const i = this.world.colliders.indexOf(d.collider);
-        if (i >= 0) this.world.colliders.splice(i, 1);
-        d.colliderDropped = true;
+        const t = Math.min(1, d.animT + dt / d.dur);
+        const e = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;   // ease in-out
+        const p = d.from + (d.to - d.from) * e;
+        bodies = bodies || this.doorBodies();
+        const hit = G.doorSweepHits(d, d.p, p, bodies);
+        if (hit.length) {
+          // Somebody is in the way. Closing: it bumps them and slides back
+          // open, like a lift door. Opening: the panel nudges them off its
+          // rail line (a zombie coming along the wall stands right on it) and
+          // waits until they are clear.
+          if (!d.open) {
+            this.toggleRoomDoor(d, true);
+            G.Audio.doorStop(false, new THREE.Vector3(d.x, d.baseY + 1.2, d.z), d.double, true);
+          } else {
+            d.held = true;
+            hit.forEach((h) => this.shoveFromDoor(d, h, dt));
+          }
+          continue;
+        }
+        d.held = false;
+        d.animT = t; d.p = p;
+        if (t >= 1) {
+          d.settleT = 1e-4;
+          G.Audio.doorStop(!d.open, new THREE.Vector3(d.x, d.baseY + 1.2, d.z), d.double);
+        }
+        G.placeDoorLeaves(d, 0, 0);
+      } else if (d.settleT > 0) {
+        // the rebound off the stop (or off the other panel), gone in 0.12s
+        d.settleT += dt;
+        const k = Math.max(0, 1 - d.settleT / SETTLE);
+        G.placeDoorLeaves(d, 0.035 * Math.abs(Math.sin(d.settleT * 38)) * k * k, 0);
+        if (d.settleT >= SETTLE) { d.settleT = 0; G.placeDoorLeaves(d, 0, 0); }
       }
-      if (d.open) continue;
+      if (d.open || d.animT < 1) { d.bashTimer = 0; continue; }
+      // Only a zombie trying to get THROUGH leans on it: at the doorway, with
+      // where it is headed -- or the waypoint after that -- on the far side.
+      // One just walking down the corridor past the door used to count as
+      // well, and opened every door it passed.
       let pressed = false;
+      const half = d.width / 2 + 0.2;
+      const nodes = this.world.waypointNodes;
+      const aOf = (p) => d.axis === "x" ? p.x - d.x : p.z - d.z;
+      const nOf = (p) => d.axis === "x" ? p.z - d.z : p.x - d.x;
       for (const z of this.zombies) {
-        if (!z.alive) continue;
-        if (Math.hypot(z.mesh.position.x - d.x, z.mesh.position.z - d.z) < 1.6) { pressed = true; break; }
+        if (!z.alive || !z._goal || Math.abs(z.mesh.position.y - d.baseY) > 1.5) continue;
+        const a = aOf(z.mesh.position), n = nOf(z.mesh.position);
+        if (Math.abs(a) >= half || Math.abs(n) >= 1.3) continue;
+        const ahead = [z._goal];
+        if (z.navPath && z.navIndex + 1 < z.navPath.length) ahead.push(nodes[z.navPath[z.navIndex + 1]]);
+        if (ahead.some((p) => p && Math.abs(nOf(p)) > 0.3 && Math.sign(nOf(p)) !== Math.sign(n) && Math.abs(aOf(p)) < d.width / 2 + 4)) { pressed = true; break; }
       }
-      if (!pressed) { d.bashTimer = 0; continue; }
+      if (!pressed) {
+        // eases off rather than resetting: a zombie whose route wobbles
+        // at the doorway still gets through in the end
+        if (d.bashTimer > 0) { d.bashTimer = Math.max(0, d.bashTimer - dt * 0.6); if (!d.bashTimer) G.placeDoorLeaves(d, 0, 0); }
+        continue;
+      }
       d.bashTimer += dt;
-      // shudder while being pushed on, so it reads as under attack
-      d.mesh.rotation.y = Math.sin(d.bashTimer * 22) * 0.05;
-      this.syncDoorCollider(d);
-      if (d.bashTimer >= 2.0) { d.mesh.rotation.y = 0; this.toggleRoomDoor(d, true); }
+      // rattles in its rail while being pushed on, so it reads as under attack
+      G.placeDoorLeaves(d, 0.02 * Math.max(0, Math.sin(d.bashTimer * 19)), Math.sin(d.bashTimer * 31) * 0.025);
+      if (d.bashTimer >= 2.0) { G.placeDoorLeaves(d, 0, 0); this.toggleRoomDoor(d, true); }
     }
   },
 
@@ -1774,16 +1833,6 @@ G.Game = {
   // The blocking box is the panel's own world AABB, recomputed as it swings.
   // A fixed box either blocks a door that is already open, or lets you walk
   // through one that is still closing.
-  syncDoorCollider(d) {
-    if (d.colliderDropped || this.world.colliders.indexOf(d.collider) < 0) return;
-    d.mesh.updateMatrixWorld(true);
-    d.collider.setFromObject(d.mesh);
-    // Keep it full doorway height: the AABB of a thin panel is thin, and a
-    // short box would let the player's body test slip over the top of it.
-    d.collider.min.y = d.baseY || 0;
-    d.collider.max.y = (d.baseY || 0) + 2.9;
-  },
-
   buyWallWeapon(ref) {
     if (ref.purchased || this.player.money < ref.price) return;
     this.player.money -= ref.price;
@@ -1801,6 +1850,9 @@ G.Game = {
   clearBlockingObstacle(ref, flagProp, flagValue) {
     ref[flagProp] = flagValue === undefined ? true : flagValue;
     if (ref.locked !== undefined) ref.locked = false;
+    // the word-locked door slides aside on its rail and keeps its collider,
+    // which rides along with it (its free side was picked at build time)
+    if (ref.slide) { this.slideObstacleOpen(ref); return; }
     if (ref.collider) {
       const idx = this.world.colliders.indexOf(ref.collider);
       if (idx >= 0) this.world.colliders.splice(idx, 1);
@@ -1810,6 +1862,32 @@ G.Game = {
     // own dt/FPS cap, since this is a short transient world effect) and
     // hides it once the swing finishes.
     this.animateObstacleOpen(ref.mesh);
+  },
+  slideObstacleOpen(ref) {
+    const m = ref.mesh;
+    G.spawnDustPuff(this.scene, m.position.clone(), G.save.settings.graphicsQuality, 1.4);
+    G.Audio.slideDoor(true, m.position.clone(), 0.5, false);
+    this._swingProps = this._swingProps || [];
+    this._swingProps.push({ slide: true, ref, mesh: m, start: m.position.clone(), t: 0 });
+  },
+  // same motion as a room door: eased along the rail, a small rebound off
+  // the stop; true once it has come to rest
+  stepObstacleSlide(s, dt) {
+    const DUR = 0.5, SETTLE = 0.12, shift = s.ref.slide;
+    s.t += dt;
+    const p = Math.min(1, s.t / DUR);
+    let k = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+    if (s.t > DUR) {
+      const u = s.t - DUR, f = Math.max(0, 1 - u / SETTLE);
+      k = 1 - 0.035 / shift.length() * Math.abs(Math.sin(u * 38)) * f * f;
+    }
+    s.mesh.position.copy(s.start).addScaledVector(shift, k);
+    if (s.ref.collider) {
+      s.mesh.updateMatrixWorld(true);
+      s.ref.collider.setFromObject(s.mesh);
+    }
+    if (s.t >= DUR && !s.stopped) { s.stopped = true; G.Audio.doorStop(false, s.mesh.position.clone(), false); }
+    return s.t >= DUR + SETTLE;
   },
   // Category F: word-locked doors get the same treatment as the room doors --
   // hinged on an edge rather than spun about their middle, eased round, a
@@ -1840,6 +1918,7 @@ G.Game = {
     const SWING = 0.48, SHAKE = 0.24;
     for (let i = list.length - 1; i >= 0; i--) {
       const s = list[i];
+      if (s.slide) { if (this.stepObstacleSlide(s, dt)) list.splice(i, 1); continue; }
       s.t += dt;
       let rot;
       if (s.t < SWING) {

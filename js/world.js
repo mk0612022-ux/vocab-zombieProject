@@ -309,34 +309,234 @@ G.buildLevelScene = function (scene, level, quality) {
     if (gaps.south) addWallWithGap(r.cz + hd, r.cx, r.w, 0.4, gaps.south.center, gaps.south.width, "x", height, baseY);
     else addWallSeg(r.cx, r.cz + hd, r.w, 0.4, height, baseY);
   }
-  // Category B: a hinged door filling a doorway gap. axis "x" = the opening
-  // runs along X (so the panel blocks Z travel), axis "z" = the reverse.
+  // Category B: sliding doors. Every doorway gets sliding panels -- one leaf
+  // for a room door, a split pair for the wide openings (the boss hall, the
+  // entry hall, the school's front doors). axis "x" = the opening runs along
+  // X (so the panels block Z travel), axis "z" = the reverse.
+  // Where a panel can slide to depends on what stands beside the doorway --
+  // lockers, furniture, a wall gun -- and that is only known once the whole
+  // map is built. So addRoomDoor() reserves the doorway (a closed collider,
+  // plus the wall over a room door) and buildSlidingDoors() fits the panels
+  // at the very end.
   // Doors start closed (so you never know what's behind one until you open
   // it); a zombie held up against a closed door bashes it open after a couple
   // of seconds, which is what keeps a fully-shut map from soft-locking a wave.
   const doorPanelMat = new THREE.MeshLambertMaterial({ color: level.theme === "school" ? 0x9c4a33 : pal.accent });
-  const doorTrimMat = new THREE.MeshBasicMaterial({ color: 0xffcc33 });
+  const doorPullMat = new THREE.MeshLambertMaterial({ color: 0x1c1a18 });
+  const doorFrameMat = new THREE.MeshLambertMaterial({ color: level.theme === "school" ? 0xcfc6ae : level.theme === "hospital" ? 0xb9c4c2 : 0x55584f });
+  const doorRailMat = new THREE.MeshLambertMaterial({ color: 0x8e9296 });
+  const DOOR_H = 2.9;
   function addRoomDoor(cx, cz, width, axis, baseY) {
     baseY = baseY || 0;
-    const h = 2.9, t = 0.16, half = width / 2;
-    const pivot = new THREE.Group();
-    pivot.position.set(axis === "x" ? cx - half : cx, baseY, axis === "x" ? cz : cz - half);
-    const panel = new THREE.Mesh(
-      axis === "x" ? new THREE.BoxGeometry(width, h, t) : new THREE.BoxGeometry(t, h, width), doorPanelMat);
-    panel.position.set(axis === "x" ? half : 0, h / 2, axis === "x" ? 0 : half);
-    pivot.add(panel);
-    const handle = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.1), doorTrimMat);
-    handle.position.set(axis === "x" ? width - 0.25 : 0.13, h * 0.45, axis === "x" ? 0.13 : width - 0.25);
-    pivot.add(handle);
-    scene.add(pivot);
+    const half = width / 2;
+    const root = new THREE.Group();
+    root.position.set(cx, baseY, cz);
+    scene.add(root);
     const collider = new THREE.Box3(
       new THREE.Vector3(axis === "x" ? cx - half : cx - 0.3, baseY, axis === "x" ? cz - 0.3 : cz - half),
-      new THREE.Vector3(axis === "x" ? cx + half : cx + 0.3, baseY + h, axis === "x" ? cz + 0.3 : cz + half));
-    const ref = { mesh: pivot, open: false, collider, axis, width, bashTimer: 0, x: cx, z: cz, baseY, animT: 1, fromRot: 0, toRot: 0 };
+      new THREE.Vector3(axis === "x" ? cx + half : cx + 0.3, baseY + DOOR_H, axis === "x" ? cz + 0.3 : cz + half));
+    // A room doorway was cut the full height of the wall, leaving a 1.3m slot
+    // over the door you could see (and shoot) straight through. It is wall now.
+    if (width <= 3.5) {
+      const top = 4.2 - (DOOR_H + 0.1);
+      if (axis === "x") addWallSeg(cx, cz, width, 0.4, top, baseY + DOOR_H + 0.1);
+      else addWallSeg(cx, cz, 0.4, width, top, baseY + DOOR_H + 0.1);
+    }
+    const ref = {
+      mesh: root, open: false, axis, width, x: cx, z: cz, baseY, h: DOOR_H, double: width >= 5,
+      leaves: [], colliders: [collider], collider, style: null,
+      p: 0, from: 0, to: 0, animT: 1, dur: 0.45, settleT: 0, bashTimer: 0,
+    };
     world.colliders.push(collider);
     world.roomDoors.push(ref);
-    world.interactables.push({ mesh: pivot, kind: "roomdoor", ref });
+    world.interactables.push({ mesh: root, kind: "roomdoor", ref });
     return ref;
+  }
+
+  // ---- fitting the panels -------------------------------------------------
+  // Door-local frame: "a" runs along the opening (0 = its centre), "n" across
+  // it (0 = the middle of the 0.4m wall, the faces at n = +-0.2).
+  function doorToWorld(d, a, n, y) {
+    return d.axis === "x" ? new THREE.Vector3(d.x + a, y, d.z + n) : new THREE.Vector3(d.x + n, y, d.z + a);
+  }
+  function doorBox(d, a0, a1, n0, n1, y0, y1) {
+    const p = doorToWorld(d, Math.min(a0, a1), Math.min(n0, n1), d.baseY + y0);
+    const q = doorToWorld(d, Math.max(a0, a1), Math.max(n0, n1), d.baseY + y1);
+    return new THREE.Box3(p.clone().min(q), p.clone().max(q));
+  }
+  const DOOR_T = 0.08;                     // panel thickness
+  const FACE_N = 0.2 + 0.03 + DOOR_T / 2;  // a surface panel's plane, off the wall face
+  // A leaf: where it sits closed (centre a0, length L, plane n), which way it
+  // opens (dir) and how far (T).
+  function planLeaves(d, style, face, dir) {
+    const half = d.width / 2;
+    if (!d.double) {
+      if (style === "pocket") {
+        // tucked 0.1 into the pocket when shut, its pull edge left 8cm proud
+        // of the jamb when open, the way a real pocket door is left
+        const L = d.width + 0.12;
+        const lead = -dir * (half + 0.02);
+        return [{ dir, L, a0: lead + dir * L / 2, n: 0, T: d.width - 0.06 }];
+      }
+      const L = d.width + 0.1;
+      return [{ dir, L, a0: 0, n: face * FACE_N, T: d.width + 0.05 }];
+    }
+    if (style === "pocket") {
+      const L = half + 0.1;
+      return [-1, 1].map((s) => ({ dir: s, L, a0: s * L / 2, n: 0, T: half - 0.04 }));
+    }
+    const L = half + 0.05;
+    return [-1, 1].map((s) => ({ dir: s, L, a0: s * L / 2, n: face * FACE_N, T: half + 0.05 }));
+  }
+  // Everything already standing in the level, as boxes -- the doors' own
+  // groups left out.
+  function sceneObstacles() {
+    const roots = new Set(world.roomDoors.map((d) => d.mesh));
+    const out = [];
+    scene.updateMatrixWorld(true);
+    scene.traverse((o) => {
+      if (!o.isMesh || !o.geometry) return;
+      for (let p = o; p; p = p.parent) if (roots.has(p)) return;
+      const b = new THREE.Box3().setFromObject(o);
+      if (!b.isEmpty()) out.push(b);
+    });
+    return out;
+  }
+  function wallSolid(d, a0, a1, walls) {
+    // sampled down the middle of the wall at knee, waist and head height
+    for (let a = Math.min(a0, a1); a <= Math.max(a0, a1) + 1e-6; a += 0.2) {
+      for (const y of [0.4, 1.4, 2.5]) {
+        const p = doorToWorld(d, a, 0, d.baseY + y);
+        if (!walls.some((c) => c.containsPoint(p))) return false;
+      }
+    }
+    return true;
+  }
+  // Can this leaf open that way? A surface leaf needs the wall face beside the
+  // doorway clear (and a wall behind it to run along); a pocket leaf needs the
+  // wall itself to be solid for the whole of its pocket.
+  function leafFits(d, leaf, walls, obstacles) {
+    const half = d.width / 2;
+    const c = leaf.a0 + leaf.dir * leaf.T;          // centre when open
+    const lo = c - leaf.L / 2, hi = c + leaf.L / 2;
+    const outer = leaf.dir > 0 ? [half, hi + 0.05] : [lo - 0.05, -half];
+    if (leaf.n === 0) return wallSolid(d, outer[0], outer[1], walls);
+    const s = Math.sign(leaf.n);
+    const room = doorBox(d, outer[0], outer[1] + (leaf.dir > 0 ? 0.08 : -0.08), s * 0.21, s * 0.4, 0.06, DOOR_H + 0.05);
+    if (obstacles.some((b) => b.intersectsBox(room))) return false;
+    return wallSolid(d, outer[0] + 0.1, outer[1] - 0.05, walls);
+  }
+  function buildSlidingDoors() {
+    const placeholders = new Set(world.roomDoors.map((d) => d.collider));
+    const walls = world.colliders.filter((c) => !placeholders.has(c));
+    const obstacles = sceneObstacles();
+    const tally = { single: 0, double: 0, parallel: 0, pocket: 0, forced: 0 };
+    world.roomDoors.forEach((d, i) => {
+      // Which face first: a room door slides along the corridor (the side
+      // facing the building's spine); a wide door on the side of the bigger
+      // space it opens into.
+      let prefFace;
+      if (!d.double) prefFace = -Math.sign(d.axis === "z" ? d.x : d.z) || 1;
+      else {
+        const areaAt = (s) => {
+          const p = doorToWorld(d, 0, s * 1.5, d.baseY + 1);
+          const r = world.regions.find((g) => p.x >= g.minX && p.x <= g.maxX && p.z >= g.minZ && p.z <= g.maxZ && Math.abs((g.y || 0) - d.baseY) < 1);
+          return r ? (r.maxX - r.minX) * (r.maxZ - r.minZ) : 0;
+        };
+        prefFace = areaAt(1) >= areaAt(-1) ? 1 : -1;
+      }
+      const prefDir = i % 2 ? -1 : 1;        // neighbours alternate where they can
+      let options = [];
+      [prefFace, -prefFace].forEach((f) => [prefDir, -prefDir].forEach((dir) => options.push({ style: "parallel", face: f, dir })));
+      [prefDir, -prefDir].forEach((dir) => options.push({ style: "pocket", face: 0, dir }));
+      if (d.double) options = [{ style: "parallel", face: prefFace, dir: 1 }, { style: "parallel", face: -prefFace, dir: 1 }, { style: "pocket", face: 0, dir: 1 }];
+      let pick = null;
+      for (const o of options) {
+        const leaves = planLeaves(d, o.style, o.face, o.dir);
+        if (leaves.every((lf) => leafFits(d, lf, walls, obstacles))) { pick = Object.assign({ leaves }, o); break; }
+      }
+      if (!pick) { pick = { style: "pocket", face: 0, dir: prefDir, leaves: planLeaves(d, "pocket", 0, prefDir), forced: true }; tally.forced++; }
+      d.style = pick.style; d.leaves = pick.leaves;
+      tally[d.double ? "double" : "single"]++; tally[pick.style]++;
+      fitDoor(d, pick);
+    });
+    world.doorTally = tally;
+  }
+  function fitDoor(d, pick) {
+    const H = DOOR_H, half = d.width / 2;
+    const along = (len, h, thick) => d.axis === "x" ? new THREE.BoxGeometry(len, h, thick) : new THREE.BoxGeometry(thick, h, len);
+    const place = (m, a, y, n) => { const p = doorToWorld(d, a, n, 0); m.position.set(p.x - d.x, y, p.z - d.z); };
+    // frame: two jambs and a head, proud of both faces -- static, so it lives
+    // outside the door group and gets merged with the rest of the building
+    const addStatic = (geo, mat, a, y, n) => {
+      const m = new THREE.Mesh(geo, mat);
+      m.position.copy(doorToWorld(d, a, n, d.baseY + y));
+      scene.add(m);
+      return m;
+    };
+    [-1, 1].forEach((s) => addStatic(along(0.1, H + 0.06, 0.5), doorFrameMat, s * (half + 0.02), (H + 0.06) / 2, 0));
+    addStatic(along(d.width + 0.24, 0.1, 0.5), doorFrameMat, 0, H + 0.05, 0);
+    // the top rail the panels hang from, run out over the whole travel
+    if (pick.style === "parallel") {
+      let lo = -half - 0.1, hi = half + 0.1;
+      d.leaves.forEach((lf) => {
+        const c = lf.a0 + lf.dir * lf.T;
+        lo = Math.min(lo, c - lf.L / 2 - 0.06); hi = Math.max(hi, c + lf.L / 2 + 0.06);
+      });
+      const n = d.leaves[0].n, s = Math.sign(n);
+      addStatic(along(hi - lo, 0.07, 0.07), doorRailMat, (lo + hi) / 2, H + 0.06, n);
+      // brackets back to the wall at both ends
+      [lo + 0.05, hi - 0.05].forEach((a) => addStatic(along(0.05, 0.07, Math.abs(n) - 0.2), doorRailMat, a, H + 0.06, s * (0.2 + (Math.abs(n) - 0.2) / 2)));
+    }
+    // the panels, each with a recessed pull near its leading edge
+    d.leaves.forEach((lf) => {
+      const panel = new THREE.Mesh(along(lf.L, H - 0.04, DOOR_T), doorPanelMat);
+      const lead = -lf.dir;                                 // the edge that closes the gap
+      const pull = new THREE.Mesh(along(0.07, 0.3, DOOR_T + 0.012), doorPullMat);
+      const pa = lead * (lf.L / 2 - (pick.style === "pocket" && !d.double ? 0.05 : 0.14));
+      pull.position.copy(doorToWorld({ axis: d.axis, x: 0, z: 0 }, pa, 0, 1.05 - (H - 0.04) / 2));
+      panel.add(pull);
+      place(panel, lf.a0, (H - 0.04) / 2, lf.n);
+      d.mesh.add(panel);
+      lf.mesh = panel;
+      lf.collider = new THREE.Box3();
+    });
+    // the placeholder gives way to one collider per panel, kept on the panel
+    const i = world.colliders.indexOf(d.collider);
+    if (i >= 0) world.colliders.splice(i, 1);
+    d.colliders = d.leaves.map((lf) => lf.collider);
+    d.collider = d.colliders[0];
+    d.colliders.forEach((c) => world.colliders.push(c));
+    G.placeDoorLeaves(d, 0, 0);
+    // what the "press E" ray hits whether the door is open or shut: the
+    // doorway itself (never drawn)
+    const hit = new THREE.Mesh(along(d.width, H, 0.5), doorPullMat);
+    hit.visible = false;
+    place(hit, 0, H / 2, 0);
+    d.mesh.add(hit);
+  }
+  // The word-locked door (a panel just inside the store room) slides open too
+  // once its word is answered, to whichever side has room -- the room door's
+  // panels included, which are fitted first.
+  function fitWordDoorSlide() {
+    const wd = world.doors.find((d) => d.kind === "word");
+    if (!wd) return;
+    const m = wd.mesh, gp = m.geometry.parameters;
+    const alongZ = gp.depth >= gp.width;
+    const L = alongZ ? gp.depth : gp.width;
+    const bb = new THREE.Box3().setFromObject(m);
+    const obstacles = sceneObstacles().filter((b) => !b.equals(bb));
+    world.roomDoors.forEach((d) => d.leaves.forEach((lf) => {
+      const c = lf.a0 + lf.dir * lf.T;
+      obstacles.push(doorBox(d, c - lf.L / 2, c + lf.L / 2, lf.n - 0.1, lf.n + 0.1, 0, DOOR_H));
+    }));
+    for (const dir of [1, -1]) {
+      const shift = new THREE.Vector3(alongZ ? 0 : dir * (L + 0.1), 0, alongZ ? dir * (L + 0.1) : 0);
+      const dest = bb.clone().translate(shift).expandByScalar(-0.03);
+      dest.min.y = Math.max(dest.min.y, bb.min.y + 0.06);
+      dest.max.y = Math.min(dest.max.y, bb.min.y + 3.0);
+      if (!obstacles.some((b) => b.intersectsBox(dest))) { wd.slide = shift; return; }
+    }
   }
   // rx/rz let a prop be tipped/toppled; the collider is always computed AFTER
   // rotation so knocked-over furniture still blocks movement in its real footprint.
@@ -982,6 +1182,8 @@ G.buildLevelScene = function (scene, level, quality) {
     if (cfg.dressBoss) cfg.dressBoss({ addSolid, addFloatBox, addCanvasBox, addGlowBox, addCorpse, addBloodStain, addProp, addLight, mountWallGun, scatterClutter, BOSS, ENTRY, F2, M, scene });
     if (cfg.yard) buildSchoolYard({ cz: ENTRY.cz, d: ENTRY.d, w: ENTRY.w }, cfg.yard);
     clearDoorways();
+    buildSlidingDoors();
+    fitWordDoorSlide();
 
     // ---- spawn points ----
     cfg.corrSegs.forEach((c) => world.extraSpawnPoints.push({ pos: new THREE.Vector3(0, 0, c.cz), types: ["normal", "fast"] }));
@@ -1994,4 +2196,42 @@ G.buildLevelScene = function (scene, level, quality) {
   world.bounds = { minX: bMinX, maxX: bMaxX, minZ: bMinZ, maxZ: bMaxZ };
 
   return world;
+};
+
+// Puts a sliding door's panels where its open fraction d.p says, and their
+// colliders with them. `bounce` (metres) pushes every panel back against its
+// direction of travel -- the little rebound off the stop; `jiggle` rattles
+// them across the rail while a zombie leans on the door.
+G.placeDoorLeaves = function (d, bounce, jiggle) {
+  const back = d.open ? -1 : 1;
+  for (const lf of d.leaves) {
+    const a = lf.a0 + lf.dir * (d.p * lf.T + back * (bounce || 0));
+    const n = lf.n + (jiggle || 0);
+    if (d.axis === "x") lf.mesh.position.set(a, lf.mesh.position.y, n);
+    else lf.mesh.position.set(n, lf.mesh.position.y, a);
+    // the collider is the panel padded to half a metre thick and the full
+    // doorway high: a thin box is easy to slip through or over
+    const lo = a - lf.L / 2, hi = a + lf.L / 2;
+    if (d.axis === "x") lf.collider.set(new THREE.Vector3(d.x + lo, d.baseY, d.z + n - 0.25), new THREE.Vector3(d.x + hi, d.baseY + d.h, d.z + n + 0.25));
+    else lf.collider.set(new THREE.Vector3(d.x + n - 0.25, d.baseY, d.z + lo), new THREE.Vector3(d.x + n + 0.25, d.baseY + d.h, d.z + hi));
+  }
+};
+// Who would moving this door from open fraction p0 to p1 run a panel's
+// leading edge into? Only the strip each panel sweeps into counts, so a
+// player leaning on the flat of a panel does not jam it.
+G.doorSweepHits = function (d, p0, p1, bodies) {
+  const out = [];
+  for (const lf of d.leaves) {
+    const c0 = lf.a0 + lf.dir * p0 * lf.T, c1 = lf.a0 + lf.dir * p1 * lf.T;
+    const s = Math.sign(c1 - c0);
+    if (!s) continue;
+    const e0 = c0 + s * lf.L / 2, e1 = c1 + s * lf.L / 2;
+    const lo = Math.min(e0, e1) - 0.03, hi = Math.max(e0, e1) + 0.03;
+    for (const b of bodies) {
+      if (b.y < d.baseY - 1 || b.y > d.baseY + 2.4) continue;
+      const a = d.axis === "x" ? b.x - d.x : b.z - d.z, n = d.axis === "x" ? b.z - d.z : b.x - d.x;
+      if (a + b.r > lo && a - b.r < hi && Math.abs(n - lf.n) < 0.25 + b.r) out.push(Object.assign({ leaf: lf }, b));
+    }
+  }
+  return out;
 };
