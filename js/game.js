@@ -111,6 +111,7 @@ G.Game = {
       this.camera.aspect = window.innerWidth / window.innerHeight;
       this.camera.updateProjectionMatrix();
       this.renderer.setSize(window.innerWidth, window.innerHeight);
+      if (G.Minimap) G.Minimap.resize();
     });
 
     document.getElementById("gameCanvas").addEventListener("click", () => {
@@ -130,11 +131,20 @@ G.Game = {
       G.Perf.resizePool(this.scene, q);
       this.syncViewmodelLights();
       if (this.world.dressDetails && G.SchoolDress) G.SchoolDress.applyQuality(this.world, q);
+      if (G.Details) G.Details.applyQuality(q);
     }
   },
 
   // ---------------- Top-level navigation ----------------
-  goToLevelSelect() { G.UI.renderLevelSelect(); G.UI.showScreen("screen-levelselect"); this.state = "LEVEL_SELECT"; },
+  // (round 4) the levels are cards in the lobby now: back to it with the
+  // campaign tab showing and the furthest level unlocked picked
+  goToLevelSelect() {
+    const next = Math.max.apply(null, G.save.unlockedLevels);
+    const pick = { 1: "school", 2: "hospital", 3: "bunker" }[next] || "school";
+    if (this.world) this.quitToMainMenu();
+    G.UI.goToMainMenu({ tab: "campaign", select: pick });
+    this.state = "MENU";
+  },
   goToPracticeSetup() { G.UI.renderPracticeSetup(); G.UI.showScreen("screen-practice-setup"); this.state = "PRACTICE_SETUP"; },
 
   quitToMainMenu() {
@@ -202,9 +212,22 @@ G.Game = {
     this.scene = new THREE.Scene();
     this.scene.add(this.yawObject);
     this.world = G.buildLevelScene(this.scene, this.level, G.save.settings.graphicsQuality);
+    // Round 3: the story notes for this run, and the small moving details
+    // (falling leaves, paper in the wind, crows, puddles, curtains, light
+    // shafts) -- before the merge, which leaves them alone
+    this.notesReadRun = new Set();
+    this._notesRevealed = false;
+    if (G.Notes) G.Notes.place(this);
+    if (G.Details) G.Details.build(this);
     // Category K: bake the static level into a few merged meshes and swap
-    // its fifty-odd lights for a small fixed pool
+    // its fifty-odd lights for a small fixed pool. Round 3 sorts it first by
+    // what can see it (js/zones.js), so far storeys and the campus behind the
+    // walls are simply not drawn.
+    this.paletteCount = G.Perf.paletteize(this.scene, this.world, [this.yawObject]);
+    if (G.Zones) G.Zones.prepare(this.world);
     this.perfReport = G.Perf.mergeStatic(this.scene, this.world, [this.yawObject]);
+    if (G.Zones) G.Zones.init(this);
+    if (G.Minimap) G.Minimap.init(this);
     G.Perf.initLightPool(this.scene, this.world, G.save.settings.graphicsQuality);
     this.syncViewmodelLights();
     // compile every shader now, during the load, instead of as a hitch the
@@ -328,6 +351,9 @@ G.Game = {
     // pooled objects live in the scene; take them out before it is disposed
     if (G.Perf) { G.Perf.resetPools(); G.Perf.disposeLightPool(this.scene); }
     if (G.ZombieFX) G.ZombieFX.reset(this.scene);
+    if (G.Zones) G.Zones.reset();
+    if (G.Details) G.Details.reset();
+    if (G.Notes) G.Notes.reset();
     if (this.scene) {
       this.zombies.forEach((z) => { this.scene.remove(z.mesh); G.disposeObject3D(z.mesh); });
       this.drops.forEach((d) => { this.scene.remove(d.mesh); G.disposeObject3D(d.mesh); });
@@ -590,6 +616,7 @@ G.Game = {
     const origin = new THREE.Vector3();
     this.camera.getWorldPosition(origin);
     G.spawnMuzzleFlash(this.scene, origin.clone().addScaledVector(dir, 0.6), G.save.settings.graphicsQuality);
+    if (G.Details) G.Details.onShot(origin);          // the crows hear it
     this.recoilKick(def);
     G.spawnShellEject(this.scene, this.camera, G.save.settings.graphicsQuality);
 
@@ -672,7 +699,7 @@ G.Game = {
     const hit = this._wallHit || (this._wallHit = new THREE.Vector3());
     ray.origin.copy(origin); ray.direction.copy(dir);
     let best = far;
-    for (const c of this.world.colliders) {
+    for (const c of G.ColGrid.alongRay(this.world, origin, dir, far, this._rayCols || (this._rayCols = []))) {
       if (c.containsPoint(origin) || !ray.intersectBox(c, hit)) continue;
       const d = hit.distanceTo(origin);
       if (d < best) best = d;
@@ -837,6 +864,7 @@ G.Game = {
     }
     this.zombies = this.zombies.filter((zz) => zz !== z);
     this.checkSecondFloorUnlock();
+    this.checkThirdFloorUnlock();
     this.ensureTargetHasMatch();
     this.checkWaveClear();
     this.checkPlayerDeath();
@@ -1146,10 +1174,11 @@ G.Game = {
     const len = Math.hypot(dx, dz) || 1;
     const ux = dx / len, uz = dz / len, p = z.mesh.position;
     const box = new THREE.Box3();
+    const cols = G.ColGrid.near(this.world, p.x, p.z, dist + 1, []);
     for (let s = 0; s < dist; s += 0.2) {
       const x = p.x + ux * 0.2, zz = p.z + uz * 0.2;
       box.min.set(x - 0.3, p.y + 0.2, zz - 0.3); box.max.set(x + 0.3, p.y + 1.6, zz + 0.3);
-      if (this.world.colliders.some((c) => c.intersectsBox(box))) break;
+      if (cols.some((c) => c.intersectsBox(box))) break;
       p.x = x; p.z = zz;
     }
   },
@@ -1280,6 +1309,11 @@ G.Game = {
     G.Perf.updateSparks(dt);
     G.ViewModel.updateProps(dt, this.world);
     G.Perf.cullZombies(this);
+    if (G.Zones) G.Zones.update(this);
+    if (G.Notes) G.Notes.update(this, dt);
+    if (G.Details) G.Details.update(this, dt);
+    this.relocateStragglers(worldDt);
+    if (G.Minimap) G.Minimap.update(this, dt);
     G.updateDriftingFog(this.scene, this.world, performance.now() / 1000);
     if (this.world.dress) this.world.dress.update(dt);
     G.updateSparks(this.scene, this.world, dt);
@@ -1292,7 +1326,7 @@ G.Game = {
     // cleared the field before the next spawn tick -- the playtest bot sat in
     // wave 1 with 16 of 8 spawned and no end in sight.
     if (!G.BossFight.active && !this.isBossWave() && this.spawnedCount < this.requiredKills) {
-      G.Spawner.update(worldDt, this.world, this.zombies.length, this.level.maxAliveZombies, (type, pos, sp) => this.spawnZombieAt(type, pos, sp), this.currentDiff, this.yawObject.position);
+      G.Spawner.update(worldDt, this.world, this.zombies.length, this.level.maxAliveZombies, (type, pos, sp) => this.spawnZombieAt(type, pos, sp), this.currentDiff, this.yawObject.position, camDir);
     }
     // Must run every frame (not just non-boss frames) so a boss wave with zero
     // regular zombies actually gets a chance to trigger its boss spawn.
@@ -1567,7 +1601,7 @@ G.Game = {
     const floorY = G.getFloorHeightAt(this.world, pos.x, pos.z, pos.y - 1.7);
     const box = (x, z) => new THREE.Box3(new THREE.Vector3(x - radius, floorY + 0.1, z - radius), new THREE.Vector3(x + radius, floorY + 2.6, z + radius));
     let blockedX = false, blockedZ = false;
-    for (const c of this.world.colliders) {
+    for (const c of G.ColGrid.near(this.world, pos.x, pos.z, 1.2, this._moveCols || (this._moveCols = []))) {
       if (box(pos.x + dx, pos.z).intersectsBox(c)) blockedX = true;
       if (box(pos.x, pos.z + dz).intersectsBox(c)) blockedZ = true;
     }
@@ -1622,9 +1656,14 @@ G.Game = {
     // cutting through walls; once it's in the player's own region it goes
     // back to moving directly, same as before.
     const pRegion = G.getRegionAt(this.world, playerPos.x, playerPos.z, playerPos.y - 1.7);
-    const sbx = this.world.stairBlock;
-    const topY = this.world.secondFloor ? this.world.secondFloor.floorY : 4.2;
-    const onFlight = (x, zz, y) => !!sbx && y > 0.3 && y < topY - 0.3 && x >= sbx.min.x && x <= sbx.max.x && zz >= sbx.min.z && zz <= sbx.max.z;
+    // every staircase (round 3 adds the flight up to the third floor): which
+    // one a body is part-way up, if any
+    const stairs = this.world.stairs || [];
+    const flightOf = (x, zz, y) => {
+      for (const s of stairs) if (y > s.y0 + 0.3 && y < s.y1 - 0.3 && x >= s.block.min.x && x <= s.block.max.x && zz >= s.block.min.z && zz <= s.block.max.z) return s;
+      return null;
+    };
+    const pFeet = playerPos.y - 1.7, pFlight = flightOf(playerPos.x, playerPos.z, pFeet);
     const tmpV = new THREE.Vector3();
     for (const z of this.zombies) {
       if (!z.alive) continue;
@@ -1638,8 +1677,9 @@ G.Game = {
       // zombie could shuffle on the middle treads for good. On the stairs it
       // simply heads for the top or the foot, whichever floor the player is on.
       const zp0 = z.mesh.position;
-      if (onFlight(zp0.x, zp0.z, zp0.y) && !onFlight(playerPos.x, playerPos.z, playerPos.y - 1.7)) {
-        const node = this.world.waypointNodes[playerPos.y - 1.7 > topY / 2 ? "GAL" : "STAIR"];
+      const zFlight = flightOf(zp0.x, zp0.z, zp0.y);
+      if (zFlight && pFlight !== zFlight) {
+        const node = this.world.waypointNodes[pFeet > (zFlight.y0 + zFlight.y1) / 2 ? zFlight.top : zFlight.foot];
         moveTarget = new THREE.Vector3(node.x, 0, node.z);
         z.navPath = null;
       } else if (zRegion !== pRegion) {
@@ -1687,11 +1727,16 @@ G.Game = {
       // The staircase is only for zombies that mean to use it: one on it or
       // routed over it, or chasing a player who is on it. Anyone else treats
       // the flight as solid instead of wandering up the bottom tread.
-      const sb = this.world.stairBlock;
-      let stairKeepOut = null;
-      if (sb && z.mesh.position.y < 0.3 && playerPos.y - 1.7 < 0.3) {
+      let stairKeepOut = null, keepStair = null;
+      const zy = z.mesh.position.y;
+      for (const s of stairs) {
+        if (Math.abs(zy - s.y0) > 0.3 || pFeet > s.y0 + 0.3) continue;
         const route = z.navPath && zRegion !== pRegion ? z.navPath.slice(z.navIndex) : [];
-        if (!route.includes("STAIR") && !route.includes("GAL") && !route.includes("LANDING")) stairKeepOut = sb;
+        if (s.nodes.some((n) => route.includes(n))) continue;
+        const bx = (s.block.min.x + s.block.max.x) / 2, bz = (s.block.min.z + s.block.max.z) / 2;
+        if (Math.abs(bx - z.mesh.position.x) > 12 || Math.abs(bz - z.mesh.position.z) > 12) continue;
+        stairKeepOut = s.block; keepStair = s;
+        break;
       }
       // Already standing in that area (at the foot of the flight): step out
       // the front of it first. Chasing straight from there walked it onto the
@@ -1699,12 +1744,16 @@ G.Game = {
       // the tread... -- a stall the playtest bot hit twice.
       // (Straight out past the front edge -- the stair-foot node itself can be
       // under 0.9 away, and a zombie that close to its target doesn't move.)
-      if (stairKeepOut && sb.containsPoint(tmpV.set(z.mesh.position.x, 0.1, z.mesh.position.z))) {
-        moveTarget = new THREE.Vector3(z.mesh.position.x, 0, sb.max.z + 1.5);
+      if (stairKeepOut && stairKeepOut.containsPoint(tmpV.set(z.mesh.position.x, keepStair.y0 + 0.1, z.mesh.position.z))) {
+        const sb = stairKeepOut, ex = keepStair.exit;
+        moveTarget = ex.z > 0 ? new THREE.Vector3(z.mesh.position.x, 0, sb.max.z + 1.5)
+          : ex.z < 0 ? new THREE.Vector3(z.mesh.position.x, 0, sb.min.z - 1.5)
+            : ex.x > 0 ? new THREE.Vector3(sb.max.x + 1.5, 0, z.mesh.position.z) : new THREE.Vector3(sb.min.x - 1.5, 0, z.mesh.position.z);
         stairKeepOut = null;
       }
       z._goal = moveTarget;          // where it is headed (see updateRoomDoors)
-      const dist = z.update(dt, moveTarget, playerPos, this.world.colliders, G.save.settings.gameSpeed, stairKeepOut);
+      const near = G.ColGrid.near(this.world, z.mesh.position.x, z.mesh.position.z, 2.4, z._cols || (z._cols = []));
+      const dist = z.update(dt, moveTarget, playerPos, near, G.save.settings.gameSpeed, stairKeepOut);
       z.mesh.position.y = G.getFloorHeightAt(this.world, z.mesh.position.x, z.mesh.position.z, z.mesh.position.y);
       // a bite needs the same floor too -- the distance is measured flat, so a
       // zombie on the hall floor could bite a player on the gallery above it
@@ -1727,6 +1776,33 @@ G.Game = {
         }
         this.checkPlayerDeath();
       }
+    }
+  },
+
+  // Round 3 (F3): a zombie left far behind -- past the fog, or two storeys
+  // away -- is not simulated walking back across the campus for a minute.
+  // After a few seconds out there it is brought in again round the player,
+  // from a fixed point or up through the ground, with its word unchanged.
+  relocateStragglers(dt) {
+    this._relocT = (this._relocT || 0) - dt;
+    if (this._relocT > 0 || !this.world || !this.world.campus || this._noRelocate) return;
+    this._relocT = 1;
+    const p = this.yawObject.position, feet = p.y - 1.7;
+    const fwd = new THREE.Vector3(-Math.sin(this.yawObject.rotation.y), 0, -Math.cos(this.yawObject.rotation.y));
+    const far = (this.scene.fog ? this.scene.fog.far : 40) + 14;
+    for (const z of this.zombies) {
+      if (!z.alive || z.emerge || z.type === "boss") continue;
+      const d = Math.hypot(z.mesh.position.x - p.x, z.mesh.position.z - p.z) + Math.abs(z.mesh.position.y - feet) * 4;
+      if (d < far) { z._farT = 0; continue; }
+      if ((z._farT = (z._farT || 0) + 1) < 4) continue;
+      const sp = G.Spawner.pickPoint(this.world, p, fwd);
+      if (!sp) continue;
+      z._farT = 0;
+      z.mesh.position.copy(sp.emerge ? sp.emerge.end : sp.pos);
+      z.navPath = null; z._lastTgt = null; z._posRef = null;
+      if (sp.emerge) G.ZombieFX.begin(this, z, sp);
+      sp.cooldown = Math.max(sp.cooldown || 0, 2.5);
+      this.relocated = (this.relocated || 0) + 1;
     }
   },
 
@@ -1772,6 +1848,10 @@ G.Game = {
         if (found.kind === "trap") label = found.ref.active ? T("prompt.trap", { key }) : "";
         if (found.kind === "hatch") label = found.ref.opened ? "" : T("prompt.hatch", { key });
         if (found.kind === "roomdoor") label = T(found.ref.open ? "prompt.doorClose" : "prompt.doorOpen", { key });
+        // round 3: story notes, the third-floor grille, the rewards up there
+        if (found.kind === "note") label = T("prompt.note", { key });
+        if (found.kind === "gate3") label = found.ref.unlocked ? "" : this.thirdFloorStatus();
+        if (found.kind === "safe" || found.kind === "trophy" || found.kind === "coffee" || found.kind === "radio") label = found.ref.used ? T("prompt." + found.kind + "Used") : T("prompt." + found.kind, { key });
         if (found.kind === "mysterybox") {
           label = T("prompt.mystery", { key, cost: G.MYSTERY_BOX_COST }) + (this.player.money < G.MYSTERY_BOX_COST ? T("prompt.notEnough") : "");
         }
@@ -1817,10 +1897,7 @@ G.Game = {
       if (sz && !sz.unlocked) {
         sz.unlocked = true;
         if (sz.barricadeMesh) sz.barricadeMesh.visible = false;
-        if (sz.barricadeCollider) {
-          const idx = this.world.colliders.indexOf(sz.barricadeCollider);
-          if (idx >= 0) this.world.colliders.splice(idx, 1);
-        }
+        if (sz.barricadeCollider) G.ColGrid.remove(this.world, sz.barricadeCollider);
       }
     } else if (found.kind === "crate") {
       this.tryOpenStaticCrate(found.ref);
@@ -1830,6 +1907,73 @@ G.Game = {
       this.toggleRoomDoor(found.ref);
     } else if (found.kind === "mysterybox") {
       this.openMysteryBox();
+    } else if (found.kind === "note") {
+      G.Notes.read(this, found.ref);
+    } else if (found.kind === "gate3") {
+      if (!found.ref.unlocked) { G.Audio.sfx("rattle", { pos: found.mesh.position.clone() }); G.UI.flashPurchaseBanner(G.T("banner.gate3Locked"), this.thirdFloorStatus()); }
+    } else if (found.kind === "safe" || found.kind === "trophy" || found.kind === "coffee" || found.kind === "radio") {
+      this.useReward(found.ref);
+    }
+  },
+
+  // ---------------- The third floor (round 3, F1) ----------------
+  // Harder to open than the second: the grille at the foot of its stair lifts
+  // once the second floor is open, the player has read four of this run's
+  // story notes (the principal locked it for "someone who knows what really
+  // happened here") and answered forty words right.
+  thirdFloorStatus() {
+    const tf = this.world.thirdFloor, sf = this.world.secondFloor;
+    if (!tf) return "";
+    return G.T("prompt.gate3", {
+      n: Math.min(this.notesReadRun ? this.notesReadRun.size : 0, tf.notesNeeded), nn: tf.notesNeeded,
+      c: Math.min(this.correctCount, tf.correctNeeded), cc: tf.correctNeeded,
+    }) + (sf && !sf.unlocked ? G.T("prompt.gate3Second") : "");
+  },
+  checkThirdFloorUnlock() {
+    const tf = this.world && this.world.thirdFloor;
+    if (!tf || tf.unlocked) return;
+    if (this.world.secondFloor && !this.world.secondFloor.unlocked) return;
+    if ((this.notesReadRun ? this.notesReadRun.size : 0) < tf.notesNeeded || this.correctCount < tf.correctNeeded) return;
+    tf.unlocked = true;
+    G.ColGrid.remove(this.world, tf.barrierCollider);
+    G.Audio.sfx("gate_open", { pos: tf.stairFoot.clone().setY(tf.stairFoot.y + 1.5) });
+    // the grille rolls up into the ceiling, then is gone
+    this._swingProps = this._swingProps || [];
+    const m = tf.barrierMesh, y0 = m.position.y;
+    this._swingProps.push({ lift: true, mesh: m, y0, t: 0 });
+    this.spawnDrop("crate", tf.landing.clone());
+    G.UI.flashPurchaseBanner(G.T("banner.thirdFloor"), G.T("banner.thirdFloorText"));
+    if (G.Zones) G.Zones.dirty = true;
+  },
+  // the four rewards on the third floor, each good once a run
+  useReward(ref) {
+    if (ref.used) return;
+    const T = G.T, at = ref.mesh.getWorldPosition(new THREE.Vector3());
+    if (ref.kind === "safe") {
+      ref.used = true;
+      G.Audio.sfx("unlock");
+      // the principal's safe: a gun of epic rarity or better
+      this.openCrate(G.rollRarity("epic"), "epic", null, { source: "crate", dropPos: at });
+    } else if (ref.kind === "trophy") {
+      ref.used = true;
+      this.player.money += 1500;
+      G.Audio.sfx("purchase");
+      G.UI.pulseHudStat("money");
+      G.UI.flashPurchaseBanner(T("banner.trophy"), T("banner.trophyText", { n: 1500 }));
+    } else if (ref.kind === "coffee") {
+      const open = G.PERKS.filter((p) => !G.Perks.maxed(p.id, this.player));
+      if (!open.length) { G.UI.flashPurchaseBanner(T("banner.coffee"), T("banner.coffeeNone")); ref.used = true; return; }
+      ref.used = true;
+      const pick = G.pick(open);
+      G.Perks.apply(pick.id, this);
+      G.Audio.sfx("unlock");
+      G.UI.flashPurchaseBanner(T("banner.coffee"), T("banner.coffeeText", { perk: G.Perks.name(pick.id), lvl: G.Perks.level(pick.id) }));
+      if (G.UI.updateHudPerks) G.UI.updateHudPerks();
+    } else if (ref.kind === "radio") {
+      ref.used = true;
+      this._notesRevealed = true;
+      G.Audio.sfx("vent_clang", { pos: at });
+      G.UI.flashPurchaseBanner(T("banner.radio"), T("banner.radioText", { n: G.Notes.lying().length }));
     }
   },
 
@@ -1885,6 +2029,7 @@ G.Game = {
     if (willOpen === ref.open) return;
     ref.open = willOpen;
     ref.bashTimer = 0;
+    if (G.Zones) G.Zones.dirty = true;             // the room behind it comes into (or out of) view
     ref.from = ref.p; ref.to = willOpen ? 1 : 0;
     // a wide pair is heavier; a reversal only has what is left to travel
     const full = ref.double ? 0.46 : 0.4;
@@ -1918,7 +2063,7 @@ G.Game = {
     const r = h.pos === this.yawObject.position ? 0.35 : 0.12;
     const y0 = h.y + 0.1, y1 = h.y + 1.6;
     const own = new Set(d.colliders);
-    if (this.world.colliders.some((c) => !own.has(c) && c.max.y >= y0 && c.min.y <= y1 && x + r > c.min.x && x - r < c.max.x && z + r > c.min.z && z - r < c.max.z)) return;
+    if (G.ColGrid.near(this.world, x, z, 1.5, []).some((c) => !own.has(c) && c.max.y >= y0 && c.min.y <= y1 && x + r > c.min.x && x - r < c.max.x && z + r > c.min.z && z - r < c.max.z)) return;
     h.pos.x = x; h.pos.z = z;
   },
   // Stepped from the game loop's dt: a requestAnimationFrame chain would keep
@@ -2036,7 +2181,7 @@ G.Game = {
     if (steps.length && moving > 0.6 && this.velocityY === 0) {
       const running = G.PlayerBody.gait.runW > 0.5;
       const region = G.getRegionAt(this.world, p.x, p.z, p.y - 1.7);
-      const surface = this.level.theme === "bunker" ? "metal" : region === "YARD" ? "grass" : "tile";
+      const surface = this.level.theme === "bunker" ? "metal" : /^YARD/.test(region || "") ? "grass" : "tile";
       A.footstep(surface, running);
     }
 
@@ -2092,10 +2237,7 @@ G.Game = {
     // the word-locked door slides aside on its rail and keeps its collider,
     // which rides along with it (its free side was picked at build time)
     if (ref.slide) { this.slideObstacleOpen(ref); return; }
-    if (ref.collider) {
-      const idx = this.world.colliders.indexOf(ref.collider);
-      if (idx >= 0) this.world.colliders.splice(idx, 1);
-    }
+    if (ref.collider) G.ColGrid.remove(this.world, ref.collider);
     // Used to just be mesh.visible=false (an instant cut). Swings the mesh
     // open on its own Y axis over real elapsed time (not tied to the game's
     // own dt/FPS cap, since this is a short transient world effect) and
@@ -2158,6 +2300,14 @@ G.Game = {
     for (let i = list.length - 1; i >= 0; i--) {
       const s = list[i];
       if (s.slide) { if (this.stepObstacleSlide(s, dt)) list.splice(i, 1); continue; }
+      if (s.lift) {
+        // the third-floor grille rolling up out of the way
+        s.t += dt;
+        const p = Math.min(1, s.t / 1.2);
+        s.mesh.position.y = s.y0 + 3.4 * (p * p * (3 - 2 * p));
+        if (p >= 1) { s.mesh.visible = false; list.splice(i, 1); }
+        continue;
+      }
       s.t += dt;
       let rot;
       if (s.t < SWING) {
@@ -2211,8 +2361,7 @@ G.Game = {
     sf.unlocked = true;
     sf.barrierMesh.visible = false;
     G.Audio.sfx("unlock");
-    const idx = this.world.colliders.indexOf(sf.barrierCollider);
-    if (idx >= 0) this.world.colliders.splice(idx, 1);
+    G.ColGrid.remove(this.world, sf.barrierCollider);
     sf.cratePositions.forEach((p) => this.spawnDrop("crate", p));
     G.UI.flashPurchaseBanner(G.T("banner.upstairs"), G.T("banner.upstairsText", { n: sf.killsNeeded }));
   },
@@ -2303,11 +2452,16 @@ G.onKeyDown = function (e) {
   // -- 1-4 answer instead of switching weapons, and nothing reaches
   // gameplay. Pause still works over a question.
   G.Pad && G.Pad.clearFocus();
-  if ((Game.state === "GAMEPLAY" || Game.state === "SHOP") && G.Modal.isOpen()) {
+  // (in any state: the Notes Journal opens the note reader from the menus
+  // and the pause screen too, and its Escape must close the note, not quit
+  // to the menu or resume the run)
+  if (G.Modal.isOpen()) {
     if (Game.state === "GAMEPLAY" && e.code === G.save.settings.keybinds.pause && !G.Modal.pausesAll()) { Game.pause(); return; }
     G.Modal.handleKey(e);
     return;
   }
+  // round 4: the lobby takes its own keys (move, select, switch tab)
+  if (Game.state === "MENU" && G.Lobby && G.Lobby.onKey(e)) return;
   if (Game.state === "GAMEPLAY" && e.code === "KeyV") { Game.speakCurrentWord(); return; }
   if (Game.state === "GAMEPLAY" && e.code === "KeyT" && G.Tutorial.current) { G.Tutorial.skip(); return; }
   if (Game.state === "GAMEPLAY") {

@@ -13,29 +13,8 @@
 <canvas id="gameCanvas"></canvas>
 
 <!-- ===================== MAIN MENU ===================== -->
-<div id="screen-mainmenu" class="screen">
-  <div class="menu-bg-fog"></div>
-  <div class="menu-panel">
-    <h1 class="game-title" data-i18n-html="menu.title"></h1>
-    <p class="game-subtitle" data-i18n="menu.subtitle"></p>
-    <div class="menu-btns">
-      <button class="btn btn-primary" id="btn-start-game" data-i18n="menu.start"></button>
-      <button class="btn" id="btn-practice" data-i18n="menu.practice"></button>
-      <button class="btn" id="btn-daily" data-i18n="menu.daily"></button>
-      <button class="btn" id="btn-endless" data-i18n="menu.endless"></button>
-      <button class="btn" id="btn-leaderboard" data-i18n="menu.leaderboard"></button>
-      <button class="btn" id="btn-achievements" data-i18n="menu.achievements"></button>
-      <button class="btn" id="btn-vocablog" data-i18n="menu.vocablog"></button>
-      <button class="btn" id="btn-weaponlog" data-i18n="menu.weaponlog"></button>
-      <button class="btn" id="btn-customvocab" data-i18n="menu.customvocab"></button>
-      <button class="btn" id="btn-import-vocab" data-i18n="menu.import"></button>
-      <button class="btn" id="btn-howtoplay" data-i18n="menu.howto"></button>
-      <button class="btn" id="btn-tutorial-replay" data-i18n="menu.tutorial"></button>
-      <button class="btn" id="btn-settings" data-i18n="menu.settings"></button>
-    </div>
-  </div>
-  <div class="menu-footer" data-i18n="menu.footer"></div>
-</div>
+<!-- The lobby (round 4) is built into this by js/lobby.js -->
+<div id="screen-mainmenu" class="screen screen-lobby"></div>
 
 <!-- ===================== LEVEL SELECT ===================== -->
 <div id="screen-levelselect" class="screen hidden">
@@ -50,7 +29,10 @@
 <div id="screen-howtoplay" class="screen hidden">
   <h2 class="screen-title" data-i18n="howto.title"></h2>
   <div class="howto-content" data-i18n-html="howto.body"></div>
-  <div class="row-center"><button class="btn" id="btn-howtoplay-back" data-i18n="common.back"></button></div>
+  <div class="row-center">
+    <button class="btn" id="btn-tutorial-replay" data-i18n="howto.tutorial"></button>
+    <button class="btn" id="btn-howtoplay-back" data-i18n="common.back"></button>
+  </div>
 </div>
 
 <!-- ===================== SETTINGS ===================== -->
@@ -187,6 +169,7 @@
       <div class="hud-slots" id="hud-slots"></div>
     </div>
   </div>
+  <canvas class="hud-minimap hidden" id="hud-minimap" role="img" data-i18n-aria="map.aria"></canvas>
   <div class="hud-fps-counter hidden" id="hud-fps-counter"></div>
   <div class="hud-achievement-toast hidden" id="hud-achievement-toast"></div>
   <div class="hud-purchase-banner hidden" id="hud-purchase-banner"></div>
@@ -307,6 +290,29 @@
   <div class="row-center"><button class="btn" id="btn-cv-back" data-i18n="common.back"></button></div>
 </div>
 
+<!-- ===================== NOTES JOURNAL (round 3, js/journal.js) ===================== -->
+<div id="screen-journal" class="screen hidden">
+  <h2 class="screen-title" data-i18n="journal.title"></h2>
+  <div class="leaderboard-tabs" id="journal-tabs"></div>
+  <div class="journal-summary" id="journal-summary"></div>
+  <div class="journal-list log-content" id="journal-list"></div>
+  <div class="row-center"><button class="btn" id="btn-journal-back" data-i18n="common.back"></button></div>
+</div>
+
+<!-- ===================== STORY NOTE READER (round 3) ===================== -->
+<div id="screen-note" class="screen hidden">
+  <div class="note-paper" id="note-paper" role="dialog" aria-modal="true" aria-labelledby="note-title">
+    <div class="note-cefr" id="note-cefr"></div>
+    <div class="note-title" id="note-title"></div>
+    <div class="note-author" id="note-author"></div>
+    <div class="note-body" id="note-body"></div>
+  </div>
+  <div class="note-actions">
+    <button class="btn" id="btn-note-listen"><span aria-hidden="true">🔊</span> <span id="note-listen-label"></span> <span class="kbd-only">(T)</span></button>
+    <button class="btn btn-primary" id="btn-note-keep" data-pad-back></button>
+  </div>
+</div>
+
 <!-- ===================== PAUSE ===================== -->
 <div id="screen-pause" class="screen hidden">
   <h2 class="screen-title" data-i18n="pause.title"></h2>
@@ -316,6 +322,7 @@
     <div class="pause-perks" id="pause-perks"></div>
     <button class="btn" id="btn-pause-vocablog" data-i18n="menu.vocablog"></button>
     <button class="btn" id="btn-pause-weaponlog" data-i18n="menu.weaponlog"></button>
+    <button class="btn" id="btn-pause-journal" data-i18n="menu.journal"></button>
     <button class="btn" id="btn-pause-settings" data-i18n="menu.settings"></button>
     <button class="btn" id="btn-pause-tutorial" data-i18n="pause.tutorial"></button>
     <button class="btn" id="btn-pause-mainmenu" data-i18n="common.mainMenu"></button>
@@ -356,6 +363,7 @@
 <script src="js/data/words_hospital.js"></script>
 <script src="js/data/words_bunker.js"></script>
 <script src="js/data/words.js"></script>
+<script src="js/data/notes_school.js"></script>
 <script src="js/core.js"></script>
 <script src="js/modal.js"></script>
 <script src="js/anim.js"></script>
@@ -367,17 +375,26 @@
 <script src="js/headbob.js"></script>
 <script src="js/world.js"></script>
 <script src="js/schooldress.js"></script>
+<script src="js/schoolrooms.js"></script>
+<script src="js/campus.js"></script>
+<script src="js/schoolshell.js"></script>
 <script src="js/systems.js"></script>
 <script src="js/perks.js"></script>
 <script src="js/loadout.js"></script>
 <script src="js/customvocab.js"></script>
 <script src="js/gamepad.js"></script>
 <script src="js/objectives.js"></script>
+<script src="js/notes.js"></script>
+<script src="js/minimap.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/gunaudio.js"></script>
 <script src="js/perf.js"></script>
+<script src="js/zones.js"></script>
+<script src="js/details.js"></script>
 <script src="js/tutorial.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/journal.js"></script>
+<script src="js/lobby.js"></script>
 <script src="js/game.js"></script>
 </body>
 </html>

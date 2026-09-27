@@ -12,7 +12,9 @@
 // ===================================================================
 G.NavTest = {
   async run(levelId, opts) {
-    opts = Object.assign({ limit: 120, from: null }, opts || {});
+    // (round 3: the school is 120 m end to end and three storeys high; from
+    // the sports hall to a room on the third floor is a 200 m walk)
+    opts = Object.assign({ limit: 240, from: null }, opts || {});
     const g = G.Game;
     G.save.tutorialDone = true;
     // stepped by hand: no pointer lock, or losing it (focus moving to the
@@ -21,17 +23,21 @@ G.NavTest = {
     g.startLevel(levelId);
     const upd = g.update;
     g.update = function () {};
+    // (round 3: a zombie left far behind is normally brought in again near the
+    // player; here the point is whether it can walk all the way)
+    g._noRelocate = true;
     const out = { level: levelId, ok: [], fail: [] };
     try {
       const w = g.world, P = g.yawObject.position;
-      // open every gate: upper floor, secret room, word door
-      const drop = (c) => { const i = w.colliders.indexOf(c); if (i >= 0) w.colliders.splice(i, 1); };
+      // open every gate: upper floor, third floor, secret room, word door
+      const drop = (c) => G.ColGrid.remove(w, c);
       if (w.secondFloor) { w.secondFloor.unlocked = true; drop(w.secondFloor.barrierCollider); w.secondFloor.barrierMesh.visible = false; }
+      if (w.thirdFloor) { w.thirdFloor.unlocked = true; drop(w.thirdFloor.barrierCollider); w.thirdFloor.barrierMesh.visible = false; }
       if (w.secretZone) { w.secretZone.unlocked = true; drop(w.secretZone.barricadeCollider); }
       (w.doors || []).forEach((d) => { d.opened = true; d.locked = false; drop(d.collider); });
       const regionY = {};
       w.regions.forEach((r) => { regionY[r.name] = r.y || 0; });
-      const targets = w.regions.map((r) => r.name);
+      const targets = [...new Set(w.regions.map((r) => r.name))].filter((n) => !opts.only || opts.only.includes(n));
       const sources = opts.from || [["BOSS", 0], [w.regions.find((r) => r.name === "YARD") ? "YARD" : "ENTRY", 0]];
       // a node can sit inside furniture (the bunker's reactor fills the middle
       // of its boss hall): stand the player on the nearest spot a body fits
@@ -71,11 +77,14 @@ G.NavTest = {
           const label = (Array.isArray(src) ? src[0] : src) + "->" + name;
           if (reached) out.ok.push(label + " " + reached.toFixed(0) + "s");
           else out.fail.push(label + " stuck at " + last.x.toFixed(1) + "," + last.y.toFixed(1) + "," + last.z.toFixed(1) + " (" + G.getRegionAt(w, last.x, last.z, last.y) + ")");
-          if (out.ok.length % 6 === 0) await new Promise((r) => setTimeout(r, 0));
+          // (a message, not a timer: timers in a hidden tab are throttled to
+          // one a second, or one a minute after a while)
+          await new Promise((r) => { const ch = new MessageChannel(); ch.port1.onmessage = () => r(); ch.port2.postMessage(0); });
         }
       }
     } finally {
       g.update = upd;
+      g._noRelocate = false;
       g.quitToMainMenu();
     }
     return out;

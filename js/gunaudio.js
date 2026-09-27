@@ -196,7 +196,7 @@
     return buf;
   }
   function envForRegion(name) {
-    if (!name || name === "YARD") return "outdoor";
+    if (!name || /^YARD/.test(name)) return "outdoor";
     if (/^C\d/.test(name)) return "corridor";
     if (/^(ENTRY|BOSS|GAL|LANDING|STAIR)/.test(name)) return "hall";
     return "room";

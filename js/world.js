@@ -68,10 +68,33 @@ G.THEME_PALETTES = {
 // feetY keeps the old "highest surface wins" behaviour for callers that
 // genuinely don't have a body position (level setup, editor-ish queries).
 G.STEP_UP = 0.7;
+// Round 3: a level has six hundred height zones now (three storeys, stairs,
+// the stand, the sala floors...), and this is asked for every zombie every
+// frame and for every blade of grass at build time. An 8 m grid over them,
+// rebuilt whenever zones have been added since.
+G._hzNear = function (world, x, z) {
+  const zs = world.heightZones, S = 8;
+  let g = world._hzGrid;
+  if (!g || g.n !== zs.length) {
+    g = world._hzGrid = { n: zs.length, map: new Map() };
+    for (const hz of zs) {
+      for (let cx = Math.floor(hz.minX / S); cx <= Math.floor(hz.maxX / S); cx++) {
+        for (let cz = Math.floor(hz.minZ / S); cz <= Math.floor(hz.maxZ / S); cz++) {
+          const k = (cx + 1024) * 4096 + (cz + 1024);
+          let a = g.map.get(k);
+          if (!a) g.map.set(k, a = []);
+          a.push(hz);
+        }
+      }
+    }
+  }
+  return g.map.get((Math.floor(x / S) + 1024) * 4096 + (Math.floor(z / S) + 1024)) || G._hzNone;
+};
+G._hzNone = [];
 G.getFloorHeightAt = function (world, x, z, feetY) {
   if (!world || !world.heightZones) return 0;
   let highest = null, best = null, lowest = null;
-  for (const hz of world.heightZones) {
+  for (const hz of G._hzNear(world, x, z)) {
     if (x < hz.minX || x > hz.maxX || z < hz.minZ || z > hz.maxZ) continue;
     let h;
     if (hz.ramp) {
@@ -86,6 +109,90 @@ G.getFloorHeightAt = function (world, x, z, feetY) {
   if (feetY === undefined) return highest;
   if (best !== null) return best;
   return lowest; // every surface here is above us (e.g. stepped under a slab)
+};
+
+// ---------------- Collider grid (round 3) ----------------
+// The school grew to three storeys on a campus ten times the old yard, and
+// with it the collider list went past three thousand boxes. Everything that
+// moves used to test every one of them -- a zombie's steering tries seven
+// headings with three probes each, every frame. A 4m grid hands each query
+// only the boxes near it. world.colliders stays the one true list; the grid
+// is an index over it. Boxes that move (sliding door panels, the word door)
+// or span half the map (the fence, the outer boundary) are always returned.
+// A box taken out of the level goes through G.ColGrid.remove, which marks it
+// dead so the index skips it.
+G.ColGrid = {
+  CELL: 4,
+  key(cx, cz) { return (cx + 1024) * 4096 + (cz + 1024); },
+  build(world) {
+    world.colGrid = { map: new Map(), always: [], stamp: 1 };
+    for (const c of world.colliders) this.insert(world, c);
+    return world.colGrid;
+  },
+  insert(world, c) {
+    const g = world.colGrid;
+    if (!g || c.isEmpty()) return;
+    const S = this.CELL;
+    if (c.dynamic || c.max.x - c.min.x > 48 || c.max.z - c.min.z > 48) { g.always.push(c); return; }
+    const x0 = Math.floor(c.min.x / S), x1 = Math.floor(c.max.x / S), z0 = Math.floor(c.min.z / S), z1 = Math.floor(c.max.z / S);
+    for (let x = x0; x <= x1; x++) {
+      for (let z = z0; z <= z1; z++) {
+        const k = this.key(x, z);
+        let arr = g.map.get(k);
+        if (!arr) { arr = []; g.map.set(k, arr); }
+        arr.push(c);
+      }
+    }
+  },
+  add(world, c) { world.colliders.push(c); this.insert(world, c); return c; },
+  remove(world, c) {
+    if (!c) return;
+    const i = world.colliders.indexOf(c);
+    if (i >= 0) world.colliders.splice(i, 1);
+    c.dead = true;
+  },
+  _cell(g, st, out, cx, cz) {
+    const arr = g.map.get(this.key(cx, cz));
+    if (!arr) return;
+    for (const c of arr) if (c._qs !== st && !c.dead) { c._qs = st; out.push(c); }
+  },
+  _begin(g, out) {
+    const st = ++g.stamp;
+    out.length = 0;
+    for (const c of g.always) if (!c.dead) { c._qs = st; out.push(c); }
+    return st;
+  },
+  // every box within r of (x, z), into `out` (reused by the caller)
+  near(world, x, z, r, out) {
+    const g = world && world.colGrid;
+    if (!g) return world ? world.colliders : [];
+    out = out || [];
+    const st = this._begin(g, out), S = this.CELL;
+    const x0 = Math.floor((x - r) / S), x1 = Math.floor((x + r) / S), z0 = Math.floor((z - r) / S), z1 = Math.floor((z + r) / S);
+    for (let cx = x0; cx <= x1; cx++) for (let cz = z0; cz <= z1; cz++) this._cell(g, st, out, cx, cz);
+    return out;
+  },
+  // every box whose cell the ray's ground track crosses within `far` (a 2D
+  // grid walk), for the bullets' wall test
+  alongRay(world, o, d, far, out) {
+    const g = world && world.colGrid;
+    if (!g) return world ? world.colliders : [];
+    out = out || [];
+    const st = this._begin(g, out), S = this.CELL;
+    let cx = Math.floor(o.x / S), cz = Math.floor(o.z / S);
+    const stepX = d.x > 0 ? 1 : -1, stepZ = d.z > 0 ? 1 : -1;
+    const ax = Math.abs(d.x), az = Math.abs(d.z);
+    const tdx = ax > 1e-6 ? S / ax : Infinity, tdz = az > 1e-6 ? S / az : Infinity;
+    let tx = ax > 1e-6 ? (d.x > 0 ? (cx + 1) * S - o.x : o.x - cx * S) / ax : Infinity;
+    let tz = az > 1e-6 ? (d.z > 0 ? (cz + 1) * S - o.z : o.z - cz * S) / az : Infinity;
+    for (let guard = 0; guard < 600; guard++) {
+      this._cell(g, st, out, cx, cz);
+      const t = Math.min(tx, tz);
+      if (t > far) break;
+      if (tx < tz) { tx += tdx; cx += stepX; } else { tz += tdz; cz += stepZ; }
+    }
+    return out;
+  },
 };
 
 // Subtle always-on flicker (base intensity plus a slow sine wobble and rare
@@ -244,12 +351,15 @@ G.buildLevelScene = function (scene, level, quality) {
   const floorBaseTex = new THREE.CanvasTexture(floorCanvas);
   const floorSideMat = new THREE.MeshLambertMaterial({ color: pal.floorLine });
 
-  function addFloor(cx, cz, w, d, baseY) {
+  function addFloor(cx, cz, w, d, baseY, floorKind) {
     baseY = baseY || 0; // lets an upper floor (category E3) reuse the same tiled-texture floor
-    const tex = floorBaseTex.clone();
+    // round 3 (G2): a room's own floor -- wood, carpet, tiles, concrete
+    const own = floorKind && G.SchoolRooms ? G.SchoolRooms.floorTexture(floorKind) : null;
+    const tex = (own ? own.tex : floorBaseTex).clone();
     tex.needsUpdate = true;
     tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    tex.repeat.set(Math.max(1, Math.round(w / 2)), Math.max(1, Math.round(d / 2)));
+    const per = own ? own.metres : 2;
+    tex.repeat.set(Math.max(1, Math.round(w / per)), Math.max(1, Math.round(d / per)));
     const topMat = new THREE.MeshLambertMaterial({ map: tex });
     // BoxGeometry face order: [px, nx, py, ny, pz, nz] -- only the top (py) gets
     // the tile texture. The UNDERSIDE (ny) is the ceiling of whatever is below:
@@ -297,18 +407,34 @@ G.buildLevelScene = function (scene, level, quality) {
       if (seg2Len > 0.05) addWallSeg(fixedCoord, end - seg2Len / 2, thickness, seg2Len, height, baseY);
     }
   }
-  // gaps: {north,south,east,west}, each null (solid wall) or {center,width}.
+  // Several doorways in one wall run (round 3: the library spans two rows and
+  // has a door onto the corridor in each). gaps: [{center, width}], any order.
+  function addWallWithGaps(fixedCoord, wallCenterAlong, totalLen, thickness, gaps, axis, height, baseY) {
+    const start = wallCenterAlong - totalLen / 2, end = wallCenterAlong + totalLen / 2;
+    let t = start;
+    const seg = (a, b) => {
+      if (b - a <= 0.05) return;
+      if (axis === "x") addWallSeg((a + b) / 2, fixedCoord, b - a, thickness, height, baseY);
+      else addWallSeg(fixedCoord, (a + b) / 2, thickness, b - a, height, baseY);
+    };
+    gaps.slice().sort((p, q) => p.center - q.center).forEach((g) => { seg(t, g.center - g.width / 2); t = g.center + g.width / 2; });
+    seg(t, end);
+  }
+  // gaps: {north,south,east,west}, each null (solid wall), {center,width} or
+  // a list of them.
   function addRoomWalls(r, gaps, height, baseY) {
     gaps = gaps || {};
     const hw = r.w / 2, hd = r.d / 2;
-    if (gaps.west) addWallWithGap(r.cx - hw, r.cz, r.d, 0.4, gaps.west.center, gaps.west.width, "z", height, baseY);
-    else addWallSeg(r.cx - hw, r.cz, 0.4, r.d, height, baseY);
-    if (gaps.east) addWallWithGap(r.cx + hw, r.cz, r.d, 0.4, gaps.east.center, gaps.east.width, "z", height, baseY);
-    else addWallSeg(r.cx + hw, r.cz, 0.4, r.d, height, baseY);
-    if (gaps.north) addWallWithGap(r.cz - hd, r.cx, r.w, 0.4, gaps.north.center, gaps.north.width, "x", height, baseY);
-    else addWallSeg(r.cx, r.cz - hd, r.w, 0.4, height, baseY);
-    if (gaps.south) addWallWithGap(r.cz + hd, r.cx, r.w, 0.4, gaps.south.center, gaps.south.width, "x", height, baseY);
-    else addWallSeg(r.cx, r.cz + hd, r.w, 0.4, height, baseY);
+    const side = (g, fixed, along, len, axis) => {
+      if (!g) {
+        if (axis === "z") addWallSeg(fixed, along, 0.4, len, height, baseY);
+        else addWallSeg(along, fixed, len, 0.4, height, baseY);
+      } else addWallWithGaps(fixed, along, len, 0.4, Array.isArray(g) ? g : [g], axis, height, baseY);
+    };
+    side(gaps.west, r.cx - hw, r.cz, r.d, "z");
+    side(gaps.east, r.cx + hw, r.cz, r.d, "z");
+    side(gaps.north, r.cz - hd, r.cx, r.w, "x");
+    side(gaps.south, r.cz + hd, r.cx, r.w, "x");
   }
   // Category B: sliding doors. Every doorway gets sliding panels -- one leaf
   // for a room door, a split pair for the wide openings (the boss hall, the
@@ -490,17 +616,32 @@ G.buildLevelScene = function (scene, level, quality) {
       [lo + 0.05, hi - 0.05].forEach((a) => addStatic(along(0.05, 0.07, Math.abs(n) - 0.2), doorRailMat, a, H + 0.06, s * (0.2 + (Math.abs(n) - 0.2) / 2)));
     }
     // the panels, each with a recessed pull near its leading edge
+    const PP = G.SchoolDress && G.SchoolDress.P;
     d.leaves.forEach((lf) => {
-      const panel = new THREE.Mesh(along(lf.L, H - 0.04, DOOR_T), doorPanelMat);
       const lead = -lf.dir;                                 // the edge that closes the gap
-      const pull = new THREE.Mesh(along(0.07, 0.3, DOOR_T + 0.012), doorPullMat);
       const pa = lead * (lf.L / 2 - (pick.style === "pocket" && !d.double ? 0.05 : 0.14));
-      pull.position.copy(doorToWorld({ axis: d.axis, x: 0, z: 0 }, pa, 0, 1.05 - (H - 0.04) / 2));
-      panel.add(pull);
+      const pullAt = doorToWorld({ axis: d.axis, x: 0, z: 0 }, pa, 0, 1.05 - (H - 0.04) / 2);
+      let panel;
+      if (PP) {
+        // round 3: the panel and its pull as one palette mesh -- one draw
+        // call a panel instead of two, and a corridor has dozens of doors
+        const paint = (geo, hex) => { const [u, v] = PP.texel(hex), uv = geo.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, u, v); return geo; };
+        const geo = PP.concatGeos([
+          paint(along(lf.L, H - 0.04, DOOR_T), doorPanelMat.color.getHex()),
+          paint(along(0.07, 0.3, DOOR_T + 0.012).translate(pullAt.x, pullAt.y, pullAt.z), doorPullMat.color.getHex()),
+        ]);
+        panel = new THREE.Mesh(geo, PP.PAL.lit);
+      } else {
+        panel = new THREE.Mesh(along(lf.L, H - 0.04, DOOR_T), doorPanelMat);
+        const pull = new THREE.Mesh(along(0.07, 0.3, DOOR_T + 0.012), doorPullMat);
+        pull.position.copy(pullAt);
+        panel.add(pull);
+      }
       place(panel, lf.a0, (H - 0.04) / 2, lf.n);
       d.mesh.add(panel);
       lf.mesh = panel;
       lf.collider = new THREE.Box3();
+      lf.collider.dynamic = true;          // it rides with the panel (G.ColGrid)
     });
     // the placeholder gives way to one collider per panel, kept on the panel
     const i = world.colliders.indexOf(d.collider);
@@ -712,12 +853,16 @@ G.buildLevelScene = function (scene, level, quality) {
   // entry hall dimensions, and the per-room furniture.
   function buildComplex(cfg) {
     const F1 = 0, F2 = cfg.f2 || 4.2, WH = cfg.wallH || 4.2, CEIL = 3.95;
+    // round 3: the school has a third storey
+    const F3 = F2 * 2;
+    const baseOf = (fl) => (fl === 1 ? F1 : fl === 2 ? F2 : F3);
+    world.storeyY = [F1, F2, F3];
     // Pass D3: in the school some rooms light normally, some flicker and some
     // are dead dark, so walking the building has a rhythm of light and dark.
     // The ceiling fixtures are fitted later (G.SchoolDress) from this list.
     world.fixtures = [];
-    function schoolLight(key, x, baseY, z, color, intensity, speed, w, d) {
-      const mode = level.theme === "school" && G.SchoolDress ? G.SchoolDress.lightMode(key) : "steady";
+    function schoolLight(key, x, baseY, z, color, intensity, speed, w, d, forceMode) {
+      const mode = forceMode || (level.theme === "school" && G.SchoolDress ? G.SchoolDress.lightMode(key) : "steady");
       const l = mode === "off" ? null : addLight(x, baseY + CEIL - 0.45, z, color, intensity, speed);
       if (l && mode === "flicker") l.userData.mode = "flicker";
       // point lights ignore walls: at the default 13m a room lit its dark
@@ -728,9 +873,9 @@ G.buildLevelScene = function (scene, level, quality) {
     }
     // what the school dressing (js/schooldress.js) gets to work with
     function dressApi() {
-      return { scene, world, cfg, level, quality, M, ENTRY, BOSS, F1, F2, WH, CEIL, HALF, ROOM_W, WX, EX,
-        storeyList, corrZ0, corrZ1, wallMat, ceilingMat,
-        addSolid, addFloatBox, addGlowBox, addCanvasBox, addLight, addProp, addBloodStain };
+      return { scene, world, cfg, level, quality, M, ENTRY, BOSS, F1, F2, F3, WH, CEIL, HALF, ROOM_W, WX, EX,
+        storeyList, baseOf, corrZ0, corrZ1, wallMat, ceilingMat, solidProps,
+        addSolid, addFloatBox, addGlowBox, addCanvasBox, addLight, addProp, addBloodStain, addCorpse, addWallSeg, addFloor, addCeiling };
     }
     const HALF = cfg.half, ROOM_W = cfg.roomW;
     const WX = -(HALF + ROOM_W / 2), EX = HALF + ROOM_W / 2;
@@ -745,7 +890,9 @@ G.buildLevelScene = function (scene, level, quality) {
     world.keys = [];
     // category I: the rooms the "explore" objective counts -- every real room,
     // not corridors, halls or the gallery
-    world.roomNames = new Set(cfg.plan.map((s) => s.key).concat(cfg.storeys === 2 ? cfg.upperKeys : []));
+    world.roomNames = new Set(cfg.plan.map((s) => s.key).concat(cfg.storeys >= 2 ? cfg.upperKeys : []));
+    // what each room is (round 3, G2): its sign, colours, floor and furniture
+    world.roomInfo = {};
 
     // A hidden key (category I): a ring, a shaft and two teeth, gold and
     // self-lit so it reads in the dark from across a room.
@@ -770,8 +917,8 @@ G.buildLevelScene = function (scene, level, quality) {
       world.waypointEdges[a].push(b);
       world.waypointEdges[b].push(a);
     }
-    function addSpace(key, cx, cz, w, d, baseY) {
-      addFloor(cx, cz, w, d, baseY);
+    function addSpace(key, cx, cz, w, d, baseY, floorKind) {
+      addFloor(cx, cz, w, d, baseY, floorKind);
       world.heightZones.push({ minX: cx - w / 2, maxX: cx + w / 2, minZ: cz - d / 2, maxZ: cz + d / 2, height: baseY });
       world.regions.push({ name: key, y: baseY, minX: cx - w / 2, maxX: cx + w / 2, minZ: cz - d / 2, maxZ: cz + d / 2 });
       world.waypointNodes[key] = { x: cx, z: cz, y: baseY };
@@ -864,9 +1011,11 @@ G.buildLevelScene = function (scene, level, quality) {
     }
 
     // ---- corridors, every storey ----
-    const storeyList = STOREYS === 2 ? [1, 2] : [1];
+    const storeyList = STOREYS === 3 ? [1, 2, 3] : STOREYS === 2 ? [1, 2] : [1];
+    const corrZ0 = cfg.corrSegs[cfg.corrSegs.length - 1].cz - cfg.corrSegs[cfg.corrSegs.length - 1].d / 2;
+    const corrZ1 = cfg.corrSegs[0].cz + cfg.corrSegs[0].d / 2;
     storeyList.forEach((fl) => {
-      const baseY = fl === 1 ? F1 : F2;
+      const baseY = baseOf(fl);
       cfg.corrSegs.forEach((c) => {
         const key = "C" + fl + c.name;
         addSpace(key, 0, c.cz, HALF * 2, c.d, baseY);
@@ -876,32 +1025,56 @@ G.buildLevelScene = function (scene, level, quality) {
       for (let i = 0; i < cfg.corrSegs.length - 1; i++) {
         link("C" + fl + cfg.corrSegs[i].name, "C" + fl + cfg.corrSegs[i + 1].name);
       }
+      // The top storey has nothing at either end of its corridor: below it the
+      // entry hall and the boss hall close them off.
+      if (fl === 3) {
+        addWallSeg(0, corrZ1, HALF * 2 + 0.4, 0.4, WH, baseY);
+        addWallSeg(0, corrZ0, HALF * 2 + 0.4, 0.4, WH, baseY);
+      }
     });
 
     // ---- rooms ----
+    // A room can span several rows (`span`): the library on the first floor
+    // runs the depth of two classrooms and has a door onto the corridor from
+    // each. Its node sits on the aisle between them, and each doorway gets an
+    // inner node just past it so no route cuts across the shelving.
+    const TYPES = G.SchoolRooms ? G.SchoolRooms.TYPES : {};
     cfg.plan.forEach((spec) => {
       const fl = spec.storey || 1;
-      const baseY = fl === 1 ? F1 : F2;
-      const row = cfg.rows[spec.row];
+      const baseY = baseOf(fl);
+      const span = spec.span || 1;
+      const rows = [];
+      for (let k = 0; k < span; k++) rows.push(cfg.rows[spec.row + k]);
+      const zHi = rows[0].cz + rows[0].d / 2, zLo = rows[span - 1].cz - rows[span - 1].d / 2;
+      const cz = (zHi + zLo) / 2, d = zHi - zLo;
       const cx = spec.side === "W" ? WX : EX;
-      const r = { cx, cz: row.cz, w: ROOM_W, d: row.d };
-      addSpace(spec.key, cx, row.cz, ROOM_W, row.d, baseY);
-      addCeiling(cx, row.cz, ROOM_W, row.d, baseY, CEIL);
-      const gaps = spec.side === "W"
-        ? { east: { center: row.cz, width: 3 } }
-        : { west: { center: row.cz, width: 3 } };
-      addRoomWalls(r, gaps, WH, baseY);
-      schoolLight(spec.key, cx, baseY, row.cz, rl[spec.light % rl.length], 1.15, 1.0 + G.rng() * 0.9, ROOM_W, row.d);
-      addRoomDoor(spec.side === "W" ? -HALF : HALF, row.cz, 3, "z", baseY);
-      // A room is entered through its door, not its wall: the route passes a
-      // node just inside the corridor in front of the doorway. Without it a
-      // zombie in a long corridor steered straight at the room's centre and
-      // pinned itself against the wall beside the door (category P).
-      const dKey = "D" + spec.key;
-      world.waypointNodes[dKey] = { x: (spec.side === "W" ? -1 : 1) * (HALF - 1.0), z: row.cz, y: baseY };
-      link(spec.key, dKey); link(dKey, "C" + fl + row.corr);
-      spec.room = r; spec.baseY = baseY; spec.floor = fl;
-      world.extraSpawnPoints.push({ pos: new THREE.Vector3(cx, baseY, row.cz), types: fl === 1 ? ["normal", "fast"] : ["normal"] });
+      const r = { cx, cz, w: ROOM_W, d };
+      const T = spec.type && TYPES[spec.type];
+      addSpace(spec.key, cx, cz, ROOM_W, d, baseY, T ? T.floor : null);
+      addCeiling(cx, cz, ROOM_W, d, baseY, CEIL);
+      const gapList = rows.map((rw) => ({ center: rw.cz, width: 3 }));
+      addRoomWalls(r, spec.side === "W" ? { east: gapList } : { west: gapList }, WH, baseY);
+      const s = spec.side === "W" ? -1 : 1;
+      rows.forEach((rw, k) => {
+        schoolLight(k ? spec.key + "_" + k : spec.key, cx, baseY, rw.cz, rl[spec.light % rl.length], 1.15, 1.0 + G.rng() * 0.9, ROOM_W, rw.d, T && T.light);
+        addRoomDoor(s * HALF, rw.cz, 3, "z", baseY);
+        // A room is entered through its door, not its wall: the route passes a
+        // node just inside the corridor in front of the doorway. Without it a
+        // zombie in a long corridor steered straight at the room's centre and
+        // pinned itself against the wall beside the door (category P).
+        const dKey = "D" + spec.key + (k ? "_" + k : "");
+        world.waypointNodes[dKey] = { x: s * (HALF - 1.0), z: rw.cz, y: baseY };
+        link(dKey, "C" + fl + rw.corr);
+        if (span > 1) {
+          const iKey = "I" + spec.key + (k ? "_" + k : "");
+          world.waypointNodes[iKey] = { x: s * (HALF + 2.0), z: rw.cz, y: baseY };
+          link(dKey, iKey); link(iKey, spec.key);
+        } else link(spec.key, dKey);
+      });
+      if (span > 1) world.waypointNodes[spec.key] = { x: s * (HALF + 2.0), z: cz, y: baseY };
+      spec.room = r; spec.baseY = baseY; spec.floor = fl; spec.doorZs = rows.map((rw) => rw.cz);
+      world.roomInfo[spec.key] = { type: spec.type || spec.furnish || "room", spec };
+      rows.forEach((rw) => world.extraSpawnPoints.push({ pos: new THREE.Vector3(cx, baseY, rw.cz), types: fl === 1 ? ["normal", "fast"] : ["normal"] }));
     });
 
     // ---- boss hall (double height, no floor above it) ----
@@ -932,7 +1105,7 @@ G.buildLevelScene = function (scene, level, quality) {
       addWallSeg(0, ENTRY.cz + ENTRY.d / 2, 6, 0.4, 5.5, 2.9);
       addGlowBox(0, 3.2, ENTRY.cz + ENTRY.d / 2 - 0.3, 2.2, 0.32, 0.08, 0x6bff7a);
     }
-    if (STOREYS === 2) {
+    if (STOREYS >= 2) {
       // The hall's own node sat in the middle of the floor -- on a two-storey
       // map, on the staircase. Put it in the west bay, and reach the corridor
       // through a node beside the stairs at the north doorway.
@@ -951,21 +1124,32 @@ G.buildLevelScene = function (scene, level, quality) {
     addLight(0, 6.8, ENTRY.cz + 5, rl[2 % rl.length], 1.3, 1.1);
 
     // ---- upper storey over the entry hall: two rooms plus the gallery ----
-    if (STOREYS === 2) {
+    if (STOREYS >= 2) {
       const sideW = (ENTRY.w - 12) / 2;
       const UP = [
         { key: cfg.upperKeys[0], cx: -(6 + sideW / 2), w: sideW, li: 3 },
         { key: cfg.upperKeys[1], cx: 6 + sideW / 2, w: sideW, li: 1 },
       ];
-      UP.forEach((u) => {
+      world.upperSpecs = [];
+      UP.forEach((u, i) => {
         const r = { cx: u.cx, cz: ENTRY.cz, w: u.w, d: ENTRY.d };
-        addSpace(u.key, r.cx, r.cz, r.w, r.d, F2);
+        const type = cfg.upperTypes && cfg.upperTypes[i];
+        const T = type && TYPES[type];
+        addSpace(u.key, r.cx, r.cz, r.w, r.d, F2, T ? T.floor : null);
         addCeiling(r.cx, r.cz, r.w, r.d, F2, CEIL);
         const west = u.cx < 0;
         addRoomWalls(r, west ? { east: { center: ENTRY.cz - 2, width: 3 } } : { west: { center: ENTRY.cz - 2, width: 3 } }, WH, F2);
         addRoomDoor(west ? -6 : 6, ENTRY.cz - 2, 3, "z", F2);
-        addLight(r.cx, F2 + CEIL - 0.45, r.cz, rl[u.li % rl.length], 1.1, 1.3);
-        scatterClutter(r.cx, r.cz, r.w, r.d, F2, 4, { axis: "x", at: ENTRY.cz - 2, half: 2.2 });
+        if (T) {
+          // a typed room (round 3): furnished, lit and signed like the rest
+          schoolLight(u.key, r.cx, F2, r.cz, rl[u.li % rl.length], 1.1, 1.3, r.w, r.d, T.light);
+          const spec = { key: u.key, side: west ? "W" : "E", room: r, baseY: F2, floor: 2, type, upper: true, doorZs: [ENTRY.cz - 2], doorX: west ? -6 : 6 };
+          world.upperSpecs.push(spec);
+          world.roomInfo[u.key] = { type, spec };
+        } else {
+          addLight(r.cx, F2 + CEIL - 0.45, r.cz, rl[u.li % rl.length], 1.1, 1.3);
+          scatterClutter(r.cx, r.cz, r.w, r.d, F2, 4, { axis: "x", at: ENTRY.cz - 2, half: 2.2 });
+        }
         world.extraSpawnPoints.push({ pos: new THREE.Vector3(r.cx, F2, r.cz), types: ["normal"] });
       });
 
@@ -1050,6 +1234,11 @@ G.buildLevelScene = function (scene, level, quality) {
       // crossing the hall wanders onto the bottom tread and climbs by accident
       // (see updateZombies). Not a collider: the player and routed zombies use it.
       world.stairBlock = new THREE.Box3(new THREE.Vector3(-SX - 0.15, F1, Z0), new THREE.Vector3(SX + 0.15, F1 + 3, Z1 + 0.45));
+      // every staircase, for the zombies (round 3 adds a second, F2 -> F3):
+      // its no-go box for anyone not routed over it, the floors it joins,
+      // the nodes that mean "this route uses it", and which way is out of its
+      // foot
+      world.stairs = [{ block: world.stairBlock, y0: F1, y1: F2, foot: "STAIR", top: "GAL", nodes: ["STAIR", "GAL", "LANDING"], exit: new THREE.Vector3(0, 0, 1) }];
 
       // The gate sits across the foot of the stairs, not the hall doorway --
       // the hall is the only way in from outside, so gating it would lock the
@@ -1067,6 +1256,113 @@ G.buildLevelScene = function (scene, level, quality) {
       };
     }
 
+    // ---- round 3 (F1): the stairwell to the third floor -------------------
+    // It takes one room slot on both upper storeys. On the second floor you
+    // come in off the corridor, turn to the foot of a straight flight that
+    // climbs along the slot's outer end against its far wall, and arrive on a
+    // landing on the third floor, which opens onto that storey's corridor.
+    // A steel security grille across the foot keeps the third floor shut
+    // until the player has earned it (see G.Game.checkThirdFloorUnlock).
+    if (STOREYS === 3 && cfg.stair3) {
+      const st = cfg.stair3, row = cfg.rows[st.row], s = st.side === "W" ? -1 : 1;
+      const cx = s * (HALF + ROOM_W / 2), r = { cx, cz: row.cz, w: ROOM_W, d: row.d };
+      const zN = row.cz - row.d / 2, zS = row.cz + row.d / 2;      // north and south walls
+      const xIn = s * HALF, xOut = s * (HALF + ROOM_W);               // corridor wall, outer wall
+      // the flight: 3m wide against the south wall, rising outward
+      const SZ0 = zS - 3.2, SZ1 = zS - 0.2;                           // across the flight
+      const X1 = s * (HALF + 2.7), X0 = s * (HALF + 2.7 + 7.8);       // foot (F2) and top (F3)
+      const lo = (a, b) => Math.min(a, b), hi = (a, b) => Math.max(a, b);
+      [["STW", F2], ["STT", F3]].forEach(([key, y]) => {
+        // On the third floor the top of the flight and the landing beside it
+        // are a region of their own, LANDING3: from there the way to the
+        // room's door goes round the end of the well's rail (by UP3), where a
+        // straight line from the landing ran into the rail.
+        if (key === "STT") {
+          // (split along the rail's own line: a zombie just off either face
+          // of the rail knows which side it is on)
+          world.regions.push({ name: key, y, minX: lo(xIn, xOut), maxX: hi(xIn, xOut), minZ: zN, maxZ: SZ0 - 0.06 });
+          world.regions.push({ name: "LANDING3", y, minX: lo(X1, xOut), maxX: hi(X1, xOut), minZ: SZ0 - 0.06, maxZ: zS });
+        } else world.regions.push({ name: key, y, minX: lo(xIn, xOut), maxX: hi(xIn, xOut), minZ: zN, maxZ: zS });
+        addRoomWalls(r, s < 0 ? { east: { center: row.cz, width: 3 } } : { west: { center: row.cz, width: 3 } }, WH, y);
+        addRoomDoor(xIn, row.cz, 3, "z", y);
+        // (the second-floor half has no ceiling of its own: the landing's
+        // floor slab is its ceiling, and over the flight it is open)
+        if (y === F3) addCeiling(cx, row.cz, ROOM_W, row.d, y, CEIL);
+        schoolLight(key, cx, y, row.cz - 2, rl[1], 1.1, 1.2, ROOM_W, row.d, "steady");
+        world.roomInfo[key] = { type: "stairs", spec: { key, side: st.side, room: r, baseY: y, floor: y === F2 ? 2 : 3, type: "stairs", doorZs: [row.cz] } };
+      });
+      // floors: the whole slot on F2; on F3 everything but the flight's well
+      addFloor(cx, row.cz, ROOM_W, row.d, F2, "concrete");
+      world.heightZones.push({ minX: lo(xIn, xOut), maxX: hi(xIn, xOut), minZ: zN, maxZ: zS, height: F2 });
+      const F3A = { minX: lo(xIn, xOut), maxX: hi(xIn, xOut), minZ: zN, maxZ: SZ0 };
+      const F3B = { minX: lo(X0, xOut), maxX: hi(X0, xOut), minZ: SZ0, maxZ: zS };
+      [F3A, F3B].forEach((z) => {
+        addFloor((z.minX + z.maxX) / 2, (z.minZ + z.maxZ) / 2, z.maxX - z.minX, z.maxZ - z.minZ, F3, "concrete");
+        world.heightZones.push(Object.assign({ height: F3 }, z));
+      });
+      // treads, drawn solid down to the second floor
+      const STEPS = 12, RISE = (F3 - F2) / STEPS, RUN = 7.8 / STEPS;
+      for (let i = 0; i < STEPS; i++) {
+        const top = F2 + (i + 1) * RISE;
+        const a = X1 + s * i * RUN, b = a + s * RUN;
+        const step = new THREE.Mesh(new THREE.BoxGeometry(RUN, top - F2, SZ1 - SZ0 - 0.1), accentMat);
+        step.position.set((a + b) / 2, F2 + (top - F2) / 2, (SZ0 + SZ1) / 2);
+        scene.add(step);
+        world.heightZones.push({ minX: lo(a, b), maxX: hi(a, b), minZ: SZ0 - 0.15, maxZ: zS, height: top });
+      }
+      // the flight's open side is walled on F2 (you walk round to its foot)
+      // and railed on F3 (the well); the space under its top is closed off
+      addWallSeg((X0 + X1) / 2, SZ0, 7.8, 0.3, F3 - F2, F2);
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(7.8, 1.0, 0.12), M.rail);
+      rail.position.set((X0 + X1) / 2, F3 + 0.5, SZ0 - 0.06);
+      scene.add(rail);
+      world.colliders.push(new THREE.Box3().setFromObject(rail));
+      const endRail = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.0, SZ1 - SZ0), M.rail);
+      endRail.position.set(X1 - s * 0.06, F3 + 0.5, (SZ0 + SZ1) / 2);
+      scene.add(endRail);
+      world.colliders.push(new THREE.Box3().setFromObject(endRail));
+      world.colliders.push(new THREE.Box3(new THREE.Vector3(lo(X0 - s * 0.45, X0 - s * 0.15), F2, SZ0), new THREE.Vector3(hi(X0 - s * 0.45, X0 - s * 0.15), F3 - 0.7, SZ1)));
+      // nodes: corridor -> just inside the door -> the foot -> the top ->
+      // round the end of the well -> the landing's own node -> its door
+      const nIn = s * (HALF + 1.4);
+      world.waypointNodes.DSTW = { x: s * (HALF - 1.0), z: row.cz, y: F2 };
+      world.waypointNodes.STW = { x: nIn, z: row.cz, y: F2 };
+      world.waypointNodes.STAIR3 = { x: s * (HALF + 1.3), z: (SZ0 + SZ1) / 2, y: F2 };
+      world.waypointNodes.LANDING3 = { x: s * (HALF + ROOM_W - 1.0), z: (SZ0 + SZ1) / 2, y: F3 };
+      world.waypointNodes.UP3 = { x: s * (HALF + ROOM_W - 1.0), z: SZ0 - 1.4, y: F3 };
+      world.waypointNodes.STT = { x: cx, z: zN + 3.2, y: F3 };
+      world.waypointNodes.DSTT = { x: s * (HALF - 1.0), z: row.cz, y: F3 };
+      link("C2" + row.corr, "DSTW"); link("DSTW", "STW"); link("STW", "STAIR3");
+      link("STAIR3", "LANDING3"); link("LANDING3", "UP3"); link("UP3", "STT");
+      link("STT", "DSTT"); link("DSTT", "C3" + row.corr);
+      const block = new THREE.Box3(new THREE.Vector3(lo(X1 - s * 0.45, X0), F2, SZ0 - 0.15), new THREE.Vector3(hi(X1 - s * 0.45, X0), F2 + 3, SZ1 + 0.15));
+      world.stairs = world.stairs || [];
+      world.stairs.push({ block, y0: F2, y1: F3, foot: "STAIR3", top: "LANDING3", nodes: ["STAIR3", "LANDING3", "UP3"], exit: new THREE.Vector3(-s, 0, 0) });
+      // the grille: steel bars in a frame, a warning strip, a lock plate
+      const gx = X1 - s * 0.15;
+      const gate = new THREE.Group();
+      gate.position.set(gx, F2, (SZ0 + SZ1) / 2);
+      scene.add(gate);
+      const bar = new THREE.MeshLambertMaterial({ color: 0x5b6168 }), frame = new THREE.MeshLambertMaterial({ color: 0x3a3e44 });
+      const W = SZ1 - SZ0;
+      for (let k = 0; k <= 12; k++) { const b = new THREE.Mesh(new THREE.BoxGeometry(0.06, 3.5, 0.06), bar); b.position.set(0, 1.75, -W / 2 + k * (W / 12)); gate.add(b); }
+      [0.25, 1.3, 2.4, 3.45].forEach((y) => { const b = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, W), frame); b.position.set(0, y, 0); gate.add(b); });
+      const plate = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.5, 0.36), new THREE.MeshLambertMaterial({ color: 0xc9a227 }));
+      plate.position.set(-s * 0.04, 1.25, 0); gate.add(plate);
+      const strip = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.12, W + 0.2), new THREE.MeshBasicMaterial({ color: 0xff5a36 }));
+      strip.position.set(0, 3.62, 0); gate.add(strip);
+      const gateCollider = new THREE.Box3(new THREE.Vector3(gx - 0.12, F2, SZ0), new THREE.Vector3(gx + 0.12, F2 + 3.6, SZ1));
+      world.colliders.push(gateCollider);
+      world.thirdFloor = {
+        unlocked: false, barrierMesh: gate, barrierCollider: gateCollider, floorY: F3,
+        notesNeeded: cfg.topNotes || 4, correctNeeded: cfg.topCorrect || 40,
+        stairFoot: new THREE.Vector3(s * (HALF + 1.3), F2, (SZ0 + SZ1) / 2),
+        landing: new THREE.Vector3(s * (HALF + ROOM_W - 1.0), F3, (SZ0 + SZ1) / 2),
+      };
+      world.interactables.push({ mesh: gate, kind: "gate3", ref: world.thirdFloor });
+      world.stairSlot = { key: "STW", room: r, xIn, xOut, zN, zS, SZ0, SZ1, X0, X1, s };
+    }
+
     // ---- per-room dressing, loot, wall guns ----
     function dressGeneric(spec) {
       const r = spec.room, y = spec.baseY;
@@ -1081,10 +1377,45 @@ G.buildLevelScene = function (scene, level, quality) {
       if (G.rng() < 0.55) addBloodStain(r.cx + (G.rng() - 0.5) * 3, r.cz + (G.rng() - 0.5) * 3, 0.6 + G.rng() * 0.6, G.rng() * 3);
     }
 
+    // Round 3 (G2): a room with a `type` is furnished by its own kit in
+    // js/schoolrooms.js (a library, a music room, the principal's office...),
+    // which also marks where a story note could lie. Anything placed after the
+    // kit -- a crate, the mystery box -- looks for a free spot instead of a
+    // fixed one, so it never lands inside a bookcase.
+    world.noteSpots = world.noteSpots || [];
+    const occupied = (box, list) => (list || world.colliders).some((c) => c.intersectsBox(box));
+    function freeSpot(spec, w, d, near, h) {
+      const r = spec.room, y = spec.baseY;
+      const lanes = (spec.doorZs || [r.cz]).map((z) => z);
+      const roomBox = new THREE.Box3(new THREE.Vector3(r.cx - r.w / 2 - 1, y, r.cz - r.d / 2 - 1), new THREE.Vector3(r.cx + r.w / 2 + 1, y + 3, r.cz + r.d / 2 + 1));
+      const local = world.colliders.filter((c) => c.intersectsBox(roomBox));
+      const nodes = Object.values(world.waypointNodes).filter((n) => Math.abs((n.y || 0) - y) < 1 && roomBox.containsPoint(new THREE.Vector3(n.x, y + 1, n.z)));
+      const cands = [];
+      for (let x = r.cx - r.w / 2 + 0.7 + w / 2; x <= r.cx + r.w / 2 - 0.7 - w / 2; x += 0.5) {
+        for (let z = r.cz - r.d / 2 + 0.7 + d / 2; z <= r.cz + r.d / 2 - 0.7 - d / 2; z += 0.5) {
+          if (lanes.some((lz) => Math.abs(z - lz) < 1.9 + d / 2)) continue;          // the way in from each door
+          if (nodes.some((n) => Math.hypot(n.x - x, n.z - z) < 1.6 + Math.max(w, d) / 2)) continue;
+          const b = new THREE.Box3(new THREE.Vector3(x - w / 2 - 0.3, y + 0.05, z - d / 2 - 0.3), new THREE.Vector3(x + w / 2 + 0.3, y + (h || 1.4), z + d / 2 + 0.3));
+          if (occupied(b, local)) continue;
+          cands.push({ x, z, k: near ? Math.hypot(x - near.x, z - near.z) : G.rng() });
+        }
+      }
+      cands.sort((a, b) => a.k - b.k);
+      return cands[0] || null;
+    }
+    const kitApi = () => ({ addSolid, addFloatBox, addCanvasBox, addGlowBox, addCorpse, addBloodStain, addLight, M, scene, world, solidProps,
+      freeSpot, occupied, HALF, F2, F3, level, quality, noteSpot: (x, y, z, where, spec) => world.noteSpots.push({ x, y, z, where, room: spec ? spec.key : null, floor: spec ? spec.floor : 1 }) });
+    const typedKit = (spec) => spec.type && G.SchoolRooms && G.SchoolRooms.KITS[spec.type];
+    (world.upperSpecs || []).forEach((spec) => { if (typedKit(spec)) G.SchoolRooms.furnish(spec, kitApi()); });
+    if (world.stairSlot && G.SchoolRooms) G.SchoolRooms.furnishStairs(world.stairSlot, kitApi(), F2, F3);
+
     cfg.plan.forEach((spec) => {
-      dressGeneric(spec);
-      const f = cfg.furnish && cfg.furnish[spec.furnish];
-      if (f) f(spec, { addSolid, addFloatBox, addCanvasBox, addGlowBox, addCorpse, addBloodStain, addLight, M, scene });
+      if (typedKit(spec)) G.SchoolRooms.furnish(spec, kitApi());
+      else {
+        dressGeneric(spec);
+        const f = cfg.furnish && cfg.furnish[spec.furnish];
+        if (f) f(spec, { addSolid, addFloatBox, addCanvasBox, addGlowBox, addCorpse, addBloodStain, addLight, M, scene });
+      }
       if (spec.gun) {
         const r = spec.room, y = spec.baseY;
         const mx = r.cx < 0 ? r.cx - r.w / 2 + 0.3 : r.cx + r.w / 2 - 0.3;
@@ -1092,7 +1423,8 @@ G.buildLevelScene = function (scene, level, quality) {
       }
       if (spec.mystery) {
         const s = 1.4;
-        const mbX = spec.room.cx + spec.room.w / 2 - 2.2, mbZ = spec.room.cz - spec.room.d / 2 + 2.2;
+        let mbX = spec.room.cx + spec.room.w / 2 - 2.2, mbZ = spec.room.cz - spec.room.d / 2 + 2.2;
+        if (typedKit(spec)) { const f = freeSpot(spec, 1.9, 1.9, { x: mbX, z: mbZ }, 1.6); if (f) { mbX = f.x; mbZ = f.z; } }
         const crate = addProp(mbX, mbZ, 1.3 * s, 1.0 * s, 1.3 * s, new THREE.MeshLambertMaterial({ color: 0x1b1030 }));
         crate.position.y = spec.baseY + 0.5 * s;
         world.colliders[world.colliders.length - 1] = new THREE.Box3().setFromObject(crate);
@@ -1115,13 +1447,20 @@ G.buildLevelScene = function (scene, level, quality) {
         world.keys.push({ mesh: km, baseY: spec.baseY, taken: false, phase: world.keys.length * 1.7, room: spec.key });
       }
       if (spec.button) {
-        const bm = addProp(spec.room.cx - 3, spec.room.cz + 4, 0.35, 0.35, 0.35, new THREE.MeshLambertMaterial({ color: 0xff4444 }), 0, 0, 0, true);
-        bm.position.y = spec.baseY + 1.3;
+        // (a typed room's kit says where on its wall the button goes)
+        const at = spec.buttonAt || { x: spec.room.cx - 3, y: spec.baseY + 1.3, z: spec.room.cz + 4 };
+        const bm = addProp(at.x, at.z, 0.35, 0.35, 0.35, new THREE.MeshLambertMaterial({ color: 0xff4444 }), 0, 0, 0, true);
+        bm.position.y = at.y;
         world.buttons.push({ mesh: bm, pressed: false });
         world.interactables.push({ mesh: bm, kind: "button", ref: world.buttons[world.buttons.length - 1] });
       }
-      if ((spec.row + (spec.side === "W" ? 0 : 1)) % 2 === 0) {
-        const cm = addProp(spec.room.cx + 2.5, spec.room.cz - 2.5, 0.8, 0.8, 0.8, new THREE.MeshLambertMaterial({ color: 0x8a6a2a }));
+      // (a word-locked crate in every other room -- a third of them now the
+      // school has forty, or the building is wall to wall with crates)
+      const crateHere = level.theme === "school" ? (spec.row + (spec.side === "W" ? 0 : 1) + (spec.storey || 1)) % 3 === 0 : (spec.row + (spec.side === "W" ? 0 : 1)) % 2 === 0;
+      let crateAt = { x: spec.room.cx + 2.5, z: spec.room.cz - 2.5 };
+      if (crateHere && typedKit(spec)) crateAt = freeSpot(spec, 0.8, 0.8, crateAt, 1.0);
+      if (crateHere && crateAt) {
+        const cm = addProp(crateAt.x, crateAt.z, 0.8, 0.8, 0.8, new THREE.MeshLambertMaterial({ color: 0x8a6a2a }));
         cm.position.y = spec.baseY + 0.4;
         world.colliders[world.colliders.length - 1] = new THREE.Box3().setFromObject(cm);
         world.crates.push({ mesh: cm, opened: false, locked: true });
@@ -1146,7 +1485,9 @@ G.buildLevelScene = function (scene, level, quality) {
       const side = store.side === "W" ? -1 : 1;
       const lockedDoor = addProp(side * (HALF + 0.45), store.room.cz, 0.3, 3, 2.8, new THREE.MeshLambertMaterial({ color: 0xb2452f }));
       addGlowBox(side * (HALF + 0.45), 3.05, store.room.cz, 0.34, 0.1, 2.9, 0xffcc33);
-      world.doors.push({ mesh: lockedDoor, locked: true, kind: "word", opened: false, collider: world.colliders[world.colliders.length - 1] });
+      const wdc = world.colliders[world.colliders.length - 1];
+      wdc.dynamic = true;                  // it slides aside once answered (G.ColGrid)
+      world.doors.push({ mesh: lockedDoor, locked: true, kind: "word", opened: false, collider: wdc });
       world.interactables.push({ mesh: lockedDoor, kind: "door", ref: world.doors[world.doors.length - 1] });
     }
 
@@ -1158,10 +1499,8 @@ G.buildLevelScene = function (scene, level, quality) {
 
     // corridor dressing: lockers lining the spine, plus cover pressed against
     // the walls so the middle lane stays runnable
-    const corrZ0 = cfg.corrSegs[cfg.corrSegs.length - 1].cz - cfg.corrSegs[cfg.corrSegs.length - 1].d / 2;
-    const corrZ1 = cfg.corrSegs[0].cz + cfg.corrSegs[0].d / 2;
     storeyList.forEach((fl) => {
-      const y = fl === 1 ? F1 : F2;
+      const y = baseOf(fl);
       // Lockers hug the corridor walls -- but a locker that lands level with a
       // room's doorway walls that room off, and a room you cannot walk into is
       // a room the wave never clears.
@@ -1200,17 +1539,24 @@ G.buildLevelScene = function (scene, level, quality) {
       });
     }
 
-    if (cfg.dressEntry) cfg.dressEntry({ addSolid, addFloatBox, addCanvasBox, addGlowBox, addCorpse, addBloodStain, addProp, addLight, mountWallGun, scatterClutter, ENTRY, BOSS, F2, M, scene });
+    if (cfg.dressEntry) cfg.dressEntry({ addSolid, addFloatBox, addCanvasBox, addGlowBox, addCorpse, addBloodStain, addProp, addLight, mountWallGun, scatterClutter, ENTRY, BOSS, F2, F3: STOREYS === 3 ? F3 : null, M, scene });
     if (level.theme === "school" && G.SchoolDress) G.SchoolDress.facade(dressApi());
     if (cfg.dressBoss) cfg.dressBoss({ addSolid, addFloatBox, addCanvasBox, addGlowBox, addCorpse, addBloodStain, addProp, addLight, mountWallGun, scatterClutter, BOSS, ENTRY, F2, M, scene });
-    if (cfg.yard) buildSchoolYard({ cz: ENTRY.cz, d: ENTRY.d, w: ENTRY.w }, cfg.yard);
+    if (cfg.yard) buildSchoolYard({ cz: ENTRY.cz, d: ENTRY.d, w: ENTRY.w }, cfg.yard, cfg.campus, BOSS);
     clearDoorways();
     buildSlidingDoors();
     fitWordDoorSlide();
+    // (the windows go in before the posters, so the posters hang round them)
+    if (level.theme === "school" && G.SchoolShell) G.SchoolShell.inside(dressApi());
     if (level.theme === "school" && G.SchoolDress) G.SchoolDress.interior(dressApi());
+    // round 3: the outside of the building, and windows on the inside of its outer walls
+    if (level.theme === "school" && G.SchoolShell) G.SchoolShell.build(dressApi());
 
     // ---- spawn points ----
     cfg.corrSegs.forEach((c) => world.extraSpawnPoints.push({ pos: new THREE.Vector3(0, 0, c.cz), types: ["normal", "fast"] }));
+    // round 3: the upper corridors too, now zombies are sent to wherever the
+    // player is rather than walking in from the ground floor
+    if (level.theme === "school") storeyList.forEach((fl) => { if (fl > 1) cfg.corrSegs.forEach((c) => world.extraSpawnPoints.push({ pos: new THREE.Vector3(0, baseOf(fl), c.cz), types: ["normal"] })); });
     world.extraSpawnPoints.push({ pos: new THREE.Vector3(-BOSS.w * 0.25, 0, BOSS.cz), types: ["normal", "fast"] });
     world.extraSpawnPoints.push({ pos: new THREE.Vector3(BOSS.w * 0.25, 0, BOSS.cz), types: ["normal", "fast"] });
     world.extraSpawnPoints.push({ pos: new THREE.Vector3(-ENTRY.w * 0.3, 0, ENTRY.cz), types: ["normal"] });
@@ -1222,7 +1568,8 @@ G.buildLevelScene = function (scene, level, quality) {
     // tag the points that sit behind a gate (see G.spawnPointOpen)
     const inGroundRoom = (p, spec) => spec && p.y < 1 && Math.abs(p.x - spec.room.cx) < spec.room.w / 2 && Math.abs(p.z - spec.room.cz) < spec.room.d / 2;
     world.spawnPoints.forEach((sp) => {
-      if (world.secondFloor && sp.pos.y > 1) sp.gate = "upper";
+      if (world.thirdFloor && sp.pos.y > F3 - 1) sp.gate = "top";
+      else if (world.secondFloor && sp.pos.y > 1) sp.gate = "upper";
       else if (world.secretZone && inGroundRoom(sp.pos, secret)) sp.gate = "secret";
       else if (inGroundRoom(sp.pos, store)) sp.gate = "word";
     });
@@ -1510,47 +1857,81 @@ G.buildLevelScene = function (scene, level, quality) {
   function levelPlan(theme) {
     const M = themeMats(theme);
     if (theme === "school") {
+      // Round 3 (F1): seven rows of rooms instead of five, on three storeys
+      // instead of two -- forty rooms where there were twenty-two -- and every
+      // room is a kind of room (G2): classrooms, a library across two rows,
+      // labs, a music room, the canteen, toilets, and on the third floor the
+      // principal's office, the archive, the trophy room, the staff lounge
+      // and the broadcast room. The third floor is reached by its own stair
+      // (stair3), behind a grille that opens for players who have read enough
+      // of the story notes and answered enough words (topNotes, topCorrect).
       return {
-        half: 3.5, roomW: 12.5, storeys: 2, f2: 4.2, wallH: 4.2, mats: M, furnish: FURNISH,
+        half: 3.5, roomW: 12.5, storeys: 3, f2: 4.2, wallH: 4.2, mats: M, furnish: FURNISH,
         rows: [
           { cz: 13.5, d: 13, corr: "S" }, { cz: 0.5, d: 13, corr: "M" },
           { cz: -12.5, d: 13, corr: "N" }, { cz: -25, d: 12, corr: "N" },
-          { cz: -37.5, d: 13, corr: "N2" },
+          { cz: -37.5, d: 13, corr: "N2" }, { cz: -50.5, d: 13, corr: "N3" },
+          { cz: -63.5, d: 13, corr: "N4" },
         ],
         corrSegs: [
           { name: "S", cz: 13.5, d: 13 }, { name: "M", cz: 0.5, d: 13 },
           { name: "N", cz: -19, d: 26 }, { name: "N2", cz: -38, d: 12 },
+          { name: "N3", cz: -50.5, d: 13 }, { name: "N4", cz: -63.5, d: 13 },
         ],
-        boss: { cx: 0, cz: -52.5, w: 36, d: 17 },
+        boss: { cx: 0, cz: -78.5, w: 36, d: 17 },
         entry: { cz: 26.5, w: 32, d: 13 },
-        upperKeys: ["PLW", "PLE"],
+        upperKeys: ["PLW", "PLE"], upperTypes: ["meeting", "staff"],
         stair: { halfX: 2.15, run: 7.8 },
-        trapZ: -42, spawn: { x: 0, z: 53 }, upperKills: 20,
+        stair3: { side: "E", row: 0 },
+        trapZ: -66, spawn: { x: 0, z: 53 }, upperKills: 20, topNotes: 4, topCorrect: 40,
         dressEntry: DRESSERS.school.entry, dressBoss: DRESSERS.school.boss,
         yard: { cx: 0, cz: 46.5, w: 52, d: 27 },
+        campus: { x0: -64, x1: 56, z0: -104, z1: 76 },
         extraSpawns: [[-18, 0, 42, ["normal"]], [18, 0, 42, ["normal"]],
           [-12, 0, 56, ["normal", "fast"]], [12, 0, 56, ["normal", "fast"]]],
         plan: [
-          { key: "W1", side: "W", row: 0, light: 0, furnish: "classroom" },
-          { key: "E1", side: "E", row: 0, light: 2 },
-          { key: "W2", side: "W", row: 1, light: 1, gun: "hall_monitor" },
-          { key: "E2", side: "E", row: 1, light: 3, gun: "pop_quiz", furnish: "lab" },
-          { key: "W3", side: "W", row: 2, light: 2, button: true, furnish: "office" },
-          { key: "E3", side: "E", row: 2, light: 0, furnish: "classroom" },
-          { key: "W4", side: "W", row: 3, light: 4, gun: "detention_slug", secret: true, hasKey: true },
-          { key: "E4", side: "E", row: 3, light: 1, gun: "cafeteria_cleaver", wordDoor: true, furnish: "storage", hasKey: true },
-          { key: "W5", side: "W", row: 4, light: 2, furnish: "canteen" },
-          { key: "E5", side: "E", row: 4, light: 3 },
-          { key: "PW1", side: "W", row: 0, storey: 2, light: 1, gun: "honor_roll" },
-          { key: "PE1", side: "E", row: 0, storey: 2, light: 3 },
-          { key: "PW2", side: "W", row: 1, storey: 2, light: 0, furnish: "classroom" },
-          { key: "PE2", side: "E", row: 1, storey: 2, light: 2, gun: "science_fair", furnish: "lab" },
-          { key: "PW3", side: "W", row: 2, storey: 2, light: 4, gun: "art_attack" },
-          { key: "PE3", side: "E", row: 2, storey: 2, light: 1, mystery: true },
-          { key: "PW4", side: "W", row: 3, storey: 2, light: 3, furnish: "office", hasKey: true },
-          { key: "PE4", side: "E", row: 3, storey: 2, light: 0, gun: "principals_verdict" },
-          { key: "PW5", side: "W", row: 4, storey: 2, light: 2, furnish: "storage" },
-          { key: "PE5", side: "E", row: 4, storey: 2, light: 4, furnish: "classroom" },
+          // 1st floor (ground)
+          { key: "W1", side: "W", row: 0, light: 0, type: "classroom", num: "1A" },
+          { key: "E1", side: "E", row: 0, light: 2, type: "nurse" },
+          { key: "W2", side: "W", row: 1, light: 1, type: "classroom", num: "1B", gun: "hall_monitor" },
+          { key: "E2", side: "E", row: 1, light: 3, type: "science", gun: "pop_quiz" },
+          { key: "W3", side: "W", row: 2, light: 2, type: "office", button: true },
+          { key: "E3", side: "E", row: 2, light: 0, type: "classroom", num: "1C" },
+          { key: "W4", side: "W", row: 3, light: 4, type: "detention", gun: "detention_slug", secret: true, hasKey: true },
+          { key: "E4", side: "E", row: 3, light: 1, type: "storeroom", gun: "cafeteria_cleaver", wordDoor: true, hasKey: true },
+          { key: "W5", side: "W", row: 4, light: 2, type: "canteen" },
+          { key: "E5", side: "E", row: 4, light: 3, type: "toilets" },
+          { key: "W6", side: "W", row: 5, light: 1, type: "music" },
+          { key: "E6", side: "E", row: 5, light: 0, type: "classroom", num: "1D" },
+          { key: "W7", side: "W", row: 6, light: 4, type: "changing" },
+          { key: "E7", side: "E", row: 6, light: 2, type: "sports" },
+          // 2nd floor (the stairwell up to the 3rd takes row 0 east)
+          { key: "PW1", side: "W", row: 0, span: 2, storey: 2, light: 1, type: "library", gun: "honor_roll" },
+          { key: "PE2", side: "E", row: 1, storey: 2, light: 2, type: "classroom", num: "2A" },
+          { key: "PW3", side: "W", row: 2, storey: 2, light: 4, type: "art", gun: "art_attack" },
+          { key: "PE3", side: "E", row: 2, storey: 2, light: 1, type: "classroom", num: "2B", mystery: true },
+          { key: "PW4", side: "W", row: 3, storey: 2, light: 3, type: "staffoffice", hasKey: true },
+          { key: "PE4", side: "E", row: 3, storey: 2, light: 0, type: "computer" },
+          { key: "PW5", side: "W", row: 4, storey: 2, light: 2, type: "storeroom" },
+          { key: "PE5", side: "E", row: 4, storey: 2, light: 4, type: "classroom", num: "2C" },
+          { key: "PW6", side: "W", row: 5, storey: 2, light: 1, type: "science", label: "room.chemistry", gun: "science_fair" },
+          { key: "PE6", side: "E", row: 5, storey: 2, light: 3, type: "classroom", num: "2D" },
+          { key: "PW7", side: "W", row: 6, storey: 2, light: 0, type: "toilets" },
+          { key: "PE7", side: "E", row: 6, storey: 2, light: 2, type: "classroom", num: "2E" },
+          // 3rd floor, behind the grille
+          { key: "TW1", side: "W", row: 0, storey: 3, light: 4, type: "principal", gun: "principals_verdict" },
+          { key: "TW2", side: "W", row: 1, storey: 3, light: 2, type: "archive" },
+          { key: "TE2", side: "E", row: 1, storey: 3, light: 1, type: "trophy" },
+          { key: "TW3", side: "W", row: 2, storey: 3, light: 3, type: "lounge" },
+          { key: "TE3", side: "E", row: 2, storey: 3, light: 0, type: "broadcast" },
+          { key: "TW4", side: "W", row: 3, storey: 3, light: 1, type: "classroom", num: "3A" },
+          { key: "TE4", side: "E", row: 3, storey: 3, light: 4, type: "meeting", label: "room.boardroom" },
+          { key: "TW5", side: "W", row: 4, storey: 3, light: 2, type: "classroom", num: "3B" },
+          { key: "TE5", side: "E", row: 4, storey: 3, light: 3, type: "science", label: "room.physics" },
+          { key: "TW6", side: "W", row: 5, storey: 3, light: 0, type: "classroom", num: "3C" },
+          { key: "TE6", side: "E", row: 5, storey: 3, light: 1, type: "computer", label: "room.languageLab" },
+          { key: "TW7", side: "W", row: 6, storey: 3, light: 2, type: "toilets" },
+          { key: "TE7", side: "E", row: 6, storey: 3, light: 4, type: "office", label: "room.deputy" },
         ],
       };
     }
@@ -1695,9 +2076,14 @@ G.buildLevelScene = function (scene, level, quality) {
           ctx.fillStyle = "#101418";
           for (let i = 0; i < 5; i++) ctx.fillRect(G.rng() * 230, G.rng() * 110, 8 + G.rng() * 24, 5 + G.rng() * 10);
         }, 0x3a3a34);
-        // roofs sit above every interior ceiling (3.55 downstairs, 7.75 up)
-        const mainD = zf - (B.cz + B.d / 2);
-        a.addFloatBox(0, 8.75, (zf + B.cz + B.d / 2) / 2, E.w + 1, 0.5, mainD, wallDark);
+        // roofs sit above every interior ceiling (3.55 downstairs, 7.75 up,
+        // 11.95 on the third floor): the entry block and the gym are two
+        // storeys, the classroom block between them three (round 3)
+        const zBack = E.cz - E.d / 2, zGym = B.cz + B.d / 2;
+        if (a.F3) {
+          a.addFloatBox(0, 8.75, (zf + zBack) / 2, E.w + 1, 0.5, zf - zBack + 0.5, wallDark);
+          a.addFloatBox(0, a.F3 + 4.55, (zBack + zGym) / 2, E.w + 1, 0.5, zBack - zGym + 0.5, wallDark);
+        } else a.addFloatBox(0, 8.75, (zf + zGym) / 2, E.w + 1, 0.5, zf - zGym, wallDark);
         a.addFloatBox(0, 9.3, B.cz, B.w + 2, 0.5, B.d + 2, wallDark);
       },
       boss(a) {
@@ -1878,34 +2264,73 @@ G.buildLevelScene = function (scene, level, quality) {
   // ground level, and the perimeter keeps an unbroken collider line even where
   // the fence is meant to look torn open -- a real hole would let the player
   // walk out along the side of the building and off the edge of the level.
-  function buildSchoolYard(ENTRY_HALL, YARD) {
-    const grassMat = new THREE.MeshLambertMaterial({ color: 0x3c4f2c });
-    const grassTuftMat = new THREE.MeshLambertMaterial({ color: 0x53703a });
+  // Round 3 (F2): the grounds go all the way round the building now -- a
+  // campus ten times the old front yard, fenced on every side, with the
+  // football field to the west, the dead flower garden to the east, the
+  // service yard behind the gym and three salas. The old front yard keeps
+  // everything it had; its fence and flank walls came down with the move.
+  function buildSchoolYard(ENTRY_HALL, YARD, CAMPUS, BOSS) {
     const dirtMat = new THREE.MeshLambertMaterial({ color: 0x4a4436 });
     const concreteMat = new THREE.MeshLambertMaterial({ color: 0x6b6a63 });
     const crackMat = new THREE.MeshLambertMaterial({ color: 0x2a2a26 });
     const barkMat = new THREE.MeshLambertMaterial({ color: 0x3b2f24 });
     const branchMat = new THREE.MeshLambertMaterial({ color: 0x4a3c2d });
     const fenceMat = new THREE.MeshLambertMaterial({ color: 0x55565a });
-    const brickMat = new THREE.MeshLambertMaterial({ color: 0x6b4a40 });
 
-    const x0 = YARD.cx - YARD.w / 2, x1 = YARD.cx + YARD.w / 2;   // -26 .. 26
+    const x0 = YARD.cx - YARD.w / 2, x1 = YARD.cx + YARD.w / 2;   // -26 .. 26  (the old front yard)
     const z0 = YARD.cz - YARD.d / 2, z1 = YARD.cz + YARD.d / 2;   // 33 .. 60
+    const C = CAMPUS || { x0, x1, z0, z1 };
+    // the building's outline, outer faces of its walls
+    const bw = ENTRY_HALL.w / 2 + 0.2, bFront = ENTRY_HALL.cz + ENTRY_HALL.d / 2 + 0.2;
+    const gw = BOSS.w / 2 + 0.2, gBack = BOSS.cz - BOSS.d / 2 - 0.2, gFront = BOSS.cz + BOSS.d / 2;
+    world.footprint = [
+      { minX: -bw, maxX: bw, minZ: gFront, maxZ: bFront },
+      { minX: -gw, maxX: gw, minZ: gBack, maxZ: gFront },
+    ];
+    world.campus = C;
 
-    // ---- ground ----
-    const ground = new THREE.Mesh(new THREE.BoxGeometry(YARD.w, 0.4, YARD.d), grassMat);
-    ground.position.set(YARD.cx, -0.2, YARD.cz);
+    // ---- ground: one slab under the whole campus, a hair below the
+    // building's own floors so the two never fight over the same depth ----
+    const gcv = document.createElement("canvas"); gcv.width = gcv.height = 256;
+    {
+      const g = gcv.getContext("2d"), R = G.makeRng(6060);
+      g.fillStyle = "#3c4f2c"; g.fillRect(0, 0, 256, 256);
+      const tones = ["#34472a", "#445a30", "#4f5a33", "#57523a", "#3a4a2c", "#5c5a3c"];
+      for (let i = 0; i < 900; i++) { g.fillStyle = tones[Math.floor(R() * tones.length)]; g.globalAlpha = 0.25 + R() * 0.35; const s = 2 + R() * 9; g.fillRect(R() * 256, R() * 256, s, s * (0.4 + R())); }
+      g.globalAlpha = 0.18; g.fillStyle = "#6a5a3c";
+      for (let i = 0; i < 14; i++) { g.beginPath(); g.ellipse(R() * 256, R() * 256, 10 + R() * 26, 6 + R() * 16, R() * 3, 0, 7); g.fill(); }
+      g.globalAlpha = 1;
+    }
+    const gtex = new THREE.CanvasTexture(gcv);
+    gtex.wrapS = gtex.wrapT = THREE.RepeatWrapping;
+    gtex.repeat.set((C.x1 - C.x0) / 9, (C.z1 - C.z0) / 9);
+    const ground = new THREE.Mesh(new THREE.BoxGeometry(C.x1 - C.x0, 0.4, C.z1 - C.z0),
+      [dirtMat, dirtMat, new THREE.MeshLambertMaterial({ map: gtex }), dirtMat, dirtMat, dirtMat]);
+    ground.position.set((C.x0 + C.x1) / 2, -0.22, (C.z0 + C.z1) / 2);
     ground.receiveShadow = true;
     scene.add(ground);
-    world.heightZones.push({ minX: x0, maxX: x1, minZ: z0, maxZ: z1, height: 0 });
-    world.regions.push({ name: "YARD", y: 0, minX: x0, maxX: x1, minZ: z0, maxZ: z1 });
-    world.waypointNodes.YARD = { x: 0, z: 46, y: 0 };
+    world.heightZones.push({ minX: C.x0, maxX: C.x1, minZ: C.z0, maxZ: C.z1, height: 0 });
+
+    // ---- the grounds as regions: in front, down each side, behind ----
+    // Four rectangles that never overlap the building, so a straight line
+    // inside any one of them never runs into it. Going from one to the next
+    // is by a corner node off the building's corners.
+    const R_ = (name, a, b, c, d) => world.regions.push({ name, y: 0, minX: a, maxX: b, minZ: c, maxZ: d });
+    R_("YARD", C.x0, C.x1, bFront, C.z1);
+    R_("YARD_W", C.x0, -gw, gBack, bFront); R_("YARD_W", -gw, -bw, gFront, bFront);
+    R_("YARD_E", gw, C.x1, gBack, bFront); R_("YARD_E", bw, gw, gFront, bFront);
+    R_("YARD_N", C.x0, C.x1, C.z0, gBack);
+    const N = world.waypointNodes;
+    N.YARD = { x: 0, z: 46, y: 0 };
+    N.YARD_W = { x: -28, z: -20, y: 0 }; N.YARD_E = { x: 28, z: -20, y: 0 }; N.YARD_N = { x: 0, z: -96, y: 0 };
+    N.CSW = { x: -28, z: bFront + 5, y: 0 }; N.CSE = { x: 28, z: bFront + 5, y: 0 };
+    N.CNW = { x: -28, z: gBack - 7, y: 0 }; N.CNE = { x: 28, z: gBack - 7, y: 0 };
     // through the front doors, not the facade beside them
-    world.waypointNodes.DFRONT = { x: 0, z: z0 + 1.2, y: 0 };
-    world.waypointEdges.YARD = world.waypointEdges.YARD || [];
-    world.waypointEdges.DFRONT = ["YARD", "ENTRY"];
-    world.waypointEdges.YARD.push("DFRONT");
-    world.waypointEdges.ENTRY.push("DFRONT");
+    N.DFRONT = { x: 0, z: z0 + 1.2, y: 0 };
+    const E_ = (a, b) => { (world.waypointEdges[a] = world.waypointEdges[a] || []).push(b); (world.waypointEdges[b] = world.waypointEdges[b] || []).push(a); };
+    E_("YARD", "DFRONT"); E_("DFRONT", "ENTRY");
+    E_("YARD", "CSW"); E_("CSW", "YARD_W"); E_("YARD", "CSE"); E_("CSE", "YARD_E");
+    E_("YARD_W", "CNW"); E_("CNW", "YARD_N"); E_("YARD_E", "CNE"); E_("CNE", "YARD_N");
 
     // Uneven, overgrown ground: shallow mounds you step straight onto (well
     // under STEP_UP), rather than real terrain the collision system can't model.
@@ -1922,7 +2347,8 @@ G.buildLevelScene = function (scene, level, quality) {
     });
 
     // ---- cracked concrete path from the gate to the front doors ----
-    for (let i = 0; i < 9; i++) {
+    const slabs = Math.floor((C.z1 - 1 - (z0 + 0.05)) / 3.0);
+    for (let i = 0; i < slabs; i++) {
       const pz = z0 + 1.4 + i * 3.0;
       const slab = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.1, 2.7), concreteMat);
       slab.position.set(i % 3 === 1 ? 0.18 : -0.12, 0.05, pz);
@@ -1936,9 +2362,18 @@ G.buildLevelScene = function (scene, level, quality) {
       }
     }
 
+    // ---- the campus (round 3, F2): paths round the building, the football
+    // field, the flower garden, the salas, the car park, the service yard and
+    // the rescue team's checkpoint at the gate (js/campus.js). It goes first
+    // so the grass knows where not to grow (world.noGrass). ----
+    world.noGrass = [];
+    world.landmarks = [];
+    if (G.Campus) G.Campus.build({ scene, world, level, quality, C, YARD, ENTRY_HALL, BOSS, x0, x1, z0, z1,
+      addFloatBox, addGlowBox, addCanvasBox, addLight, addBloodStain, addCorpse, fenceMat, concreteMat, crackMat });
+
     // ---- grass, weeds, fallen leaves, vines, bushes, old trees and the
     // junk of an abandoned school (pass D1, js/schooldress.js) ----
-    if (G.SchoolDress) G.SchoolDress.yard({ scene, world, level, quality, x0, x1, z0, z1, YARD, ENTRY_HALL,
+    if (G.SchoolDress) G.SchoolDress.yard({ scene, world, level, quality, x0, x1, z0, z1, YARD, ENTRY_HALL, campus: C,
       addFloatBox, addBloodStain, addLight, addGlowBox, fenceMat, barkMat, branchMat });
 
     // ---- perimeter: steel railings and brick piers, wrecked but sealed ----
@@ -1973,28 +2408,40 @@ G.buildLevelScene = function (scene, level, quality) {
         ? new THREE.Box3(new THREE.Vector3(lo, 0, fixed - 0.3), new THREE.Vector3(lo + span, 3.2, fixed + 0.3))
         : new THREE.Box3(new THREE.Vector3(fixed - 0.3, 0, lo), new THREE.Vector3(fixed + 0.3, 3.2, lo + span)));
     }
-    railRun("x", x0, x1, z1 - 0.5, true);            // front fence, along the road
-    railRun("z", z0, z1, x0 + 0.5, true);            // west fence
-    railRun("z", z0, z1, x1 - 0.5, false);           // east fence
-    // brick walls closing the two flanks between the fence and the building
-    [[x0 + 0.5, -ENTRY_HALL.w / 2], [ENTRY_HALL.w / 2, x1 - 0.5]].forEach(([fx0, fx1]) => {
-      const wall = new THREE.Mesh(new THREE.BoxGeometry(fx1 - fx0, 2.6, 0.5), brickMat);
-      wall.position.set((fx0 + fx1) / 2, 1.3, z0 + 0.25);
-      scene.add(wall);
-      world.colliders.push(new THREE.Box3().setFromObject(wall));
+    // The school fence runs round the whole campus now (round 3): the road
+    // side in front with the main gate in it, the field side, the garden side
+    // and the back. Brick piers every so often; panels missing here and
+    // there, but the line behind them is sealed all the way round.
+    const GATE = 3.4;
+    railRun("x", C.x0, -GATE, C.z1 - 0.5, true);     // front, west of the gate
+    railRun("x", GATE, C.x1, C.z1 - 0.5, true);      // front, east of the gate
+    railRun("x", C.x0, C.x1, C.z0 + 0.5, true);      // back
+    railRun("z", C.z0, C.z1, C.x0 + 0.5, true);      // field side
+    railRun("z", C.z0, C.z1, C.x1 - 0.5, false);     // garden side
+    const brickMat = new THREE.MeshLambertMaterial({ color: 0x6b4a40 }), capMat = new THREE.MeshLambertMaterial({ color: 0x8a8578 });
+    const pier = (x, z) => {
+      const p = new THREE.Mesh(new THREE.BoxGeometry(0.7, 2.5, 0.7), brickMat); p.position.set(x, 1.25, z); scene.add(p);
+      const c = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.14, 0.85), capMat); c.position.set(x, 2.57, z); scene.add(c);
+    };
+    for (let x = C.x0 + 0.5; x <= C.x1 - 0.5; x += 12) { pier(x, C.z1 - 0.5); pier(x, C.z0 + 0.5); }
+    for (let z = C.z0 + 12.5; z < C.z1 - 1; z += 12) { pier(C.x0 + 0.5, z); pier(C.x1 - 0.5, z); }
+    [-GATE - 0.2, GATE + 0.2].forEach((x) => {
+      const p = new THREE.Mesh(new THREE.BoxGeometry(0.9, 3.0, 0.9), brickMat); p.position.set(x, 1.5, C.z1 - 0.5); scene.add(p);
+      world.colliders.push(new THREE.Box3().setFromObject(p));
     });
     // the gate itself: both leaves wrenched off their hinges and jammed shut
     [-1, 1].forEach((s) => {
       const leaf = new THREE.Mesh(new THREE.BoxGeometry(3.1, 2.3, 0.14), fenceMat);
-      leaf.position.set(s * 1.6, 1.15, z1 - 0.55);
+      leaf.position.set(s * 1.6, 1.15, C.z1 - 0.55);
       leaf.rotation.z = s * 0.17;
       leaf.rotation.y = s * 0.12;
       scene.add(leaf);
       world.colliders.push(new THREE.Box3().setFromObject(leaf));
     });
+    world.colliders.push(new THREE.Box3(new THREE.Vector3(-GATE, 0, C.z1 - 0.9), new THREE.Vector3(GATE, 3.2, C.z1 - 0.2)));
     // a fallen fence section on the grass, which is where the "hole" went
     const fallen = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.14, 2.0), fenceMat);
-    fallen.position.set(x0 + 3.4, 0.09, 45);
+    fallen.position.set(C.x0 + 3.4, 0.09, 12);
     fallen.rotation.y = 0.42;
     scene.add(fallen);
 
@@ -2078,7 +2525,7 @@ G.buildLevelScene = function (scene, level, quality) {
     addCorpse(-3.4, 48.5, 0.6, 0x3f6a8a);
     addBloodStain(-3.4, 48.5, 1.2, 1.1);
     for (let i = 0; i < 4; i++) addFloatBox(-4.6 + i * 0.3, 0.2, 47.4 + (i % 2) * 0.5, 0.12, 0.4, 0.12, fenceMat, 0.8);
-    addCorpse(x0 + 2.2, 45.2, 1.4, 0x6a6a3a, { y: 0.45, rz: -0.55 });
+    addCorpse(x0 + 2.2, 45.2, 1.4, 0x6a6a3a);
     addBloodStain(x0 + 2.6, 45.9, 0.9, 0.2);
     addCorpse(-7.2, 39.4, 2.9, 0x7a5a3a);
     addBloodStain(-7.2, 39.4, 1.0, 0.9);
@@ -2195,6 +2642,7 @@ G.buildLevelScene = function (scene, level, quality) {
   boundaryBox(bMinX - bm - bt, bMinZ - bm - bt, bMaxX + bm + bt, bMinZ - bm);
   boundaryBox(bMinX - bm - bt, bMaxZ + bm, bMaxX + bm + bt, bMaxZ + bm + bt);
   world.bounds = { minX: bMinX, maxX: bMaxX, minZ: bMinZ, maxZ: bMaxZ };
+  G.ColGrid.build(world);
 
   return world;
 };

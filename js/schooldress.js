@@ -185,11 +185,16 @@
   }
 
   // ---- wind for the grass: the blade tip moves, the root stays ------------
+  // Round 3 (G1): the grass gives way. uBend holds up to six things walking
+  // through it -- the player and the nearest zombies (js/details.js fills it
+  // in every frame; w is the radius, 0 = unused) -- and a tuft within reach
+  // of one leans away from it, flattening the nearer it is.
   function swayMaterial(world, base) {
     const u = world.dress.uniforms;
     base.onBeforeCompile = (shader) => {
       shader.uniforms.uTime = u.uTime;
-      shader.vertexShader = "uniform float uTime;\n" + shader.vertexShader.replace("#include <project_vertex>", [
+      shader.uniforms.uBend = u.uBend;
+      shader.vertexShader = "uniform float uTime;\nuniform vec4 uBend[6];\n" + shader.vertexShader.replace("#include <project_vertex>", [
         "vec4 mvPosition = vec4( transformed, 1.0 );",
         "#ifdef USE_INSTANCING",
         "  mvPosition = instanceMatrix * mvPosition;",
@@ -199,12 +204,24 @@
         "  float w = sin( uTime * 1.6 + ip.x * 0.31 + ip.y * 0.23 ) + 0.45 * sin( uTime * 2.9 + ip.x * 0.83 + ip.y * 0.5 );",
         "  mvPosition.x += w * 0.09 * gust * gh * gh;",
         "  mvPosition.z += w * 0.05 * gust * gh * gh;",
+        "  for ( int i = 0; i < 6; i++ ) {",
+        "    vec4 b = uBend[ i ];",
+        "    if ( b.w <= 0.0 ) continue;",
+        "    vec2 d = ip - b.xz;",
+        "    float dist = length( d );",
+        "    if ( dist >= b.w ) continue;",
+        "    float k = 1.0 - dist / b.w;",
+        "    k = k * k * ( 3.0 - 2.0 * k );",
+        "    vec2 dir = dist > 0.001 ? d / dist : vec2( 0.0, 1.0 );",
+        "    mvPosition.xz += dir * k * 0.6 * gh;",
+        "    mvPosition.y -= k * 0.45 * gh * ( mvPosition.y - instanceMatrix[3].y );",
+        "  }",
         "#endif",
         "mvPosition = modelViewMatrix * mvPosition;",
         "gl_Position = projectionMatrix * mvPosition;",
       ].join("\n"));
     };
-    base.customProgramCacheKey = () => "grass-sway";
+    base.customProgramCacheKey = () => "grass-sway-bend";
     return base;
   }
   // A tuft: six tapered blades leaning out from a common root, darker at the
@@ -334,7 +351,7 @@
     init(world) {
       if (world.dress) return world.dress;
       const d = world.dress = {
-        uniforms: { uTime: { value: 0 } }, t: 0, flags: [],
+        uniforms: { uTime: { value: 0 }, uBend: { value: Array.from({ length: 6 }, () => new THREE.Vector4(0, 0, 0, 0)) } }, t: 0, flags: [],
         update: (dt) => {
           d.t += dt;
           d.uniforms.uTime.value = d.t;
@@ -365,32 +382,55 @@
       this.init(world);
       const floorAt = (x, z) => G.getFloorHeightAt(world, x, z, 0);
       const PATH = 2.7;
-      const onPath = (x) => Math.abs(x) < PATH;
+      const onPath = (x, z) => Math.abs(x) < PATH && z > z0 - 0.5;
       const nearDoor = (x, z) => z < z0 + 2.6 && Math.abs(x) < 5;
+      // Round 3: the grounds are the whole campus round the building. The
+      // grass stays off the building, the paths, the car park, the sala
+      // floors (world.noGrass), and grows thickest and tallest along the
+      // fence and on the abandoned pitch; the garden's is dried out.
+      const CAM = api.campus || { x0, x1, z0, z1 };
+      const inFoot = (x, z) => (world.footprint || []).some((f) => x > f.minX - 0.3 && x < f.maxX + 0.3 && z > f.minZ - 0.3 && z < f.maxZ + 0.3);
+      const bare = (x, z) => (world.noGrass || []).some((n) => x > n.minX && x < n.maxX && z > n.minZ && z < n.maxZ);
+      const pitch = world.pitch;
+      const onPitch = (x, z) => !!pitch && x > pitch.minX - 1 && x < pitch.maxX + 1 && z > pitch.minZ - 1 && z < pitch.maxZ + 1;
+      const inGarden = (x, z) => x > 31.5 && x < 52.5 && z > -60.5 && z < -7.5;
+      const fenceDist = (x, z) => Math.min(x - CAM.x0, CAM.x1 - x, z - CAM.z0, CAM.z1 - z);
+      const area = (CAM.x1 - CAM.x0) * (CAM.z1 - CAM.z0);
 
       // ---- grass tufts: dark green, yellow-green and dry brown, in patches
       {
-        const COUNT = Math.round(4000 * MAXK);
+        // the old yard had 4000 on 1400 m2; the campus is sparser in the
+        // middle of its lawns and dense where nobody ever mowed
+        const COUNT = Math.round(Math.max(4000, area * 1.25) * MAXK);
         const mat = swayMaterial(world, new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }));
         const geo = tuftGeometry(R, 5), mesh = collector();
         const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
         const cols = [new THREE.Color(0x3a5528), new THREE.Color(0x4f6e33), new THREE.Color(0x7f8638), new THREE.Color(0x86704a)];
         const col = new THREE.Color();
         let n = 0;
-        for (let i = 0; i < COUNT * 3 && n < COUNT; i++) {
-          const x = x0 + 0.7 + R() * (x1 - x0 - 1.4), z = z0 + 0.7 + R() * (z1 - z0 - 1.4);
-          if (onPath(x) && R() > 0.04) continue;          // a few creep onto the path edge
-          if (nearDoor(x, z)) continue;
+        for (let i = 0; i < COUNT * 4 && n < COUNT; i++) {
+          const x = CAM.x0 + 0.7 + R() * (CAM.x1 - CAM.x0 - 1.4), z = CAM.z0 + 0.7 + R() * (CAM.z1 - CAM.z0 - 1.4);
+          if (onPath(x, z) && R() > 0.04) continue;          // a few creep onto the path edge
+          if (nearDoor(x, z) || inFoot(x, z)) continue;
+          if (bare(x, z) && R() > 0.03) continue;
+          const fence = fenceDist(x, z) < 4, field = onPitch(x, z), dry = inGarden(x, z);
+          const inOldYard = x > x0 && x < x1 && z > z0 && z < z1;
+          // how thick it grows here, relative to the densest
+          const dens = inOldYard ? 1 : fence ? 1 : field ? 0.95 : dry ? 0.6 : 0.62;
+          if (R() > dens) continue;
           // patches: slow noise picks lush, seeding or dried-out ground
           const patch = Math.sin(x * 0.21 + 1.3) * Math.sin(z * 0.17 + 0.4) + 0.5 * Math.sin(x * 0.53 + z * 0.41);
-          const edge = Math.min(x - x0, x1 - x, z1 - z) < 3 ? 1.35 : 1;   // taller along the fence
-          const h = (0.28 + R() * 0.55) * edge * (patch > 0.6 ? 1.3 : 1);
+          const edge = fence || (inOldYard && Math.min(x - x0, x1 - x, z1 - z) < 3) ? 1.35 : 1;   // taller along the fence
+          // the pitch: long, uneven, knee-high in clumps
+          const tall = field ? 1.25 + Math.max(0, Math.sin(x * 0.9 + z * 0.37) * Math.sin(z * 0.61 - x * 0.2)) * 0.9 : 1;
+          const h = (0.28 + R() * 0.55) * edge * tall * (patch > 0.6 ? 1.3 : 1);
           p.set(x, floorAt(x, z), z);
           q.setFromAxisAngle(up, R() * Math.PI * 2);
           s.set(0.8 + R() * 0.6, h, 0.8 + R() * 0.6);
           m4.compose(p, q, s);
           mesh.setMatrixAt(n, m4);
-          const k = patch > 0.45 ? (R() < 0.65 ? 3 : 2) : patch > -0.2 ? (R() < 0.45 ? 1 : R() < 0.6 ? 2 : 0) : (R() < 0.6 ? 0 : 1);
+          let k = patch > 0.45 ? (R() < 0.65 ? 3 : 2) : patch > -0.2 ? (R() < 0.45 ? 1 : R() < 0.6 ? 2 : 0) : (R() < 0.6 ? 0 : 1);
+          if (dry) k = R() < 0.7 ? 3 : 2;                   // the garden: all of it dead
           col.copy(cols[k]).multiplyScalar(0.85 + R() * 0.3);
           mesh.setColorAt(n, col);
           n++;
@@ -398,20 +438,24 @@
         mesh.count = n;
         mesh.instanceMatrix.needsUpdate = true;
         if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-        emit(world, scene, geo, mat, mesh, "grass", [3, 2]);
+        // in 15 m chunks, each culled on its own (and by the zone culling in
+        // js/zones.js when it is past the fog)
+        emit(world, scene, geo, mat, mesh, "grass", [Math.max(1, Math.round((CAM.x1 - CAM.x0) / 15)), Math.max(1, Math.round((CAM.z1 - CAM.z0) / 15))]);
       }
 
       // ---- weeds pushing up through the cracked path
       {
-        const COUNT = Math.round(170 * MAXK);
+        const pathEnd = CAM.z1 - 1.2;
+        const COUNT = Math.round(170 * (pathEnd - z0) / (z1 - z0) * MAXK);
         const mat = swayMaterial(world, new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }));
         const geo = tuftGeometry(R, 4), mesh = collector();
         const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
         const col = new THREE.Color();
         let n = 0;
         for (let i = 0; i < COUNT; i++) {
-          // along the slab joints (every ~2m) and the path edges
-          const z = z0 + 2.2 + R() * (z1 - z0 - 3);
+          // along the slab joints (every ~2m) and the path edges, all the way
+          // to the gate
+          const z = z0 + 2.2 + R() * (pathEnd - z0 - 3);
           const joint = Math.round(z / 2.1) * 2.1;
           const zz = R() < 0.6 ? joint + (R() - 0.5) * 0.3 : z;
           const x = R() < 0.5 ? (R() - 0.5) * 4.2 : (R() < 0.5 ? -1 : 1) * (2.0 + R() * 0.5);
@@ -426,14 +470,16 @@
           n++;
         }
         mesh.count = n;
-        emit(world, scene, geo, mat, mesh, "grass");
+        emit(world, scene, geo, mat, mesh, "grass", [1, 3]);
       }
 
       // ---- old trees: dead and bare, twisted and thin, or still half in leaf
+      // (the old yard's eight, and round 3's all over the campus)
       const TREES = [
         [-19, 44, "dead"], [-14, 55, "leafy"], [17, 37, "twisted"], [21, 55, "dead"],
         [8, 45, "twisted"], [-7, 58, "leafy"], [-24, 58.5, "dead"], [24, 58.2, "twisted"],
-      ];
+      ].concat((world.campusTrees || []).map((t) => [t.x, t.z, t.kind, t.dry]));
+      world.treeTops = [];
       const bark = lam(0x3b2f24), barkL = lam(0x4f4030), twig = lam(0x5a4a38);
       const leafs = [lam(0x3d5a2a), lam(0x4e6a30), lam(0x6a7034), lam(0x34482a)];
       TREES.forEach(([tx, tz, kind], ti) => {
@@ -474,44 +520,52 @@
             const t = tips[k % tips.length];
             blob(scene, 0.9 + R() * 0.6, leafs[k % leafs.length], t.x + (R() - 0.5) * 1.2, t.y + (R() - 0.2) * 0.8, t.z + (R() - 0.5) * 1.2, 1, 0.7, 1, R);
           }
-        } else if (kind === "twisted") {
+        } else if (kind === "twisted" && !TREES[ti][3]) {
           // a few thin clusters clinging on
           for (let k = 0; k < 5; k++) {
             const t = tips[k % tips.length];
             blob(scene, 0.35 + R() * 0.3, leafs[(k + ti) % leafs.length], t.x + (R() - 0.5) * 0.6, t.y + R() * 0.3, t.z + (R() - 0.5) * 0.6, 1, 0.6, 1, R);
           }
         }
-        if (ti % 2 === 0) api.addBloodStain(tx + 1.2, tz + 0.8, 0.9, R() * 3);
+        if (ti < 8 && ti % 2 === 0) api.addBloodStain(tx + 1.2, tz + 0.8, 0.9, R() * 3);
+        // where leaves let go from (G3: falling leaves), and a branch a crow
+        // might sit on
+        world.treeTops.push({ x: tx, z: tz, y: segs[2].y, r: kind === "leafy" ? 2.4 : 1.6, leafy: kind !== "dead" });
+        if (world.perches && R() < 0.5) { const t = tips[0]; world.perches.push({ x: t.x, y: t.y + 0.05, z: t.z, yaw: R() * 6 }); }
       });
 
       // ---- fallen leaves: everywhere, and thick under the trees
       {
-        const COUNT = Math.round(2300 * MAXK);
+        const COUNT = Math.round(Math.max(2300, area * 0.3) * MAXK);
         const geo = new THREE.PlaneGeometry(0.16, 0.1); geo.rotateX(-Math.PI / 2);
         const mat = new THREE.MeshLambertMaterial({ side: THREE.DoubleSide }), mesh = collector();
         const m4 = new THREE.Matrix4(), e = new THREE.Euler(), q = new THREE.Quaternion(), s = new THREE.Vector3(1, 1, 1), p = new THREE.Vector3();
         const cols = [0x6a4a2a, 0x8a5a2a, 0xa0782a, 0x5a4a30, 0x7a6a3a, 0x4a3a28].map((c) => new THREE.Color(c));
         const col = new THREE.Color();
-        for (let i = 0; i < COUNT; i++) {
+        let n = 0;
+        for (let i = 0; i < COUNT * 2 && n < COUNT; i++) {
           let x, z;
           if (R() < 0.55) { const t = TREES[Math.floor(R() * TREES.length)], a = R() * 6.3, r = Math.sqrt(R()) * 4.5; x = t[0] + Math.cos(a) * r; z = t[1] + Math.sin(a) * r; }
-          else { x = x0 + 0.6 + R() * (x1 - x0 - 1.2); z = z0 + 0.6 + R() * (z1 - z0 - 1.2); }
-          x = Math.max(x0 + 0.6, Math.min(x1 - 0.6, x)); z = Math.max(z0 + 0.6, Math.min(z1 - 0.6, z));
-          p.set(x, floorAt(x, z) + (onPath(x) ? 0.11 : 0.02) + R() * 0.02, z);
+          else { x = CAM.x0 + 0.6 + R() * (CAM.x1 - CAM.x0 - 1.2); z = CAM.z0 + 0.6 + R() * (CAM.z1 - CAM.z0 - 1.2); }
+          x = Math.max(CAM.x0 + 0.6, Math.min(CAM.x1 - 0.6, x)); z = Math.max(CAM.z0 + 0.6, Math.min(CAM.z1 - 0.6, z));
+          if (inFoot(x, z)) continue;
+          p.set(x, floorAt(x, z) + (onPath(x, z) || bare(x, z) ? 0.1 : 0.02) + R() * 0.02, z);
           e.set((R() - 0.5) * 0.5, R() * 6.3, (R() - 0.5) * 0.5); q.setFromEuler(e);
           const sc = 0.7 + R() * 0.7; s.set(sc, 1, sc);
           m4.compose(p, q, s);
-          mesh.setMatrixAt(i, m4);
+          mesh.setMatrixAt(n, m4);
           col.copy(cols[Math.floor(R() * cols.length)]).multiplyScalar(0.8 + R() * 0.35);
-          mesh.setColorAt(i, col);
+          mesh.setColorAt(n, col);
+          n++;
         }
-        emit(world, scene, geo, mat, mesh, "small", [3, 2]);
+        mesh.count = n;
+        emit(world, scene, geo, mat, mesh, "small", [Math.max(1, Math.round((CAM.x1 - CAM.x0) / 20)), Math.max(1, Math.round((CAM.z1 - CAM.z0) / 20))]);
       }
 
       // ---- vines: strands climbing the railings, the brick flanks and the
       // front of the building
       {
-        const COUNT = Math.round(2600 * MAXK);
+        const COUNT = Math.round(5200 * MAXK);
         const geo = new THREE.PlaneGeometry(0.15, 0.12);
         const mat = new THREE.MeshLambertMaterial({ side: THREE.DoubleSide }), mesh = collector();
         const m4 = new THREE.Matrix4(), e = new THREE.Euler(), q = new THREE.Quaternion(), s = new THREE.Vector3(1, 1, 1), p = new THREE.Vector3();
@@ -519,11 +573,18 @@
         const col = new THREE.Color();
         let n = 0;
         // [start x, start z, wall axis, face sign, max height]
+        // Round 3: up the campus fence, in patches (a stretch smothered, then
+        // bare railings), and the front of the building as before
         const runs = [];
-        for (let x = x0 + 1.5; x < x1 - 1.5; x += 1.3 + R() * 1.4) if (Math.abs(x) > 3.6) runs.push([x, z1 - 0.5, "x", R() < 0.5 ? -1 : 1, 1.6 + R() * 0.6]);
-        for (let z = z0 + 1.2; z < z1 - 1; z += 1.5 + R() * 1.6) { runs.push([x0 + 0.5, z, "z", 1, 1.5 + R() * 0.7]); runs.push([x1 - 0.5, z, "z", -1, 1.5 + R() * 0.7]); }
-        for (let x = x0 + 1; x < -16; x += 1.4 + R()) runs.push([x, z0 + 0.52, "x", 1, 2.2 + R() * 0.4]);
-        for (let x = 16.5; x < x1 - 1; x += 1.4 + R()) runs.push([x, z0 + 0.52, "x", 1, 2.2 + R() * 0.4]);
+        const patchy = (t) => Math.sin(t * 0.11) + 0.6 * Math.sin(t * 0.37 + 1.2) > 0.15;
+        for (let x = CAM.x0 + 1.5; x < CAM.x1 - 1.5; x += 1.3 + R() * 1.4) {
+          if (Math.abs(x) > 3.6 && patchy(x)) runs.push([x, CAM.z1 - 0.5, "x", R() < 0.5 ? -1 : 1, 1.6 + R() * 0.6]);
+          if (patchy(x + 40)) runs.push([x, CAM.z0 + 0.5, "x", R() < 0.5 ? -1 : 1, 1.6 + R() * 0.6]);
+        }
+        for (let z = CAM.z0 + 1.2; z < CAM.z1 - 1; z += 1.5 + R() * 1.6) {
+          if (patchy(z)) runs.push([CAM.x0 + 0.5, z, "z", 1, 1.5 + R() * 0.7]);
+          if (patchy(z + 70)) runs.push([CAM.x1 - 0.5, z, "z", -1, 1.5 + R() * 0.7]);
+        }
         [[-15.3, 5.5], [-11.8, 3.2], [-5.2, 2.6], [5.2, 2.4], [9.2, 4.2], [15.2, 6.5]].forEach(([x, hmax]) => runs.push([x, z0 + 0.23, "x", 1, hmax]));
         runs.forEach(([sx, sz, axis, face, hmax]) => {
           let t = axis === "x" ? sx : sz, y = 0.05;
@@ -546,13 +607,24 @@
           }
         });
         mesh.count = n;
-        emit(world, scene, geo, mat, mesh, "vines", [3, 1]);
+        emit(world, scene, geo, mat, mesh, "vines", [8, 10]);
       }
 
       // ---- bushes, overgrown against the fences and the building
       {
         const greens = [lam(0x344a26), lam(0x42582c), lam(0x2c3e22)], dry = lam(0x5a5236);
-        [[-23.4, 57.4], [-16.2, 58.4], [15.6, 58.3], [23.5, 49.5], [-24, 40.3], [23.4, 35.2], [-18.4, 34.4], [18.8, 34.3], [-5.6, 34.1], [5.8, 34.2], [-24.2, 50.5]].forEach(([bx, bz], i) => {
+        const spots = [[-23.4, 57.4], [-16.2, 58.4], [15.6, 58.3], [23.5, 49.5], [-24, 40.3], [23.4, 35.2], [-18.4, 34.4], [18.8, 34.3], [-5.6, 34.1], [5.8, 34.2], [-24.2, 50.5]];
+        // ...and all along the campus fence, and against the building's sides
+        for (let k = 0; k < 46; k++) {
+          const side = k % 4;
+          const t = R();
+          const bx = side < 2 ? CAM.x0 + 3 + t * (CAM.x1 - CAM.x0 - 6) : side === 2 ? CAM.x0 + 1.6 : CAM.x1 - 1.6;
+          const bz = side === 0 ? CAM.z0 + 1.6 : side === 1 ? CAM.z1 - 1.6 : CAM.z0 + 3 + t * (CAM.z1 - CAM.z0 - 6);
+          if (bare(bx, bz) || Math.abs(bx) < 5) continue;
+          spots.push([bx, bz]);
+        }
+        for (let z = -64; z < 30; z += 9 + R() * 8) { if (R() < 0.6) spots.push([-17.1, z]); if (R() < 0.6) spots.push([17.1, z + 4]); }
+        spots.forEach(([bx, bz], i) => {
           const k = 3 + Math.floor(R() * 3);
           for (let j = 0; j < k; j++) {
             const r = 0.45 + R() * 0.45;
@@ -683,7 +755,7 @@
       box(g, 0.05, 0.16, 0.3, lam(0x2a2826), 2.11, 0.68, -0.6);      // one headlight smashed
       for (let i = 0; i < 6; i++) box(g, 0.3 + R() * 0.6, 0.2 + R() * 0.3, 0.02, rust, (R() - 0.5) * 3.5, 0.5 + R() * 0.3, (R() < 0.5 ? 1 : -1) * 0.91);
       box(g, 1.2, 0.02, 1.0, rust, 1.3, 0.92, 0.1);                   // bonnet rust
-      g.updateMatrixWorld(true);
+      g.updateWorldMatrix(true, true);
       const b = new THREE.Box3().setFromObject(g); b.max.y = 1.6;
       world.colliders.push(b);
     },
@@ -819,7 +891,7 @@
         const p = a(lo, -0.6), q = a(hi, 0.6);
         block.push(new THREE.Box3(p.clone().min(q).setY(dr.baseY), p.clone().max(q).setY(dr.baseY + 4)));
       }));
-      scene.updateMatrixWorld(true);
+      scene.updateWorldMatrix(true, true);
       const things = [];
       scene.traverse((o) => {
         if (!o.isMesh || o.isInstancedMesh || o.material === api.wallMat || o.material === api.ceilingMat || Array.isArray(o.material)) return;
@@ -830,27 +902,44 @@
         things.push(b);
       });
       world.colliders.forEach((c) => { const sz = c.getSize(new THREE.Vector3()); if (Math.min(sz.x, sz.z) > 0.45 && Math.max(sz.x, sz.z) < 6) things.push(c); });
-      const placed = [];
-      const free = (bx) => !block.some((b) => b.intersectsBox(bx)) && !things.some((b) => b.intersectsBox(bx)) && !placed.some((b) => b.intersectsBox(bx));
+      // (indexed: the building has thousands of things in it since round 3,
+      // and every spot on every wall is tested against them)
+      const idx = { colliders: things.concat(block) };
+      G.ColGrid.build(idx);
+      const scratch = [];
+      const free = (bx) => {
+        const cx = (bx.min.x + bx.max.x) / 2, cz = (bx.min.z + bx.max.z) / 2;
+        return !G.ColGrid.near(idx, cx, cz, Math.max(bx.max.x - bx.min.x, bx.max.z - bx.min.z) / 2 + 0.1, scratch).some((b) => b.intersectsBox(bx));
+      };
+      const placed = { push: (bx) => G.ColGrid.insert(idx, bx) };
 
-      // wall runs: corridors (both sides, both floors) and every room
+      // every room the building has, typed or not (round 3: the rooms over
+      // the entry hall and the stairwell too)
+      const TYPES = G.SchoolRooms ? G.SchoolRooms.TYPES : {};
+      const specs = cfg.plan.filter((s) => s.room).concat(world.upperSpecs || []);
+      Object.keys(world.roomInfo || {}).forEach((k) => { const s = world.roomInfo[k].spec; if (s && s.room && !specs.includes(s)) specs.push(s); });
+
+      // wall runs: corridors (both sides, every floor) and every room
       const walls = [];
       storeyList.forEach((fl) => {
-        const y = fl === 1 ? 0 : F2;
+        const y = api.baseOf ? api.baseOf(fl) : (fl === 1 ? 0 : F2);
         [-1, 1].forEach((s) => walls.push({ axis: "z", fixed: s * HALF, face: -s, from: corrZ0 + 0.3, to: corrZ1 - 0.3, y, kind: "corridor", doors: cfg.rows.map((r) => r.cz) }));
       });
-      cfg.plan.forEach((spec) => {
-        if (!spec.room) return;
+      specs.forEach((spec) => {
         const r = spec.room, y = spec.baseY || 0, hw = r.w / 2, hd = r.d / 2;
         const doorSide = spec.side === "W" ? 1 : -1;       // the corridor wall
-        walls.push({ axis: "z", fixed: r.cx - hw, face: 1, from: r.cz - hd + 0.3, to: r.cz + hd - 0.3, y, kind: "room", spec, doors: doorSide < 0 ? [r.cz] : [] });
-        walls.push({ axis: "z", fixed: r.cx + hw, face: -1, from: r.cz - hd + 0.3, to: r.cz + hd - 0.3, y, kind: "room", spec, doors: doorSide > 0 ? [r.cz] : [] });
+        const dz = spec.doorZs || [r.cz];
+        walls.push({ axis: "z", fixed: r.cx - hw, face: 1, from: r.cz - hd + 0.3, to: r.cz + hd - 0.3, y, kind: "room", spec, doors: doorSide < 0 ? dz : [] });
+        walls.push({ axis: "z", fixed: r.cx + hw, face: -1, from: r.cz - hd + 0.3, to: r.cz + hd - 0.3, y, kind: "room", spec, doors: doorSide > 0 ? dz : [] });
         walls.push({ axis: "x", fixed: r.cz - hd, face: 1, from: r.cx - hw + 0.3, to: r.cx + hw - 0.3, y, kind: "room", spec, doors: [] });
         walls.push({ axis: "x", fixed: r.cz + hd, face: -1, from: r.cx - hw + 0.3, to: r.cx + hw - 0.3, y, kind: "room", spec, doors: [] });
       });
 
-      // ---- pale green dado with a wood rail and a skirting board ----------
+      // ---- a dado with a wood rail and a skirting board; in a room of a
+      // known kind (G2) its own colours, and its own paint above the rail --
       walls.forEach((w) => {
+        const T = w.spec && w.spec.type && TYPES[w.spec.type];
+        const wDado = T ? lam(T.dado) : dado, wRail = T ? lam(T.rail) : rail, wUpper = T ? lam(T.wall) : null;
         const gaps = w.doors.map((c) => [c - 1.62, c + 1.62]).sort((a, b) => a[0] - b[0]);
         let t = w.from - 0.3;
         const end = w.to + 0.3;
@@ -865,9 +954,26 @@
             const g = w.axis === "z" ? new THREE.BoxGeometry(dep, h, len) : new THREE.BoxGeometry(len, h, dep);
             const mesh = mk(g, m); mesh.position.copy(p); scene.add(mesh);
           };
-          put(1.02, 0.12, 0.025, dado);
-          put(0.06, 1.12, 0.05, rail);
+          put(1.02, 0.12, 0.025, wDado);
+          put(0.06, 1.12, 0.05, wRail);
           put(0.12, 0, 0.04, skirt);
+          if (wUpper) put(2.2, 1.16, 0.016, wUpper);
+        });
+      });
+
+      // ---- the room's name over every door, on the corridor side (G2) ----
+      if (G.SchoolRooms) specs.forEach((spec) => {
+        const T = spec.type && TYPES[spec.type];
+        if (!T) return;
+        const text = G.T(spec.label || T.sign) + (spec.num ? " " + spec.num : "");
+        const s = spec.side === "W" ? -1 : 1;
+        const doorX = spec.doorX != null ? spec.doorX : s * HALF;
+        (spec.doorZs || [spec.room.cz]).forEach((z) => {
+          const sign = G.SchoolRooms.signPlane(text, 1.45, 0.34);
+          sign.position.set(doorX - s * 0.222, (spec.baseY || 0) + 3.17, z);
+          sign.rotation.y = s < 0 ? Math.PI / 2 : -Math.PI / 2;
+          scene.add(sign);
+          box(scene, 0.03, 0.38, 1.52, lam(0x2a2a2c), doorX - s * 0.207, (spec.baseY || 0) + 3.17, z);
         });
       });
 
@@ -942,7 +1048,7 @@
       });
       // dried-out plants in a corner of about half the rooms and at the
       // corridor ends
-      cfg.plan.forEach((spec) => {
+      specs.forEach((spec) => {
         if (!spec.room || R() < 0.45) return;
         const r = spec.room, sx = R() < 0.5 ? -1 : 1, sz = R() < 0.5 ? -1 : 1;
         const x = r.cx + sx * (r.w / 2 - 0.55), z = r.cz + sz * (r.d / 2 - 0.55);
@@ -950,22 +1056,22 @@
         if (free(bx)) { placed.push(bx); plant(x, spec.baseY || 0, z); }
       });
       storeyList.forEach((fl) => [-1, 1].forEach((s) => {
-        const y = fl === 1 ? 0 : F2, x = s * (HALF - 0.55), z = corrZ0 + 0.7;
+        const y = api.baseOf ? api.baseOf(fl) : (fl === 1 ? 0 : F2), x = s * (HALF - 0.55), z = corrZ0 + 0.7;
         const bx = new THREE.Box3(new THREE.Vector3(x - 0.3, y + 0.1, z - 0.3), new THREE.Vector3(x + 0.3, y + 1, z + 0.3));
         if (free(bx)) { placed.push(bx); plant(x, y, z); }
       }));
 
       // ---- paper all over the floor ------------------------------------------
       {
-        const COUNT = Math.round(1100 * MAXK);
+        const COUNT = Math.round(1100 * Math.max(1, specs.length / 22) * MAXK);
         const geo = new THREE.PlaneGeometry(0.18, 0.25); geo.rotateX(-Math.PI / 2);
         const mat = new THREE.MeshLambertMaterial({ side: THREE.DoubleSide }), mesh = collector();
         const m4 = new THREE.Matrix4(), e = new THREE.Euler(), q = new THREE.Quaternion(), s = new THREE.Vector3(1, 1, 1), p = new THREE.Vector3();
         const cols = [0xb8b4a8, 0xaca690, 0xbcb69a, 0x9c988a, 0xb0a8b8].map((c) => new THREE.Color(c));
         const col = new THREE.Color();
         const areas = [];
-        storeyList.forEach((fl) => areas.push({ x0: -HALF + 0.3, x1: HALF - 0.3, z0: corrZ0, z1: corrZ1, y: fl === 1 ? 0 : F2, wgt: 2 }));
-        cfg.plan.forEach((spec) => { if (spec.room) areas.push({ x0: spec.room.cx - spec.room.w / 2 + 0.3, x1: spec.room.cx + spec.room.w / 2 - 0.3, z0: spec.room.cz - spec.room.d / 2 + 0.3, z1: spec.room.cz + spec.room.d / 2 - 0.3, y: spec.baseY || 0, wgt: 1 }); });
+        storeyList.forEach((fl) => areas.push({ x0: -HALF + 0.3, x1: HALF - 0.3, z0: corrZ0, z1: corrZ1, y: api.baseOf ? api.baseOf(fl) : (fl === 1 ? 0 : F2), wgt: 2 }));
+        specs.forEach((spec) => { areas.push({ x0: spec.room.cx - spec.room.w / 2 + 0.3, x1: spec.room.cx + spec.room.w / 2 - 0.3, z0: spec.room.cz - spec.room.d / 2 + 0.3, z1: spec.room.cz + spec.room.d / 2 - 0.3, y: spec.baseY || 0, wgt: spec.room.d > 14 ? 2 : 1 }); });
         const total = areas.reduce((a, b) => a + b.wgt, 0);
         for (let i = 0; i < COUNT; i++) {
           let pick = R() * total, ar = areas[0];
@@ -1036,4 +1142,8 @@
       this.applyQuality(world, api.quality || G.save.settings.graphicsQuality);
     },
   };
+  // Round 3: the campus (js/campus.js) and the room kits (js/schoolrooms.js)
+  // paint with the same one-texture palette, so everything they add merges
+  // into the same couple of draw calls per cell.
+  G.SchoolDress.P = { PAL, texel, lam, basic, mk, decal, concatGeos, box, cyl, blob, blobGeo, detail, collector, emit, swayMaterial, tuftGeometry, posterAtlas, atlasPlane, wallPoint, wallBox, faceRotY, TABLE, MAXK };
 })();

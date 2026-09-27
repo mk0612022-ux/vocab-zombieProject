@@ -290,6 +290,30 @@ G.Audio = {
         this.tone({ type: "square", freq: 1150, freqEnd: 700, dur: 0.06, gain: 0.08, filter: { type: "bandpass", freq: 1500, q: 2 } });
         this.noise({ dur: 0.12, filter: "lowpass", freq: 900, gain: 0.18, pos: o.pos });
         break;
+      // ---- round 3: the campus and the story notes ----
+      case "crow": {         // two or three harsh caws as it takes off
+        const n = 2 + Math.floor(Math.random() * 2), f0 = 820 + Math.random() * 220;
+        for (let i = 0; i < n; i++) {
+          this.tone({ type: "sawtooth", freq: f0, freqEnd: f0 * 0.62, dur: 0.22, gain: 0.07, at: i * 0.3, vibrato: { rate: 38, depth: 40 }, filter: { type: "bandpass", freq: 1300, q: 1.6 }, pos: o.pos });
+          this.noise({ dur: 0.16, freq: 1700, q: 2, gain: 0.04, at: i * 0.3, pos: o.pos });
+        }
+        break;
+      }
+      case "wings":           // a flurry of wingbeats
+        for (let i = 0; i < 6; i++) this.noise({ dur: 0.07, filter: "lowpass", freq: 900, gain: 0.07, at: i * 0.075, pos: o.pos });
+        break;
+      case "paper":           // a sheet of paper picked up / unfolded
+        this.noise({ dur: 0.22, filter: "highpass", freq: 2600, gain: 0.07, attack: 0.02 });
+        this.noise({ dur: 0.16, filter: "bandpass", freq: 4200, q: 1.2, gain: 0.05, at: 0.12 });
+        break;
+      case "gate_open":       // a steel grille lifting on its runners
+        this.noise({ dur: 1.2, freq: 380, q: 3, gain: 0.14, attack: 0.1, pos: o.pos, rev: 0.4 });
+        this.tone({ type: "square", freq: 95, freqEnd: 140, dur: 1.1, gain: 0.06, filter: { type: "lowpass", freq: 600 }, pos: o.pos });
+        this.tone({ type: "triangle", freq: 1320, dur: 0.12, gain: 0.08, at: 1.15, pos: o.pos });
+        break;
+      case "rattle":          // trying a locked grille
+        for (let i = 0; i < 4; i++) this.noise({ dur: 0.06, freq: 1400 + i * 300, q: 4, gain: 0.08, at: i * 0.07, pos: o.pos });
+        break;
     }
   },
 

@@ -31,6 +31,47 @@
 G.Perf = {
   LIGHT_POOL: { vhigh: 10, high: 8, medium: 6, low: 4, vlow: 3 },
 
+  // ---------------- 0. one palette for every plain colour (round 3) ----------
+  // mergeStatic bakes per material per cell, and a level built from a few
+  // hundred plain-coloured Lambert materials (a wall colour, a desk colour, a
+  // locker colour...) still came out at dozens of draw calls in every cell.
+  // Any mesh whose material is just a colour -- opaque, one-sided, no texture,
+  // no glow -- is repainted here onto the one palette texture js/schooldress.js
+  // keeps (each colour one texel, the mesh's UVs all pointing at it), so the
+  // lot merges into the palette's two materials. Nothing that game code
+  // recolours or hides (interactables, doors, noMerge) is touched.
+  paletteize(scene, world, extraSkip) {
+    const P = G.SchoolDress && G.SchoolDress.P;
+    if (!P) return 0;
+    const skip = new Set();
+    const mark = (o) => { if (o && o.traverse) o.traverse((c) => skip.add(c)); };
+    (world.interactables || []).forEach((i) => mark(i.mesh));
+    (world.roomDoors || []).forEach((d) => mark(d.mesh));
+    (world.doors || []).forEach((d) => mark(d.mesh));
+    (world.keys || []).forEach((k) => mark(k.mesh));
+    (world.noMerge || []).forEach(mark);
+    (extraSkip || []).forEach(mark);
+    const seenGeo = new Set();
+    let n = 0;
+    scene.traverse((o) => {
+      if (!o.isMesh || o.isInstancedMesh || skip.has(o) || Array.isArray(o.material)) return;
+      const m = o.material, g = o.geometry;
+      if (!g || !g.index || !g.attributes.position || !m || m.map || m.transparent || m.vertexColors || m.side !== THREE.FrontSide) return;
+      if (m === P.PAL.lit || m === P.PAL.unlit) return;
+      const lit = m.isMeshLambertMaterial, basic = m.isMeshBasicMaterial;
+      if (!lit && !basic) return;
+      if (lit && m.emissive && m.emissive.getHex() !== 0) return;
+      if (P.PAL.n >= P.PAL.size * P.PAL.size - 1 && P.PAL.idx[m.color.getHex()] == null) return;   // the palette is full
+      if (seenGeo.has(g)) o.geometry = g.clone();
+      seenGeo.add(o.geometry);
+      const paint = lit ? P.lam(m.color.getHex()) : P.basic(m.color.getHex());
+      const mesh = P.mk(o.geometry, paint);      // sets the UVs, picks the palette material
+      o.material = mesh.material;
+      n++;
+    });
+    return n;
+  },
+
   // ---------------- 1. static geometry merge ----------------
   mergeStatic(scene, world, extraSkip) {
     scene.updateMatrixWorld(true);
@@ -76,7 +117,10 @@ G.Perf = {
     candidates.forEach((o) => {
       meshesBefore++;
       o.getWorldPosition(tmp);
-      const cell = [Math.floor(tmp.x / CELL), Math.floor(tmp.z / CELL), tmp.y > 3.9 ? 1 : 0].join("|");
+      // round 3: what can see it (js/zones.js) -- outdoors, the building's
+      // shell, or indoors on which storeys -- so it can be left undrawn
+      const zone = world.zoneKey ? world.zoneKey(o) : "";
+      const cell = [Math.floor(tmp.x / CELL), Math.floor(tmp.z / CELL), tmp.y > 3.9 ? 1 : 0, zone].join("|");
       const g = o.geometry;
       // A multi-material box (floor slab, sign) is split by face group, so its
       // shared side/underside faces merge with everything else and only the
@@ -88,7 +132,7 @@ G.Perf = {
       parts.forEach((p) => {
         if (!p.mat) return;
         const key = matKey(p.mat) + "|" + cell;
-        if (!groups.has(key)) groups.set(key, { material: p.mat, parts: [], verts: 0, idx: 0 });
+        if (!groups.has(key)) groups.set(key, { material: p.mat, parts: [], verts: 0, idx: 0, zone });
         const grp = groups.get(key);
         grp.parts.push({ mesh: o, start: p.start, count: p.count, map: p.mat.map || null });
         grp.verts += g.attributes.position.count;
@@ -139,6 +183,7 @@ G.Perf = {
       mesh.matrixAutoUpdate = false;
       mesh.receiveShadow = true;
       mesh.userData.mergedParts = grp.parts.length;
+      if (grp.zone) mesh.userData.zone = grp.zone;
       scene.add(mesh);
       meshesAfter++;
     });

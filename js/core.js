@@ -66,6 +66,7 @@ G.defaultSave = function () {
     },
     importedSets: {},             // {id: {name, words:[[en,th],...]}}
     customWords: { level1: [], level2: [], level3: [] },   // words the player added to each level ([[en,th],...])
+    notes: { level1: [], level2: [], level3: [] },          // story notes kept in the journal (ids), round 3
   };
 };
 
@@ -107,6 +108,14 @@ G.normalizeSave = function (data) {
       .map((p) => [p[0], p[1]]);
   });
   s.customWords = cw;
+  // story notes: per level, a list of note ids (strings), no repeats
+  const nt = {};
+  const rawNotes = s.notes && typeof s.notes === "object" && !Array.isArray(s.notes) ? s.notes : {};
+  Object.keys(def.notes).forEach((key) => {
+    const list = Array.isArray(rawNotes[key]) ? rawNotes[key] : [];
+    nt[key] = list.filter((id, i) => typeof id === "string" && id && list.indexOf(id) === i);
+  });
+  s.notes = nt;
   return s;
 };
 

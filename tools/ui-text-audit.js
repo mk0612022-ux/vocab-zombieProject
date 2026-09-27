@@ -121,6 +121,10 @@ G.UIAudit = {
     try {
       await step("main menu", () => UI.goToMainMenu());
       await step("level select", () => Game.goToLevelSelect());
+      // round 4: every card of the lobby, both tabs, and the icon row in focus
+      for (const m of G.Lobby.MODES) await step("lobby " + m.id, () => UI.goToMainMenu({ tab: m.tab, select: m.id }));
+      await step("lobby icons focused", () => { UI.goToMainMenu({ tab: "campaign", select: "school" }); G.Lobby.focusIcons(true); });
+      for (const d of ["pad", "touch", "kb"]) await step("lobby hints " + d, () => { G.Lobby.focusIcons(false); G.Lobby.setDevice(d); });
       await step("how to play", () => UI.showScreen("screen-howtoplay"));
       await step("settings", () => { UI._settingsReturn = "screen-mainmenu"; UI.renderSettings(); UI.showScreen("screen-settings"); });
       for (const c of ["level1", "daily", "endless"]) await step("leaderboard " + c, () => { UI.renderLeaderboard(c); UI.showScreen("screen-leaderboard"); });
@@ -217,6 +221,24 @@ G.UIAudit = {
       G.TouchCfg.closeEditor();
       G.save.tutorialDone = tutorial; G.save.tutorialSeen = seen;
       await step("back to menu", () => Game.quitToMainMenu());
+      // round 3: the Notes Journal (none kept, some kept, every level), the
+      // reader with the longest note, the third-floor and reward prompts
+      await step("journal (empty)", () => { G.save.notes = { level1: [], level2: [], level3: [] }; UI.openJournal("screen-mainmenu", "level1"); });
+      await step("journal (kept)", () => { G.save.notes.level1 = G.NOTES.level1.slice(0, 13).map((n) => n.id); UI.renderJournal(); });
+      await step("journal (hospital)", () => { UI._journalLevel = "level2"; UI.renderJournal(); });
+      const longNote = G.NOTES.level1.slice().sort((a, b) => b.text.length - a.text.length)[0];
+      await step("note reader (longest)", () => { UI._journalLevel = "level1"; G.Notes.open(longNote, { fromJournal: true, back: "screen-journal" }); });
+      await step("note reader (A1)", () => { G.Notes.close(); G.Notes.open(G.NOTES.level1[0], { fromJournal: false }); });
+      G.Notes.close(); G.Modal.reset();
+      await step("r3 run hud", () => { Game.update = function () {}; Game.startLevel(1); Game.state = "GAMEPLAY"; UI.setHudVisible(true); UI.showScreen(null); UI.updateHud(Game.buildHudState()); });
+      const r3prompts = [T("prompt.note", { key: "E" }), Game.thirdFloorStatus(), T("prompt.safe", { key: "E" }), T("prompt.trophy", { key: "E" }), T("prompt.coffee", { key: "E" }), T("prompt.radio", { key: "E" })];
+      for (const pr of r3prompts) await step("prompt " + pr.slice(0, 18), () => UI.setInteractPrompt(true, pr));
+      UI.setInteractPrompt(false);
+      const r3banners = [[T("notes.kept"), T("notes.keptText", { n: 13, total: 20 })], [T("banner.thirdFloor"), T("banner.thirdFloorText")], [T("banner.gate3Locked"), Game.thirdFloorStatus()],
+        [T("banner.coffee"), T("banner.coffeeText", { perk: G.Perks.name("second_life"), lvl: 1 })], [T("banner.radio"), T("banner.radioText", { n: 7 })], [T("banner.trophy"), T("banner.trophyText", { n: 1500 })]];
+      for (const b of r3banners) await step("banner " + b[0], () => UI.flashPurchaseBanner(b[0], b[1]));
+      await step("pause (journal button)", () => { Game.pause(); });
+      await step("back to menu (r3)", () => Game.quitToMainMenu());
       // Custom Vocabulary: the page, an error, a warning, a long list, edit mode
       const thaiWord = G.WORDS_LEVEL_2[3][1];
       await step("custom vocab", () => {

@@ -88,6 +88,8 @@ G.Pad = {
 
   navigate(gp, now, edge, dt) {
     const B = this.B;
+    // round 4: the lobby carousel moves by cards and tabs, not by buttons
+    if (!G.Modal.isOpen() && G.Lobby && G.Lobby.visible()) { this.clearFocus(); G.Lobby.pad(gp, now, edge, dt); return; }
     const root = this.scope();
     const items = this.focusables(root);
     if (!items.length) { this.clearFocus(); return; }

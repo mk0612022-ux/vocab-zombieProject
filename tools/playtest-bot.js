@@ -197,7 +197,7 @@ G.Bot = {
       let path = null, pathI = 0, goal = null, replanT = 0, lastProg = { x: 0, z: 0, t: 0 }, nudge = null;
       const tail = [];
       let lastBitten = -99, lastKillT = 0, killsSeen = 0, stallLogged = 0;
-      let challengeT = 0, bossT = 0, interactCd = 0, doorCd = 0, wordDoorRetry = 0;
+      let challengeT = 0, bossT = 0, interactCd = 0, doorCd = 0, wordDoorRetry = 0, noteReadT = 0;
       const hpMax = g.player.maxHp;
       const pos = () => g.yawObject.position;
       const feet = () => pos().y - 1.7;
@@ -277,13 +277,16 @@ G.Bot = {
 
       // ---- goals (what the HUD checklist asks for) ----
       const upperOpen = () => !world.secondFloor || world.secondFloor.unlocked;
+      const topOpen = () => !world.thirdFloor || world.thirdFloor.unlocked;
       const roomOpen = (name) => {
+        if (/^T/.test(name)) return topOpen();
         if (/^P/.test(name)) return upperOpen();
         if (world.secretZone && !world.secretZone.unlocked && dist2(world.waypointNodes[name], world.secretZone.center) < 1) return false;
         if (wordDoor && !wordDoor.opened && Math.abs(world.waypointNodes[name].z - wordDoor.mesh.position.z) < 1 && Math.sign(world.waypointNodes[name].x) === Math.sign(wordDoor.mesh.position.x)) return false;
         return true;
       };
-      const roomH = (name) => (/^P/.test(name) ? (world.secondFloor ? world.secondFloor.floorY : 4.2) : 0);
+      // (round 3: three storeys -- the room's own floor height)
+      const roomH = (name) => { const r = world.regions.find((x) => x.name === name); return r ? r.y || 0 : 0; };
       const pickGoal = () => {
         const S = G.Objectives.state, p = pos(), fh = feet();
         const c = [];
@@ -294,6 +297,10 @@ G.Bot = {
         if (opt.explore && S && !hurt) {
           (world.keys || []).forEach((k) => { if (!k.taken && roomOpen(k.room)) add(k.mesh.position.x, k.mesh.position.z, k.baseY, "key", k, -8); });
           [...world.roomNames].forEach((name) => { if (!S.visited.has(name) && roomOpen(name)) { const n = world.waypointNodes[name]; add(n.x, n.z, roomH(name), "room", name); } });
+          // round 3: the places outdoors count for exploring, and the story
+          // notes lying about are read (the objective wants four)
+          (world.landmarks || []).forEach((l) => { if (!S.visited.has(l.key)) add(l.x, l.z, 0, "place", l.key, 6); });
+          if (G.Notes) G.Notes.lying().forEach((n) => { const h = n.spot.floor === 3 && !n.spot.outdoor ? 8.4 : n.spot.floor === 2 && !n.spot.outdoor ? 4.2 : 0; if (h > 5 && !topOpen()) return; if (h > 1 && h < 5 && !upperOpen()) return; add(n.spot.x, n.spot.z, G.getFloorHeightAt(world, n.spot.x, n.spot.z, h + 0.3), "note", n, -12); });
           world.buttons.forEach((b) => { if (!b.pressed && S.visited.has("W3")) add(b.mesh.position.x + 1.2, b.mesh.position.z, 0, "button", b, -6); });
           if (wordDoor && !wordDoor.opened && t > wordDoorRetry) add(wordDoor.mesh.position.x - Math.sign(wordDoor.mesh.position.x) * 1.8, wordDoor.mesh.position.z, 0, "worddoor", wordDoor, 4);
           world.crates.forEach((cr) => { if (!cr.opened) { const cp = cr.mesh.position; if (Math.hypot(cp.x - p.x, cp.z - p.z) < 9 && Math.abs(cp.y - 0.4 - fh) < 1.5) add(cp.x - Math.sign(cp.x - p.x || 1) * 1.2, cp.z, fh, "crate", cr, -4); } });
@@ -327,7 +334,8 @@ G.Bot = {
         const dt = opt.dt;
         t += dt;
         // yield to the browser now and then so the page stays responsive
-        if ((Math.round(t / dt) % 45) === 0) await new Promise((r) => setTimeout(r, 0));
+        // (a message, not a timer: a hidden tab throttles timers hard)
+        if ((Math.round(t / dt) % 45) === 0) await new Promise((r) => { const ch = new MessageChannel(); ch.port1.onmessage = () => r(); ch.port2.postMessage(0); });
         if (G.Bot.abort) { ev(t, "aborted"); break; }
 
         if (g.state === "GAME_OVER") { R.deathAt = Math.round(t); ev(t, "DIED on wave " + g.wave); break; }
@@ -362,6 +370,8 @@ G.Bot = {
         }
         const crateOpen = !document.getElementById("screen-crate").classList.contains("hidden");
         if (g.paused && crateOpen) { R.overlaySeconds += 2.5; g.closeCrateScreen(); continue; }
+        // a story note open: read it for a few seconds, then keep it
+        if (G.Modal.isOpen("note")) { noteReadT -= dt; R.overlaySeconds += dt; if (noteReadT <= 0) { G.Notes.close(); R.notesRead = (R.notesRead || 0) + 1; ev(t, "kept a note (" + g.notesReadRun.size + ")"); } continue; }
         if (g._mysteryHand) {
           if (g._mysteryPick === null) g.pickMysteryCard(Math.floor(Math.random() * g._mysteryHand.length));
           const got = g._mysteryHand[g._mysteryPick];
@@ -508,7 +518,7 @@ G.Bot = {
             if (nudge && t < nudge.until) setMove(Math.cos(nudge.a), Math.sin(nudge.a), false);
             if (path && pathI >= path.length - 1 && dist2(path[path.length - 1], p) < 0.7) path = null;
           } else setMove(0, 0, false);
-          if (goal && goal.kind === "room" && G.Objectives.state && G.Objectives.state.visited.has(goal.ref)) { goal.done = true; path = null; }
+          if (goal && (goal.kind === "room" || goal.kind === "place") && G.Objectives.state && G.Objectives.state.visited.has(goal.ref)) { goal.done = true; path = null; }
           // arrived: act on the goal
           // nobody sensible starts a word popup with a zombie at arm.s length
           const safe = !nearest || nd > 7;
@@ -521,6 +531,7 @@ G.Bot = {
               if (g.player.money >= goal.ref.price) { g.buyWallWeapon(goal.ref); R.purchases.push(Math.round(t) + "s wall " + goal.ref.id + " $" + goal.ref.price); ev(t, "bought " + goal.ref.id); }
               goal.done = true;
             } else if (goal.kind === "mystery") { g.openMysteryBox(); goal.done = true; }
+            else if (goal.kind === "note") { interact(goal.ref); noteReadT = 3 + goal.ref.note.text.length / 300; goal.done = true; }
             else if (goal.kind === "room" || goal.kind === "key" || goal.kind === "hunt") goal.done = true;
           }
         }
@@ -595,6 +606,7 @@ G.Bot = {
           const S = G.Objectives.state;
           if (S.keysFound !== R._keys) { R._keys = S.keysFound; if (S.keysFound) ev(t, "key " + S.keysFound); }
           if (world.secondFloor && world.secondFloor.unlocked && !R.upperAt) { R.upperAt = Math.round(t); ev(t, "upper floor unlocked"); nav.invalidate(); }
+          if (world.thirdFloor && world.thirdFloor.unlocked && !R.topAt) { R.topAt = Math.round(t); ev(t, "third floor unlocked"); nav.invalidate(); }
         }
       }
       if (R.deathAt) R.tail = tail;
@@ -607,6 +619,7 @@ G.Bot = {
       R.moneyEnd = Math.round(g.player.money);
       R.contactDmg = Math.round(R.contactDmg); R.wrongDmg = Math.round(R.wrongDmg);
       R.guns = g.player.gunSlots.slice();
+      R.notesRead = g.notesReadRun ? g.notesReadRun.size : 0; R.relocated = g.relocated || 0; R.rooms = G.Objectives.state ? G.Objectives.state.visited.size : 0;
       R.objectives = G.Objectives.state ? G.Objectives.list(g).map((r) => (r.done ? "Y " : "N ") + r.value) : null;
       delete R._keys;
       return R;

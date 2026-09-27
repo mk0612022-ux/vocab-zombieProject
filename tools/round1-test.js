@@ -342,8 +342,9 @@ G.Round1Test = (function () {
 
     // the page itself
     g.quitToMainMenu();
-    document.getElementById("btn-customvocab").click();
-    await wait(200);
+    // (round 4: Custom Vocabulary is a card in the lobby's second tab)
+    G.Lobby.open({ tab: "training", select: "custom" }); G.Lobby.launch();
+    await wait(700);
     ok("C: the page opens from the main menu", G.UI._currentScreen === "screen-customvocab");
     document.getElementById("cv-en").value = "Luminous"; document.getElementById("cv-th").value = THAI_X; document.getElementById("cv-level").value = "level3";
     document.getElementById("cv-save").click();

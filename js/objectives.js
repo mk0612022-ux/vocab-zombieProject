@@ -17,8 +17,14 @@
 // biting you, a stray round, a launcher's splash -- so players who knew about
 // three words in four finished at 55-73%, then sat in overtime until they died.
 // The bar is now 65/70/75%, and it only has to be reached once (see `latched`).
+// Round 3: the school is three storeys and a campus now -- forty rooms and
+// eight places outside (the field, the garden, the three salas...). Exploring
+// asks for 24 of those (rooms and places both count), and the level asks for
+// four of the story notes to be read, which is also what the third floor's
+// grille wants (with 40 right answers), so a player finishing the level has
+// the third floor within reach without it being required.
 G.LEVEL_OBJECTIVES = {
-  1: { accuracy: 0.65, minCorrect: 40, rooms: 18, keys: 3, boss: true },
+  1: { accuracy: 0.65, minCorrect: 40, rooms: 24, keys: 3, notes: 4, boss: true },
   2: { accuracy: 0.70, minCorrect: 60, rooms: 19, keys: 3, boss: true },
   3: { accuracy: 0.75, minCorrect: 80, rooms: 20, keys: 3, boss: true },
 };
@@ -29,7 +35,7 @@ G.Objectives = {
   reset(levelId, world) {
     const cfg = G.LEVEL_OBJECTIVES[levelId];
     if (!cfg) { this.state = null; return; }
-    const roomTotal = (world.roomNames && world.roomNames.size) || 0;
+    const roomTotal = ((world.roomNames && world.roomNames.size) || 0) + (world.landmarks || []).length;
     this.state = {
       levelId, cfg,
       roomTotal,
@@ -53,10 +59,14 @@ G.Objectives = {
       s._t = 0.25;
       const p = game.yawObject.position;
       const name = G.getRegionAt(game.world, p.x, p.z, p.y - 1.7);
-      if (name && game.world.roomNames && game.world.roomNames.has(name) && !s.visited.has(name)) {
-        s.visited.add(name);
+      const visit = (key) => {
+        if (s.visited.has(key)) return;
+        s.visited.add(key);
         if (s.visited.size === s.roomsNeeded) G.UI.flashPurchaseBanner(G.T("banner.explored"), G.T("banner.exploredText", { n: s.visited.size }));
-      }
+      };
+      if (name && game.world.roomNames && game.world.roomNames.has(name)) visit(name);
+      // the places outdoors: close enough to one counts as having been there
+      if (/^YARD/.test(name || "")) (game.world.landmarks || []).forEach((l) => { if (Math.hypot(p.x - l.x, p.z - l.z) < l.r) visit(l.key); });
     }
     // keys: walk over them
     (game.world.keys || []).forEach((k) => {
@@ -110,6 +120,10 @@ G.Objectives = {
       { label: T("obj.explore", { n: s.roomsNeeded }), value: `${s.visited.size} / ${s.roomsNeeded}`, done: s.visited.size >= s.roomsNeeded },
       { label: T("obj.keys", { n: s.keysTotal }), value: `${s.keysFound} / ${s.keysTotal}`, done: s.keysFound >= s.keysTotal },
     ];
+    if (c.notes) {
+      const read = game.notesReadRun ? game.notesReadRun.size : 0;
+      rows.push({ label: T("obj.notes", { n: c.notes }), value: `${Math.min(read, c.notes)} / ${c.notes}`, done: L || read >= c.notes });
+    }
     if (c.boss) rows.push({ label: T("obj.boss"), value: T(s.bossDown ? "obj.bossDone" : "obj.bossNot"), done: s.bossDown });
     return rows;
   },

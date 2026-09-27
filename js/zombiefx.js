@@ -45,6 +45,10 @@ G.ZombieFX = {
   // room; anything else goes through a short rotation so neighbours differ.
   KINDS: {
     school: { classroom: "desk", office: "desk", lab: "vent", storage: "locker", canteen: "window",
+      // round 3's kinds of room
+      science: "vent", storeroom: "locker", library: "vent", music: "locker", art: "window", nurse: "window",
+      computer: "vent", principal: "window", toilets: "vent", changing: "locker", sports: "locker", detention: "desk",
+      staffoffice: "desk", meeting: "window", staff: "window", lounge: "window", archive: "vent", trophy: "vent", broadcast: "vent",
       room: ["locker", "window", "vent", "desk"], corridor: ["locker", "vent"], entry: "window", boss: "vent", hall: "window" },
     hospital: { ward: "window", office: "desk", reception: "desk", storage: "locker", morgue: "locker", lab: "vent", theatre: "vent",
       room: ["window", "locker", "vent", "desk"], corridor: ["vent", "locker"], entry: "window", boss: "vent", hall: "window" },
@@ -60,7 +64,7 @@ G.ZombieFX = {
     world.spawnProps = [];
     // what already stands in each space: everything short enough to be a
     // prop (walls, floors and ceilings are the space itself)
-    scene.updateMatrixWorld(true);
+    scene.updateWorldMatrix(true, true);
     const occ = [];
     const sz = new THREE.Vector3();
     scene.traverse((o) => {
@@ -71,9 +75,14 @@ G.ZombieFX = {
       occ.push(b);
     });
     this._occ = occ;
+    // Round 3: the school has thousands of boxes now; a spot is tested
+    // against the ones near it (a throwaway G.ColGrid over props + colliders)
+    this._idx = { colliders: occ.concat(world.colliders) };
+    G.ColGrid.build(this._idx);
     const regionAt = (p) => world.regions.find((r) => p.x >= r.minX && p.x <= r.maxX && p.z >= r.minZ && p.z <= r.maxZ && Math.abs((r.y || 0) - p.y) < 1.5);
     const specOf = {};
     cfg.plan.forEach((s) => { specOf[s.key] = s; });
+    (world.upperSpecs || []).forEach((s) => { specOf[s.key] = s; });
     const rot = { room: 0, corridor: 0 };
     const pickFrom = (list, key) => (Array.isArray(list) ? list[rot[key]++ % list.length] : list);
 
@@ -81,8 +90,8 @@ G.ZombieFX = {
       const p = sp.pos, reg = regionAt(p);
       const name = reg ? reg.name : "";
       let kind;
-      if (sp.types[0] === "boss" || name === "YARD" || !reg) kind = "ground";
-      else if (specOf[name]) kind = table[specOf[name].furnish] || pickFrom(table.room, "room");
+      if (sp.types[0] === "boss" || /^YARD/.test(name) || !reg) kind = "ground";
+      else if (specOf[name]) kind = table[specOf[name].type || specOf[name].furnish] || pickFrom(table.room, "room");
       else if (/^C\d/.test(name)) kind = pickFrom(table.corridor, "corridor");
       else if (name === "ENTRY") kind = table.entry;
       else if (name === "BOSS") kind = table.boss;
@@ -92,17 +101,22 @@ G.ZombieFX = {
       let spec = null;
       // try the chosen way first, then the others that could work here
       const order = [kind].concat(["vent", "locker", "desk", "ground"].filter((k) => k !== kind));
+      const before = world.colliders.length;
       for (const k of order) {
         if (k === "window" && level.theme === "bunker") continue;
         spec = k === "ground" ? { kind: "ground", end: new THREE.Vector3(p.x, floorY, p.z), floorY } : this.place(ctx, k, rect, p, floorY, name);
         if (spec) break;
       }
+      // what was just built is in the way of the next one
+      for (let i = before; i < world.colliders.length; i++) G.ColGrid.insert(this._idx, world.colliders[i]);
+      const pg = spec.prop && (spec.prop.group || (spec.prop.hinge && spec.prop.hinge.parent));
+      if (pg) { pg.updateWorldMatrix(true, true); G.ColGrid.insert(this._idx, new THREE.Box3().setFromObject(pg)); }
       sp.emerge = spec;
       sp.kind = spec.kind;
       sp.pos = spec.end.clone();
       if (sp.types[0] === "boss") spec.big = true;
     });
-    this._occ = null;
+    this._occ = null; this._idx = null;
   },
 
   // A place for a prop of `kind` in the space `rect`, near `near`: null if
@@ -112,7 +126,13 @@ G.ZombieFX = {
     const { world } = ctx;
     const doors = (world.roomDoors || []).filter((d) => Math.abs((d.baseY || 0) - floorY) < 1.5);
     const nearDoor = (x, z, pad) => doors.some((d) => Math.hypot(d.x - x, d.z - z) < (d.width || 3) / 2 + pad);
-    const free = (box) => !this._occ.some((b) => b.intersectsBox(box)) && !world.colliders.some((b) => b.intersectsBox(box));
+    const scratch = [];
+    const free = (box) => {
+      if (!this._idx) return !this._occ.some((b) => b.intersectsBox(box)) && !world.colliders.some((b) => b.intersectsBox(box));
+      const cx = (box.min.x + box.max.x) / 2, cz = (box.min.z + box.max.z) / 2;
+      const r = Math.max(box.max.x - box.min.x, box.max.z - box.min.z) / 2 + 0.1;
+      return !G.ColGrid.near(this._idx, cx, cz, r, scratch).some((b) => b.intersectsBox(box));
+    };
     const box = (x0, y0, z0, x1, y1, z1) => new THREE.Box3(new THREE.Vector3(Math.min(x0, x1), y0, Math.min(z0, z1)), new THREE.Vector3(Math.max(x0, x1), y1, Math.max(z0, z1)));
     // a box beside a wall, in the wall's own terms: `a` along it, `n` out
     // into the room from its face
@@ -122,6 +142,25 @@ G.ZombieFX = {
     };
     const outside = (x, z) => !world.regions.some((r) => x >= r.minX && x <= r.maxX && z >= r.minZ && z <= r.maxZ && Math.abs((r.y || 0) - floorY) < 1.5);
 
+    // Round 3: the school's rooms have windows on their outer walls now
+    // (js/schoolshell.js). A zombie that comes in by a window takes one of
+    // them over: the glass and frame go, and the broken window goes in.
+    if (kind === "window" && world.innerWindows) {
+      const iw = world.innerWindows.filter((w) => !w.taken && w.region === regionName && Math.abs(w.base - floorY) < 1)
+        .sort((a, b) => Math.hypot(a.x - near.x, a.z - near.z) - Math.hypot(b.x - near.x, b.z - near.z));
+      for (const w of iw) {
+        const nx = -w.s;                                           // into the room
+        const c = { n: new THREE.Vector3(nx, 0, 0), at: (a, n) => new THREE.Vector3(w.x + nx * n, 0, w.z + a) };
+        const front = wallBox(c, -0.48, 0.48, 0.7, 1.75, 0.1, 1.8);
+        if (!free(front)) continue;
+        w.taken = true;
+        w.meshes.forEach((m) => { if (m.parent) m.parent.remove(m); m.geometry.dispose(); });
+        if (world.curtains) world.curtains = world.curtains.filter((cu) => !w.curtains.includes(cu));
+        const yaw = Math.atan2(c.n.x, c.n.z);
+        const prop = this.buildWindow(ctx, c.at(0, 0), yaw, floorY);
+        return { kind, prop, yaw, floorY, n: c.n, start: c.at(0, -0.6).setY(floorY), face: c.at(0, 0).setY(floorY), end: c.at(0, 1.2).setY(floorY) };
+      }
+    }
     if (kind === "locker" || kind === "window") {
       const cands = [];
       const walls = [
@@ -247,8 +286,11 @@ G.ZombieFX = {
     for (let i = 0; i < 3; i++) { const s = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.03, 0.01), P.slat); s.position.set(0.46, 1.85 - i * 0.07, 0.02); hinge.add(s); }
     const h = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.16, 0.04), P.handle); h.position.set(0.82, 1.05, 0.04); hinge.add(h);
     scene.add(g);
-    g.updateMatrixWorld(true);
+    g.updateWorldMatrix(true, true);
     ctx.world.colliders.push(new THREE.Box3().setFromObject(body));
+    // round 3: its parts as one vertex-coloured mesh on the shared zombie
+    // materials -- a locker door or a grate is one draw call, not five
+    if (G.Perf && G.ZOMBIE_MATS) G.Perf.mergeLocalColored(hinge, [], G.ZOMBIE_MATS);
     ctx.world.noMerge.push(hinge);
     return { hinge, open: 0, want: 0, hold: 0 };
   },
@@ -280,7 +322,7 @@ G.ZombieFX = {
     });
     const panel = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.42, 0.03), P.desk); panel.position.set(0, 0.5, -0.37); g.add(panel);
     scene.add(g);
-    g.updateMatrixWorld(true);
+    g.updateWorldMatrix(true, true);
     ctx.world.colliders.push(new THREE.Box3().setFromObject(g));
     return { group: g };
   },
@@ -296,6 +338,9 @@ G.ZombieFX = {
     const grate = new THREE.Mesh(new THREE.BoxGeometry(0.88, 0.025, 0.88), P.grate); grate.position.x = 0.44; hinge.add(grate);
     for (let i = 0; i < 5; i++) { const s = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.02, 0.03), P.slat); s.position.set(0.44, -0.02, -0.34 + i * 0.17); hinge.add(s); }
     scene.add(g);
+    // round 3: its parts as one vertex-coloured mesh on the shared zombie
+    // materials -- a locker door or a grate is one draw call, not five
+    if (G.Perf && G.ZOMBIE_MATS) G.Perf.mergeLocalColored(hinge, [], G.ZOMBIE_MATS);
     ctx.world.noMerge.push(hinge);
     return { hinge, open: 0, want: 0, hold: 0 };
   },
@@ -553,7 +598,7 @@ G.ZombieFX = {
   // `mult` scales how many (a head is a fraction of a body, the boss twice).
   shatter(scene, root, dir, floorY, scale, mult) {
     mult = mult === undefined ? 1 : mult;
-    root.updateMatrixWorld(true);
+    root.updateWorldMatrix(true, true);
     const parts = [];
     let total = 0;
     const b = new THREE.Box3(), s = new THREE.Vector3();

@@ -12,33 +12,13 @@ G.Spawner = {
     this.interval = Math.max(1.1, level.spawnBaseInterval - wave * 0.35);
     this.timer = this.interval * 0.5;
   },
-  update(dt, world, aliveCount, maxAlive, spawnFn, waveDifficulty, playerPos) {
+  update(dt, world, aliveCount, maxAlive, spawnFn, waveDifficulty, playerPos, fwd) {
     if (aliveCount >= maxAlive) return;
     this.timer -= dt;
     if (this.timer <= 0) {
       this.timer = this.interval;
-      const minDist = 6;
-      // Category P: never behind something the player has not opened yet --
-      // see G.spawnPointOpen.
-      const usable = world.spawnPoints.filter((sp) => sp.cooldown <= 0 && sp.types[0] !== "boss" && G.spawnPointOpen(world, sp));
-      let candidates = usable.filter((sp) => !playerPos || sp.pos.distanceTo(playerPos) >= minDist);
-      if (candidates.length === 0) candidates = usable;
-      if (candidates.length === 0) return;
-      // The school runs 120 units end to end now. Picking uniformly kept
-      // spawning zombies ninety units away, where they spent the entire wave
-      // walking and never arrived -- so waves stalled and the player stood
-      // around waiting. Prefer points near them (never closer than minDist),
-      // weighted by inverse distance so the far ones still see some use.
-      const NEAR = 48;
-      let pool = playerPos ? candidates.filter((c) => c.pos.distanceTo(playerPos) <= NEAR) : candidates;
-      if (!pool.length) pool = candidates;
-      let sp = pool[pool.length - 1];
-      if (playerPos && pool.length > 1) {
-        let total = 0;
-        const weights = pool.map((c) => { const wgt = 1 / (6 + c.pos.distanceTo(playerPos)); total += wgt; return wgt; });
-        let r = G.rng() * total;
-        for (let i = 0; i < pool.length; i++) { r -= weights[i]; if (r <= 0) { sp = pool[i]; break; } }
-      } else sp = G.pick(pool);
+      const sp = this.pickPoint(world, playerPos, fwd);
+      if (!sp) return;
       sp.cooldown = 2.5;
       const fastChance = Math.min(0.55, 0.1 + waveDifficulty * 0.08);
       const crawlerChance = Math.min(0.22, 0.05 + waveDifficulty * 0.025);
@@ -48,6 +28,73 @@ G.Spawner = {
       spawnFn(type, sp.pos, sp);
     }
     world.spawnPoints.forEach((sp) => { if (sp.cooldown > 0) sp.cooldown -= dt; });
+  },
+
+  // Where the next zombie comes from (round 3, F3). The campus is ten times
+  // the old yard and the building three storeys, so a fixed point is usually
+  // nowhere near the player. Zombies come in AROUND the player instead:
+  //   indoors   a fixed point (a locker, a vent, a desk, a window) within
+  //             reach -- the same storey counts for more than one upstairs --
+  //             and out of sight if there is one
+  //   outdoors  mostly up through the ground somewhere behind the player, 12
+  //             to 28 m off, clear of anything solid
+  // Category P still holds: never behind a door the player has not opened
+  // (G.spawnPointOpen). `fwd` is the way the camera faces (flat).
+  pickPoint(world, playerPos, fwd) {
+    const usable = world.spawnPoints.filter((sp) => sp.cooldown <= 0 && sp.types[0] !== "boss" && G.spawnPointOpen(world, sp));
+    if (!playerPos) return usable.length ? G.pick(usable) : null;
+    const feet = playerPos.y - 1.7;
+    const region = G.getRegionAt(world, playerPos.x, playerPos.z, feet) || "";
+    const outdoors = /^YARD/.test(region);
+    if (outdoors && world.campus && (G.rng() < 0.65)) {
+      const g = this.groundPoint(world, playerPos, fwd);
+      if (g) return g;
+    }
+    const cands = [];
+    for (const sp of usable) {
+      const dx = sp.pos.x - playerPos.x, dz = sp.pos.z - playerPos.z, flat = Math.hypot(dx, dz);
+      const d = flat + Math.abs(sp.pos.y - feet) * 3;
+      if (flat < 6 || d > 46) continue;
+      const sameStorey = Math.abs(sp.pos.y - feet) < 1.5;
+      const seen = fwd && flat > 0.1 && (dx * fwd.x + dz * fwd.z) / flat > 0.45 && sameStorey;
+      // another storey is a long way round by the stairs, however close it
+      // looks through the floor
+      cands.push({ sp, w: (1 / (6 + d)) * (seen ? 0.3 : 1) * (sameStorey ? 1 : 0.12) });
+    }
+    if (!cands.length) {
+      if (outdoors && world.campus) { const g = this.groundPoint(world, playerPos, fwd, true); if (g) return g; }
+      // nothing near: the old rule, nearest-weighted over everything open
+      const far = usable.filter((sp) => sp.pos.distanceTo(playerPos) >= 6);
+      const pool = far.length ? far : usable;
+      if (!pool.length) return null;
+      pool.forEach((sp) => cands.push({ sp, w: 1 / (6 + sp.pos.distanceTo(playerPos)) }));
+    }
+    let total = 0;
+    cands.forEach((c) => { total += c.w; });
+    let r = G.rng() * total;
+    for (const c of cands) { r -= c.w; if (r <= 0) return c.sp; }
+    return cands[cands.length - 1].sp;
+  },
+  // a patch of open ground near the player, out of their sight, where a
+  // zombie can come up through the grass
+  groundPoint(world, playerPos, fwd, anyAngle) {
+    const C = world.campus;
+    const inRect = (x, z, r, pad) => x > r.minX - pad && x < r.maxX + pad && z > r.minZ - pad && z < r.maxZ + pad;
+    const tmp = [];
+    for (let t = 0; t < 30; t++) {
+      const a = G.rng() * Math.PI * 2, rad = 12 + G.rng() * 16;
+      const ux = Math.cos(a), uz = Math.sin(a);
+      if (!anyAngle && fwd && ux * fwd.x + uz * fwd.z > 0.25) continue;     // in front of them: somewhere else
+      const x = playerPos.x + ux * rad, z = playerPos.z + uz * rad;
+      if (x < C.x0 + 2.5 || x > C.x1 - 2.5 || z < C.z0 + 2.5 || z > C.z1 - 2.5) continue;
+      if ((world.footprint || []).some((f) => inRect(x, z, f, 1.5))) continue;
+      if (Math.abs(G.getFloorHeightAt(world, x, z, 0)) > 0.05) continue;     // not on the stand or a sala floor
+      const hit = G.ColGrid.near(world, x, z, 1.2, tmp).some((c) => c.min.y < 1.8 && c.max.y > 0.05 && x + 0.7 > c.min.x && x - 0.7 < c.max.x && z + 0.7 > c.min.z && z - 0.7 < c.max.z);
+      if (hit) continue;
+      const end = new THREE.Vector3(x, 0, z);
+      return { pos: end.clone(), types: ["normal", "fast"], cooldown: 0, ground: true, emerge: { kind: "ground", end, floorY: 0 } };
+    }
+    return null;
   },
 };
 
@@ -61,6 +108,7 @@ G.Spawner = {
 G.spawnPointOpen = function (world, sp) {
   if (!sp.gate) return true;
   if (sp.gate === "upper") return !world.secondFloor || world.secondFloor.unlocked;
+  if (sp.gate === "top") return !world.thirdFloor || world.thirdFloor.unlocked;
   if (sp.gate === "secret") return !world.secretZone || world.secretZone.unlocked;
   if (sp.gate === "word") return (world.doors || []).every((d) => d.kind !== "word" || d.opened);
   return true;
@@ -174,6 +222,10 @@ G.ACHIEVEMENTS = [
   { id: "all_levels", icon: "🏆" },
   { id: "first_boss", icon: "💀" },
   { id: "endless_10", icon: "⏳" },
+  // round 3: every story note of a level in the journal
+  { id: "notes_level1", icon: "📜" },
+  { id: "notes_level2", icon: "📜" },
+  { id: "notes_level3", icon: "📜" },
 ];
 
 G.unlockAchievement = function (id) {

@@ -22,18 +22,25 @@ G.UI = {
     if (prevId && prevId !== id && !this.el(prevId).classList.contains("hidden")) {
       const prevEl = this.el(prevId);
       prevEl.classList.add("fade-out");
-      setTimeout(() => { prevEl.classList.add("hidden"); prevEl.classList.remove("fade-out"); }, 150);
+      // (unless it has been shown again in the meantime -- closing one note
+      // and opening the next, or backing out of a menu at once, used to hide
+      // the screen that had just come back)
+      setTimeout(() => { prevEl.classList.remove("fade-out"); if (this._currentScreen !== prevId) prevEl.classList.add("hidden"); }, 150);
       this.ALL_SCREENS.forEach((s) => { if (s !== id && s !== prevId) this.el(s).classList.add("hidden"); });
     } else {
       this.ALL_SCREENS.forEach((s) => { if (s !== id) this.el(s).classList.add("hidden"); });
     }
     if (id) {
       const el = this.el(id);
-      el.classList.remove("hidden", "fade-in");
+      el.classList.remove("hidden", "fade-in", "fade-out");
       void el.offsetWidth; // restart the animation even if this screen was already showing recently
       el.classList.add("fade-in");
     }
     this._currentScreen = id;
+    // the lobby is refreshed each time it comes back (scores, notes, words
+    // and locks may have changed behind it)
+    if (id === "screen-mainmenu" && G.Lobby) G.Lobby.open(this._lobbyOpts);
+    this._lobbyOpts = null;
   },
   hideAllScreens() { this.showScreen(null); },
   setHudVisible(v) { this.el("hud").classList.toggle("hidden", !v); },
@@ -84,6 +91,7 @@ G.UI = {
     this.bindCrate();
     this.bindMystery();
     G.CustomVocabUI.bind();
+    if (this.bindJournal) this.bindJournal();
     this.applyFontSizeClass();
   },
 
@@ -95,22 +103,17 @@ G.UI = {
   },
 
   // ---------------- Main menu ----------------
+  // (round 4: the main menu is the lobby carousel, js/lobby.js -- every mode
+  // and every menu the old button list had is a card or an icon there; the
+  // tutorial replay moved to How to Play, Import to Custom Vocabulary)
   bindMainMenu() {
-    this.el("btn-start-game").onclick = () => G.Game.goToLevelSelect();
-    this.el("btn-practice").onclick = () => G.Game.goToPracticeSetup();
-    this.el("btn-daily").onclick = () => G.Game.startDailyChallenge();
-    this.el("btn-endless").onclick = () => G.Game.startEndless();
-    this.el("btn-leaderboard").onclick = () => { this.renderLeaderboard("level1"); this.showScreen("screen-leaderboard"); };
-    this.el("btn-achievements").onclick = () => { this.renderAchievements(); this.showScreen("screen-achievements"); };
-    this.el("btn-vocablog").onclick = () => { this._logReturnScreen = "screen-mainmenu"; this.renderVocabLog(1); this.showScreen("screen-vocablog"); };
-    this.el("btn-weaponlog").onclick = () => { this._logReturnScreen = "screen-mainmenu"; this.renderWeaponLog(1); this.showScreen("screen-weaponlog"); };
-    this.el("btn-import-vocab").onclick = () => this.openImport("screen-mainmenu");
-    this.el("btn-customvocab").onclick = () => G.CustomVocabUI.open("screen-mainmenu");
-    this.el("btn-howtoplay").onclick = () => this.showScreen("screen-howtoplay");
+    G.Lobby.build();
     this.el("btn-tutorial-replay").onclick = () => { G.Tutorial.reset(); G.Game.startLevel(1); };
-    this.el("btn-settings").onclick = () => { this._settingsReturn = "screen-mainmenu"; this.renderSettings(); this.showScreen("screen-settings"); };
   },
-  goToMainMenu() { this.showScreen("screen-mainmenu"); this.setHudVisible(false); this.setTouchControlsVisible(false); },
+  goToMainMenu(opts) {
+    this._lobbyOpts = opts || null;
+    this.showScreen("screen-mainmenu"); this.setHudVisible(false); this.setTouchControlsVisible(false);
+  },
 
   // ---------------- Level select ----------------
   bindLevelSelect() {
