@@ -869,6 +869,9 @@ G.UI = {
   // Focus Time and Adrenaline glow while they run.
   updateHudPerks() {
     const g = G.Game, pl = g.player;
+    // (no run yet -- the touch layout editor opened from the menu shows a
+    // sample HUD before any player exists)
+    if (!pl || !pl.perks) { this._hudPerkSig = ""; this.el("hud-perks").classList.add("hidden"); return; }
     const ids = G.PERKS.map((d) => d.id).filter((id) => pl.perks[id]);
     const state = (id) => {
       if (id === "combo_shield") return pl.comboShield && pl.comboShield.charged ? "" : " spent";

@@ -158,9 +158,8 @@ G.Lobby = {
         <span class="lcard-bg"></span>
         <span class="lcard-art" style="background-image:url('${this.art(m, true)}')"></span>
         <span class="lcard-shade"></span>
-        <span class="lcard-title">${esc(this.title(m))}</span>
+        <span class="lcard-text"><span class="lcard-title">${esc(this.title(m))}</span><span class="lcard-meta">${esc(this.meta(m))}</span></span>
         <span class="lcard-badge">${esc(T("lobby.badge." + (lock ? "locked" : m.badge)))}</span>
-        <span class="lcard-meta">${esc(this.meta(m))}</span>
         ${lock ? `<span class="lcard-lock" aria-hidden="true">🔒</span>` : ""}
         <span class="lcard-dim"></span>
         <span class="lcard-ring"></span>
@@ -198,12 +197,18 @@ G.Lobby = {
   // place every card: the selected one centred and larger, the rest beside
   // it, smaller and dimmed, the far ones faded out
   layout(instant) {
-    const cards = Array.from(this.el("lobby-track").children), s = this.sel[this.tab];
+    const track = this.el("lobby-track");
+    const cards = Array.from(track.children), s = this.sel[this.tab];
+    // as many cards each side as fit whole on this screen; the rest fade out
+    // at the edge rather than hang off it
+    const cw = cards.length ? cards[0].offsetWidth : 1;
+    const room = Math.max(1, Math.min(3, Math.floor((track.clientWidth / 2 - cw * 0.46) / (cw * 1.12))));
     cards.forEach((c, i) => {
       const off = i - s, a = Math.abs(off);
       c.style.transition = instant ? "none" : "";
       c.style.transform = `translateX(${off * 112}%) scale(${off === 0 ? 1.12 : 0.9 - Math.min(a, 3) * 0.02})`;
-      c.style.opacity = a > 3 ? 0 : 1;
+      c.style.opacity = a > room ? 0 : 1;
+      c.style.pointerEvents = a > room ? "none" : "";
       c.style.zIndex = 10 - a;
       c.classList.toggle("sel", off === 0);
       c.setAttribute("tabindex", off === 0 ? "0" : "-1");
@@ -426,6 +431,8 @@ G.Lobby = {
     this.root.querySelectorAll(".lobby-tab").forEach((b) => { b.onclick = () => { if (b.dataset.tab !== this.tab) this.switchTab(this.TABS.indexOf(b.dataset.tab) - this.TABS.indexOf(this.tab)); }; });
     this.root.querySelectorAll(".lobby-icon").forEach((b) => { b.onclick = () => this.openIcon(b.dataset.icon); });
     this.el("lobby-preview").onclick = () => { if (!this.locked(this.current())) this.launch(); };
+    // how many cards fit changes with the window (a phone turned round)
+    window.addEventListener("resize", () => { if (this.visible()) this.layout(true); });
     // which kind of input was used last decides the hints
     window.addEventListener("mousemove", (e) => { if (Math.abs(e.movementX) + Math.abs(e.movementY) > 2 && this.device !== "kb" && this.device !== "pad") this.setDevice("kb"); }, { passive: true });
     window.addEventListener("touchstart", () => this.setDevice("touch"), { passive: true });

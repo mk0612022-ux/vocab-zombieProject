@@ -219,21 +219,8 @@ G.Game = {
     this._notesRevealed = false;
     if (G.Notes) G.Notes.place(this);
     if (G.Details) G.Details.build(this);
-    // Category K: bake the static level into a few merged meshes and swap
-    // its fifty-odd lights for a small fixed pool. Round 3 sorts it first by
-    // what can see it (js/zones.js), so far storeys and the campus behind the
-    // walls are simply not drawn.
-    this.paletteCount = G.Perf.paletteize(this.scene, this.world, [this.yawObject]);
-    if (G.Zones) G.Zones.prepare(this.world);
-    this.perfReport = G.Perf.mergeStatic(this.scene, this.world, [this.yawObject]);
-    if (G.Zones) G.Zones.init(this);
+    this.prepareScene();
     if (G.Minimap) G.Minimap.init(this);
-    G.Perf.initLightPool(this.scene, this.world, G.save.settings.graphicsQuality);
-    this.syncViewmodelLights();
-    // compile every shader now, during the load, instead of as a hitch the
-    // first time each material comes into view
-    this.scene.updateMatrixWorld(true);
-    try { this.renderer.compile(this.scene, this.camera); } catch (e) { /* best effort */ }
     this.yawObject.position.set(this.world.spawn.x, 1.7, this.world.spawn.z);
     this.pitchObject.rotation.x = 0;
     this.yawObject.rotation.y = 0;
@@ -318,6 +305,21 @@ G.Game = {
   // drawn over the real view. During a run that is simply the paused scene; from
   // the main menu there is nothing loaded, so a throwaway copy of the school is
   // built and torn down again on close.
+  // Category K: bake the static level into a few merged meshes and swap its
+  // fifty-odd lights for a small fixed pool. Round 3 sorts it first by what
+  // can see it (js/zones.js), so far storeys and the campus behind the walls
+  // are simply not drawn. Then every shader is compiled now, during the load,
+  // instead of as a hitch the first time each material comes into view.
+  prepareScene() {
+    this.paletteCount = G.Perf.paletteize(this.scene, this.world, [this.yawObject]);
+    if (G.Zones) G.Zones.prepare(this.world);
+    this.perfReport = G.Perf.mergeStatic(this.scene, this.world, [this.yawObject]);
+    if (G.Zones) G.Zones.init(this);
+    G.Perf.initLightPool(this.scene, this.world, G.save.settings.graphicsQuality);
+    this.syncViewmodelLights();
+    this.scene.updateMatrixWorld(true);
+    try { this.renderer.compile(this.scene, this.camera); } catch (e) { /* best effort */ }
+  },
   startLayoutPreview() {
     if (this.state === "GAMEPLAY" || this.state === "PAUSE") return false;
     this.teardownLevel();
@@ -325,9 +327,14 @@ G.Game = {
     this.scene = new THREE.Scene();
     this.scene.add(this.yawObject);
     this.world = G.buildLevelScene(this.scene, this._previewLevel, G.save.settings.graphicsQuality);
+    // (the same baking as a run: since round 3 the raw school is thousands of
+    // meshes and dozens of lights, and drawn unbaked it froze the page)
+    this.prepareScene();
     this.yawObject.position.set(this.world.spawn.x, 1.7, this.world.spawn.z);
     this.pitchObject.rotation.x = 0;
     this.yawObject.rotation.y = 0;
+    if (G.Zones) G.Zones.update(this, true);
+    G.Perf.updateLights(this.yawObject.position, new THREE.Vector3(0, 0, -1), 0);
     this._layoutPreview = true;
     return true;
   },

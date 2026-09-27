@@ -992,11 +992,13 @@ body.modal-open .hud-minimap { opacity: 0.35; }
   transition: transform 0.45s var(--ease);
 }
 .lcard-shade { position: absolute; inset: 0; background: linear-gradient(180deg, transparent 45%, rgba(0,0,0,0.45) 100%); }
+.lcard-text { position: absolute; left: 7px; right: 4px; bottom: 7px; display: flex; flex-direction: column; gap: 3px; }
 .lcard-title {
-  position: absolute; left: 7px; right: 4px; bottom: calc(10px + 1.3em); font-weight: 900; line-height: 1.05; overflow-wrap: anywhere; letter-spacing: -0.02em;
+  font-weight: 900; line-height: 1.05; overflow-wrap: anywhere; letter-spacing: -0.02em;
   font-size: clamp(0.45rem, calc(var(--card-w) * 0.1), 1.2rem); text-transform: uppercase; text-shadow: 0 2px 8px rgba(0,0,0,0.6);
 }
-.lcard-meta { position: absolute; left: 8px; right: 6px; bottom: 7px; font-size: clamp(0.52rem, calc(var(--card-h) * 0.044), 0.78rem); font-weight: 700; opacity: 0.9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* (wraps rather than cutting off on a phone's small cards) */
+.lcard-meta { font-size: clamp(0.5rem, calc(var(--card-h) * 0.044), 0.78rem); font-weight: 700; line-height: 1.2; opacity: 0.9; overflow-wrap: anywhere; }
 .lcard-badge {
   position: absolute; left: 8px; top: 8px; font-size: clamp(0.46rem, calc(var(--card-h) * 0.036), 0.66rem); font-weight: 900; letter-spacing: 1.5px;
   padding: 3px 7px; border-radius: 3px; background: rgba(0,0,0,0.55); border: 1px solid rgba(255,255,255,0.5);
@@ -1067,6 +1069,15 @@ body[data-input="touch"] .lobby-carousel { cursor: default; }
 @media (max-height: 380px) {
   .lp-desc { display: none; }
   .lobby-logo { display: none; }
+}
+/* a small phone on its side: a tighter top bar so tabs and icons fit */
+@media (max-width: 660px) {
+  .lobby-top { gap: 6px; }
+  .lobby-tabs { gap: 2px; }
+  .lobby-tab { font-size: 0.64rem; letter-spacing: 1px; padding: 6px 5px; }
+  .lobby-key { min-width: 20px; height: 18px; padding: 0 3px; font-size: 0.6rem; }
+  .lobby-icons { gap: 3px; }
+  .lobby-icon { width: 28px; height: 28px; font-size: 0.8rem; }
 }
 /* a phone held upright: stack the text under a shorter picture */
 @media (max-aspect-ratio: 4/5) {

@@ -161,6 +161,16 @@ G.Round4Test = (function () {
       G.UI.showScreen("screen-howtoplay"); G.UI.showScreen("screen-mainmenu"); G.UI.showScreen("screen-howtoplay");
       await until(() => false, 400);
       ok("going back and forth fast never hides the screen on top", !document.getElementById("screen-howtoplay").classList.contains("hidden") && document.getElementById("screen-mainmenu").classList.contains("hidden"));
+      // the touch layout editor opened from the menu before any run: no player
+      // yet (the perk icons threw), and its preview of the school baked like
+      // a run (drawn raw since round 3 it froze the page)
+      G.Game.quitToMainMenu();
+      const pl = G.Game.player; G.Game.player = null;
+      let tcErr = null, tcCalls = -1;
+      try { G.TouchCfg.openEditor(); G.Game.renderLayoutPreviewFrame(); tcCalls = G.Game.renderer.info.render.calls; } catch (e) { tcErr = String(e); }
+      try { G.TouchCfg.closeEditor(); } catch (e) { tcErr = tcErr || String(e); }
+      G.Game.player = pl;
+      ok("touch layout editor from the menu: opens, preview baked (draw calls)", !tcErr && tcCalls > 0 && tcCalls < 600, tcErr || tcCalls);
       ok("no missing strings", Object.keys(G._missingKeys || {}).length === 0, Object.keys(G._missingKeys || {}).join(","));
     } catch (e) {
       ok("no exception", false, String(e && e.stack || e));
