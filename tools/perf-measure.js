@@ -2,7 +2,7 @@
 // graphics quality: the game's own update plus the render, the GPU made to
 // finish every frame (a one-pixel read-back), with a wave of zombies about.
 // It measures THIS machine; a phone has to be tried on the phone.
-//   await G.PerfMeasure.run(["low", "high"])  -> rows of {quality, spot, ms, fps, calls, tris}
+//   await G.PerfMeasure.run(["low", "high"])  -> rows of {quality, spot, ms, fps, calls, tris, zombies}
 window.G = window.G || {};
 G.PerfMeasure = {
   SPOTS: [
@@ -32,9 +32,17 @@ G.PerfMeasure = {
         for (const s of this.SPOTS) {
           g.yawObject.position.set(s.x, s.y + 1.7, s.z);
           g.yawObject.rotation.y = s.yaw;
-          // a few zombies in view
-          g.zombies.forEach((z) => { z.mesh.position.set(s.x + (Math.random() - 0.5) * 12, s.y, s.z - 6 - Math.random() * 10); });
-          for (let i = 0; i < 10; i++) { upd.call(g, 1 / 60); g.renderFrame(); }
+          // a crowd of twelve in view (a busy wave), the rest cleared away
+          g.zombies.forEach((z) => { g.scene.remove(z.mesh); }); g.zombies = [];
+          const fx = -Math.sin(s.yaw), fz = -Math.cos(s.yaw);
+          for (let k = 0; k < 12; k++) {
+            const d = 5 + (k % 4) * 2.5, side = ((k * 7) % 9 - 4) * 0.9;
+            const x = s.x + fx * d - fz * side, z = s.z + fz * d + fx * side;
+            g.spawnZombieAt(k % 5 === 4 ? "fast" : "normal", new THREE.Vector3(x, G.getFloorHeightAt(g.world, x, z, s.y + 0.5), z), null);
+          }
+          g.requiredKills = 1e9;
+          // warm up: the first look at a place compiles its shaders
+          for (let i = 0; i < 30; i++) { upd.call(g, 1 / 60); g.renderFrame(); }
           gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
           let total = 0, calls = 0, tris = 0;
           for (let i = 0; i < frames; i++) {
