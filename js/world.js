@@ -2534,15 +2534,12 @@ G.buildLevelScene = function (scene, level, quality) {
     addBloodStain(0.4, 34.6, 1.3, 0.6);
     for (let i = 0; i < 5; i++) addBloodStain(0.3, 35.2 + i * 0.9, 0.5 + G.rng() * 0.25, G.rng() * 3);
 
-    // ---- dusk lighting ----
-    // One cheap directional fill so the grounds read as "just after sunset,
-    // still legible" rather than a black void, biased cool against the warm
-    // point lights burning inside the building.
-    const moon = new THREE.DirectionalLight(0x8fb0e8, 0.68);
-    moon.position.set(-34, 46, 78);
-    moon.target.position.set(0, 0, 42);
-    scene.add(moon); scene.add(moon.target);
-    scene.add(new THREE.HemisphereLight(0x53627a, 0x2a3323, 0.45));
+    // ---- night lighting ----
+    // The moonlight itself -- the main light out here, with the sky, the
+    // clouds and the shadows -- is js/sky.js's. This is only the cool fill
+    // under it, so the grounds stay legible against the warm point lights
+    // burning inside the building.
+    scene.add(new THREE.HemisphereLight(0x53627a, 0x2a3323, 0.3));
     // two failing lamp posts, the only warm light out here
     [[-13, 46], [13, 50]].forEach(([lx, lz]) => {
       const post = new THREE.Mesh(new THREE.BoxGeometry(0.24, 4.4, 0.24), fenceMat);

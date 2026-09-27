@@ -319,7 +319,9 @@ G.STRINGS = {
     "shop.title": "Shop",
     "shop.timer": "Next wave in {s}s",
     "shop.money": "Money: ",
-    "shop.continue": "Start Next Wave",
+    "shop.continue": "Ready",
+    "shop.timerLabel": "Next wave in",
+    "shop.noLimit": "No time limit · the next wave waits until you press Ready",
     "shop.bonus": "Wave {w} cleared · bonus +${b}",
     "shop.level": "Level: {s}/{m}",
     "shop.owned": "Owned",
@@ -398,6 +400,12 @@ G.STRINGS = {
     "perk.lucky_charm.name": "Lucky Charm",
     "perk.lucky_charm.desc1": "Weapon crates roll their rarity twice and keep the better result.",
     "perk.lucky_charm.desc2": "Weapon crates roll their rarity three times and keep the best result.",
+    // (B) the short names under the perk icons in the pause menu
+    "perk.perk_hint.short": "Hint", "perk.focus_time.short": "Focus", "perk.combo_shield.short": "Shield", "perk.word_bounty.short": "Bounty",
+    "perk.extra_time.short": "Time+", "perk.perk_speed.short": "Speed", "perk.second_wind.short": "Wind", "perk.pack_mule.short": "Mule",
+    "perk.adrenaline.short": "Rush", "perk.quick_hands.short": "Hands", "perk.piercing_rounds.short": "Pierce", "perk.last_round.short": "Last Rd",
+    "perk.marksman.short": "Aim", "perk.bloodthirst.short": "Blood", "perk.perk_armor.short": "Armor", "perk.second_life.short": "2nd Life",
+    "perk.thorns.short": "Thorns", "perk.extra_slot.short": "Slot+", "perk.interest.short": "Savings", "perk.lucky_charm.short": "Luck",
 
     // ---- Inventory Full (js/loadout.js) ----
     "inv.title": "Inventory Full",
@@ -613,6 +621,24 @@ G.STRINGS = {
     "lobby.featured": "FEATURED",
     "lobby.icon.settings": "Settings", "lobby.icon.leaderboard": "Leaderboard", "lobby.icon.achievements": "Achievements",
     "lobby.icon.armory": "Weapon Log", "lobby.icon.wordlog": "Vocabulary Log", "lobby.icon.journal": "Notes Journal", "lobby.icon.help": "How to Play",
+    "lobby.icon.custom": "Custom Vocabulary",
+    // (B) the short names under the icons (the full ones above are the tooltips)
+    "lobby.iconShort.settings": "Settings", "lobby.iconShort.leaderboard": "Ranks", "lobby.iconShort.achievements": "Awards",
+    "lobby.iconShort.armory": "Weapons", "lobby.iconShort.wordlog": "Vocab", "lobby.iconShort.journal": "Notes",
+    "lobby.iconShort.custom": "Custom", "lobby.iconShort.help": "Help",
+    "hud.hearShort": "Hear",
+    "touch.interactLabel": "Use", "touch.reloadLabel": "Reload", "touch.pauseLabel": "Pause", "touch.knifeLabel": "Knife",
+    // (C) Settings: the shop's time between waves
+    "settings.gameplay": "Gameplay",
+    "settings.shopTime": "Shop time between waves",
+    "settings.seconds": "{n} seconds",
+    "settings.shopNoLimit": "No limit (wait for Ready)",
+    "common.loadFailed": "The game could not start. Check your connection and reload.",
+    // (A4) a new version of the game
+    "update.title": "New version available",
+    "update.text": "A newer version of the game has been downloaded. Reload to start playing it — your progress is saved.",
+    "update.reload": "Reload",
+    "update.later": "Later",
     "lobby.mode.endless": "Endless Mode", "lobby.mode.daily": "Daily Challenge", "lobby.mode.practice": "Practice Mode", "lobby.mode.custom": "Custom Vocabulary",
     "lobby.badge.featured": "FEATURED", "lobby.badge.campaign": "CAMPAIGN", "lobby.badge.survival": "SURVIVAL", "lobby.badge.daily": "DAILY EVENT",
     "lobby.badge.training": "TRAINING", "lobby.badge.creative": "CREATIVE", "lobby.badge.locked": "LOCKED",

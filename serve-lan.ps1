@@ -26,6 +26,12 @@ Write-Host "Serving $root"
 Write-Host "  local:   http://localhost:$Port/"
 foreach ($ip in $ips) { Write-Host "  network: http://${ip}:$Port/" }
 
+# Each connection is answered on its own thread (a runspace pool): browsers
+# open spare connections they may not use for a while, and answering one at a
+# time let a single idle one hold up every other request for seconds -- the
+# service worker's parallel downloads stalled on it, and so did the game.
+$handler = {
+  param($client, $root, $mime)
 function Send-Response {
   param($stream, [int]$status, [string]$statusText, [string]$contentType, [byte[]]$body, [bool]$headOnly)
   $head = "HTTP/1.1 $status $statusText`r`n" +
@@ -39,9 +45,6 @@ function Send-Response {
   if (-not $headOnly -and $body.Length -gt 0) { $stream.Write($body, 0, $body.Length) }
   $stream.Flush()
 }
-
-while ($listener.Pending() -or $true) {
-  $client = $listener.AcceptTcpClient()
   try {
     $client.ReceiveTimeout = 5000
     $client.SendTimeout = 15000
@@ -58,7 +61,7 @@ while ($listener.Pending() -or $true) {
       $headerEnd = $sb.ToString().IndexOf("`r`n`r`n")
     }
     $raw = $sb.ToString()
-    if (-not $raw) { $client.Close(); continue }
+    if (-not $raw) { return }
 
     $requestLine = ($raw -split "`r`n")[0]
     $parts = $requestLine -split ' '
@@ -94,5 +97,21 @@ while ($listener.Pending() -or $true) {
     # a dropped connection shouldn't take the server down
   } finally {
     if ($client) { $client.Close() }
+  }
+}
+
+$pool = [RunspaceFactory]::CreateRunspacePool(1, 16)
+$pool.Open()
+$busy = New-Object System.Collections.ArrayList
+while ($true) {
+  $client = $listener.AcceptTcpClient()
+  $ps = [PowerShell]::Create()
+  $ps.RunspacePool = $pool
+  [void]$ps.AddScript($handler).AddArgument($client).AddArgument($root).AddArgument($mime)
+  [void]$busy.Add(@{ ps = $ps; h = $ps.BeginInvoke() })
+  # tidy up the ones that have finished
+  for ($i = $busy.Count - 1; $i -ge 0; $i--) {
+    $j = $busy[$i]
+    if ($j.h.IsCompleted) { try { [void]$j.ps.EndInvoke($j.h) } catch {}; $j.ps.Dispose(); $busy.RemoveAt($i) }
   }
 }

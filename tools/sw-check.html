@@ -1,0 +1,45 @@
+<!doctype html>
+<!-- Dev-only (A4): what the service worker has kept. Open it on the same
+     site after the game has been opened once; the result is written into
+     the page (for a headless browser's --dump-dom). -->
+<html><head><meta charset="utf-8"><title>sw-check</title></head>
+<body><pre id="out">checking...</pre>
+<script>
+(async () => {
+  const out = {};
+  const pre = document.getElementById("out");
+  try {
+    pre.textContent = "stage 1";
+    const regs = navigator.serviceWorker ? await navigator.serviceWorker.getRegistrations() : [];
+    out.workers = regs.map((r) => r.scope + (r.active ? " (active)" : ""));
+    pre.textContent = "stage 2 " + JSON.stringify(out);
+    const keys = await caches.keys();
+    pre.textContent = "stage 3 " + JSON.stringify(keys);
+    out.caches = keys;
+    if (keys.length) {
+      const c = await caches.open(keys[0]);
+      const list = (await c.keys()).map((r) => r.url.replace(location.origin, ""));
+      out.files = list.length;
+      out.page = list.includes("/");
+      out.three = list.some((u) => /three\.min\.js/.test(u));
+      out.scripts = list.filter((u) => /^\/js\//.test(u)).length;
+      out.lobbyArt = list.filter((u) => /^\/assets\/lobby\//.test(u)).length;
+      out.css = list.includes("/css/style.css");
+      // the kept stylesheet against the one on the site now
+      const kept = await (await c.match("/css/style.css")).text();
+      const live = await (await fetch("../css/style.css", { cache: "no-store" })).text();
+      out.cssSame = kept === live;
+    }
+    // ?update: ask the worker to look for changes, and wait for its answer
+    if (/[?&]update\b/.test(location.search) && navigator.serviceWorker.controller) {
+      pre.textContent = "asking for updates... " + JSON.stringify(out);
+      out.updated = await new Promise((res) => {
+        navigator.serviceWorker.addEventListener("message", (e) => res(e.data));
+        navigator.serviceWorker.controller.postMessage({ type: "checkUpdates" });
+        setTimeout(() => res("no answer in 10 s"), 10000);
+      });
+    } else out.controlled = !!navigator.serviceWorker.controller;
+  } catch (e) { out.error = String(e); }
+  document.getElementById("out").textContent = "RESULT " + JSON.stringify(out);
+})();
+</script></body></html>

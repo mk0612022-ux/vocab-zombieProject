@@ -24,9 +24,14 @@ G.Audio = {
   _level: null,
 
   init() {
+    // (A5) every kind of gesture, for as long as the page lives: iOS Safari
+    // only lets sound start inside some of them (touchend and click, not
+    // always touchstart), and after a call or a trip to the home screen it
+    // leaves the context "interrupted" until the next touch
     const unlock = () => this.unlock();
-    ["pointerdown", "touchstart", "keydown", "mousedown"].forEach((ev) =>
-      window.addEventListener(ev, unlock, { passive: true }));
+    ["pointerdown", "pointerup", "touchstart", "touchend", "click", "keydown", "mousedown"].forEach((ev) =>
+      window.addEventListener(ev, unlock, { passive: true, capture: true }));
+    document.addEventListener("visibilitychange", () => { if (!document.hidden && this.ctx && this.ctx.state !== "running") this.ctx.resume().catch(() => {}); });
     if ("speechSynthesis" in window) {
       const pickVoice = () => { this._voice = this.pickVoice(); };
       pickVoice();
@@ -35,7 +40,15 @@ G.Audio = {
   },
 
   unlock() {
-    if (this.ctx) { if (this.ctx.state === "suspended") this.ctx.resume(); return; }
+    if (this.ctx) {
+      if (this.ctx.state !== "running") {
+        const p = this.ctx.resume();
+        if (p && p.catch) p.catch(() => {});
+        // iOS: a silent sample played inside the gesture re-opens the output
+        try { const b = this.ctx.createBuffer(1, 1, 22050), s = this.ctx.createBufferSource(); s.buffer = b; s.connect(this.ctx.destination); s.start(0); } catch (e) { /* not in a gesture */ }
+      }
+      return;
+    }
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
     this.ctx = new AC();
@@ -209,7 +222,7 @@ G.Audio = {
   },
 
   // ---------------- everything else in J1 ----------------
-  PRIORITY_SFX: ["heartbeat", "breath", "behind", "correct", "wrong", "pickup_key", "unlock", "purchase"],
+  PRIORITY_SFX: ["heartbeat", "breath", "behind", "correct", "wrong", "pickup_key", "unlock", "purchase", "shop_warn", "tick"],
   sfx(name, o) {
     if (!this.ctx) return;
     o = o || {};
@@ -257,6 +270,15 @@ G.Audio = {
       case "unlock":
         [523, 659, 784, 1046].forEach((f, i) => this.tone({ type: "triangle", freq: f, dur: 0.4, gain: 0.18, at: i * 0.09 }));
         break;
+      // ---- the shop's clock (C): ten seconds left, then a tick a second ----
+      case "shop_warn":
+        [880, 660, 880].forEach((f, i) => this.tone({ type: "square", freq: f, dur: 0.09, gain: 0.09, at: i * 0.12, filter: { type: "lowpass", freq: 2400 } }));
+        break;
+      case "tick": this.tone({ type: "square", freq: 1500, dur: 0.02, gain: 0.06, filter: { type: "bandpass", freq: 2200, q: 3 } }); break;
+      // health coming back (D): a soft rising chime when it starts
+      case "regen": [392, 523, 659].forEach((f, i) => this.tone({ type: "sine", freq: f, dur: 0.35, gain: 0.07, at: i * 0.08 })); break;
+      // a new version of the game is ready (A4)
+      case "update": [659, 988].forEach((f, i) => this.tone({ type: "triangle", freq: f, dur: 0.25, gain: 0.1, at: i * 0.1 })); break;
       // ---- round 2: zombies coming in, and going ----
       case "emerge_ground":   // the ground splitting, earth falling back
         this.tone({ type: "sine", freq: o.big ? 48 : 70, freqEnd: 30, dur: o.big ? 1.1 : 0.7, gain: o.big ? 0.5 : 0.3, pos: o.pos, rev: 0.3 });

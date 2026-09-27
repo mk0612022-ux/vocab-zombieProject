@@ -62,6 +62,7 @@ G.Game = {
     G.Input.init();
     G.Audio.init();
     G.UI.init();
+    if (G.PWA) G.PWA.init();
     G.TouchCfg.init();
     G.Shop.resetRun();
     this.setupThree();
@@ -132,6 +133,7 @@ G.Game = {
       this.syncViewmodelLights();
       if (this.world.dressDetails && G.SchoolDress) G.SchoolDress.applyQuality(this.world, q);
       if (G.Details) G.Details.applyQuality(q);
+      if (G.Sky) G.Sky.applyQuality(q);
     }
   },
 
@@ -153,8 +155,10 @@ G.Game = {
     G.Input.exitPointerLock();
     G.UI.setHudVisible(false);
     G.UI.setTouchControlsVisible(false);
-    G.UI.goToMainMenu();
+    // (the state first: the lobby coming up checks it -- e.g. to offer a new
+    // version of the game found during the run)
     this.state = "MENU";
+    G.UI.goToMainMenu();
   },
 
   // ---------------- Practice mode ----------------
@@ -219,6 +223,7 @@ G.Game = {
     this._notesRevealed = false;
     if (G.Notes) G.Notes.place(this);
     if (G.Details) G.Details.build(this);
+    if (G.Sky) G.Sky.build(this);                 // the moon, its light and its beams
     this.prepareScene();
     if (G.Minimap) G.Minimap.init(this);
     this.yawObject.position.set(this.world.spawn.x, 1.7, this.world.spawn.z);
@@ -314,6 +319,7 @@ G.Game = {
     this.paletteCount = G.Perf.paletteize(this.scene, this.world, [this.yawObject]);
     if (G.Zones) G.Zones.prepare(this.world);
     this.perfReport = G.Perf.mergeStatic(this.scene, this.world, [this.yawObject]);
+    if (G.Sky) G.Sky.afterPrepare(this);          // what casts moon shadows
     if (G.Zones) G.Zones.init(this);
     G.Perf.initLightPool(this.scene, this.world, G.save.settings.graphicsQuality);
     this.syncViewmodelLights();
@@ -329,12 +335,14 @@ G.Game = {
     this.world = G.buildLevelScene(this.scene, this._previewLevel, G.save.settings.graphicsQuality);
     // (the same baking as a run: since round 3 the raw school is thousands of
     // meshes and dozens of lights, and drawn unbaked it froze the page)
+    if (G.Sky) G.Sky.build(this);
     this.prepareScene();
     this.yawObject.position.set(this.world.spawn.x, 1.7, this.world.spawn.z);
     this.pitchObject.rotation.x = 0;
     this.yawObject.rotation.y = 0;
     if (G.Zones) G.Zones.update(this, true);
     G.Perf.updateLights(this.yawObject.position, new THREE.Vector3(0, 0, -1), 0);
+    if (G.Sky) G.Sky.update(this, 0);
     this._layoutPreview = true;
     return true;
   },
@@ -360,6 +368,7 @@ G.Game = {
     if (G.ZombieFX) G.ZombieFX.reset(this.scene);
     if (G.Zones) G.Zones.reset();
     if (G.Details) G.Details.reset();
+    if (G.Sky) G.Sky.reset();
     if (G.Notes) G.Notes.reset();
     if (this.scene) {
       this.zombies.forEach((z) => { this.scene.remove(z.mesh); G.disposeObject3D(z.mesh); });
@@ -1072,7 +1081,10 @@ G.Game = {
   // ---------------- Shop ----------------
   openShop() {
     this.state = "SHOP";
-    this.shopTimer = 15;
+    // (C) 45 s by default, set in Settings: 30 / 45 / 60, or no limit at all
+    // -- then the next wave waits for Ready
+    const lim = G.save.settings.shopTime;
+    this.shopTimer = lim > 0 ? lim : Infinity;
     // Savings Account: a cut of the money carried into the shop, capped
     this._interest = 0;
     if (G.Perks.has("interest")) {
@@ -1276,11 +1288,21 @@ G.Game = {
 
   // ---------------- Update loop ----------------
   update(dt) {
+    const realDt = dt;
     dt *= G.save.settings.gameSpeed;
     if (this.state === "SHOP") {
-      if (G.Modal.isOpen("crate") || G.Modal.isOpen("inventory")) return;
-      this.shopTimer -= dt;
-      G.UI.el("shop-timer").textContent = G.T("shop.timer", { s: Math.max(0, Math.ceil(this.shopTimer)) });
+      // the shop's clock is real time (not the game speed), and it waits
+      // while any other window is open on top of it -- the gun-slot choice,
+      // a crate being opened
+      const top = G.Modal.top();
+      if (!top || top.id === "shop") {
+        const was = Math.ceil(this.shopTimer);
+        this.shopTimer -= realDt;
+        const now = Math.ceil(this.shopTimer);
+        // the last ten seconds: a warning at 10, then a tick each second
+        if (Number.isFinite(this.shopTimer) && now !== was && now >= 1 && now <= 10) G.Audio.sfx(now === 10 ? "shop_warn" : "tick");
+      }
+      G.UI.updateShopTimer(this.shopTimer, G.save.settings.shopTime);
       G.UI.el("shop-money").textContent = this.player.money;
       if (this.shopTimer <= 0) this.leaveShop();
       return;
@@ -1297,6 +1319,7 @@ G.Game = {
     document.body.classList.toggle("slowmo", this._slowmoT > 0);
 
     this.updatePlayerMovement(dt);
+    this.updateRegen(dt);
     this.updateShooting(dt);
     this.updateZombies(worldDt);
     this.updateDyingZombies(dt);
@@ -1319,6 +1342,7 @@ G.Game = {
     if (G.Zones) G.Zones.update(this);
     if (G.Notes) G.Notes.update(this, dt);
     if (G.Details) G.Details.update(this, dt);
+    if (G.Sky) G.Sky.update(this, dt);
     this.relocateStragglers(worldDt);
     if (G.Minimap) G.Minimap.update(this, dt);
     G.updateDriftingFog(this.scene, this.world, performance.now() / 1000);
@@ -1340,6 +1364,29 @@ G.Game = {
     this.checkWaveClear();
 
     G.UI.updateHud(this.buildHudState());
+  },
+
+  // (D) Health comes back by itself: once nothing has taken any for
+  // REGEN_DELAY seconds, REGEN_RATE of the maximum a second until full. Any
+  // loss at all -- a bite, a trap, a wrong answer, a boss's roar -- starts
+  // the wait again. It is measured here, by the health going down, rather
+  // than at each source of damage, so nothing new can forget to reset it.
+  // Only runs from the live update: paused, in a window or in the shop,
+  // neither the health nor the wait moves.
+  REGEN_DELAY: 6,
+  REGEN_RATE: 0.08,
+  updateRegen(dt) {
+    const pl = this.player;
+    if (this._regenFor !== pl) { this._regenFor = pl; this._hpSeen = pl.hp; this._sinceHurt = 0; this.regenerating = false; }
+    if (pl.hp < this._hpSeen - 1e-6) this._sinceHurt = 0;
+    else this._sinceHurt += dt;
+    const was = this.regenerating;
+    this.regenerating = this._sinceHurt >= this.REGEN_DELAY && pl.hp > 0 && pl.hp < pl.maxHp;
+    if (this.regenerating) {
+      pl.hp = Math.min(pl.maxHp, pl.hp + pl.maxHp * this.REGEN_RATE * dt);
+      if (!was) G.Audio.sfx("regen");
+    }
+    this._hpSeen = pl.hp;
   },
 
   // A question window is open: the world holds still -- no zombie steps,
@@ -1398,6 +1445,7 @@ G.Game = {
       weightLabel: def.id === "melee" ? null : G.weightClass(def).label,
       weightColor: def.id === "melee" ? null : G.weightClass(def).color,
       ammoInMag, ammoReserve, currentMeaning: meaning, slots, combo: this.player.combo,
+      regenerating: !!this.regenerating,
     };
   },
 

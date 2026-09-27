@@ -900,14 +900,22 @@ body.modal-open .hud-minimap { opacity: 0.35; }
   display: inline-flex; align-items: center; justify-content: center; min-width: 26px; height: 22px; padding: 0 6px;
   border: 1px solid rgba(255,255,255,0.45); border-radius: 5px; font-size: 0.7rem; font-weight: 800; color: rgba(255,255,255,0.8);
 }
-.lobby-icons { display: flex; gap: clamp(4px, 0.7vw, 10px); }
+.lobby-icons { display: flex; gap: clamp(2px, 0.5vw, 8px); }
+/* (B) the icon in its circle, its short name under it */
 .lobby-icon {
-  width: clamp(32px, 3.6vw, 44px); height: clamp(32px, 3.6vw, 44px); border-radius: 50%;
-  border: 1px solid rgba(255,255,255,0.35); background: rgba(10,12,16,0.45); color: #fff; cursor: pointer;
-  display: inline-flex; align-items: center; justify-content: center; font-size: clamp(0.85rem, 1.5vw, 1.15rem);
-  transition: transform 0.3s var(--ease), background-color 0.3s, border-color 0.3s; padding: 0;
+  display: inline-flex; flex-direction: column; align-items: center; gap: 3px;
+  background: none; border: 0; padding: 0 1px; color: #fff; cursor: pointer; min-width: clamp(34px, 3.9vw, 50px);
+  -webkit-touch-callout: none;
 }
-.lobby-icon:hover, .lobby-icon.pad-focus { transform: scale(1.12); border-color: #fff; background: rgba(255,255,255,0.14); box-shadow: 0 0 14px rgba(255,255,255,0.35); }
+.li-glyph {
+  width: clamp(30px, 3.4vw, 42px); height: clamp(30px, 3.4vw, 42px); border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.35); background: rgba(10,12,16,0.45);
+  display: inline-flex; align-items: center; justify-content: center; font-size: clamp(0.8rem, 1.4vw, 1.1rem);
+  transition: transform 0.3s var(--ease), background-color 0.3s, border-color 0.3s;
+}
+.li-label { font-size: clamp(0.56rem, 0.78vw, 0.7rem); font-weight: 700; letter-spacing: 0.4px; color: rgba(255,255,255,0.78); white-space: nowrap; line-height: 1; }
+.lobby-icon:hover .li-glyph, .lobby-icon.pad-focus .li-glyph { transform: scale(1.12); border-color: #fff; background: rgba(255,255,255,0.14); box-shadow: 0 0 14px rgba(255,255,255,0.35); }
+.lobby-icon:hover .li-label, .lobby-icon.pad-focus .li-label { color: #fff; }
 
 /* ---- the big preview ---- */
 .lobby-preview {
@@ -1075,9 +1083,11 @@ body[data-input="touch"] .lobby-carousel { cursor: default; }
   .lobby-top { gap: 6px; }
   .lobby-tabs { gap: 2px; }
   .lobby-tab { font-size: 0.64rem; letter-spacing: 1px; padding: 6px 5px; }
-  .lobby-key { min-width: 20px; height: 18px; padding: 0 3px; font-size: 0.6rem; }
-  .lobby-icons { gap: 3px; }
-  .lobby-icon { width: 28px; height: 28px; font-size: 0.8rem; }
+  .lobby-key { display: none; }          /* (Q/E: keyboards on screens this small are rare) */
+  .lobby-icons { gap: 1px; }
+  .lobby-icon { min-width: 32px; }
+  .li-glyph { width: 26px; height: 26px; font-size: 0.74rem; }
+  .li-label { font-size: 0.52rem; letter-spacing: 0; }
 }
 /* a phone held upright: stack the text under a shorter picture */
 @media (max-aspect-ratio: 4/5) {
@@ -1092,3 +1102,74 @@ body[data-input="touch"] .lobby-carousel { cursor: default; }
   .lobby *, .lobby *::before, .lobby *::after { animation-duration: 0.001s !important; transition-duration: 0.12s !important; }
   .lobby-embers { display: none; }
 }
+
+/* =================================================================
+   New list, round 1
+   ================================================================= */
+/* ---- (B) tooltips: the full name of an icon (js/tips.js) ---- */
+.tip {
+  position: fixed; left: 0; top: 0; z-index: 9999; pointer-events: none;
+  max-width: min(260px, 80vw); padding: 5px 10px; border-radius: 6px;
+  background: rgba(8,10,16,0.94); border: 1px solid rgba(255,255,255,0.35); color: #fff;
+  font-size: 0.8rem; font-weight: 700; letter-spacing: 0.3px; line-height: 1.25; text-align: center;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.5);
+}
+/* ---- (B) short names under the HUD's icon buttons ---- */
+.icon-btn[data-label]::after {
+  content: attr(data-label); position: absolute; left: 50%; top: calc(100% + 2px); transform: translateX(-50%);
+  font-size: 0.56rem; font-weight: 700; letter-spacing: 0.3px; line-height: 1; white-space: nowrap;
+  color: rgba(255,255,255,0.85); text-shadow: 0 1px 2px #000, 0 0 4px #000; pointer-events: none;
+}
+.touch-slot-btn.icon-btn { position: relative; }
+.hud-speak.icon-btn[data-label]::after { top: calc(100% + 1px); font-size: 0.5rem; }
+/* the pause menu's perk icons: a little taller, with their short name */
+.pause-perk { width: 44px; height: auto; min-height: 44px; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding: 3px 0 2px; }
+.pause-perk .pp-ico { position: relative; font-size: 1.05rem; line-height: 1.1; }
+.pause-perk .pp-ico sub { right: -9px; bottom: -2px; }
+.pause-perk .icon-label { font-size: 0.5rem; font-weight: 700; color: rgba(255,255,255,0.8); white-space: nowrap; line-height: 1; }
+@media (max-height: 520px) { .pause-perk { width: 38px; min-height: 36px; } .pause-perk .pp-ico { font-size: 0.9rem; } }
+
+/* ---- (C) the shop's countdown and Ready ---- */
+.shop-head { display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap; margin-bottom: 8px; }
+.shop-timer { display: inline-flex; align-items: baseline; gap: 6px; padding: 6px 14px; border-radius: 10px; background: rgba(10,18,14,0.7); border: 1px solid #2f6b3c; opacity: 1; position: relative; margin-bottom: 0; }
+.shop-timer .st-label { font-size: 0.85rem; opacity: 0.85; }
+.shop-timer .st-num { font-size: 1.6rem; font-weight: 900; font-variant-numeric: tabular-nums; color: #6bff7a; min-width: 1.6em; text-align: right; }
+.shop-timer .st-unit { font-size: 0.85rem; opacity: 0.8; }
+.shop-timer .st-bar { position: absolute; left: 8px; right: 8px; bottom: 3px; height: 3px; border-radius: 2px; background: rgba(255,255,255,0.12); overflow: hidden; }
+.shop-timer .st-bar i { position: absolute; inset: 0; background: #6bff7a; transform-origin: left; transition: transform 0.25s linear; }
+.shop-timer.warn { border-color: #ff5c5c; background: rgba(60,10,12,0.75); animation: shop-warn 1s ease-in-out infinite; }
+.shop-timer.warn .st-num { color: #ff6b6b; }
+.shop-timer.warn .st-bar i { background: #ff6b6b; }
+@keyframes shop-warn { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+.btn-ready { min-width: 140px; font-size: 1.05rem; padding: 10px 22px; }
+@media (max-height: 520px) {
+  .shop-head { gap: 8px; margin-bottom: 4px; }
+  .shop-timer { padding: 3px 10px; }
+  .shop-timer .st-num { font-size: 1.2rem; }
+  .btn-ready { padding: 6px 16px; font-size: 0.9rem; min-width: 110px; }
+}
+
+/* ---- (D) health coming back: the bar glows green, pulsing ---- */
+.hud-health.regen .bar-track { box-shadow: 0 0 0 1px rgba(107,255,122,0.8), 0 0 10px rgba(107,255,122,0.7); animation: regen-pulse 0.9s ease-in-out infinite; }
+.hud-health.regen .hp-fill { background: linear-gradient(90deg, #2fbf4f, #8cff7a); }
+.hud-health.regen .hud-icon { color: #6bff7a; }
+@keyframes regen-pulse { 0%, 100% { box-shadow: 0 0 0 1px rgba(107,255,122,0.5), 0 0 6px rgba(107,255,122,0.4); } 50% { box-shadow: 0 0 0 1px rgba(107,255,122,1), 0 0 16px rgba(107,255,122,0.9); } }
+/* low health: red at the edges of the screen, deeper the lower it is */
+.hud-lowhp {
+  position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 0.4s;
+  background: radial-gradient(ellipse at center, transparent 45%, rgba(170,0,0,0.55) 85%, rgba(120,0,0,0.85) 100%);
+}
+.hud-lowhp.on { opacity: var(--low, 0.5); animation: lowhp-beat 1.1s ease-in-out infinite; }
+@keyframes lowhp-beat { 0%, 100% { filter: brightness(1); } 15% { filter: brightness(1.5); } 30% { filter: brightness(1); } 45% { filter: brightness(1.3); } }
+
+/* ---- (A4) a new version is ready ---- */
+.update-dialog { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.55); padding: 16px; }
+.update-box { max-width: 420px; width: 100%; padding: 20px 22px; border-radius: 14px; text-align: center; background: #0e1418; border: 1px solid #6bff7a88; box-shadow: 0 20px 50px rgba(0,0,0,0.6); }
+.update-box h3 { margin: 4px 0 8px; font-size: 1.25rem; }
+.update-box p { margin: 0 0 16px; font-size: 0.9rem; line-height: 1.45; opacity: 0.9; }
+.update-icon { font-size: 1.8rem; }
+.update-box .row-center { gap: 10px; }
+
+/* (A4) a file that would not load, named on the loading screen */
+.loading-overlay { flex-direction: column; gap: 12px; }
+.loading-error { max-width: min(560px, 90vw); text-align: center; color: #ff9a9a; font-size: 0.9rem; line-height: 1.4; }

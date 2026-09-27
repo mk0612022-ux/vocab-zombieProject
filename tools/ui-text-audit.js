@@ -125,6 +125,11 @@ G.UIAudit = {
       for (const m of G.Lobby.MODES) await step("lobby " + m.id, () => UI.goToMainMenu({ tab: m.tab, select: m.id }));
       await step("lobby icons focused", () => { UI.goToMainMenu({ tab: "campaign", select: "school" }); G.Lobby.focusIcons(true); });
       for (const d of ["pad", "touch", "kb"]) await step("lobby hints " + d, () => { G.Lobby.focusIcons(false); G.Lobby.setDevice(d); });
+      // new list, round 1: an icon's tooltip, and the new-version window
+      await step("lobby tooltip", () => { G.Lobby.iconI = 5; G.Lobby.focusIcons(true); });
+      G.Lobby.focusIcons(false);
+      await step("update window", () => { G.PWA.offer(); });
+      G.PWA.later();
       await step("how to play", () => UI.showScreen("screen-howtoplay"));
       await step("settings", () => { UI._settingsReturn = "screen-mainmenu"; UI.renderSettings(); UI.showScreen("screen-settings"); });
       for (const c of ["level1", "daily", "endless"]) await step("leaderboard " + c, () => { UI.renderLeaderboard(c); UI.showScreen("screen-leaderboard"); });
@@ -180,6 +185,9 @@ G.UIAudit = {
       await step("resume", () => { UI.showScreen("screen-pause"); Game.resume(); });
       await step("shop", () => { Game._waveBonus = 300; G.save.tutorialDone = false; G.save.tutorialSeen = {}; Game.player.money = 99999; Game.openShop(); });
       await step("shop (maxed)", () => { Game.player.perks.perk_speed = 3; UI.renderShop(); });
+      // new list, round 1: the shop's clock in its last seconds, and with no limit
+      await step("shop (last 10 s)", () => UI.updateShopTimer(7.2, 45));
+      await step("shop (no limit)", () => UI.updateShopTimer(Infinity, 0));
       Game.leaveShop();
       // round 1: every perk owned (HUD icons, pause list), a full loadout of
       // six, the Inventory Full window, a gun on the floor

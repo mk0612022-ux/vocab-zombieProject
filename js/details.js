@@ -10,8 +10,8 @@
 //               shot, and come back later somewhere else
 //   puddles     standing water on the paths, in the fountain and on the
 //               toilet floor, dark and glossy with the sky in them
-//   light       shafts under the lamps that still work, and through the
-//               entry hall's front windows, with the dust hanging in them
+//   light       shafts under the lamps that still work (the moonbeams, with
+//               the dust in them, are js/sky.js's)
 //   curtains    torn ones at some windows and round the sick-bay beds,
 //               moving in the draught
 //   grass       bends away from the player and the zombies near them
@@ -346,19 +346,8 @@ G.Details = {
       const m = new THREE.Mesh(G.SchoolDress.P.concatGeos(geos), mk(0xfff0c8, 0.07));
       this.scene.add(m); this.world.noMerge.push(m); this.shafts.push(m);
     });
-    // moonlight slanting in through the entry hall's front windows
-    const fp = (W.footprint || [])[0];
-    if (fp) {
-      const zf = fp.maxZ - 0.2, beams = [];
-      [-13.6, -10.2, -6.8, 6.8, 10.2, 13.6].forEach((x) => {
-        const b = new THREE.BoxGeometry(1.4, 5.2, 0.9);
-        b.rotateX(0.55); b.rotateY((R() - 0.5) * 0.15);
-        b.translate(x, 2.9, zf - 1.9);
-        beams.push(b);
-      });
-      const m = new THREE.Mesh(G.SchoolDress.P.concatGeos(beams), mk(0x9ab8e8, 0.05));
-      this.scene.add(m); this.world.noMerge.push(m); this.shafts.push(m);
-    }
+    // (the moonlight through the windows is js/sky.js's now, cast at the
+    // moon's own angle)
   },
 
   // ---- torn curtains ------------------------------------------------------------

@@ -310,6 +310,9 @@ G.ZombieFX = {
     add(0.2, 0.22, 0.01, 0.58, 2.0, 0.03, P.glass, 0.9);
     if (ctx.level.theme === "school" && G.rng() < 0.6) add(1.5, 0.12, 0.04, 0, 1.75, 0.08, P.board, 0.35);   // a plank nailed across, half torn off
     scene.add(g);
+    // (for js/sky.js: a window the moon may shine in through; +z of the
+    // group is into the room)
+    (ctx.world.skyWindows = ctx.world.skyWindows || []).push({ x: at.x, z: at.z, base: floorY, nx: Math.sin(yaw), nz: Math.cos(yaw), w: 1.3, y0: 0.95, y1: 2.15 });
     return { group: g };
   },
   buildDesk(ctx, x, z, yaw, floorY) {

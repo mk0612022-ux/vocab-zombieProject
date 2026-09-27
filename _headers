@@ -1,0 +1,6 @@
+# Netlify and Cloudflare Pages read this file (GitHub Pages ignores it).
+# The service worker must always be re-checked, so a new version is found.
+/sw.js
+  Cache-Control: no-cache
+/manifest.json
+  Content-Type: application/manifest+json

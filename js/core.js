@@ -63,6 +63,7 @@ G.defaultSave = function () {
       ambientVolume: 0.6,         // category J4
       speechVolume: 0.9,
       speechMode: "after",        // off | after (read the word once answered) | before (read the new target aloud)
+      shopTime: 45,               // seconds in the shop between waves: 30 | 45 | 60 | 0 (no limit, wait for Ready)
     },
     importedSets: {},             // {id: {name, words:[[en,th],...]}}
     customWords: { level1: [], level2: [], level3: [] },   // words the player added to each level ([[en,th],...])
@@ -91,6 +92,7 @@ G.normalizeSave = function (data) {
     const code = def.settings.keybinds[a];
     if (Object.keys(oldKb).some((b) => oldKb[b] === code)) s.settings.keybinds[a] = "";
   });
+  if (![30, 45, 60, 0].includes(s.settings.shopTime)) s.settings.shopTime = def.settings.shopTime;
   s.leaderboards = Object.assign({}, def.leaderboards, data.leaderboards || {});
   if (!Array.isArray(s.unlockedLevels)) s.unlockedLevels = [1];
   s.unlockedLevels = s.unlockedLevels.filter((n) => Number.isInteger(n) && n >= 1 && n <= 3);

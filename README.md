@@ -22,10 +22,23 @@ powershell -ExecutionPolicy Bypass -File .\serve-lan.ps1
 New-NetFirewallRule -DisplayName "Vocab Zombie 8080" -Direction Inbound -Protocol TCP -LocalPort 8080 -Action Allow -Profile Private
 ```
 
-## นำขึ้นเว็บ (GitHub Pages)
+## นำขึ้นเว็บ
 
+ไม่มีขั้นตอน build — อัปโหลดทั้งโฟลเดอร์ได้เลย ใช้ได้ทั้ง GitHub Pages, Netlify และ Cloudflare Pages
 ทุก path ในเกมเป็น relative path ทั้งหมด จึงวางไว้ที่ root หรือในโฟลเดอร์ย่อยก็ทำงานได้เหมือนกัน
-(ทดสอบแล้วทั้งสองแบบ) ไฟล์ `.nojekyll` มีไว้กัน GitHub ข้ามไฟล์ที่ขึ้นต้นด้วย `_`
+ไฟล์ `.nojekyll` มีไว้กัน GitHub ข้ามไฟล์ที่ขึ้นต้นด้วย `_` ส่วน `_headers` ใช้กับ Netlify/Cloudflare
+
+ก่อน push ตรวจว่าชื่อไฟล์ตัวพิมพ์เล็ก-ใหญ่ตรงกับโค้ด (Windows ไม่สน แต่เว็บโฮสต์สนใจ) และไม่มีไฟล์ตกหล่น:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\check-paths.ps1
+```
+
+เล่นแบบแอป (PWA): เปิดลิงก์ของเกมใน Safari (iPad/iPhone) → ปุ่มแชร์ → **Add to Home Screen**
+หรือใน Chrome (Android) → เมนู → **Install app** เกมจะเปิดเต็มจอเหมือนแอป และเล่นได้แม้ไม่มีเน็ต
+หลังจากเปิดครั้งแรกแล้ว เมื่อมีเวอร์ชันใหม่ ในล็อบบี้จะขึ้น "New version available - Reload"
+
+### GitHub Pages (repo ต้องเป็น public ถ้าใช้บัญชีฟรี)
 
 ครั้งแรก:
 
@@ -40,6 +53,15 @@ git push -u origin main
 
 จากนั้นใน GitHub: **Settings → Pages → Source = Deploy from a branch → Branch = main / (root) → Save**
 รอสัก 1-2 นาที จะได้ลิงก์ `https://<ชื่อผู้ใช้>.github.io/<ชื่อ repo>/`
+
+### Netlify หรือ Cloudflare Pages (ใช้กับ private repo ได้ฟรี)
+
+- Netlify: Add new site → Import an existing project → GitHub → เลือก repo →
+  Build command เว้นว่าง, Publish directory = `.` → Deploy
+- Cloudflare Pages: Workers & Pages → Create → Pages → Connect to Git → เลือก repo →
+  Framework preset = None, Build command เว้นว่าง, Build output directory = `/` → Save and Deploy
+
+ทั้งสองแบบจะ deploy ใหม่เองทุกครั้งที่ push
 
 ## อัปเดตเกมเวอร์ชันใหม่
 
@@ -81,6 +103,9 @@ js/systems.js      ระบบ spawn บอส ร้านค้า achievemen
 js/ui.js           เมนู หน้าจอ และ HUD
 js/game.js         ลูปเกมหลักและกฎการเล่น
 js/data/words.js   คลังคำศัพท์
+manifest.json      ข้อมูลแอป (ชื่อ ไอคอน เปิดเต็มจอแนวนอน) สำหรับ Add to Home Screen
+sw.js              service worker: เก็บไฟล์เกมไว้เล่นแบบออฟไลน์ และหาเวอร์ชันใหม่
+icons/             ไอคอนแอป 192 / 512 / 180 (iOS) — สร้างใหม่ได้ด้วย tools/make-icons.ps1
 serve-lan.ps1      เซิร์ฟเวอร์ทดสอบในเครื่อง (เปิดให้อุปกรณ์อื่นในวง Wi-Fi เข้าได้)
 serve.ps1          เซิร์ฟเวอร์ทดสอบเฉพาะเครื่องตัวเอง (มี endpoint จับภาพหน้าจอ)
 ```

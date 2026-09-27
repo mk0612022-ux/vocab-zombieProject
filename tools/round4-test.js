@@ -89,6 +89,7 @@ G.Round4Test = (function () {
       key("KeyE"); ok("E: next tab", L().tab === "training" && cur() === "practice");
       key("KeyQ"); ok("Q: previous tab, the selection remembered", L().tab === "campaign" && cur() === "school");
       ok("selected card: centred, bigger, ringed", (() => { const c = root.querySelector(".lcard.sel"); return c && c.dataset.id === "school" && /scale\(1\.12\)/.test(c.style.transform) && /translateX\(0%\)/.test(c.style.transform); })());
+      L().iconI = 0;
       key("ArrowUp"); ok("↑ moves up to the icon row", L().focus === "icons" && root.querySelector(".lobby-icon.pad-focus"));
       key("ArrowRight"); key("Enter");
       ok("Enter on an icon opens it (leaderboard)", G.UI._currentScreen === "screen-leaderboard");
@@ -160,7 +161,10 @@ G.Round4Test = (function () {
       // a screen shown again before the last one finished fading out stays up
       G.UI.showScreen("screen-howtoplay"); G.UI.showScreen("screen-mainmenu"); G.UI.showScreen("screen-howtoplay");
       await until(() => false, 400);
-      ok("going back and forth fast never hides the screen on top", !document.getElementById("screen-howtoplay").classList.contains("hidden") && document.getElementById("screen-mainmenu").classList.contains("hidden"));
+      // (the one underneath goes when its fade-out timer fires -- late in a
+      // background tab -- so it may still be fading)
+      const under = document.getElementById("screen-mainmenu").classList;
+      ok("going back and forth fast never hides the screen on top", !document.getElementById("screen-howtoplay").classList.contains("hidden") && (under.contains("hidden") || under.contains("fade-out")));
       // the touch layout editor opened from the menu before any run: no player
       // yet (the perk icons threw), and its preview of the school baked like
       // a run (drawn raw since round 3 it froze the page)

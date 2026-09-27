@@ -31,9 +31,11 @@ G.Lobby = {
     { id: "practice", tab: "training", badge: "training", c1: "#55efc4", c2: "#00a86b", icon: "🎯" },
     { id: "custom", tab: "training", badge: "creative", c1: "#fd79a8", c2: "#a55eea", icon: "✏️" },
   ],
+  // (B) each with its short name under it and its full name as a tooltip
   ICONS: [
     { id: "settings", glyph: "⚙️" }, { id: "leaderboard", glyph: "🏆" }, { id: "achievements", glyph: "🎖️" },
-    { id: "armory", glyph: "🔫" }, { id: "wordlog", glyph: "📖" }, { id: "journal", glyph: "📜" }, { id: "help", glyph: "❔" },
+    { id: "armory", glyph: "🔫" }, { id: "wordlog", glyph: "📖" }, { id: "journal", glyph: "📜" },
+    { id: "custom", glyph: "✏️" }, { id: "help", glyph: "❔" },
   ],
   tab: "campaign",
   sel: { campaign: 0, training: 0 },
@@ -114,7 +116,7 @@ G.Lobby = {
             ${this.TABS.map((t) => `<button class="lobby-tab" role="tab" data-tab="${t}">${esc(T("lobby.tab." + t))}</button>`).join("")}
             <span class="lobby-key kb-only">E</span><span class="lobby-key pad-only">RB</span>
           </div>
-          <div class="lobby-icons">${this.ICONS.map((ic) => `<button class="lobby-icon" data-icon="${ic.id}" title="${esc(T("lobby.icon." + ic.id))}" aria-label="${esc(T("lobby.icon." + ic.id))}"><span aria-hidden="true">${ic.glyph}</span></button>`).join("")}</div>
+          <div class="lobby-icons">${this.ICONS.map((ic) => `<button class="lobby-icon" data-icon="${ic.id}" data-tip="${esc(T("lobby.icon." + ic.id))}" aria-label="${esc(T("lobby.icon." + ic.id))}"><span class="li-glyph" aria-hidden="true">${ic.glyph}</span><span class="li-label" aria-hidden="true">${esc(T("lobby.iconShort." + ic.id))}</span></button>`).join("")}</div>
         </div>
         <div class="lobby-preview" id="lobby-preview">
           <div class="lp-art"><div class="lp-img" data-layer="0"></div><div class="lp-img" data-layer="1"></div></div>
@@ -294,7 +296,10 @@ G.Lobby = {
   },
   markIcon(i) {
     this.iconI = i < 0 ? this.iconI : i;
-    this.root.querySelectorAll(".lobby-icon").forEach((b, k) => b.classList.toggle("pad-focus", i >= 0 && k === i));
+    const btns = this.root.querySelectorAll(".lobby-icon");
+    btns.forEach((b, k) => b.classList.toggle("pad-focus", i >= 0 && k === i));
+    // the full name shows while the keys or a controller are on it
+    if (G.Tips) { if (i >= 0 && btns[i]) G.Tips.show(btns[i]); else G.Tips.hide(); }
   },
   focusIcons(on) {
     this.focus = on ? "icons" : "cards";
@@ -309,7 +314,9 @@ G.Lobby = {
     else if (id === "armory") { UI._logReturnScreen = "screen-mainmenu"; UI.renderWeaponLog(1); UI.showScreen("screen-weaponlog"); }
     else if (id === "wordlog") { UI._logReturnScreen = "screen-mainmenu"; UI.renderVocabLog(1); UI.showScreen("screen-vocablog"); }
     else if (id === "journal") UI.openJournal("screen-mainmenu");
+    else if (id === "custom") G.CustomVocabUI.open("screen-mainmenu");
     else if (id === "help") UI.showScreen("screen-howtoplay");
+    if (G.Tips) G.Tips.hide();
   },
 
   // ---------------- choosing ----------------

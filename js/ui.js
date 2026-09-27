@@ -37,10 +37,13 @@ G.UI = {
       el.classList.add("fade-in");
     }
     this._currentScreen = id;
+    if (G.Tips) G.Tips.hide();
     // the lobby is refreshed each time it comes back (scores, notes, words
     // and locks may have changed behind it)
     if (id === "screen-mainmenu" && G.Lobby) G.Lobby.open(this._lobbyOpts);
     this._lobbyOpts = null;
+    // a new version found during a run is offered once back in the lobby
+    if (id === "screen-mainmenu" && G.PWA) G.PWA.maybeShow();
   },
   hideAllScreens() { this.showScreen(null); },
   setHudVisible(v) { this.el("hud").classList.toggle("hidden", !v); },
@@ -70,11 +73,12 @@ G.UI = {
     if (this._touchSlotSig === sig) return;
     this._touchSlotSig = sig;
     wrap.innerHTML = slots.map((s, i) =>
-      `<button class="touch-slot-btn${i === activeIndex ? " active" : ""}" data-slot="${i}">${i === 0 ? "🔪" : i + 1}</button>`
+      `<button class="touch-slot-btn${i === activeIndex ? " active" : ""}${i === 0 ? " icon-btn" : ""}" data-slot="${i}"${i === 0 ? ` data-label="${G.T("touch.knifeLabel")}"` : ""}>${i === 0 ? "🔪" : i + 1}</button>`
     ).join("");
   },
 
   init() {
+    if (G.Tips) G.Tips.init();
     this.bindMainMenu();
     this.bindLevelSelect();
     this.bindHowTo();
@@ -212,6 +216,13 @@ G.UI = {
       <div class="settings-row"><label>${T("settings.gameSpeed", { v: s.gameSpeed.toFixed(2) })}</label>
         <input type="range" id="set-gamespeed" min="0.5" max="1.5" step="0.05" value="${s.gameSpeed}"></div>
 
+      <div class="settings-section-title">${T("settings.gameplay")}</div>
+      <div class="settings-row"><label>${T("settings.shopTime")}</label>
+        <select id="set-shoptime">
+          <option value="30">${T("settings.seconds", { n: 30 })}</option><option value="45">${T("settings.seconds", { n: 45 })}</option>
+          <option value="60">${T("settings.seconds", { n: 60 })}</option><option value="0">${T("settings.shopNoLimit")}</option>
+        </select></div>
+
       <div class="settings-section-title">${T("settings.accessibility")}</div>
       <div class="settings-row"><label>${T("settings.fontSize")}</label>
         <select id="set-fontsize"><option value="small">${T("settings.fontSmall")}</option><option value="medium">${T("settings.fontMedium")}</option><option value="large">${T("settings.fontLarge")}</option></select></div>
@@ -268,6 +279,9 @@ G.UI = {
       };
       inp.onchange = () => { G.persist(); if (inp.dataset.key === "sfxVolume") { G.Audio.unlock(); G.Audio.sfx("pickup"); } };
     });
+    wrap.querySelector("#set-shoptime").value = String(s.shopTime);
+    // (a shop already open keeps its clock; the new time applies from the next one)
+    wrap.querySelector("#set-shoptime").onchange = (e) => { s.shopTime = parseInt(e.target.value, 10); G.persist(); };
     wrap.querySelector("#set-speechmode").value = s.speechMode || "after";
     wrap.querySelector("#set-speechmode").onchange = (e) => { s.speechMode = e.target.value; G.persist(); };
     wrap.querySelector("#btn-speech-test").onclick = () => G.Audio.speak("vocabulary");
@@ -670,6 +684,22 @@ G.UI = {
 
   // ---------------- Shop ----------------
   bindShop() { this.el("btn-shop-continue").onclick = () => G.Game.leaveShop(); },
+  // (C) the countdown: big seconds and a bar that empties; red and pulsing
+  // for the last ten; with no limit, a line saying the wave waits for Ready
+  updateShopTimer(t, lim) {
+    const box = this.el("shop-timer");
+    const s = Number.isFinite(t) ? Math.max(0, Math.ceil(t)) : -1;
+    if (s === this._shopSec && lim === this._shopLim) return;
+    this._shopSec = s; this._shopLim = lim;
+    if (s < 0) {
+      box.innerHTML = `<span class="st-label">${G.T("shop.noLimit")}</span>`;
+      box.classList.remove("warn");
+      return;
+    }
+    box.innerHTML = `<span class="st-label">${G.T("shop.timerLabel")}</span> <b class="st-num">${s}</b><span class="st-unit">s</span>` +
+      `<span class="st-bar"><i style="transform:scaleX(${lim > 0 ? Math.min(1, t / lim) : 1})"></i></span>`;
+    box.classList.toggle("warn", s <= 10);
+  },
   renderShop() {
     this.el("shop-money").textContent = G.Game.player.money;
     const g = G.Game, pl = g.player;
@@ -827,6 +857,18 @@ G.UI = {
     const dispScore = this._tweenValue("score", p.score);
     this.el("hud-hp-fill").style.width = Math.max(0, dispHp) + "%";
     this.el("hud-hp-text").textContent = Math.max(0, Math.round(dispHp));
+    // (D) the bar glows green while health comes back; under 30% the edges
+    // of the screen go red, deeper the lower it gets (the heartbeat is in
+    // game.js updateAudio)
+    const hpBox = this.el("hud-hp-fill").closest(".hud-health");
+    if (hpBox) hpBox.classList.toggle("regen", !!p.regenerating);
+    const low = p.hp > 0 && p.hp < 30 ? (30 - p.hp) / 30 : 0;
+    if (low !== this._lowHp) {
+      this._lowHp = low;
+      const v = this.el("hud-lowhp");
+      v.classList.toggle("on", low > 0);
+      v.style.setProperty("--low", (0.35 + low * 0.65).toFixed(2));
+    }
     const staminaEl = this.el("hud-stamina-fill");
     staminaEl.style.width = Math.max(0, p.stamina) + "%";
     staminaEl.classList.toggle("exhausted", !!p.staminaExhausted);
@@ -895,7 +937,7 @@ G.UI = {
     const ids = pl ? G.PERKS.map((d) => d.id).filter((id) => pl.perks[id]) : [];
     if (!ids.length) { box.innerHTML = `<h4>${G.T("pause.perks")}</h4><div class="pause-perk-detail">${G.T("pause.noPerks")}</div>`; return; }
     box.innerHTML = `<h4>${G.T("pause.perks")}</h4><div class="pause-perk-icons">${ids.map((id) =>
-      `<button class="pause-perk" data-id="${id}" aria-label="${G.escapeHtml(G.Perks.name(id))}">${G.PERK_BY_ID[id].icon}${pl.perks[id] > 1 ? `<sub>${pl.perks[id]}</sub>` : ""}</button>`).join("")}</div>
+      `<button class="pause-perk" data-id="${id}" data-tip="${G.escapeHtml(G.Perks.name(id))}" aria-label="${G.escapeHtml(G.Perks.name(id))}"><span class="pp-ico">${G.PERK_BY_ID[id].icon}${pl.perks[id] > 1 ? `<sub>${pl.perks[id]}</sub>` : ""}</span><span class="icon-label">${G.escapeHtml(G.T("perk." + id + ".short"))}</span></button>`).join("")}</div>
       <div class="pause-perk-detail" id="pause-perk-detail">${G.T("pause.perkHint")}</div>`;
     const detail = box.querySelector("#pause-perk-detail");
     const show = (b) => {
