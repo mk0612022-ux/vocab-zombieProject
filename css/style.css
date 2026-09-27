@@ -758,3 +758,7 @@ body.touch-mode .kbd-only { display: none; }
   background: linear-gradient(180deg, rgba(5,7,10,0), rgba(5,7,10,0.96) 35%);
 }
 @media (max-height: 520px) { #screen-inventory > .row-center { padding: 6px 0 8px; margin-top: 4px; } }
+
+/* ================= Round 2: zombies ================= */
+/* a headshot: a bigger gold marker */
+.hud-hitmarker.head { width: 36px; height: 36px; border: 3px solid #ffd43b; box-shadow: 0 0 10px rgba(255,212,59,0.8); }

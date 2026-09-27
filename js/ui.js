@@ -989,8 +989,12 @@ G.UI = {
       flash.classList.remove("go"); void flash.offsetWidth; flash.classList.add("go");
     }
   },
-  showHitmarker() {
+  // `head`: a headshot -- the marker turns red (a later plain call in the
+  // same shot keeps it red)
+  showHitmarker(head) {
     const hm = this.el("hud-hitmarker");
+    if (head) this._hmHeadAt = performance.now();
+    hm.classList.toggle("head", performance.now() - (this._hmHeadAt || -1e9) < 60);
     hm.classList.remove("hidden");
     clearTimeout(this._hmTimer);
     this._hmTimer = setTimeout(() => hm.classList.add("hidden"), 120);

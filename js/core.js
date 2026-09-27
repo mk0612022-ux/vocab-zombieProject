@@ -314,6 +314,7 @@ G.disposeObject3D = function (obj) {
     if (node.geometry) node.geometry.dispose();
     const mats = Array.isArray(node.material) ? node.material : (node.material ? [node.material] : []);
     mats.forEach((m) => {
+      if (m.userData && m.userData.shared) return;     // used by every zombie (G.ZOMBIE_MATS)
       if (m.map) m.map.dispose();
       m.dispose();
     });

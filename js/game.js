@@ -242,7 +242,6 @@ G.Game = {
     // re-equip those weapons into a fresh run's loadout.
     this.correctCount = 0; this.wrongCount = 0; this.wrongWordsThisRun = {};
     this.totalZombiesKilled = 0; // drives the hospital 2nd-floor unlock (category E3)
-    this.dyingZombies = [];
     G.UI._tweenState = null; // reset HUD number tweens so a new run's HUD snaps to 0 instead of counting down from the last run
     this.zombies.forEach((z) => { this.scene.remove(z.mesh); G.disposeObject3D(z.mesh); });
     this.zombies = [];
@@ -328,6 +327,7 @@ G.Game = {
     if (G.ViewModel) G.ViewModel.clearProps();
     // pooled objects live in the scene; take them out before it is disposed
     if (G.Perf) { G.Perf.resetPools(); G.Perf.disposeLightPool(this.scene); }
+    if (G.ZombieFX) G.ZombieFX.reset(this.scene);
     if (this.scene) {
       this.zombies.forEach((z) => { this.scene.remove(z.mesh); G.disposeObject3D(z.mesh); });
       this.drops.forEach((d) => { this.scene.remove(d.mesh); G.disposeObject3D(d.mesh); });
@@ -391,14 +391,19 @@ G.Game = {
       alive.forEach((z) => z.setTarget(z.word === this.targetPair[0]));
       return;
     }
-    const chosen = G.pick(alive);
+    // one whose word can already be read, if there is one (a zombie still
+    // coming in has its label hidden)
+    const ready = alive.filter((z) => !z.emerge);
+    const chosen = G.pick(ready.length ? ready : alive);
     this.targetPair = [chosen.word, chosen.meaning];
     // J3 "before" mode: read the new target aloud the moment it appears
     if (G.save.settings.speechMode === "before") G.Audio.speak(chosen.word);
     alive.forEach((z) => z.setTarget(z === chosen));
   },
 
-  spawnZombieAt(type, pos) {
+  // `sp`: the spawn point, whose way in (ground, locker, vent, window, desk)
+  // the zombie arrives by (js/zombiefx.js)
+  spawnZombieAt(type, pos, sp) {
     // Never two on the field with the same word -- or the same MEANING: a
     // player's own word can share its Thai meaning with another in the level
     // (G.CustomVocab warns, but allows it), and two zombies answering one
@@ -410,11 +415,12 @@ G.Game = {
     if (candidates.length === 0) candidates = this.wordPool.filter((p) => !usedMeanings.includes(p[1].trim()));
     if (candidates.length === 0) candidates = this.wordPool;
     const pair = G.weightedSample(candidates, 1)[0] || G.pick(this.wordPool);
-    const z = new G.Zombie(type, pos, pair);
+    const z = new G.Zombie(type, pos, pair, this.level.theme);
     z.speed *= this.waveSpeedMult(); // slower on wave 1 for new players, ramping up on later waves
     this.scene.add(z.mesh);
     this.zombies.push(z);
     this.spawnedCount++;
+    if (sp) G.ZombieFX.begin(this, z, sp);
     this.ensureTargetHasMatch();
     return z;
   },
@@ -621,14 +627,21 @@ G.Game = {
     const maxThrough = (pierce ? (pierce === true ? 99 : pierce) : 1) + (G.Perks.val("piercing_rounds") || 0);
     const hitZombieUids = new Set();
     for (const hit of hits) {
-      let obj = hit.object;
-      while (obj && !obj.userData.zombie) obj = obj.parent;
+      // the word label of a zombie still coming in is hidden, and so not there
+      if (hit.object.isSprite && !hit.object.visible) continue;
+      let obj = hit.object, head = false;
+      while (obj && !obj.userData.zombie) { if (obj.userData.isNeck) head = true; obj = obj.parent; }
       if (!obj) continue;
       const z = obj.userData.zombie;
       if (hitZombieUids.has(z.uid) || !z.alive) continue;
+      // the part still under the floor (or above the ceiling) can't be hit
+      if (G.ZombieFX.hitBlocked(z, hit.point)) continue;
       hitZombieUids.add(z.uid);
       hitAny = true;
-      this.damageZombie(z, dmg, hit.point);
+      // Round 2: the head is its own hitbox -- the neck group and everything
+      // on it -- and a head hit does double damage
+      this.damageZombie(z, head ? dmg * G.HEADSHOT_MULT : dmg, hit.point, { dir: dir.clone(), head });
+      if (head) G.UI.showHitmarker(true);
       if (def && def.splash) this.splashDamage(hit.point, def, dmg);
       if (++through >= maxThrough) break;
     }
@@ -689,7 +702,8 @@ G.Game = {
       if (!z.alive) return;
       const d = z.mesh.position.distanceTo(point);
       if (d > r) return;
-      this.damageZombie(z, baseDmg * 0.6 * (1 - 0.7 * (d / r)), z.mesh.position);
+      this.damageZombie(z, baseDmg * 0.6 * (1 - 0.7 * (d / r)), z.mesh.position,
+        { dir: new THREE.Vector3().subVectors(z.mesh.position, point).setY(0), head: false });
     });
     const selfD = this.yawObject.position.distanceTo(point);
     const safe = r * 0.55;
@@ -711,7 +725,7 @@ G.Game = {
       toZ.normalize();
       if (toZ.dot(dir) > 0.7 && dist < bestDist) { best = z; bestDist = dist; }
     }
-    if (best) { G.UI.showHitmarker(); this.damageZombie(best, def.damage, best.mesh.position); }
+    if (best) { G.UI.showHitmarker(); this.damageZombie(best, def.damage, best.mesh.position, { dir: dir.clone(), head: false }); }
   },
 
   // Category E3: a real kick -- the gun punches back and tilts up, the view
@@ -754,7 +768,10 @@ G.Game = {
     return a.switchT > 0 ? 1 - a.switchT / a.switchDur : null;
   },
 
-  damageZombie(z, dmg, hitPoint) {
+  // `info`: { dir, head } -- where the hit came from and whether it was the
+  // head, which decides how a killed zombie goes (js/zombiefx.js)
+  damageZombie(z, dmg, hitPoint, info) {
+    z._lastHit = info || { dir: null, head: false };
     G.spawnHitParticles(this.scene, hitPoint, 0x8a2a2a, G.save.settings.graphicsQuality);
     let appliedDmg = dmg;
     if (z.type === "boss" && G.BossFight.active && G.BossFight.zombie === z) {
@@ -771,8 +788,7 @@ G.Game = {
 
   onZombieDeath(z) {
     // Was an instant scene.remove() -- vanishing with no transition at all.
-    // Now plays a brief "topple over" animation (see updateDyingZombies)
-    // before the mesh is actually removed/disposed.
+    // Now it bursts apart, or loses its head and drops (startDeathAnimation).
     this.startDeathAnimation(z);
     if (z.type === "boss") { this.onBossDefeated(z); return; }
     this.totalZombiesKilled++;
@@ -826,37 +842,11 @@ G.Game = {
     this.checkPlayerDeath();
   },
 
-  startDeathAnimation(z) {
-    z.mesh.userData.dying = true;
-    z.mesh.userData.deathT = 0;
-    z.mesh.userData.fallSign = G.rng() > 0.5 ? 1 : -1;
-    z.mesh.userData.fallAxis = G.rng() > 0.5 ? "x" : "z"; // falls forward/back or sideways
-    z.mesh.userData.baseY = z.mesh.position.y; // floor height at time of death
-    this.dyingZombies = this.dyingZombies || [];
-    this.dyingZombies.push(z);
-  },
-  // Animates zombies that already died (mesh kept around briefly so they
-  // topple over instead of vanishing), then actually removes/disposes them.
-  updateDyingZombies(dt) {
-    if (!this.dyingZombies || !this.dyingZombies.length) return;
-    const duration = 0.55;
-    for (let i = this.dyingZombies.length - 1; i >= 0; i--) {
-      const z = this.dyingZombies[i];
-      const u = z.mesh.userData;
-      u.deathT += dt;
-      const t = Math.min(1, u.deathT / duration);
-      const eased = 1 - Math.pow(1 - t, 2); // ease-out: fast at first, settles at the end
-      const fallAngle = eased * (Math.PI / 2.1) * u.fallSign;
-      if (u.fallAxis === "x") z.mesh.rotation.x = fallAngle;
-      else z.mesh.rotation.z = (u.baseLean || 0) + fallAngle;
-      z.mesh.position.y = Math.max(0, (u.baseY || 0)) - eased * 0.15; // settle slightly into the floor
-      if (t >= 1) {
-        this.scene.remove(z.mesh);
-        G.disposeObject3D(z.mesh);
-        this.dyingZombies.splice(i, 1);
-      }
-    }
-  },
+  // Round 2: a body kill bursts it into blocks and smoke; a head kill knocks
+  // the head off along the shot while the body drops; the boss topples first
+  // (js/zombiefx.js).
+  startDeathAnimation(z) { G.ZombieFX.onDeath(this, z); },
+  updateDyingZombies(dt) { G.ZombieFX.updateDying(this, dt); },
 
   trackWrongWord(word, meaning) {
     const key = word;
@@ -969,7 +959,8 @@ G.Game = {
   // ---------------- Boss ----------------
   triggerBoss() {
     const pos = this.world.bossRoomCenter.clone();
-    const z = this.spawnZombieAt("boss", pos);
+    const bossSp = this.world.spawnPoints.find((sp) => sp.types[0] === "boss");
+    const z = this.spawnZombieAt("boss", pos, bossSp);
     z.setTarget(false);
     this.zombies.forEach((zz) => { if (zz !== z) { this.scene.remove(zz.mesh); } });
     this.zombies = [z];
@@ -1273,6 +1264,7 @@ G.Game = {
     this.updateShooting(dt);
     this.updateZombies(worldDt);
     this.updateDyingZombies(dt);
+    G.ZombieFX.update(this, dt);
     this.updateDrops(dt);
     G.Loadout.update(this, dt);
     this.updateInteractRay();
@@ -1300,7 +1292,7 @@ G.Game = {
     // cleared the field before the next spawn tick -- the playtest bot sat in
     // wave 1 with 16 of 8 spawned and no end in sight.
     if (!G.BossFight.active && !this.isBossWave() && this.spawnedCount < this.requiredKills) {
-      G.Spawner.update(worldDt, this.world, this.zombies.length, this.level.maxAliveZombies, (type, pos) => this.spawnZombieAt(type, pos), this.currentDiff, this.yawObject.position);
+      G.Spawner.update(worldDt, this.world, this.zombies.length, this.level.maxAliveZombies, (type, pos, sp) => this.spawnZombieAt(type, pos, sp), this.currentDiff, this.yawObject.position);
     }
     // Must run every frame (not just non-boss frames) so a boss wave with zero
     // regular zombies actually gets a chance to trigger its boss spawn.
@@ -1315,7 +1307,13 @@ G.Game = {
   // but only through a wrong answer or a timeout.)
   updateFrozen(dt) {
     if (this.world.dress) this.world.dress.update(dt);
-    this.zombies.forEach((z) => { if (z.alive) z.animate(dt, 0); });
+    // (the boss rises out of the floor while its questions start; anyone
+    // else still coming in waits with the rest of the world)
+    this.zombies.forEach((z) => {
+      if (!z.alive) return;
+      if (z.emerge) { if (z.type === "boss") G.ZombieFX.step(this, z, dt); } else z.animate(dt, 0);
+    });
+    G.ZombieFX.update(this, dt);
     this.updateDyingZombies(dt);
     this.updateSwingProps(dt);
     this.updateAudio(dt);
@@ -1630,6 +1628,9 @@ G.Game = {
     const tmpV = new THREE.Vector3();
     for (const z of this.zombies) {
       if (!z.alive) continue;
+      // still coming in (out of the ground, a locker, a vent...): it can be
+      // shot but cannot move or bite yet
+      if (z.emerge) { G.ZombieFX.step(this, z, dt); continue; }
       const zRegion = G.getRegionAt(this.world, z.mesh.position.x, z.mesh.position.z, z.mesh.position.y);
       let moveTarget = playerPos;
       // Mid-flight the region lookup flips between the hall (below 2.3) and

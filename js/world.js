@@ -1226,6 +1226,10 @@ G.buildLevelScene = function (scene, level, quality) {
       else if (world.secretZone && inGroundRoom(sp.pos, secret)) sp.gate = "secret";
       else if (inGroundRoom(sp.pos, store)) sp.gate = "word";
     });
+    // round 2: how a zombie comes in at each point -- up through the ground,
+    // out of a locker, down from a vent, in at a window, out from under a
+    // desk -- and the prop it comes out of (js/zombiefx.js)
+    if (G.ZombieFX) G.ZombieFX.planSpawnPoints({ scene, world, level, cfg, M });
 
     world.spawn = cfg.spawn;
     // Not the dead centre: the bunker's reactor stands there, and a boss

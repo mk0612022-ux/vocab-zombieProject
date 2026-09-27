@@ -986,14 +986,158 @@ function zBox(parent, w, h, d, x, y, z, mat) {
   return m;
 }
 
-G.buildZombieMesh = function (type, variation) {
+// ---------------- Skin and clothes (round 2, E) ----------------
+// Skin comes from five tones that still read as dead -- each jittered in hue,
+// saturation and lightness, so no two zombies share a colour. Clothes come
+// from the level: school uniforms, teachers and janitors at the school;
+// gowns, scrubs and white coats at the hospital; camouflage, overalls and
+// lab coats in the bunker. Colour is never what tells the TYPES apart --
+// build does (a fast one is lean and hunched, a crawler has no legs, the
+// boss is three times the size and armoured).
+G.ZOMBIE_SKINS = [
+  { key: "pale_green", h: 0.25, s: 0.24, l: 0.46 },
+  { key: "blue_grey", h: 0.58, s: 0.13, l: 0.55 },
+  { key: "pale_yellow", h: 0.14, s: 0.33, l: 0.62 },
+  { key: "bruised_purple", h: 0.8, s: 0.17, l: 0.44 },
+  { key: "ashen_white", h: 0.1, s: 0.06, l: 0.76 },
+];
+// Outfits per theme. `top`/`bottom` are colour lists (one is picked);
+// `legs`: trousers | shorts | skirt | gown | coverall; `sleeves`: short | long;
+// `coat`: a long open coat over `top`; extras: hat, glasses, goggles, belt,
+// badge, stethoscope, lanyard, camo, hair.
+G.ZOMBIE_OUTFITS = {
+  school: [
+    { key: "student", w: 3, top: [0xe9e7de, 0xdcdad0, 0xf0eee6], bottom: [0x1f2a4a, 0x1c1c20, 0x5a3e26], legs: "shorts", sleeves: "short", extras: ["badge", "hair?"] },
+    { key: "student_skirt", w: 3, top: [0xe9e7de, 0xf0eee6], bottom: [0x1f2a4a, 0x1c1c20], legs: "skirt", sleeves: "short", extras: ["hair", "badge"] },
+    { key: "teacher", w: 2, top: [0x9cc3e0, 0xe0b8c4, 0xd9c9a0, 0xb8d6b0], bottom: [0x2e2e36, 0x3d342a, 0x2a3346], legs: "trousers|skirt", sleeves: "long", extras: ["lanyard", "glasses?", "hair?"] },
+    { key: "janitor", w: 1, top: [0x4d5d6b, 0x6f6a52], bottom: null, legs: "coverall", sleeves: "long", extras: ["hat", "belt"] },
+  ],
+  hospital: [
+    { key: "patient", w: 3, top: [0x9fc3d8, 0xa8c9b0, 0xc4d4e0], bottom: null, legs: "gown", sleeves: "short", extras: ["hair?"] },
+    { key: "nurse", w: 2, top: [0x3f9a9a, 0x7fb3d5, 0xd89aa8], bottom: null, legs: "coverall", sleeves: "short", extras: ["hat", "badge"] },
+    { key: "doctor", w: 2, top: [0x6b8fb5, 0x9bb07a, 0x8a8f99], bottom: [0x2a2d36, 0x3a3f4a], legs: "trousers", sleeves: "long", coat: 0xeeeeea, extras: ["stethoscope", "badge", "glasses?"] },
+  ],
+  bunker: [
+    { key: "soldier", w: 3, top: [0x4a5a33, 0x56603f, 0x6b6a45], bottom: null, legs: "coverall", sleeves: "long", extras: ["camo", "hat", "belt"] },
+    { key: "mechanic", w: 2, top: [0xc2652a, 0x2b3a55, 0x7a7a70], bottom: null, legs: "coverall", sleeves: "long", extras: ["belt"] },
+    { key: "scientist", w: 2, top: [0x8a9a8a, 0x9a8f80, 0x7f8fa0], bottom: [0x33353c, 0x4a4238], legs: "trousers", sleeves: "long", coat: 0xe8ecec, extras: ["goggles", "badge"] },
+  ],
+};
+G.HAIR_COLORS = [0x1a1512, 0x2e2118, 0x4a3522, 0x6b6660];
+// the two materials every zombie is drawn with (colours are in the vertices);
+// `shared` keeps G.disposeObject3D from freeing them with a dead zombie
+G.ZOMBIE_MATS = {
+  lambert: new THREE.MeshLambertMaterial({ vertexColors: true }),
+  basic: new THREE.MeshBasicMaterial({ vertexColors: true }),
+};
+G.ZOMBIE_MATS.lambert.userData.shared = true;
+G.ZOMBIE_MATS.basic.userData.shared = true;
+
+G.randomZombieLook = function (type, theme) {
+  const rand = (a, b) => a + G.rng() * (b - a);
+  const tone = G.pick(G.ZOMBIE_SKINS);
+  const skin = new THREE.Color().setHSL(tone.h + rand(-0.025, 0.025), Math.max(0, tone.s + rand(-0.06, 0.06)), tone.l + rand(-0.08, 0.08));
+  const list = G.ZOMBIE_OUTFITS[theme] || G.ZOMBIE_OUTFITS.school;
+  const total = list.reduce((s, o) => s + o.w, 0);
+  let r = G.rng() * total, o = list[0];
+  for (const c of list) { r -= c.w; if (r <= 0) { o = c; break; } }
+  // dirt and blood: every garment a little darker and greyer than new
+  const soil = (hex) => new THREE.Color(hex).offsetHSL(0, rand(-0.12, -0.02), rand(-0.12, 0));
+  const top = soil(G.pick(o.top));
+  const legs = o.legs.includes("|") ? G.pick(o.legs.split("|")) : o.legs;
+  const bottom = o.bottom ? soil(G.pick(o.bottom)) : top.clone().offsetHSL(0, 0, -0.05);
+  const extras = new Set();
+  o.extras.forEach((e) => { if (e.endsWith("?")) { if (G.rng() < 0.5) extras.add(e.slice(0, -1)); } else extras.add(e); });
+  return {
+    outfit: o.key, tone: tone.key, skin, top, bottom, legs, sleeves: o.sleeves,
+    coat: o.coat ? soil(o.coat) : null, extras,
+    hair: new THREE.Color(G.pick(G.HAIR_COLORS)),
+    shoe: new THREE.Color(G.pick([0x1b1b1b, 0x2d2419, 0x3a3a3a])),
+    sock: new THREE.Color(G.pick([0xe6e6e0, 0x2a2a2a])),
+  };
+};
+
+// Build per type: a fast one is narrower and slighter, so it reads apart by
+// shape even in silhouette.
+const ZOMBIE_BUILD = {
+  normal: { torsoW: 0.5, torsoD: 0.3, limb: 1.0, head: 0.35 },
+  fast: { torsoW: 0.4, torsoD: 0.25, limb: 0.82, head: 0.31 },
+  crawler: { torsoW: 0.4, torsoD: 0.32, limb: 1.0, head: 0.32 },
+  boss: { torsoW: 0.56, torsoD: 0.34, limb: 1.1, head: 0.36 },
+};
+
+// The small things that make one zombie a nurse and another a soldier.
+function addHeadExtras(head, look, hs, mats) {
+  const E = look.extras;
+  if (E.has("hair")) {
+    zBox(head, hs * 1.04, hs * 0.22, hs * 1.04, 0, hs * 0.44, -0.01, mats.hair);             // crown
+    zBox(head, hs * 1.04, hs * 0.55, hs * 0.2, 0, hs * 0.2, -hs * 0.44, mats.hair);          // back
+  }
+  if (E.has("hat")) {
+    if (look.outfit === "soldier") {
+      zBox(head, hs * 1.16, hs * 0.34, hs * 1.16, 0, hs * 0.52, 0, mats.hat);                // helmet
+      zBox(head, hs * 1.24, hs * 0.07, hs * 1.24, 0, hs * 0.36, 0, mats.hat);
+    } else if (look.outfit === "nurse") {
+      zBox(head, hs * 0.6, hs * 0.18, hs * 0.5, 0, hs * 0.58, 0.02, mats.white);
+    } else {
+      zBox(head, hs * 1.06, hs * 0.2, hs * 1.06, 0, hs * 0.54, 0, mats.hat);                 // cap
+      zBox(head, hs * 0.9, hs * 0.05, hs * 0.4, 0, hs * 0.46, hs * 0.62, mats.hat);          // peak
+    }
+  }
+  if (E.has("glasses")) {
+    [-0.09, 0.09].forEach((x) => zBox(head, 0.1, 0.07, 0.015, x, 0.04, hs / 2 + 0.012, mats.dark));
+    zBox(head, 0.07, 0.015, 0.015, 0, 0.055, hs / 2 + 0.012, mats.dark);
+  }
+  if (E.has("goggles")) {
+    zBox(head, hs * 1.06, 0.05, hs * 1.06, 0, 0.13, 0, mats.dark);
+    [-0.08, 0.08].forEach((x) => zBox(head, 0.11, 0.08, 0.04, x, 0.13, hs / 2 + 0.02, mats.lens));
+  }
+}
+function addChestExtras(torso, look, tw, td, th, mats) {
+  const E = look.extras, f = td / 2 + 0.012;
+  if (E.has("badge")) zBox(torso, 0.09, 0.05, 0.02, -tw * 0.25, th * 0.28, f, look.outfit.startsWith("student") ? mats.badgeBlue : mats.white);
+  if (E.has("lanyard")) { zBox(torso, 0.02, 0.26, 0.015, 0, th * 0.25, f, mats.accent); zBox(torso, 0.08, 0.1, 0.02, 0, th * 0.06, f, mats.white); }
+  if (E.has("stethoscope")) {
+    zBox(torso, 0.025, 0.24, 0.02, -0.07, th * 0.24, f, mats.dark); zBox(torso, 0.025, 0.24, 0.02, 0.07, th * 0.24, f, mats.dark);
+    zBox(torso, 0.06, 0.06, 0.03, 0.02, th * 0.06, f, mats.steel);
+  }
+  if (E.has("belt")) zBox(torso, tw + 0.02, 0.07, td + 0.02, 0, -th / 2 + 0.05, 0, mats.belt);
+  if (E.has("camo")) {
+    for (let i = 0; i < 7; i++) {
+      zBox(torso, 0.08 + G.rng() * 0.1, 0.06 + G.rng() * 0.08, td + 0.01, (G.rng() - 0.5) * tw * 0.8, (G.rng() - 0.5) * th * 0.8, 0, mats.camo[i % mats.camo.length]);
+    }
+  }
+}
+
+G.buildZombieMesh = function (type, variation, look) {
   const def = G.ZOMBIE_TYPES[type];
   const v = variation || G.randomZombieVariation();
+  look = look || G.randomZombieLook(type, "school");
+  const B = ZOMBIE_BUILD[type] || ZOMBIE_BUILD.normal;
   const g = new THREE.Group();
-  const mat = G.makeBoxMat(def.color);
-  const skinMat = G.makeBoxMat(new THREE.Color(def.color).offsetHSL(0, -0.1, 0.08).getHex());
-  const tornMat = G.makeBoxMat(new THREE.Color(def.color).multiplyScalar(0.55).getHex());
+  const M = (c) => G.makeBoxMat(c instanceof THREE.Color ? c.getHex() : c);
+  const skinMat = M(look.skin);
+  const topMat = M(look.top);
+  const coatMat = look.coat ? M(look.coat) : null;
+  const bottomMat = M(look.bottom);
+  const lowerMat = M(look.bottom.clone().multiplyScalar(0.85));
+  const shoeMat = M(look.shoe), sockMat = M(look.sock);
+  const tornMat = M((look.coat || look.top).clone().multiplyScalar(0.62));
+  const mats = {
+    hair: M(look.hair), dark: M(0x151515), white: M(0xefefe8), lens: new THREE.MeshBasicMaterial({ color: 0x3f7a55 }),
+    hat: M(look.outfit === "soldier" ? look.top.clone().multiplyScalar(0.8) : look.top.clone().offsetHSL(0, 0, -0.12)),
+    badgeBlue: M(0x2d4f9a), accent: M(0xb03a3a), steel: M(0x9aa0a6), belt: M(0x2a2018),
+    camo: [M(0x2f3a22), M(0x6b6a45), M(0x3d2f22)],
+  };
+  // what each part wears: shirt or coat on the body, sleeves or skin on the arms
+  const bodyMat = coatMat || topMat;
+  const upperArmMat = look.sleeves === "short" && !coatMat ? topMat : bodyMat;
+  const foreArmMat = look.sleeves === "long" || coatMat ? bodyMat : skinMat;
+  const legs = look.legs;
+  const thighMat = legs === "skirt" || legs === "gown" ? skinMat : bottomMat;
+  const shinMat = legs === "shorts" || legs === "skirt" || legs === "gown" ? skinMat : lowerMat;
   const woundCount = (ZOMBIE_FACE[type] ? ZOMBIE_FACE[type].scars : 2) + v.extraWounds;
+  const L = B.limb;
 
   if (type === "crawler") {
     // Legless crawler: body dragged low and near-horizontal instead of
@@ -1002,29 +1146,31 @@ G.buildZombieMesh = function (type, variation) {
     // group can be merged into one mesh and still be moved)
     const torsoG = new THREE.Group();
     torsoG.position.set(0, 0.32, -0.05); g.add(torsoG);
-    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.32, 0.75), mat);
+    const torso = new THREE.Mesh(new THREE.BoxGeometry(B.torsoW, B.torsoD, 0.75), bodyMat);
     torso.rotation.x = -0.12; torsoG.add(torso);
     addWounds(torso, woundCount);
+    if (look.extras.has("camo")) addChestExtras(torso, look, B.torsoW, 0.75, B.torsoD, mats);
     addTatteredClothing(g, tornMat, v.tatterAmount, 0.3, 0.15);
     const neck = new THREE.Group();
     neck.position.set(0, 0.36, 0.3); g.add(neck);
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.3, 0.32), skinMat);
+    const head = new THREE.Mesh(new THREE.BoxGeometry(B.head, B.head * 0.94, B.head), skinMat);
     head.position.set(0, 0.02, 0.12); head.rotation.x = 0.35; neck.add(head);
     head.name = "head";
     addZombieFace(head, type, skinMat, v);
+    addHeadExtras(head, look, B.head, mats);
     // arms jointed at shoulder and elbow, reaching ahead to pull the body
     const makeArm = (side) => {
       const shoulder = new THREE.Group(); shoulder.position.set(side * 0.22, 0.36, 0.3); g.add(shoulder);
-      zBox(shoulder, 0.14, 0.28, 0.14, 0, -0.14, 0, skinMat);
+      zBox(shoulder, 0.14, 0.28, 0.14, 0, -0.14, 0, upperArmMat);
       const elbow = new THREE.Group(); elbow.position.y = -0.27; shoulder.add(elbow);
-      zBox(elbow, 0.13, 0.26, 0.13, 0, -0.13, 0, skinMat);
+      zBox(elbow, 0.13, 0.26, 0.13, 0, -0.13, 0, foreArmMat);
       zBox(elbow, 0.15, 0.08, 0.14, 0, -0.3, 0.01, skinMat);
       return { shoulder, elbow, side };
     };
     // stumps where the legs used to be -- short and dragging
     const stumpGeo = new THREE.BoxGeometry(0.16, 0.16, 0.22);
-    const stumpL = new THREE.Mesh(stumpGeo, tornMat); stumpL.position.set(-0.13, 0.18, -0.4); g.add(stumpL);
-    const stumpR = new THREE.Mesh(stumpGeo, tornMat); stumpR.position.set(0.13, 0.18, -0.4); g.add(stumpR);
+    const stumpL = new THREE.Mesh(stumpGeo, bottomMat); stumpL.position.set(-0.13, 0.18, -0.4); g.add(stumpL);
+    const stumpR = new THREE.Mesh(stumpGeo, bottomMat); stumpR.position.set(0.13, 0.18, -0.4); g.add(stumpR);
     g.userData.limbs = { armL: makeArm(-1), armR: makeArm(1), stumpL, stumpR };
     g.userData.crawler = true;
     g.userData.torso = torsoG;
@@ -1036,58 +1182,81 @@ G.buildZombieMesh = function (type, variation) {
     // legs at hip and knee. The old limbs were single boxes turning about
     // their own middles, which is what made the walk look robotic.
     const upper = new THREE.Group(); upper.position.y = 0.74; g.add(upper);
-    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.7, 0.3), mat);
+    const tw = B.torsoW, td = B.torsoD;
+    const torso = new THREE.Mesh(new THREE.BoxGeometry(tw, 0.7, td), bodyMat);
     torso.position.y = 0.36; upper.add(torso);
     addWounds(torso, woundCount);
-    addTatteredClothing(upper, tornMat, v.tatterAmount, 0.01, 0.13);
+    if (coatMat) {
+      // the open front of the coat shows the shirt underneath
+      zBox(torso, tw * 0.34, 0.66, 0.02, 0, 0.0, td / 2 + 0.005, topMat);
+      // tails hanging below the waist
+      zBox(upper, tw + 0.03, 0.42, td + 0.03, 0, -0.18, 0, coatMat);
+    }
+    if (legs === "gown") zBox(upper, tw + 0.05, 0.5, td + 0.06, 0, -0.2, 0, topMat);          // the gown to the knee
+    if (legs === "skirt") zBox(upper, tw + 0.08, 0.34, td + 0.1, 0, -0.14, 0, bottomMat);
+    addChestExtras(torso, look, tw, td, 0.7, mats);
+    addTatteredClothing(upper, tornMat, v.tatterAmount, coatMat ? -0.38 : 0.01, td / 2 - 0.02);
     const neck = new THREE.Group(); neck.position.y = 0.72; upper.add(neck);
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.35, 0.35), skinMat);
-    head.position.y = 0.19; neck.add(head);
+    const head = new THREE.Mesh(new THREE.BoxGeometry(B.head, B.head, B.head), skinMat);
+    head.position.y = B.head * 0.54; neck.add(head);
     head.name = "head";
     addZombieFace(head, type, skinMat, v);
-    // boss gets visible shoulder armor plates to look distinctly more dangerous
+    addHeadExtras(head, look, B.head, mats);
+    // boss gets visible shoulder armor plates and bone spurs down its back,
+    // so it reads as something else entirely, whatever it is wearing
     if (type === "boss") {
       [-0.32, 0.32].forEach((x) => {
-        const plate = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.14, 0.22), tornMat);
+        const plate = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.14, 0.22), mats.steel);
         plate.position.set(x, 0.68, 0); upper.add(plate);
       });
+      for (let i = 0; i < 4; i++) zBox(upper, 0.06, 0.12, 0.1, 0, 0.62 - i * 0.14, -td / 2 - 0.05, mats.white);
     }
     const makeArm = (side) => {
-      const shoulder = new THREE.Group(); shoulder.position.set(side * 0.36, 0.64, 0); upper.add(shoulder);
-      zBox(shoulder, 0.18, 0.31, 0.18, 0, -0.14, 0, skinMat);
+      const shoulder = new THREE.Group(); shoulder.position.set(side * (tw / 2 + 0.11), 0.64, 0); upper.add(shoulder);
+      zBox(shoulder, 0.18 * L, 0.31, 0.18 * L, 0, -0.14, 0, upperArmMat);
       const elbow = new THREE.Group(); elbow.position.y = -0.29; shoulder.add(elbow);
-      zBox(elbow, 0.16, 0.29, 0.16, 0, -0.14, 0, skinMat);
-      zBox(elbow, 0.17, 0.1, 0.15, 0, -0.33, 0.01, skinMat);                  // hand
+      zBox(elbow, 0.16 * L, 0.29, 0.16 * L, 0, -0.14, 0, foreArmMat);
+      zBox(elbow, 0.17 * L, 0.1, 0.15 * L, 0, -0.33, 0.01, skinMat);                  // hand
       return { shoulder, elbow, side };
     };
     const makeLeg = (side) => {
-      const hip = new THREE.Group(); hip.position.set(side * 0.15, 0.74, 0); g.add(hip);
-      zBox(hip, 0.2, 0.37, 0.2, 0, -0.18, 0, mat);
+      const hip = new THREE.Group(); hip.position.set(side * tw * 0.3, 0.74, 0); g.add(hip);
+      zBox(hip, 0.2 * L, 0.37, 0.2 * L, 0, -0.18, 0, thighMat);
       const knee = new THREE.Group(); knee.position.y = -0.36; hip.add(knee);
-      zBox(knee, 0.18, 0.34, 0.18, 0, -0.17, 0, tornMat);
+      zBox(knee, 0.18 * L, 0.34, 0.18 * L, 0, -0.17, 0, shinMat);
+      if (shinMat === skinMat) zBox(knee, 0.19 * L, 0.1, 0.19 * L, 0, -0.29, 0, sockMat);  // socks under bare legs
       const foot = new THREE.Group(); foot.position.y = -0.34; knee.add(foot);
-      zBox(foot, 0.19, 0.08, 0.28, 0, 0, 0.05, tornMat);
+      zBox(foot, 0.19 * L, 0.08, 0.28, 0, 0, 0.05, legs === "gown" ? sockMat : shoeMat);
       return { hip, knee, foot, side };
     };
     g.userData.limbs = { armL: makeArm(-1), armR: makeArm(1), legL: makeLeg(-1), legR: makeLeg(1) };
     g.userData.upper = upper;
     g.userData.neck = neck;
   }
+  g.userData.look = look;
+  // the head hitbox: a shot that lands on anything under the neck is a head hit
+  g.userData.neck.userData.isNeck = true;
 
   // Draw-call budget (category K): a jointed zombie is ~30 boxes. Each rigid
   // piece -- torso with its wounds, head with its face, a forearm with its
   // hand -- is merged into one mesh per material, leaving only the joints as
   // separate objects. That brings it back to about the old mesh count.
-  if (G.Perf && G.Perf.mergeLocal) {
+  // Round 2: the colours go into the vertices and every zombie shares two
+  // materials, so a joint is one mesh whatever its outfit (mergeLocalColored).
+  if (G.Perf && G.Perf.mergeLocalColored) {
     const keepAnimated = new Set(Object.values(g.userData.limbs || {}).filter((l) => l && l.isMesh));
     const groups = [];
     g.traverse((o) => { if (!o.isMesh && !o.isSprite) groups.push(o); });
     groups.forEach((grp) => {
       const keep = grp.children.filter((c) => !c.isMesh || keepAnimated.has(c));
-      G.Perf.mergeLocal(grp, keep);
+      G.Perf.mergeLocalColored(grp, keep, G.ZOMBIE_MATS);
     });
   }
   g.scale.setScalar(def.scale);
+  // Yaw first: pitch (x) and roll (z) are then in the zombie's own frame --
+  // leaning in through a window, lying under a desk or falling over go the
+  // way it faces, not along the world's axes (round 2)
+  g.rotation.order = "YXZ";
   // slight random stagger lean, per instance, so a group of zombies doesn't
   // look identically posed
   g.userData.baseLean = (G.rng() - 0.5) * 0.14;
@@ -1097,7 +1266,8 @@ G.buildZombieMesh = function (type, variation) {
 };
 
 let zombieUid = 0;
-G.Zombie = function (type, position, wordPair) {
+// `theme` picks the wardrobe (school / hospital / bunker)
+G.Zombie = function (type, position, wordPair, theme) {
   const def = G.ZOMBIE_TYPES[type];
   this.uid = ++zombieUid;
   this.type = type;
@@ -1112,7 +1282,8 @@ G.Zombie = function (type, position, wordPair) {
   this.meaning = wordPair[1];
   this.isTarget = false;
 
-  this.mesh = G.buildZombieMesh(type);
+  this.look = G.randomZombieLook(type, theme);
+  this.mesh = G.buildZombieMesh(type, null, this.look);
   this.mesh.position.copy(position);
   this.mesh.userData.zombie = this;
 

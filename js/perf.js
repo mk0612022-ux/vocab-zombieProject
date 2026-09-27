@@ -210,6 +210,68 @@ G.Perf = {
     return root;
   },
 
+  // The same again, but every part's colour goes into its vertices, so one
+  // group becomes at most TWO meshes -- lit (Lambert) and unlit (Basic: eyes,
+  // wounds) -- on materials shared by every zombie. Round 2 dressed the
+  // zombies (skin, shirt, trousers, shoes, socks, hats...) and each colour
+  // was another draw call per joint: about 25 a zombie. This makes it ~14.
+  // Each merged mesh keeps where its pieces were and what colour they were
+  // (userData.parts), which is what a zombie bursting into blocks samples.
+  mergeLocalColored(root, keepSubtrees, shared) {
+    const keep = new Set();
+    (keepSubtrees || []).forEach((o) => o && o.traverse((c) => keep.add(c)));
+    root.updateMatrixWorld(true);
+    const inv = new THREE.Matrix4().copy(root.matrixWorld).invert();
+    const buckets = { lambert: { meshes: [], verts: 0, idx: 0 }, basic: { meshes: [], verts: 0, idx: 0 } };
+    const sources = [];
+    root.traverse((o) => {
+      if (!o.isMesh || keep.has(o) || Array.isArray(o.material) || !o.material.color) return;
+      const g = o.geometry;
+      if (!g || !g.index || !g.attributes.normal) return;
+      const b = buckets[o.material.isMeshBasicMaterial ? "basic" : "lambert"];
+      b.meshes.push(o); b.verts += g.attributes.position.count; b.idx += g.index.count;
+      sources.push(o);
+    });
+    const rel = new THREE.Matrix4(), nm = new THREE.Matrix3(), v = new THREE.Vector3();
+    Object.keys(buckets).forEach((kind) => {
+      const B = buckets[kind];
+      if (!B.meshes.length) return;
+      const pos = new Float32Array(B.verts * 3), nor = new Float32Array(B.verts * 3), col = new Float32Array(B.verts * 3);
+      const index = new Uint16Array(B.idx);
+      const parts = [];
+      let vo = 0, io = 0;
+      B.meshes.forEach((o) => {
+        rel.multiplyMatrices(inv, o.matrixWorld);
+        nm.getNormalMatrix(rel);
+        const ga = o.geometry.attributes, c = o.material.color;
+        const box = new THREE.Box3();
+        for (let i = 0; i < ga.position.count; i++) {
+          v.fromBufferAttribute(ga.position, i).applyMatrix4(rel);
+          box.expandByPoint(v);
+          pos[(vo + i) * 3] = v.x; pos[(vo + i) * 3 + 1] = v.y; pos[(vo + i) * 3 + 2] = v.z;
+          v.fromBufferAttribute(ga.normal, i).applyMatrix3(nm).normalize();
+          nor[(vo + i) * 3] = v.x; nor[(vo + i) * 3 + 1] = v.y; nor[(vo + i) * 3 + 2] = v.z;
+          col[(vo + i) * 3] = c.r; col[(vo + i) * 3 + 1] = c.g; col[(vo + i) * 3 + 2] = c.b;
+        }
+        parts.push({ box, color: c.clone() });
+        const ix = o.geometry.index;
+        for (let i = 0; i < ix.count; i++) index[io + i] = ix.getX(i) + vo;
+        vo += ga.position.count; io += ix.count;
+      });
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+      geo.setAttribute("normal", new THREE.BufferAttribute(nor, 3));
+      geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
+      geo.setIndex(new THREE.BufferAttribute(index, 1));
+      geo.computeBoundingSphere();
+      const mesh = new THREE.Mesh(geo, shared[kind]);
+      mesh.userData.parts = parts;
+      root.add(mesh);
+    });
+    sources.forEach((o) => { if (o.parent) o.parent.remove(o); o.geometry.dispose(); o.material.dispose(); });
+    return root;
+  },
+
   // ---------------- 2. fixed light pool ----------------
   initLightPool(scene, world, quality) {
     this.disposeLightPool(scene);

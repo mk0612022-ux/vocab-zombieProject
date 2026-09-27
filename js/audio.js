@@ -257,6 +257,39 @@ G.Audio = {
       case "unlock":
         [523, 659, 784, 1046].forEach((f, i) => this.tone({ type: "triangle", freq: f, dur: 0.4, gain: 0.18, at: i * 0.09 }));
         break;
+      // ---- round 2: zombies coming in, and going ----
+      case "emerge_ground":   // the ground splitting, earth falling back
+        this.tone({ type: "sine", freq: o.big ? 48 : 70, freqEnd: 30, dur: o.big ? 1.1 : 0.7, gain: o.big ? 0.5 : 0.3, pos: o.pos, rev: 0.3 });
+        this.noise({ dur: 0.35, filter: "lowpass", freq: 700, freqEnd: 200, gain: 0.3, pos: o.pos });
+        this.noise({ dur: 0.9, filter: "bandpass", freq: 1400, q: 0.6, gain: 0.08, at: 0.2, attack: 0.1, pos: o.pos });
+        break;
+      case "locker_bang":     // a steel door flung open
+        this.tone({ type: "square", freq: 190, freqEnd: 120, dur: 0.18, gain: 0.14, filter: { type: "bandpass", freq: 900, q: 3 }, pos: o.pos, rev: 0.4 });
+        this.noise({ dur: 0.25, freq: 2400, q: 5, gain: 0.12, pos: o.pos });
+        break;
+      case "vent_clang":      // a grate knocked out of its frame
+        [310, 470].forEach((f, i) => this.tone({ type: "triangle", freq: f, dur: 0.5, gain: 0.12, at: i * 0.03, vibrato: { rate: 23, depth: 9 }, pos: o.pos, rev: 0.4 }));
+        this.noise({ dur: 0.12, freq: 3200, q: 4, gain: 0.1, pos: o.pos });
+        break;
+      case "glass_break":
+        for (let i = 0; i < 5; i++) this.noise({ dur: 0.18, filter: "highpass", freq: 3500 + i * 700, gain: 0.12, at: i * 0.035, pos: o.pos });
+        this.tone({ type: "sine", freq: 2600, freqEnd: 1900, dur: 0.3, gain: 0.05, pos: o.pos });
+        break;
+      case "desk_scrape":
+        this.noise({ dur: 0.45, freq: 520, q: 2.2, gain: 0.16, attack: 0.04, pos: o.pos });
+        break;
+      case "body_thud":
+        this.tone({ type: "sine", freq: o.soft ? 150 : 90, freqEnd: 50, dur: 0.14, gain: o.soft ? 0.1 : 0.3, pos: o.pos });
+        this.noise({ dur: 0.08, filter: "lowpass", freq: 500, gain: o.soft ? 0.04 : 0.12, pos: o.pos });
+        break;
+      case "shatter":         // a body giving way into pieces
+        this.noise({ dur: 0.3, filter: "lowpass", freq: 1200, freqEnd: 250, gain: 0.22, pos: o.pos });
+        for (let i = 0; i < 3; i++) this.noise({ dur: 0.06, freq: 900 + i * 500, q: 3, gain: 0.07, at: 0.04 + i * 0.05, pos: o.pos });
+        break;
+      case "headshot":
+        this.tone({ type: "square", freq: 1150, freqEnd: 700, dur: 0.06, gain: 0.08, filter: { type: "bandpass", freq: 1500, q: 2 } });
+        this.noise({ dur: 0.12, filter: "lowpass", freq: 900, gain: 0.18, pos: o.pos });
+        break;
     }
   },
 

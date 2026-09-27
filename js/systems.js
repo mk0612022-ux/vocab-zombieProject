@@ -45,7 +45,7 @@ G.Spawner = {
       let type = "normal";
       if (sp.types.includes("fast") && G.rng() < fastChance) type = "fast";
       else if (G.rng() < crawlerChance) type = "crawler";
-      spawnFn(type, sp.pos);
+      spawnFn(type, sp.pos, sp);
     }
     world.spawnPoints.forEach((sp) => { if (sp.cooldown > 0) sp.cooldown -= dt; });
   },
