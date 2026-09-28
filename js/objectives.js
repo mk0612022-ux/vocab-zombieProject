@@ -5,7 +5,7 @@
 // set of goals that together touch every system the level has: the vocabulary
 // (accuracy + a volume of correct answers), the map (explore the rooms, which
 // means unlocking the upper floor), the puzzles (the three keys sit behind the
-// secret button, the word-locked door and the upper floor), and the boss.
+// secret button, the word-locked door and the upper floor), and the bosses.
 //
 // If the final wave falls before every goal is done, the level does not end:
 // the waves keep coming ("overtime") until the checklist is complete. Nothing
@@ -23,10 +23,14 @@
 // four of the story notes to be read, which is also what the third floor's
 // grille wants (with 40 right answers), so a player finishing the level has
 // the third floor within reach without it being required.
+// Round 2: twenty waves, so the word goal is sized for them (the school
+// sends about 340 zombies in twenty waves, the hospital 370, the bunker
+// 400: the goal is under half of those) and the boss goal is every one of
+// the level's four bosses.
 G.LEVEL_OBJECTIVES = {
-  1: { accuracy: 0.65, minCorrect: 40, rooms: 24, keys: 3, notes: 4, boss: true },
-  2: { accuracy: 0.70, minCorrect: 60, rooms: 19, keys: 3, boss: true },
-  3: { accuracy: 0.75, minCorrect: 80, rooms: 20, keys: 3, boss: true },
+  1: { accuracy: 0.65, minCorrect: 150, rooms: 24, keys: 3, notes: 4, bosses: 4 },
+  2: { accuracy: 0.70, minCorrect: 165, rooms: 19, keys: 3, bosses: 4 },
+  3: { accuracy: 0.75, minCorrect: 180, rooms: 20, keys: 3, bosses: 4 },
 };
 
 G.Objectives = {
@@ -43,7 +47,7 @@ G.Objectives = {
       visited: new Set(),
       keysFound: 0,
       keysTotal: (world.keys || []).length,
-      bossDown: false,
+      bossesDown: 0,
       completeAnnounced: false,
       _t: 0,
     };
@@ -97,7 +101,7 @@ G.Objectives = {
     }
   },
 
-  onBossDefeated() { if (this.state) this.state.bossDown = true; },
+  onBossDefeated() { if (this.state) this.state.bossesDown++; },
 
   accuracy(game) {
     const total = game.correctCount + game.wrongCount;
@@ -124,7 +128,7 @@ G.Objectives = {
       const read = game.notesReadRun ? game.notesReadRun.size : 0;
       rows.push({ label: T("obj.notes", { n: c.notes }), value: `${Math.min(read, c.notes)} / ${c.notes}`, done: L || read >= c.notes });
     }
-    if (c.boss) rows.push({ label: T("obj.boss"), value: T(s.bossDown ? "obj.bossDone" : "obj.bossNot"), done: s.bossDown });
+    if (c.bosses) rows.push({ label: T("obj.boss", { n: c.bosses }), value: `${Math.min(s.bossesDown, c.bosses)} / ${c.bosses}`, done: s.bossesDown >= c.bosses });
     return rows;
   },
 

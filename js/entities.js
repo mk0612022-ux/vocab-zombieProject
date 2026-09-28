@@ -139,7 +139,7 @@ G.WEAPON_DEFS = {
     reloadTime: 2600, auto: false, splash: true, splashRadius: 5, recoil: 2.6, color: 0xff6a2b, accent: 0x5c1f08, boxOnly: true, boxTier: "elite", boxWeight: 6 },
 };
 
-G.MYSTERY_BOX_COST = 1000;
+G.MYSTERY_BOX_COST = 1250;            // (round 2: was 1000, priced for twenty waves)
 G.MYSTERY_CARD_COUNT = 6;
 // One elite + five distinct standards, elite slot shuffled to a random index.
 

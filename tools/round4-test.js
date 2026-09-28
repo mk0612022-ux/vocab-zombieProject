@@ -80,7 +80,9 @@ G.Round4Test = (function () {
       G.UI.goToMainMenu({ tab: "campaign", select: "daily" });
       ok("daily: a countdown to the next challenge", /\d\d:\d\d:\d\d/.test(document.getElementById("lp-stats").textContent) && /\d\d:\d\d:\d\d/.test(root.querySelector('.lcard[data-id="daily"] .lcard-meta').textContent));
 
-      // keyboard
+      // keyboard (from a known start: a test run before this one can leave
+      // the training tab on another card)
+      L().sel.training = 0;
       G.UI.goToMainMenu({ tab: "campaign", select: "school" });
       key("ArrowRight"); ok("→ moves right", cur() === "hospital");
       key("KeyD"); ok("D moves right", cur() === "bunker");

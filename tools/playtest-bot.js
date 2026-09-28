@@ -135,13 +135,35 @@ G.Bot = {
     // The game raycasts against zombie matrixWorld, which three.js refreshes
     // during render. Many simulated ticks run between renders here, so
     // refresh them by hand or every shot tests where the zombie USED to be.
-    const step = (dt) => { for (const z of g.zombies) z.mesh.updateMatrixWorld(true); realUpdate.call(g, dt); };
+    const step = (dt) => {
+      for (const z of g.zombies) z.mesh.updateMatrixWorld(true);
+      // (and a boss's hitboxes, and the Examiner's copies)
+      if (G.Bosses.boss) G.Bosses.boss.root.updateMatrixWorld(true);
+      G.Bosses.clones.forEach((c) => c.root.updateMatrixWorld(true));
+      realUpdate.call(g, dt);
+    };
     const restore = [];
     try {
       g.startLevel(opt.level);
       I.mode = "touch";
       I.touchMove = { x: 0, y: 0, active: true }; I.touchFire = false; I.touchSprint = false;
       if (opt.weapon) { g.acquireWeapon(opt.weapon); }
+      // round 2: straight to one boss -- { wave, guns: [ids], dmg: upgrade x,
+      // boss: id } -- with the loadout a player would have by then; the run
+      // ends when that boss is down (or the player is)
+      if (opt.bossOnly) {
+        const bo = opt.bossOnly;
+        (bo.guns || []).forEach((id) => {
+          if (!g.player.gunSlots.includes(id)) g.player.gunSlots.push(id);
+          const d = G.WEAPON_DEFS[id];
+          g.player.ammo[id] = { mag: d.magSize, reserve: d.magSize * 12 };
+          g.player.weaponLevels[id] = { dmg: bo.dmg || 1, rate: bo.rate || 1, mag: 1 };
+        });
+        g.wave = bo.wave - 1; g.startWave();
+        g.spawnedCount = g.requiredKills; g.clearZombies();
+        G.Bosses.forceNext = bo.boss || null;
+        g.checkWaveClear();
+      }
       const world = g.world;
       const doorColliders = new Set([].concat(...world.roomDoors.map((d) => d.colliders || [d.collider])));
       const wordDoor = (world.doors || []).find((d) => d.kind === "word");
@@ -197,7 +219,24 @@ G.Bot = {
       let path = null, pathI = 0, goal = null, replanT = 0, lastProg = { x: 0, z: 0, t: 0 }, nudge = null;
       const tail = [];
       let lastBitten = -99, lastKillT = 0, killsSeen = 0, stallLogged = 0;
-      let challengeT = 0, bossT = 0, interactCd = 0, doorCd = 0, wordDoorRetry = 0, noteReadT = 0;
+      let challengeT = 0, interactCd = 0, doorCd = 0, wordDoorRetry = 0, noteReadT = 0, bossOn = null, bossAim = { hb: null, t: 0 };
+      // round 2: how deep in harm's way a point is, from the boss's marks on
+      // the ground (G.Bosses.dangers) -- 0 is safe
+      const dangerAt = (x, z, list) => {
+        let s = 0;
+        for (const d of list) {
+          let v = 0;
+          const dd = Math.hypot(x - d.x, z - d.z);
+          if (d.kind === "circle" || d.kind === "roar" || d.kind === "pool" || d.kind === "summon" || d.kind === "blade") v = d.r + 1.0 - dd;
+          else if (d.kind === "laser") v = d.r + 3.0 - dd;
+          else if (d.kind === "sector") { let a = Math.atan2(x - d.x, z - d.z) - d.yaw; a = Math.atan2(Math.sin(a), Math.cos(a)); v = dd < d.r + 0.9 && Math.abs(a) < d.half + 0.35 ? d.r + 1.9 - dd : 0; }
+          else if (d.kind === "lane") { const px = x - d.x, pz = z - d.z, along = px * d.dx + pz * d.dz, across = Math.abs(px * d.dz - pz * d.dx); v = along > -2 && along < d.len + 1.5 ? d.w + 1.2 - across : 0; }
+          // (the pull is slower than a walk: only its burning middle is worth running from)
+          else if (d.kind === "pull") v = dd < d.core + 3 ? (d.core + 3 - dd) * 3 : 0;
+          if (v > 0) s += v;
+        }
+        return s;
+      };
       const hpMax = g.player.maxHp;
       const pos = () => g.yawObject.position;
       const feet = () => pos().y - 1.7;
@@ -338,7 +377,10 @@ G.Bot = {
         if ((Math.round(t / dt) % 45) === 0) await new Promise((r) => { const ch = new MessageChannel(); ch.port1.onmessage = () => r(); ch.port2.postMessage(0); });
         if (G.Bot.abort) { ev(t, "aborted"); break; }
 
-        if (g.state === "GAME_OVER") { R.deathAt = Math.round(t); ev(t, "DIED on wave " + g.wave); break; }
+        if (g.state === "GAME_OVER") {
+          if (bossOn) { const st = G.Bosses.stats || {}; (R.bosses = R.bosses || []).push({ id: bossOn.id, wave: bossOn.wave, hp: bossOn.hp, playerDps: bossOn.dps, secs: Math.round(st.fightT || 0), taken: Math.round(st.taken || 0), hitsTaken: st.hitsTaken || 0, dodged: st.dodged || 0, abilities: st.abilities || 0, bossHpLeft: G.Bosses.boss ? Math.round(G.Bosses.boss.hp) : 0, won: false }); }
+          R.deathAt = Math.round(t); ev(t, "DIED on wave " + g.wave + (bossOn ? " fighting " + bossOn.id : "")); break;
+        }
         if (g.state === "VICTORY") { R.victoryAt = Math.round(t); ev(t, "VICTORY"); break; }
         if (g.state === "SHOP") {
           const w = { wave: g.wave, seconds: Math.round(t - waveStart), spawned: g.spawnedCount, required: g.requiredKills, earned: Math.round(waveEarned), moneyEnd: Math.round(g.player.money), hp: Math.round(g.player.hp), correct: g.correctCount, wrong: g.wrongCount,
@@ -382,36 +424,35 @@ G.Bot = {
         }
         if (g.paused) { step(dt); continue; }
 
-        // ---- word challenge popups (door / crate) ----
+        // ---- word challenge popups (door / crate, and the word after a boss) ----
         if (g.challenge) {
           I.touchMove.x = I.touchMove.y = 0; I.touchFire = false;
           challengeT += dt;
           if (Math.round(t / dt) % 6 === 0) { tail.push(Math.round(t * 10) / 10 + " POPUP " + g.challenge.pair[0] + " hp" + Math.round(g.player.hp)); if (tail.length > 60) tail.shift(); }
-          if (challengeT > 2.4) {
+          if (challengeT > (g.challenge.boss ? 4.0 : 2.4)) {
             challengeT = 0;
             const ch = g.challenge;
             const idx = ch.choices.indexOf(pickChoice(ch.pair[0], ch.choices));
             const ok = ch.choices[idx] === ch.pair[0];
-            if (!ok) R.wrongBy.popup++;
+            if (!ok) R.wrongBy[ch.boss ? "boss" : "popup"]++;
+            if (ch.boss) { R.bossWords = R.bossWords || { right: 0, wrong: 0 }; R.bossWords[ok ? "right" : "wrong"]++; }
             g.answerChallenge(idx);
           }
           step(dt);
           continue;
         }
-        // ---- boss questions: answered while still moving ----
-        if (G.BossFight.active && g._bossChoices) {
-          bossT += dt;
-          if (bossT > 2.6) {
-            bossT = 0;
-            const right = G.BossFight.currentWord[0];
-            const idx = g._bossChoices.indexOf(pickChoice(right, g._bossChoices));
-            const ok = g._bossChoices[idx] === right;
-            const hpB = g.player.hp;
-            if (!ok) R.wrongBy.boss++;
-            g.answerBossChoice(idx);
-            if (g.player.hp < hpB) R.wrongDmg += hpB - g.player.hp;
-          }
+        // ---- round 2: a boss's cutscene -- hands off -- and its fight ----
+        if (G.Cutscene.active) { setMove(0, 0, false); I.touchFire = false; I.touchJump = false; R.cutsceneSeconds = (R.cutsceneSeconds || 0) + dt; step(dt); continue; }
+        const BF = G.Bosses.fighting() ? G.Bosses : null;
+        if (BF && !bossOn) { bossOn = { id: BF.boss.def.id, wave: g.wave, hp: BF.boss.maxHp, dps: BF.stats.dps }; ev(t, "boss " + bossOn.id + " (" + bossOn.hp + " hp)"); }
+        if (bossOn && G.Bosses.phase !== "fight") {
+          const st = G.Bosses.stats || {};
+          (R.bosses = R.bosses || []).push({ id: bossOn.id, wave: bossOn.wave, hp: bossOn.hp, playerDps: bossOn.dps, secs: Math.round(st.fightT || 0), taken: Math.round(st.taken || 0), hitsTaken: st.hitsTaken || 0, dodged: st.dodged || 0, abilities: st.abilities || 0, won: g.state !== "GAME_OVER" });
+          ev(t, "boss " + bossOn.id + (g.state === "GAME_OVER" ? " killed us" : " down") + " after " + Math.round(st.fightT || 0) + "s");
+          bossOn = null;
+          if (opt.bossOnly) break;
         }
+        I.touchJump = false;
 
         // ---- target selection ----
         const p = pos();
@@ -427,7 +468,7 @@ G.Bot = {
           reactT = opt.reaction * (0.7 + Math.random() * 0.6) * (knows ? 1 : 1.6);
         }
         const visible = alive.filter((z) => z.mesh.position.distanceTo(p) < opt.engage + 6 && canSee(z));
-        const boss = alive.find((z) => z.type === "boss");
+        const boss = null;                          // (bosses are not zombies any more: see BF)
         const panicZ = t - lastBitten < 2 && visible.filter((z) => Math.abs(z.mesh.position.y - feet()) < 2 && dist2(z.mesh.position, p) < 1.3).sort((a, b) => dist2(a.mesh.position, p) - dist2(b.mesh.position, p))[0] || null;
         // a target already in your face stays the target -- flicking between two
         // biting zombies restarted the aim every frame and never fired
@@ -462,7 +503,64 @@ G.Bot = {
         // something close and nothing it can shoot yet: give ground instead of
         // walking on into a dead end with a queue behind it
         const threatened = nearest && (nd < opt.kite || (nd < 5 && !(tgt && dist2(tgt.mesh.position, p) < opt.engage)));
-        if (threatened) {
+        // round 2, a boss fight: out of anything marked on the ground first
+        // (after a moment to react), jump the thorn rings, sprint from the
+        // gaze and the pull; otherwise keep 8-14 m from the boss
+        let bossMove = null;
+        if (BF) {
+          const list = BF.dangers(), bp = BF.boss.pos, bd = dist2(bp, p);
+          const here = dangerAt(p.x, p.z, list.filter((d) => d.kind !== "ring" && d.kind !== "figure"));
+          // (a ring is jumped while it is 1.5-4 m off: in the air when it arrives)
+          const ring = list.find((d) => { const gap = Math.hypot(p.x - d.x, p.z - d.z) - d.r; return d.kind === "ring" && d.r > 1.6 && gap > 1.5 && gap < 4.0; });
+          if (ring && g.velocityY === 0) I.touchJump = true;
+          const A = BF.arena;
+          const score = (x, z) => {
+            let s = dangerAt(x, z, list.filter((d) => d.kind !== "ring" && d.kind !== "figure")) * 10;
+            if (x < A.rect.minX + 1 || x > A.rect.maxX - 1 || z < A.rect.minZ + 1 || z > A.rect.maxZ - 1) s += 30;
+            const db = Math.hypot(x - bp.x, z - bp.z);
+            if (db < BF.boss.rig.R + 4) s += (BF.boss.rig.R + 4 - db) * 6;
+            if (nav.blocked(Math.round(x * 2) / 2, Math.round(z * 2) / 2, feet())) s += 50;
+            return s;
+          };
+          if (here > 0) {
+            // noticed once, then acted on until clear
+            if (bossAim.react == null) bossAim.react = opt.reaction * 0.5 * (0.7 + Math.random() * 0.6);
+            bossAim.react -= dt;
+            if (bossAim.react <= 0) {
+              let best = null, bs = Infinity;
+              for (let a = 0; a < 16; a++) {
+                const ang = a / 16 * Math.PI * 2, x = p.x + Math.cos(ang) * 2.2, z = p.z + Math.sin(ang) * 2.2;
+                const s = score(x, z);
+                if (s < bs) { bs = s; best = [Math.cos(ang), Math.sin(ang)]; }
+              }
+              // (a player runs out of anything marked on the ground)
+              if (best) bossMove = [best[0], best[1], true];
+            }
+          } else {
+            bossAim.react = null;
+            if (!threatened) {
+              if (bd < 8) {
+                // back off towards open ground, not into the fence
+                let best = null, bs = Infinity;
+                for (let a = 0; a < 16; a++) {
+                  const ang = a / 16 * Math.PI * 2, x = p.x + Math.cos(ang) * 3, z = p.z + Math.sin(ang) * 3;
+                  const edge = Math.min(x - A.rect.minX, A.rect.maxX - x, z - A.rect.minZ, A.rect.maxZ - z);
+                  const s = -Math.min(Math.hypot(x - bp.x, z - bp.z), 14) + (edge < 4 ? (4 - edge) * 4 : 0) + (nav.blocked(Math.round(x * 2) / 2, Math.round(z * 2) / 2, feet()) ? 50 : 0);
+                  if (s < bs) { bs = s; best = [Math.cos(ang), Math.sin(ang)]; }
+                }
+                if (best) bossMove = [best[0], best[1], bd < 5 && !g._sprintLatch];
+              } else if (bd > 16) bossMove = [bp.x - p.x, bp.z - p.z, false];
+            }
+          }
+        }
+        if (bossMove) {
+          // (sprint held through the start of a reload stays locked until it
+          // is pressed again -- as a player would, let go for a frame)
+          setMove(bossMove[0], bossMove[1], bossMove[2] && !g._sprintLatch);
+          moving = true; path = null;
+        }
+        else if (BF && !threatened) { setMove(0, 0, false); }
+        else if (threatened) {
           // back off: the open direction that gains the most distance
           let best = null, bs = -1e9;
           for (let a = 0; a < 16; a++) {
@@ -554,9 +652,19 @@ G.Bot = {
         // ---- aim and shoot ----
         const def = g.currentWeaponDef();
         I.touchFire = false;
-        if (tgt && tgt.alive && dist2(tgt.mesh.position, p) < opt.engage + 4) {
-          if (t > aimOff.t) { aimOff = { y: (Math.random() - 0.5) * 2 * opt.aimErr, p: (Math.random() - 0.5) * 2 * opt.aimErr, t: t + 0.35 }; }
-          const ap = aimPoint(tgt);
+        // (round 2: with no zombie to shoot, the boss -- its weak spot some of
+        // the time, the body otherwise)
+        let bossAP = null;
+        if (BF && !(tgt && tgt.alive)) {
+          const hbs = BF.boss.rig.hitboxes;
+          if (!bossAim.hb || t > bossAim.t) { const weak = hbs.find((h) => h.userData.bossHit.weak); bossAim.hb = weak && Math.random() < 0.35 ? weak : hbs[0]; bossAim.t = t + 2.5; }
+          bossAP = bossAim.hb.getWorldPosition(new THREE.Vector3());
+        }
+        if ((tgt && tgt.alive && dist2(tgt.mesh.position, p) < opt.engage + 4) || (bossAP && dist2(bossAP, p) < 45)) {
+          // (a moving fight with a boss: the aim wobbles more)
+          const ae = bossAP ? opt.aimErr * 1.8 : opt.aimErr;
+          if (t > aimOff.t) { aimOff = { y: (Math.random() - 0.5) * 2 * ae, p: (Math.random() - 0.5) * 2 * ae, t: t + 0.35 }; }
+          const ap = bossAP || aimPoint(tgt);
           const eye = g.camera.getWorldPosition(new THREE.Vector3());
           const dx = ap.x - eye.x, dz = ap.z - eye.z, dy = ap.y - eye.y;
           const yawT = Math.atan2(-dx, -dz) + aimOff.y, pitchT = Math.atan2(dy, Math.hypot(dx, dz)) + aimOff.p;

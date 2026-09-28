@@ -16,7 +16,8 @@ G.UIAudit = {
   _meanings: null,
   meanings() {
     if (!this._meanings) {
-      const all = G.getAllBuiltinWords().map((p) => p[1]).filter(Boolean);
+      // (round 2: the bosses' epithets are vocabulary too, with their Thai)
+      const all = G.getAllBuiltinWords().map((p) => p[1]).concat(Object.values(G.BOSS_WORDS || {}).map((w) => w.th)).filter(Boolean);
       this._meanings = Array.from(new Set(all)).sort((a, b) => b.length - a.length);
     }
     return this._meanings;
@@ -174,12 +175,23 @@ G.UIAudit = {
       await step("hud overtime", () => { Game.wave = Game.level.waves + 1; UI.updateHud(Game.buildHudState()); Game.wave = 1; });
       await step("challenge door", () => Game.startWordChallenge(T("challenge.door"), () => {}, () => {}));
       await step("challenge (answered)", () => Game.answerChallenge(0));
-      await step("boss bar", () => {
-        UI.setBossBar(true, T("hud.zombieBoss"), 64);
-        const longestMeaning = this.meanings()[0];
-        UI.setBossWord(longestMeaning);
-      });
-      UI.setBossBar(false); UI.setBossWord("");
+      // round 2: the boss bar with the longest name and title, the boss's
+      // question, the title card of every cutscene
+      const longBoss = G.BOSS_DEFS.slice().sort((a, b) => G.Bosses.label(b).length - G.Bosses.label(a).length)[0];
+      await step("boss bar", () => { UI.setBossBar(true, G.Bosses.label(longBoss), 64, true); UI.updateHud(Game.buildHudState()); });
+      UI.setBossBar(false);
+      await step("boss question", () => Game.startWordChallenge(T("challenge.boss"), () => {}, () => {}, { pair: G.WORDS_LEVEL_3.slice().sort((a, b) => b[1].length - a[1].length)[0], time: 10, boss: true }));
+      await step("boss question (answered)", () => Game.answerChallenge(0));
+      for (const d of G.BOSS_DEFS) {
+        await step("cutscene card " + d.id, () => {
+          G.Cutscene.ensure();
+          const E = G.Cutscene.el;
+          E.wave.textContent = T("cine.wave", { n: 20 }); E.name.textContent = T("boss." + d.id + ".name");
+          E.title.textContent = T("boss.the", { w: d.word }); E.thai.textContent = G.Bosses.thai(d);
+          document.body.classList.add("cine-on"); E.card.classList.add("show");
+        });
+      }
+      document.body.classList.remove("cine-on"); G.Cutscene.el.card.classList.remove("show");
       await step("pause", () => { Game.state = "GAMEPLAY"; Game.pause(); });
       await step("pause settings", () => { UI._settingsReturn = "screen-pause"; UI.renderSettings(); UI.showScreen("screen-settings"); });
       await step("resume", () => { UI.showScreen("screen-pause"); Game.resume(); });
@@ -217,7 +229,7 @@ G.UIAudit = {
       await step("mystery pick", () => UI.showMysteryCards(hand, () => {}));
       await step("mystery reveal", () => UI.revealMysteryCards(hand, 2));
       G.Modal.reset(); Game.state = "GAMEPLAY";
-      const stats = { score: 123456, wave: 12, correct: 88, wrong: 17, money: 45678 };
+      const stats = { score: 123456, wave: 12, correct: 88, wrong: 17, money: 45678, bosses: [{ id: longBoss.id, wave: 5 }, { id: "void", wave: 10 }, { id: "examiner", wave: 15 }, { id: "headmaster", wave: 20 }] };
       const wrong = {}; G.WORDS_LEVEL_3.slice(0, 8).forEach((p, i) => { wrong[p[0]] = { meaning: p[1], count: 9 - i }; });
       await step("game over", () => { UI.renderResultScreen("lose", stats, wrong); UI.showScreen("screen-gameover"); });
       await step("victory", () => { UI.renderResultScreen("win", stats, {}); UI.showScreen("screen-victory"); });
@@ -238,6 +250,16 @@ G.UIAudit = {
       await step("note reader (longest)", () => { UI._journalLevel = "level1"; G.Notes.open(longNote, { fromJournal: true, back: "screen-journal" }); });
       await step("note reader (A1)", () => { G.Notes.close(); G.Notes.open(G.NOTES.level1[0], { fromJournal: false }); });
       G.Notes.close(); G.Modal.reset();
+      // round 2: the Boss Codex, none met, some met, every one met, and the
+      // card of the boss with the longest text
+      const bossSave = JSON.parse(JSON.stringify(G.save.bosses));
+      await step("codex (none met)", () => { G.save.bosses = { seen: {}, defeated: {} }; UI.openCodex("screen-mainmenu"); });
+      await step("codex (some met)", () => { G.save.bosses = { seen: { gravedigger: 2, eye: 1, examiner: 1 }, defeated: { gravedigger: 1 } }; UI.renderCodex(); });
+      await step("codex (all met)", () => { G.BOSS_DEFS.forEach((d) => { G.save.bosses.seen[d.id] = 3; G.save.bosses.defeated[d.id] = 2; }); UI.renderCodex(); });
+      const wordy = G.BOSS_DEFS.slice().sort((a, b) => (T("boss." + b.id + ".desc") + T("boss." + b.id + ".counter")).length - (T("boss." + a.id + ".desc") + T("boss." + a.id + ".counter")).length)[0];
+      await step("codex card", () => UI.openCodexDetail(wordy.id));
+      UI.closeCodexDetail();
+      G.save.bosses = bossSave;
       await step("r3 run hud", () => { Game.update = function () {}; Game.startLevel(1); Game.state = "GAMEPLAY"; UI.setHudVisible(true); UI.showScreen(null); UI.updateHud(Game.buildHudState()); });
       const r3prompts = [T("prompt.note", { key: "E" }), Game.thirdFloorStatus(), T("prompt.safe", { key: "E" }), T("prompt.trophy", { key: "E" }), T("prompt.coffee", { key: "E" }), T("prompt.radio", { key: "E" })];
       for (const pr of r3prompts) await step("prompt " + pr.slice(0, 18), () => UI.setInteractPrompt(true, pr));

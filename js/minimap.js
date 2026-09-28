@@ -11,7 +11,8 @@
 //   keys     the caretaker's keys not yet found, pinned to the rim when far
 //   stairs   up and down, on the floors they join
 //   grille   the locked stair to the third floor
-//   boss     the sports hall, when the boss is on its way
+//   boss     a boss wave: where its boss will be fought; during the fight,
+//            the arena's energy fence and the boss
 // The map of each storey is drawn once into its own canvas when the level
 // loads; each frame (a dozen times a second) only that is copied, turned,
 // and the markers drawn on top.
@@ -133,8 +134,18 @@ G.Minimap = {
     // the locked grille
     const tf = world.thirdFloor;
     if (tf && !tf.unlocked && onFloor(tf.stairFoot.y)) dot(pin(tf.stairFoot.x + 1, tf.stairFoot.z, false), "#ff6a4a", r0 * 0.9, "✕");
-    // the boss hall, while the boss is coming
-    if (game.isBossWave && game.isBossWave() && world.bossRoomCenter) dot(pin(world.bossRoomCenter.x, world.bossRoomCenter.z, true), "#ff4a4a", r0, "!");
+    // (round 2) a boss wave: where its boss will be fought; during the fight
+    // the arena's energy fence and the boss itself
+    const B = G.Bosses;
+    if (B && B.arena && B.phase === "fight") {
+      const r = B.arena.rect, a = toScreen(r.minX, r.minZ), b2 = toScreen(r.maxX, r.minZ), c2 = toScreen(r.maxX, r.maxZ), d2 = toScreen(r.minX, r.maxZ);
+      c.strokeStyle = "rgba(58,208,255,0.9)"; c.lineWidth = Math.max(1.5, R / 45);
+      c.beginPath(); c.moveTo(a.x, a.y); c.lineTo(b2.x, b2.y); c.lineTo(c2.x, c2.y); c.lineTo(d2.x, d2.y); c.closePath(); c.stroke();
+      if (B.boss) dot(pin(B.boss.pos.x, B.boss.pos.z, true), "#ff3a3a", r0 * 1.35, "!");
+    } else if (game.isBossWave && game.isBossWave() && B) {
+      const A = B.arena || (world.pitch ? { boss: { x: (world.pitch.minX + world.pitch.maxX) / 2, z: -41 } } : { boss: world.bossRoomCenter });
+      if (A.boss) dot(pin(A.boss.x, A.boss.z, true), "rgba(255,74,74,0.8)", r0, "!");
+    }
     // keys still to find: pinned to the rim when far away
     (world.keys || []).forEach((kk) => { if (!kk.taken) dot(pin(kk.mesh.position.x, kk.mesh.position.z, true), onFloor(kk.baseY) ? "#ffd43b" : "rgba(255,212,59,0.5)", r0 * 0.85, "⚷"); });
     // story notes: near ones always, all of them once the radio has told you

@@ -96,6 +96,7 @@ G.UI = {
     this.bindMystery();
     G.CustomVocabUI.bind();
     if (this.bindJournal) this.bindJournal();
+    if (this.bindCodex) this.bindCodex();
     this.applyFontSizeClass();
   },
 
@@ -677,9 +678,16 @@ G.UI = {
       `<div class="result-stat"><div class="result-stat-value">${stats[k]}</div><div class="result-stat-label">${G.T("result." + k)}</div></div>`).join("");
     const reviewWrap = this.el(kind === "win" ? "victory-review" : "gameover-review");
     const sorted = Object.entries(wrongWords || {}).sort((a, b) => b[1].count - a[1].count);
-    reviewWrap.innerHTML = sorted.length
+    // (G4) the bosses beaten this run, by name and title, and the wave
+    const downs = stats.bosses || [];
+    const bossHtml = `<div class="result-bosses"><div class="result-bosses-title">${G.T("result.bosses")}</div>` +
+      (downs.length ? downs.map((d) => {
+        const def = G.BOSS_BY_ID[d.id];
+        return `<div class="result-boss"><span class="rb-name">${G.escapeHtml(G.Bosses.label(def))}</span><span class="rb-wave">${G.T("cine.wave", { n: d.wave })}</span></div>`;
+      }).join("") : `<div class="result-boss none">${G.T("result.bossesNone")}</div>`) + "</div>";
+    reviewWrap.innerHTML = bossHtml + (sorted.length
       ? `<div style="opacity:.7;margin-bottom:6px">${G.T("result.review")}</div>` + sorted.map(([w, d]) => `<div class="review-item"><span>${G.escapeHtml(w)} — ${G.escapeHtml(d.meaning)}</span><span class="wrong-count">${G.T("result.wrongTimes", { n: d.count })}</span></div>`).join("")
-      : `<div style="opacity:.6">${G.T("result.perfect")}</div>`;
+      : `<div style="opacity:.6">${G.T("result.perfect")}</div>`);
   },
 
   // ---------------- Shop ----------------
@@ -1079,26 +1087,20 @@ G.UI = {
     el.classList.toggle("hidden", !visible);
     if (text && el.textContent !== text) el.textContent = text;
   },
-  setBossBar(visible, name, hpPct) {
-    this.el("hud-boss-bar").classList.toggle("hidden", !visible);
+  // (round 2, G4) The boss's health: a big red bar across the top with its
+  // name and title over it; it pulses while the boss is open to extra damage.
+  setBossBar(visible, name, hpPct, vulnerable) {
+    const bar = this.el("hud-boss-bar");
+    if (bar.classList.contains("hidden") === !visible && !visible) return;
+    bar.classList.toggle("hidden", !visible);
+    document.body.classList.toggle("boss-on", !!visible);
     if (!visible) return;
-    const hint = G.T(G.Input.mode === "touch" ? "hud.bossHintTouch" : "hud.bossHintDesk");
-    if (this.el("hud-boss-hint").textContent !== hint) this.el("hud-boss-hint").textContent = hint;
-    this.el("hud-boss-name").textContent = name;
-    this.el("hud-boss-hp-fill").style.width = Math.max(0, hpPct) + "%";
+    if (name && this.el("hud-boss-name").textContent !== name) this.el("hud-boss-name").textContent = name;
+    const w = Math.max(0, Math.min(100, hpPct)).toFixed(1) + "%";
+    const fill = this.el("hud-boss-hp-fill");
+    if (fill.style.width !== w) { fill.style.width = w; this.el("hud-boss-hp-lag").style.width = w; }
+    bar.classList.toggle("vuln", !!vulnerable);
   },
-  setBossWord(meaning) { this.el("hud-boss-word").textContent = meaning ? G.T("hud.meaning", { m: meaning }) : ""; },
-  // The answers used to be plain text with no click handler, in a layer that
-  // ignores the mouse: keys 1-4 were the only way to answer, and a touch
-  // screen had none. Same buttons as the door/crate question now.
-  setBossChoices(choices) {
-    const wrap = this.el("hud-boss-choices");
-    wrap.innerHTML = (choices || []).map((c, i) => `<div class="hud-boss-choice" role="button" data-idx="${i}"><b>[${i + 1}]</b>${G.escapeHtml(c)}</div>`).join("");
-    wrap.querySelectorAll(".hud-boss-choice").forEach((el) => {
-      el.onclick = () => G.Game.answerBossChoice(parseInt(el.dataset.idx, 10));
-    });
-  },
-  setBossTimer(pct) { this.el("hud-boss-timer-fill").style.width = Math.max(0, pct * 100) + "%"; },
   // Desktop, mid-game, no window open and still no pointer lock: the browser
   // refused to re-lock (a question timed out, the shop timer ran out -- no
   // click or key behind them) or the player alt-tabbed back. Say so, rather
@@ -1113,8 +1115,10 @@ G.UI = {
     if (show !== this._hintShown) { this._hintShown = show; this.el("hud-resume-hint").classList.toggle("hidden", !show); }
   },
 
-  setChallengeVisible(v, label) {
+  // `boss`: the one hard word after a boss -- its own red frame
+  setChallengeVisible(v, label, boss) {
     this.el("hud-challenge-box").classList.toggle("hidden", !v);
+    if (v) this.el("hud-challenge-box").classList.toggle("boss", !!boss);
     if (label) this.el("hud-challenge-label").textContent = label;
   },
   setChallengeMeaning(meaning) { this.el("hud-challenge-meaning").textContent = meaning || ""; },

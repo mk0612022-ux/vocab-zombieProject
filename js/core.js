@@ -68,6 +68,7 @@ G.defaultSave = function () {
     importedSets: {},             // {id: {name, words:[[en,th],...]}}
     customWords: { level1: [], level2: [], level3: [] },   // words the player added to each level ([[en,th],...])
     notes: { level1: [], level2: [], level3: [] },          // story notes kept in the journal (ids), round 3
+    bosses: { seen: {}, defeated: {} },                      // the Boss Codex: {bossId: times met / beaten}, round 2
   };
 };
 
@@ -118,6 +119,14 @@ G.normalizeSave = function (data) {
     nt[key] = list.filter((id, i) => typeof id === "string" && id && list.indexOf(id) === i);
   });
   s.notes = nt;
+  // bosses met and beaten: counts per boss id, nothing else
+  const rawB = s.bosses && typeof s.bosses === "object" && !Array.isArray(s.bosses) ? s.bosses : {};
+  const counts = (o) => {
+    const out = {};
+    if (o && typeof o === "object" && !Array.isArray(o)) Object.keys(o).forEach((k) => { const n = Math.floor(Number(o[k])); if (/^[a-z]+$/.test(k) && n > 0) out[k] = Math.min(n, 1e6); });
+    return out;
+  };
+  s.bosses = { seen: counts(rawB.seen), defeated: counts(rawB.defeated) };
   return s;
 };
 

@@ -6,7 +6,7 @@
 #
 # Exit code 0 = clean, 1 = Thai text found.
 $root = Split-Path -Parent $PSScriptRoot
-$skip = @('js\data\words_school.js', 'js\data\words_hospital.js', 'js\data\words_bunker.js')
+$skip = @('js\data\words_school.js', 'js\data\words_hospital.js', 'js\data\words_bunker.js', 'js\data\words_bosses.js')
 $files = Get-ChildItem -Path $root -Recurse -File -Include *.js, *.html, *.css, *.json, *.ps1 |
   Where-Object { $_.FullName -notmatch '\\(\.git|node_modules|screenshots)\\' }
 $hits = 0; $scanned = 0; $skipped = @()

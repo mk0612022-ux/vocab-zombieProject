@@ -61,7 +61,8 @@ G.Perks = {
   },
   price(id) {
     const def = G.PERK_BY_ID[id];
-    return G.Shop.priceFor(id, def.base, def.growth);
+    // (round 2: twenty waves earn more, so perks cost more -- G.ECONOMY)
+    return G.Shop.priceFor(id, Math.round(def.base * (G.ECONOMY ? G.ECONOMY.perkScale : 1) / 10) * 10, def.growth);
   },
   maxed(id, player) { return this.level(id, player) >= G.PERK_BY_ID[id].max; },
   // What one level of a perk does, for the shop card (the NEXT level) or the

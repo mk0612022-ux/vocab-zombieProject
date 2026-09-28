@@ -3,7 +3,8 @@
 // -------------------------------------------------------------------
 //   top      two tabs -- CAMPAIGN, TRAINING & CUSTOM -- with the keys that
 //            switch them, and a row of icons: Settings, Leaderboard,
-//            Achievements, Armory, Word Log, Notes Journal, Help
+//            Achievements, Armory, Word Log, Notes Journal, Custom, Bosses
+//            (the Boss Codex, round 2), Help
 //   upper    a large preview of the selected mode: its artwork (rendered
 //            from the game itself, assets/lobby/), a big title, a line about
 //            it, its badge, and what the player has done there (best score,
@@ -35,7 +36,7 @@ G.Lobby = {
   ICONS: [
     { id: "settings", glyph: "⚙️" }, { id: "leaderboard", glyph: "🏆" }, { id: "achievements", glyph: "🎖️" },
     { id: "armory", glyph: "🔫" }, { id: "wordlog", glyph: "📖" }, { id: "journal", glyph: "📜" },
-    { id: "custom", glyph: "✏️" }, { id: "help", glyph: "❔" },
+    { id: "custom", glyph: "✏️" }, { id: "bosses", glyph: "💀" }, { id: "help", glyph: "❔" },
   ],
   tab: "campaign",
   sel: { campaign: 0, training: 0 },
@@ -315,6 +316,7 @@ G.Lobby = {
     else if (id === "wordlog") { UI._logReturnScreen = "screen-mainmenu"; UI.renderVocabLog(1); UI.showScreen("screen-vocablog"); }
     else if (id === "journal") UI.openJournal("screen-mainmenu");
     else if (id === "custom") G.CustomVocabUI.open("screen-mainmenu");
+    else if (id === "bosses") UI.openCodex("screen-mainmenu");
     else if (id === "help") UI.showScreen("screen-howtoplay");
     if (G.Tips) G.Tips.hide();
   },
