@@ -157,12 +157,15 @@ G.Lobby = {
     const esc = G.escapeHtml, T = G.T;
     return this.modes(tab).map((m) => {
       const lock = this.locked(m);
-      return `<button class="lcard${lock ? " locked" : ""}" data-id="${m.id}" style="--c1:${m.c1};--c2:${m.c2};--c1a:${m.c1}bb" aria-label="${esc(this.title(m))}">
+      // (round 3, J3) a run kept at its checkpoint
+      const cp = m.level && !lock && G.Checkpoint ? G.Checkpoint.get(m.level) : null;
+      return `<button class="lcard${lock ? " locked" : ""}${cp ? " has-cp" : ""}" data-id="${m.id}" style="--c1:${m.c1};--c2:${m.c2};--c1a:${m.c1}bb" aria-label="${esc(this.title(m))}${cp ? " — " + esc(T("lobby.continueWave", { n: cp.wave })) : ""}">
         <span class="lcard-bg"></span>
         <span class="lcard-art" style="background-image:url('${this.art(m, true)}')"></span>
         <span class="lcard-shade"></span>
         <span class="lcard-text"><span class="lcard-title">${esc(this.title(m))}</span><span class="lcard-meta">${esc(this.meta(m))}</span></span>
         <span class="lcard-badge">${esc(T("lobby.badge." + (lock ? "locked" : m.badge)))}</span>
+        ${cp ? `<span class="lcard-cp">💾 ${esc(T("lobby.continueWave", { n: cp.wave }))}</span>` : ""}
         ${lock ? `<span class="lcard-lock" aria-hidden="true">🔒</span>` : ""}
         <span class="lcard-dim"></span>
         <span class="lcard-ring"></span>
@@ -227,7 +230,14 @@ G.Lobby = {
   updateConfirm() {
     const m = this.current(), T = G.T;
     const el = this.el("lobby-confirm");
+    const cp = m.level && !this.locked(m) && G.Checkpoint ? G.Checkpoint.get(m.level) : null;
     if (this.locked(m)) el.innerHTML = `<span class="lc-lock">🔒 ${G.escapeHtml(T("lobby.lockedShort"))}</span>`;
+    // (round 3, J3) the Continue button: straight back to the checkpoint
+    else if (cp) {
+      el.innerHTML = `<button class="lobby-cp-btn" id="lobby-cp-btn">▶ ${G.escapeHtml(T("lobby.continueWave", { n: cp.wave }))}</button>` +
+        `<span class="lc-or"><span class="kb-only"><kbd>Enter</kbd></span><span class="pad-only"><kbd class="pad-a">A</kbd></span><span class="touch-only">${G.escapeHtml(T("lobby.tapAgain"))}</span> ${G.escapeHtml(T("lobby.moreChoices"))}</span>`;
+      this.el("lobby-cp-btn").onclick = (e) => { e.stopPropagation(); this.launch({ cont: true }); };
+    }
     else el.innerHTML = `<span class="kb-only"><kbd>Enter</kbd></span><span class="pad-only"><kbd class="pad-a">A</kbd></span><span class="touch-only">${G.escapeHtml(T("lobby.tapAgain"))}</span> ${G.escapeHtml(T(m.level || m.id === "endless" || m.id === "daily" ? "lobby.play" : "lobby.open"))}`;
   },
   // the big picture and the text: cross-faded, the new title rising in
@@ -322,7 +332,10 @@ G.Lobby = {
   },
 
   // ---------------- choosing ----------------
-  launch() {
+  // opts.cont: straight back to the level's checkpoint; opts.fresh: a new
+  // run (the checkpoint question already answered)
+  launch(opts) {
+    opts = opts || {};
     const m = this.current();
     if (this._launching) return;
     if (this.locked(m)) {
@@ -333,12 +346,20 @@ G.Lobby = {
       return;
     }
     if (G.Audio) { G.Audio.unlock && G.Audio.unlock(); G.Audio.ctx && G.Audio.sfx("unlock"); }
+    // (round 3, J3) a level kept at its checkpoint: Continue, or a new run
+    // (which asks before it deletes the checkpoint)
+    if (m.level && !opts.cont && !opts.fresh && !opts.then && G.Checkpoint && G.Checkpoint.has(m.level)) {
+      G.Checkpoint.chooseRun(m.level, (fn) => this.launch({ then: fn }));
+      return;
+    }
     // into the picture, then to black, then the game
     this._launching = true;
     this.el("lobby").classList.add("launching");
     const go = () => {
       this._launching = false;
-      if (m.level) G.Game.startLevel(m.level);
+      if (opts.then) opts.then();
+      else if (m.level && opts.cont) G.Game.continueFromCheckpoint(m.level);
+      else if (m.level) G.Game.startLevel(m.level);
       else if (m.id === "endless") G.Game.startEndless();
       else if (m.id === "daily") G.Game.startDailyChallenge();
       else if (m.id === "practice") G.Game.goToPracticeSetup();

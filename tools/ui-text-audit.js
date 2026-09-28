@@ -269,6 +269,46 @@ G.UIAudit = {
       for (const b of r3banners) await step("banner " + b[0], () => UI.flashPurchaseBanner(b[0], b[1]));
       await step("pause (journal button)", () => { Game.pause(); });
       await step("back to menu (r3)", () => Game.quitToMainMenu());
+      // ---- round 3 of the new series: abilities, the third floor, the checkpoint ----
+      const AB = G.Abilities, F3 = G.Floor3, CP = G.Checkpoint;
+      const wordiest = G.ABILITIES.slice().sort((a, b) => (AB.name(b.id) + AB.desc(b.id)).length - (AB.name(a.id) + AB.desc(a.id)).length).map((a) => a.id);
+      const longNames = G.ABILITIES.slice().sort((a, b) => AB.name(b.id).length - AB.name(a.id).length).map((a) => a.id);
+      await step("hive (hidden)", () => { Game.update = function () {}; Game.startLevel(1); Game.state = "GAMEPLAY"; UI.setHudVisible(true); AB.resetRun(); AB.bag = wordiest.slice(0, 5).concat(AB.bag.filter((id) => !wordiest.slice(0, 5).includes(id))); AB.offer(Game, () => {}); });
+      await step("hive (picked, all shown)", () => { UI.hivePick(0); UI.hiveFinishReveal(); });
+      await step("hive (another looked at)", () => UI.hiveShow(3));
+      await step("hive (four held: swap or keep)", () => { UI.hiveClose(); AB.slots = longNames.slice(0, 4).map((id) => ({ id, cd: 0 })); AB.offer(Game, () => {}); UI.hivePick(1); UI.hiveFinishReveal(); });
+      await step("hive closed", () => UI.hiveClose(null, true));
+      await step("hud: four abilities, cooling and live", () => {
+        UI.showScreen(null);
+        const four = longNames.filter((id) => id !== "barrier").slice(0, 3);
+        four.splice(2, 0, "barrier");
+        AB.slots = four.map((id, i) => ({ id, cd: i === 1 ? 12.4 : 0 }));
+        AB.fx.barrier = 3;                                   // (one running: it glows)
+        AB.update(Game, 0); UI.updateHud(Game.buildHudState());
+      });
+      await step("hud: abilities with a controller", () => { G.Input.padActive = true; UI.updateAbilityBar(Game, true); });
+      await step("hud: ability refused", () => { G.Input.padActive = false; UI.updateAbilityBar(Game, true); UI.flashAbilityNote(T("ability.noTarget.freeze")); });
+      await step("hud: whisper", () => { Game.spawnZombieAt("normal", new THREE.Vector3(0, 0, 40)); AB.fx.whisper = 5; UI.updateHud(Game.buildHudState()); });
+      await step("hud: the third floor's chip", () => { AB.fx.whisper = 0; F3.s.spawned = true; F3.s.lockLeft = 27; F3._hudSig = null; F3.hud(Game); });
+      const f3prompts = [T("prompt.gate3Card", { d: 4 }), T("prompt.gate3Jammed", { s: 30 }), T("prompt.gate3Lock", { key: "E", n: 3, s: 15 })];
+      for (const pr of f3prompts) await step("prompt " + pr.slice(0, 24), () => UI.setInteractPrompt(true, pr));
+      UI.setInteractPrompt(false);
+      const f3banners = [[T("banner.keycard"), T("banner.keycardText")], [T("banner.keycardTaken"), T("banner.keycardTakenText")], [T("banner.lockJammed"), T("banner.lockFail", { s: 30 })],
+        [T("banner.lockJammed"), T("banner.lockJammedText", { s: 30 })], [T("banner.gate3Locked"), T("banner.gate3Need", { d: 4 })], [T("banner.arenaAmmo"), T("banner.arenaAmmoText")]];
+      for (const b of f3banners) await step("banner " + b[1].slice(0, 20), () => UI.flashPurchaseBanner(b[0], b[1]));
+      await step("lock question", () => Game.startWordChallenge(T("challenge.lock", { i: 2, n: 3 }), () => {}, () => {}, { pair: G.WORDS_LEVEL_1.slice().sort((a, b) => b[1].length - a[1].length)[0], time: 15 }));
+      await step("lock question (answered)", () => Game.answerChallenge(0));
+      await step("checkpoint saved", () => { Game.wave = 10; CP.save(Game); Game.wave = 11; });
+      await step("pause: abilities, 3rd floor, checkpoint", () => {
+        Game.wave = 12; F3.s.spawned = true; F3.s.taken = false; F3.s.lockLeft = 0; Game.state = "GAMEPLAY"; Game.paused = false; G.Modal.reset(); Game.pause();
+        const b = document.querySelector("#pause-abilities .pause-ab"); if (b) b.click();
+      });
+      await step("game over: continue / restart", () => { Game.state = "GAME_OVER"; UI.renderResultScreen("lose", { score: 12345, wave: 12, correct: 88, wrong: 9, money: 3000, bosses: [] }, {}); CP.onGameOver(Game); UI.showScreen("screen-gameover"); });
+      await step("leaderboard: a continued run", () => { G.save.leaderboards.level1 = [{ score: 99999, date: "2026-09-28", meta: "continued" }, { score: 5000, date: "2026-09-27", meta: "" }]; UI.renderLeaderboard("level1"); UI.showScreen("screen-leaderboard"); });
+      await step("lobby: continue a checkpoint", () => { Game.quitToMainMenu(); UI.goToMainMenu({ tab: "campaign", select: "school" }); });
+      await step("dialog: continue or new run", () => CP.chooseRun(1));
+      await step("dialog: delete the checkpoint?", () => { G.Dialog.close(); CP.confirmDelete(1, () => {}); });
+      await step("dialog closed", () => G.Dialog.close());
       // Custom Vocabulary: the page, an error, a warning, a long list, edit mode
       const thaiWord = G.WORDS_LEVEL_2[3][1];
       await step("custom vocab", () => {

@@ -113,7 +113,7 @@ G.UI = {
   // tutorial replay moved to How to Play, Import to Custom Vocabulary)
   bindMainMenu() {
     G.Lobby.build();
-    this.el("btn-tutorial-replay").onclick = () => { G.Tutorial.reset(); G.Game.startLevel(1); };
+    this.el("btn-tutorial-replay").onclick = () => { G.Tutorial.reset(); G.Game.newRun(1); };
   },
   goToMainMenu(opts) {
     this._lobbyOpts = opts || null;
@@ -139,7 +139,8 @@ G.UI = {
           <div class="level-card-sub">${G.T("levels.info", { waves: lvl.waves, diff: lvl.difficulty.toFixed(1) })}</div>
           ${unlocked ? `<div class="level-card-score">${G.T("levels.best", { score: hs || "-" })}</div>` : `<div class="level-card-lock">${G.T("levels.locked")}</div>`}
         </div>`;
-      if (unlocked) card.onclick = () => G.Game.startLevel(lvl.id);
+      // (round 3: a level with a checkpoint asks whether to continue it)
+      if (unlocked) card.onclick = () => G.Checkpoint.chooseRun(lvl.id);
       wrap.appendChild(card);
     });
   },
@@ -162,7 +163,8 @@ G.UI = {
     const wrap = this.el("settings-content");
     const kb = s.keybinds;
     const T = G.T;
-    const actions = ["forward", "back", "left", "right", "sprint", "jump", "reload", "interact", "melee", "slot2", "slot3", "slot4", "slot5", "slot6", "slot7", "pause"];
+    const actions = ["forward", "back", "left", "right", "sprint", "jump", "reload", "interact", "melee", "slot2", "slot3", "slot4", "slot5", "slot6", "slot7",
+      "ability1", "ability2", "ability3", "ability4", "pause"];
     const pct = (v, d) => Math.round((v == null ? d : v) * 100);
     this._hudSlotSig = null;              // the HUD slot row shows these keys
     wrap.innerHTML = `
@@ -328,7 +330,8 @@ G.UI = {
     const tabs = cats.map((c) => `<div class="tab-btn ${c.id === cat ? "active" : ""}" data-cat="${c.id}">${c.label}</div>`).join("");
     const list = (G.save.leaderboards[cat] || []);
     content.innerHTML = `<div class="leaderboard-tabs">${tabs}</div>
-      <ul class="leaderboard-list">${list.length ? list.map((e, i) => `<li><span>#${i + 1} ${e.date}</span><span>${e.score}</span></li>`).join("") : `<li>${G.T("leaderboard.empty")}</li>`}</ul>`;
+      <ul class="leaderboard-list">${list.length ? list.map((e, i) => `<li><span>#${i + 1} ${e.date}</span><span>${e.meta === "continued" ? `<span class="lb-cont" title="${G.escapeHtml(G.T("leaderboard.continued"))}" aria-label="${G.escapeHtml(G.T("leaderboard.continued"))}">💾</span> ` : ""}${e.score}</span></li>`).join("") : `<li>${G.T("leaderboard.empty")}</li>`}</ul>
+      ${list.some((e) => e.meta === "continued") ? `<div class="lb-legend">💾 ${G.escapeHtml(G.T("leaderboard.continued"))}</div>` : ""}`;
     content.querySelectorAll(".tab-btn").forEach((t) => t.onclick = () => this.renderLeaderboard(t.dataset.cat));
   },
 

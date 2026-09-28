@@ -341,6 +341,13 @@ G.Bot = {
           (world.landmarks || []).forEach((l) => { if (!S.visited.has(l.key)) add(l.x, l.z, 0, "place", l.key, 6); });
           if (G.Notes) G.Notes.lying().forEach((n) => { const h = n.spot.floor === 3 && !n.spot.outdoor ? 8.4 : n.spot.floor === 2 && !n.spot.outdoor ? 4.2 : 0; if (h > 5 && !topOpen()) return; if (h > 1 && h < 5 && !upperOpen()) return; add(n.spot.x, n.spot.z, G.getFloorHeightAt(world, n.spot.x, n.spot.z, h + 0.3), "note", n, -12); });
           world.buttons.forEach((b) => { if (!b.pressed && S.visited.has("W3")) add(b.mesh.position.x + 1.2, b.mesh.position.z, 0, "button", b, -6); });
+          // round 3 (I): the Floor 3 Keycard once it is out, then its lock --
+          // the banner and the minimap send a player straight there
+          const F3 = G.Floor3;
+          if (F3 && F3.applies(g) && !world.thirdFloor.unlocked) {
+            if (F3.s.spawned && !F3.s.taken) add(F3.s.spot.x, F3.s.spot.z, F3.s.spot.y, "keycard", F3.s, -120);
+            else if (F3.s.taken && !(F3.s.lockLeft > 0)) { const sf3 = world.thirdFloor.stairFoot; add(sf3.x, sf3.z, sf3.y, "lock3", world.thirdFloor, -120); }
+          }
           if (wordDoor && !wordDoor.opened && t > wordDoorRetry) add(wordDoor.mesh.position.x - Math.sign(wordDoor.mesh.position.x) * 1.8, wordDoor.mesh.position.z, 0, "worddoor", wordDoor, 4);
           world.crates.forEach((cr) => { if (!cr.opened) { const cp = cr.mesh.position; if (Math.hypot(cp.x - p.x, cp.z - p.z) < 9 && Math.abs(cp.y - 0.4 - fh) < 1.5) add(cp.x - Math.sign(cp.x - p.x || 1) * 1.2, cp.z, fh, "crate", cr, -4); } });
         }
@@ -384,7 +391,10 @@ G.Bot = {
         if (g.state === "VICTORY") { R.victoryAt = Math.round(t); ev(t, "VICTORY"); break; }
         if (g.state === "SHOP") {
           const w = { wave: g.wave, seconds: Math.round(t - waveStart), spawned: g.spawnedCount, required: g.requiredKills, earned: Math.round(waveEarned), moneyEnd: Math.round(g.player.money), hp: Math.round(g.player.hp), correct: g.correctCount, wrong: g.wrongCount,
-            rooms: G.Objectives.state ? G.Objectives.state.visited.size : 0, keys: G.Objectives.state ? G.Objectives.state.keysFound : 0, guns: g.player.gunSlots.join("/") };
+            rooms: G.Objectives.state ? G.Objectives.state.visited.size : 0, keys: G.Objectives.state ? G.Objectives.state.keysFound : 0, guns: g.player.gunSlots.join("/"),
+            // round 3 (I): how far along the third floor's six steps
+            rightKills: g.correctKills, notes: g.notesReadRun ? g.notesReadRun.size : 0, f3: G.Floor3 && G.Floor3.applies(g) ? G.Floor3.doneCount(g) : null };
+          if (G.Floor3 && G.Floor3.applies(g) && world.thirdFloor.unlocked && !R.thirdFloorAt) { R.thirdFloorAt = { wave: g.wave, t: Math.round(t) }; }
           R.waves.push(w);
           ev(t, "wave " + g.wave + " cleared, $" + w.moneyEnd + " hp " + w.hp);
           if (opt.stopAfterWave && g.wave >= opt.stopAfterWave) break;
@@ -420,6 +430,17 @@ G.Bot = {
           g.confirmMysteryPick();
           R.overlaySeconds += 5;
           R.purchases.push(Math.round(t) + "s mystery -> " + got.id);
+          continue;
+        }
+        // round 3 (H): the ability honeycomb after a boss's word -- one at random
+        if (G.Modal.isOpen("abilities")) {
+          const H = G.UI._hive;
+          if (H && H.stage === "pick") G.UI.hivePick(Math.floor(Math.random() * H.ids.length));
+          G.UI.hiveFinishReveal();
+          const full = G.UI._hive && G.UI._hive.stage === "replace";
+          G.UI.hiveClose(null, full);
+          R.overlaySeconds += 6;
+          ev(t, "ability: " + G.Abilities.slots.map((s) => s.id).join(", "));
           continue;
         }
         if (g.paused) { step(dt); continue; }
@@ -552,6 +573,9 @@ G.Bot = {
               } else if (bd > 16) bossMove = [bp.x - p.x, bp.z - p.z, false];
             }
           }
+          // (round 3) out of ammo: go for the arena's supply box
+          const box = (g.drops || []).find((d) => d.arena);
+          if (box && here <= 0 && g.player.gunSlots.every((id) => ammoLeft(id) < G.WEAPON_DEFS[id].magSize * 0.5)) bossMove = [box.mesh.position.x - p.x, box.mesh.position.z - p.z, true];
         }
         if (bossMove) {
           // (sprint held through the start of a reload stays locked until it
@@ -630,6 +654,12 @@ G.Bot = {
               goal.done = true;
             } else if (goal.kind === "mystery") { g.openMysteryBox(); goal.done = true; }
             else if (goal.kind === "note") { interact(goal.ref); noteReadT = 3 + goal.ref.note.text.length / 300; goal.done = true; }
+            else if (goal.kind === "keycard") { if (G.Floor3.s.taken) ev(t, "took the Floor 3 Keycard (wave " + g.wave + ")"); goal.done = true; }
+            else if (goal.kind === "lock3") {
+              const gate = world.interactables.find((i) => i.kind === "gate3");
+              if (gate && safe) { G.Floor3.interact(g, gate); ev(t, "tries the Vocabulary Lock (wave " + g.wave + ")"); }
+              goal.done = true;
+            }
             else if (goal.kind === "room" || goal.kind === "key" || goal.kind === "hunt") goal.done = true;
           }
         }

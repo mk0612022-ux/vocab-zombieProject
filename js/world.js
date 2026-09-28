@@ -1265,7 +1265,8 @@ G.buildLevelScene = function (scene, level, quality) {
     // climbs along the slot's outer end against its far wall, and arrive on a
     // landing on the third floor, which opens onto that storey's corridor.
     // A steel security grille across the foot keeps the third floor shut
-    // until the player has earned it (see G.Game.checkThirdFloorUnlock).
+    // until the player has earned it: the keycard and its Vocabulary Lock
+    // (round 3, I -- js/floor3.js).
     if (STOREYS === 3 && cfg.stair3) {
       const st = cfg.stair3, row = cfg.rows[st.row], s = st.side === "W" ? -1 : 1;
       const cx = s * (HALF + ROOM_W / 2), r = { cx, cz: row.cz, w: ROOM_W, d: row.d };
@@ -1358,7 +1359,6 @@ G.buildLevelScene = function (scene, level, quality) {
       world.colliders.push(gateCollider);
       world.thirdFloor = {
         unlocked: false, barrierMesh: gate, barrierCollider: gateCollider, floorY: F3,
-        notesNeeded: cfg.topNotes || 4, correctNeeded: cfg.topCorrect || 40,
         stairFoot: new THREE.Vector3(s * (HALF + 1.3), F2, (SZ0 + SZ1) / 2),
         landing: new THREE.Vector3(s * (HALF + ROOM_W - 1.0), F3, (SZ0 + SZ1) / 2),
       };
@@ -1866,8 +1866,8 @@ G.buildLevelScene = function (scene, level, quality) {
       // labs, a music room, the canteen, toilets, and on the third floor the
       // principal's office, the archive, the trophy room, the staff lounge
       // and the broadcast room. The third floor is reached by its own stair
-      // (stair3), behind a grille that opens for players who have read enough
-      // of the story notes and answered enough words (topNotes, topCorrect).
+      // (stair3), behind a grille with a Vocabulary Lock that wants the Floor 3
+      // Keycard (round 3, I: js/floor3.js).
       return {
         half: 3.5, roomW: 12.5, storeys: 3, f2: 4.2, wallH: 4.2, mats: M, furnish: FURNISH,
         rows: [
@@ -1886,7 +1886,7 @@ G.buildLevelScene = function (scene, level, quality) {
         upperKeys: ["PLW", "PLE"], upperTypes: ["meeting", "staff"],
         stair: { halfX: 2.15, run: 7.8 },
         stair3: { side: "E", row: 0 },
-        trapZ: -66, spawn: { x: 0, z: 53 }, upperKills: 20, topNotes: 4, topCorrect: 40,
+        trapZ: -66, spawn: { x: 0, z: 53 }, upperKills: 20,
         dressEntry: DRESSERS.school.entry, dressBoss: DRESSERS.school.boss,
         yard: { cx: 0, cz: 46.5, w: 52, d: 27 },
         campus: { x0: -64, x1: 56, z0: -104, z1: 76 },

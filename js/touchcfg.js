@@ -13,7 +13,7 @@
 // ===================================================================
 G.TouchCfg = {
   // also the save keys of touchLayout.pos / .scale; names are "touchcfg.<id>"
-  IDS: ["joystick", "fire", "ads", "interact", "reload", "jump", "sprint", "pause", "slots"],
+  IDS: ["joystick", "fire", "ads", "interact", "reload", "jump", "sprint", "pause", "slots", "abilities"],
   MIN_SCALE: 0.6, MAX_SCALE: 1.8,
   editing: false,
   _sel: null,
@@ -66,7 +66,7 @@ G.TouchCfg = {
       const p = c.pos[id];
       if (!p) {
         el.style.left = ""; el.style.top = ""; el.style.right = ""; el.style.bottom = "";
-        if (id === "slots") el.style.transform = "";
+        if (id === "slots" || id === "abilities") el.style.transform = "";
         return;
       }
       const r = el.getBoundingClientRect();
@@ -85,7 +85,8 @@ G.TouchCfg = {
     el.style.top = top + "px";
     el.style.right = "auto";
     el.style.bottom = "auto";
-    if (id === "slots") el.style.transform = "none";
+    // (the two rows are centred with a transform until they are moved)
+    if (id === "slots" || id === "abilities") el.style.transform = "none";
   },
 
   setScale(id, v) {
@@ -130,6 +131,8 @@ G.TouchCfg = {
     // four guns.
     UI._touchSlotSig = null;
     UI.refreshTouchSlots([{ active: false }, { active: true }, { active: false }, { active: false }, { active: false }], 1);
+    // ...and all four ability buttons, whatever the run holds (round 3)
+    if (UI.refreshTouchAbilities) UI.refreshTouchAbilities(true);
 
     this.apply();
     this.select(null);
@@ -153,6 +156,7 @@ G.TouchCfg = {
 
     const UI = G.UI;
     UI._touchSlotSig = null;
+    if (UI.refreshTouchAbilities) UI.refreshTouchAbilities(false);
     document.body.classList.toggle("touch-mode", this._prevTouchMode);
     UI.setHudVisible(!this._prevHudHidden);
     UI.setTouchControlsVisible(!this._prevControlsHidden);

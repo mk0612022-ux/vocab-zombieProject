@@ -216,20 +216,25 @@ G.Round3Test = (function () {
   function thirdFloor() {
     const saved = JSON.stringify(G.save);
     try {
-      const g = fresh(1), w = g.world, tf = w.thirdFloor;
-      g.correctCount = 45; g.notesReadRun = new Set(["a", "b", "c", "d"]);
+      // (round 3 of the new series moved this to js/floor3.js: a keycard and
+      // a Vocabulary Lock -- tools/round7-test.js goes through it in full)
+      const g = fresh(1), w = g.world, tf = w.thirdFloor, F3 = G.Floor3;
+      g.correctKills = 60; g.notesReadRun = new Set(["a", "b", "c", "d"]);
+      G.Bosses.run.downs = [{ id: "coach", wave: 5, secs: 90 }];
       g.checkThirdFloorUnlock();
-      ok("3F: stays shut while the 2nd floor is locked", !tf.unlocked);
+      ok("3F: no keycard while the 2nd floor is locked", !F3.s.spawned && !tf.unlocked);
       w.secondFloor.unlocked = true;
-      g.notesReadRun = new Set(["a", "b", "c"]);
+      g.notesReadRun = new Set(["a", "b"]);
       g.checkThirdFloorUnlock();
-      ok("3F: needs four notes", !tf.unlocked);
-      g.notesReadRun.add("d"); g.correctCount = 39;
+      ok("3F: needs three notes", !F3.s.spawned);
+      g.notesReadRun.add("c"); g.correctKills = 49;
       g.checkThirdFloorUnlock();
-      ok("3F: needs forty right answers", !tf.unlocked);
-      ok("3F: the grille says what it wants", /2\/4|4\/4/.test(g.thirdFloorStatus()) || /Notes read/.test(g.thirdFloorStatus()));
-      g.correctCount = 40;
+      ok("3F: needs fifty right-word kills", !F3.s.spawned);
+      ok("3F: the grille says what it wants", /Keycard/.test(g.thirdFloorStatus()), g.thirdFloorStatus());
+      g.correctKills = 50;
       g.checkThirdFloorUnlock();
+      ok("3F: the keycard turns up", F3.s.spawned && !tf.unlocked);
+      F3.take(g); F3.open(g);
       ok("3F: opens, the grille's collider goes", tf.unlocked && !w.colliders.includes(tf.barrierCollider));
       ok("3F: its spawn points open", w.spawnPoints.filter((s) => s.gate === "top").every((s) => G.spawnPointOpen(w, s)));
       // the rewards

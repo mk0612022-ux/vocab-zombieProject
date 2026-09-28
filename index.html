@@ -186,9 +186,16 @@
       <div class="hud-weapon-name" id="hud-weapon-name"></div>
       <div class="hud-ammo" id="hud-ammo"></div>
       <div class="hud-objectives hidden" id="hud-objectives"></div>
+      <!-- (round 3, I) the third floor's steps, compact -->
+      <div class="hud-floor3 hidden" id="hud-floor3"></div>
       <div class="hud-slots" id="hud-slots"></div>
     </div>
   </div>
+  <!-- (round 3, H) the abilities: icon, cooldown ring, key -->
+  <div class="hud-abilities hidden" id="hud-abilities"></div>
+  <div class="hud-ability-note hidden" id="hud-ability-note" role="status"></div>
+  <!-- (round 3, J) "Checkpoint Saved - Wave 11" -->
+  <div class="hud-checkpoint hidden" id="hud-checkpoint" role="status"><span class="cp-ico" aria-hidden="true">💾</span><span class="cp-text"></span></div>
   <canvas class="hud-minimap hidden" id="hud-minimap" role="img" data-i18n-aria="map.aria"></canvas>
   <div class="hud-fps-counter hidden" id="hud-fps-counter"></div>
   <div class="hud-achievement-toast hidden" id="hud-achievement-toast"></div>
@@ -223,6 +230,8 @@
   <button id="touch-sprint" class="touch-btn touch-sprint" data-i18n="touch.sprint"></button>
   <button id="touch-pause" class="touch-btn touch-pause icon-btn" data-i18n="touch.pause" data-label-key="touch.pauseLabel"></button>
   <div id="touch-slots" class="touch-slots"></div>
+  <!-- (round 3, H) one button per ability held -->
+  <div id="touch-abilities" class="touch-abilities empty"></div>
 </div>
 
 <!-- ===================== TOUCH LAYOUT EDITOR (category B) ===================== -->
@@ -378,13 +387,40 @@
   </div>
 </div>
 
+<!-- ===================== ABILITY HONEYCOMB (round 3, js/abilityui.js) ===================== -->
+<div id="screen-abilities" class="screen hidden">
+  <div class="hive-wrap" role="dialog" aria-modal="true" aria-labelledby="hive-title">
+    <div class="hive-kicker" data-i18n="hive.kicker"></div>
+    <h2 class="hive-title" id="hive-title"></h2>
+    <p class="hive-sub" id="hive-sub"></p>
+    <div class="hive" id="hive"></div>
+    <div class="hive-hint kbd-only" id="hive-hint" data-i18n="hive.hint"></div>
+    <div class="hive-detail hidden" id="hive-detail"></div>
+    <div class="hive-replace hidden" id="hive-replace"></div>
+    <div class="row-center"><button class="btn btn-primary hidden" id="btn-hive-continue"><span data-i18n="hive.continue"></span> <span class="kbd-only">(Enter)</span></button></div>
+  </div>
+</div>
+
+<!-- ===================== QUESTION WINDOW (round 3, js/dialog.js) ===================== -->
+<div id="dialog" class="dialog-overlay hidden">
+  <div class="dialog-box" id="dialog-box" role="alertdialog" aria-modal="true" aria-labelledby="dialog-title" aria-describedby="dialog-text">
+    <div class="dialog-icon hidden" id="dialog-icon" aria-hidden="true"></div>
+    <h3 class="dialog-title" id="dialog-title"></h3>
+    <p class="dialog-text" id="dialog-text"></p>
+    <div class="dialog-btns" id="dialog-btns"></div>
+  </div>
+</div>
+
 <!-- ===================== PAUSE ===================== -->
 <div id="screen-pause" class="screen hidden">
   <h2 class="screen-title" data-i18n="pause.title"></h2>
   <div class="menu-btns">
     <button class="btn btn-primary" id="btn-resume" data-i18n="pause.resume"></button>
+    <div class="pause-checkpoint hidden" id="pause-checkpoint"></div>
     <div class="pause-objectives" id="pause-objectives"></div>
+    <div class="pause-objectives pause-floor3 hidden" id="pause-floor3"></div>
     <div class="pause-perks" id="pause-perks"></div>
+    <div class="pause-perks pause-abilities" id="pause-abilities"></div>
     <button class="btn" id="btn-pause-vocablog" data-i18n="menu.vocablog"></button>
     <button class="btn" id="btn-pause-weaponlog" data-i18n="menu.weaponlog"></button>
     <button class="btn" id="btn-pause-journal" data-i18n="menu.journal"></button>
@@ -399,7 +435,10 @@
   <h2 class="screen-title lose" data-i18n="result.gameOver"></h2>
   <div class="result-stats" id="gameover-stats"></div>
   <div id="gameover-review" class="review-list"></div>
+  <div class="gameover-cp hidden" id="gameover-cp"></div>
   <div class="menu-btns row">
+    <!-- (round 3, J3) shown once the run has a checkpoint -->
+    <button class="btn btn-primary hidden" id="btn-gameover-continue"></button>
     <button class="btn btn-primary" id="btn-gameover-retry" data-i18n="result.retry"></button>
     <button class="btn" id="btn-gameover-menu" data-i18n="common.mainMenu"></button>
   </div>
@@ -483,8 +522,13 @@ window.addEventListener("load", function () {
 <script src="js/bossmodels.js"></script>
 <script src="js/bosses.js"></script>
 <script src="js/cutscene.js"></script>
+<script src="js/abilities.js"></script>
+<script src="js/floor3.js"></script>
+<script src="js/checkpoint.js"></script>
+<script src="js/dialog.js"></script>
 <script src="js/tutorial.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/abilityui.js"></script>
 <script src="js/tips.js"></script>
 <script src="js/journal.js"></script>
 <script src="js/bosscodex.js"></script>

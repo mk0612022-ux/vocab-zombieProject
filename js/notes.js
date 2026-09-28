@@ -45,15 +45,18 @@ G.Notes = {
   },
 
   // ---- a run's ten ---------------------------------------------------------
-  choose(levelKey) {
-    const notes = G.shuffle(this.all(levelKey).slice());
-    const out = [];
-    ["A", "B", "C"].forEach((b) => { const n = notes.find((x) => this.band(x.cefr) === b && !out.includes(x)); if (n) out.push(n); });
-    notes.forEach((n) => { if (out.length < this.PER_RUN && !out.includes(n)) out.push(n); });
+  // (`read`: a run continued from its checkpoint has already read these, and
+  // lays out only the rest of its ten)
+  choose(levelKey, read) {
+    read = read || [];
+    const notes = G.shuffle(this.all(levelKey).filter((n) => !read.includes(n.id)));
+    const out = [], want = Math.max(0, this.PER_RUN - read.length);
+    ["A", "B", "C"].forEach((b) => { const n = notes.find((x) => this.band(x.cefr) === b && !out.includes(x)); if (n && out.length < want) out.push(n); });
+    notes.forEach((n) => { if (out.length < want && !out.includes(n)) out.push(n); });
     return out;
   },
 
-  place(game) {
+  place(game, read) {
     this.reset();
     const world = game.world;
     const key = this.LEVEL_OF_THEME[game.level.theme];
@@ -62,7 +65,7 @@ G.Notes = {
     if (!notes.length || !world.noteSpots || !world.noteSpots.length) return;
     const spots = this.curate(world.noteSpots);
     world.noteSpotsCurated = spots;
-    const run = this.choose(key);
+    const run = this.choose(key, read);
     // the third floor holds two at most: most of the run has to be findable
     // before its grille opens (reading four is one of the things that opens it)
     // ...and the grounds half of them at most, so the building has its share
@@ -162,6 +165,7 @@ G.Notes = {
     const total = this.all(key).length;
     G.UI.flashPurchaseBanner(G.T(isNew ? "notes.kept" : "notes.keptAgain"), G.T("notes.keptText", { n: list.length, total }));
     if (list.length >= total && total > 0) G.unlockAchievement("notes_" + key);
+    // (round 3: three read this run is one of the third floor's steps)
     if (game.checkThirdFloorUnlock) game.checkThirdFloorUnlock();
   },
 

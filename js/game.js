@@ -205,15 +205,38 @@ G.Game = {
     this.beginRun();
   },
   retry() {
-    if (this.mode === "campaign") this.startLevel(this.level.id);
+    if (this.mode === "campaign") this.newRun(this.level.id);
     else if (this.mode === "daily") this.startDailyChallenge();
     else this.startEndless();
   },
+  // (J3, round 3) a campaign level from wave 1 when it has a checkpoint:
+  // that deletes the checkpoint, so it asks first
+  newRun(id) {
+    if (G.Checkpoint && G.Checkpoint.has(id)) { G.Checkpoint.confirmDelete(id, () => this.startLevel(id)); return; }
+    this.startLevel(id);
+  },
+  // ...or back to the checkpoint: wave 11, as it was kept (as often as wanted)
+  continueFromCheckpoint(id) {
+    const cp = G.Checkpoint && G.Checkpoint.get(id);
+    if (!cp) { this.startLevel(id); return; }
+    cp.continues = (cp.continues || 0) + 1;
+    G.persist();
+    this.mode = "campaign";
+    this.level = G.getLevel(id);
+    this.wordPool = G.WORD_SETS[this.level.wordsKey].words;
+    this._restoring = JSON.parse(JSON.stringify(cp));
+    this.beginRun();
+  },
 
   beginRun() {
+    // (J, round 3) a checkpoint being continued: the level is built as for
+    // any run, then the saved state is laid over it just before wave 11
+    const restoring = this._restoring || null;
+    this._restoring = null;
     G.Shop.resetRun();
     this.teardownLevel();
     G.Bosses.resetRun();                             // no boss met yet this run
+    G.Abilities.resetRun();                          // no ability yet either (round 3, H)
     this.scene = new THREE.Scene();
     this.scene.add(this.yawObject);
     this.world = G.buildLevelScene(this.scene, this.level, G.save.settings.graphicsQuality);
@@ -222,7 +245,8 @@ G.Game = {
     // shafts) -- before the merge, which leaves them alone
     this.notesReadRun = new Set();
     this._notesRevealed = false;
-    if (G.Notes) G.Notes.place(this);
+    // (a continued run does not lay out again the notes it has already read)
+    if (G.Notes) G.Notes.place(this, restoring ? restoring.notesRead : null);
     if (G.Details) G.Details.build(this);
     if (G.Sky) G.Sky.build(this);                 // the moon, its light and its beams
     this.prepareScene();
@@ -258,6 +282,9 @@ G.Game = {
     // re-equip those weapons into a fresh run's loadout.
     this.correctCount = 0; this.wrongCount = 0; this.wrongWordsThisRun = {};
     this.totalZombiesKilled = 0; // drives the hospital 2nd-floor unlock (category E3)
+    this.correctKills = 0;       // zombies shot on the right word (round 3: the third floor wants 50)
+    this._continues = 0;         // times this run came back from its checkpoint (J4)
+    if (G.Floor3) G.Floor3.reset(this);
     G.UI._tweenState = null; // reset HUD number tweens so a new run's HUD snaps to 0 instead of counting down from the last run
     this.zombies.forEach((z) => { this.scene.remove(z.mesh); G.disposeObject3D(z.mesh); });
     this.zombies = [];
@@ -300,8 +327,9 @@ G.Game = {
     this._winNow = false; this._waveBonus = 0;
     if (this.mode === "campaign") G.Objectives.reset(this.level.id, this.world); else G.Objectives.state = null;
     G.Audio.startLevel(this.level.theme);
-    G.Tutorial.startRun(this);
     this._stepT = 0; this._hbT = 0; this._behindT = 0; this._wasExhausted = false;
+    G.Tutorial.startRun(this);
+    if (restoring) G.Checkpoint.apply(this, restoring);   // wave 10's state: the next wave is 11
     this.startWave();
     if (G.Input.mode === "desktop") G.Input.requestPointerLock();
   },
@@ -372,6 +400,8 @@ G.Game = {
     if (G.Details) G.Details.reset();
     if (G.Sky) G.Sky.reset();
     if (G.Notes) G.Notes.reset();
+    if (G.Abilities) G.Abilities.clearWorld();
+    if (G.Floor3) G.Floor3.clearWorld();
     // a boss, its cutscene, its arena walls and its effects
     if (G.Cutscene) G.Cutscene.stop();
     if (G.Bosses) G.Bosses.reset(this.world ? this : null);
@@ -435,6 +465,8 @@ G.Game = {
     this.targetPair = [chosen.word, chosen.meaning];
     // J3 "before" mode: read the new target aloud the moment it appears
     if (G.save.settings.speechMode === "before") G.Audio.speak(chosen.word);
+    // (round 3: Fifty-Fifty crosses out wrong words for the new one instead)
+    if (G.Abilities) G.Abilities.onNewTarget(this);
     alive.forEach((z) => z.setTarget(z === chosen));
   },
 
@@ -851,6 +883,7 @@ G.Game = {
       const sh = pl.comboShield;
       if (sh && !sh.charged && ++sh.streak >= P.val("combo_shield")) { sh.charged = true; sh.streak = 0; }
       this.correctCount++;
+      this.correctKills++;
       G.Audio.sfx("correct");
       // J3: pronounce the word once it has been earned (default), so the
       // audio reinforces the answer instead of giving it away
@@ -942,8 +975,12 @@ G.Game = {
     G.Tutorial.onPickup();
     if (drop.kind === "money") this.player.money += 20 + Math.round(G.rng() * 30);
     else if (drop.kind === "ammo") {
-      const id = this.currentWeaponId();
-      if (id !== "melee") this.player.ammo[id].reserve += G.WEAPON_DEFS[id].magSize * 2;
+      // two magazines for the gun in hand -- with the knife out, for the first
+      // gun (it used to be lost); a boss arena's supply box fills every gun
+      // (round 3: the playtest bot ran dry in a sealed arena and was stuck)
+      const cur = this.currentWeaponId();
+      const ids = drop.arena ? this.player.gunSlots : [cur !== "melee" ? cur : this.player.gunSlots[0]];
+      ids.forEach((id) => { if (id && this.player.ammo[id] && G.WEAPON_DEFS[id]) this.player.ammo[id].reserve += G.WEAPON_DEFS[id].magSize * 2; });
     } else if (drop.kind === "health") this.player.hp = Math.min(this.player.maxHp, this.player.hp + 94); // was 25, scaled 3.75x with player HP
     else if (drop.kind === "crate") this.openCrate(drop.rarity, null, null, { source: "drop", dropPos: drop.mesh.position.clone() });
   },
@@ -1025,6 +1062,8 @@ G.Game = {
     this.velocityY = 0;
     this._prevPos = null; this._bossLastP = null; this._prevYaw = undefined; this._prevPitch = undefined;
     this.cancelReload();
+    // (Rewind cannot take the player back out of a boss's arena)
+    if (G.Abilities) G.Abilities.clearTrail();
     if (G.Zones) G.Zones.update(this, true);
   },
   // The view shakes (a boss landing, a roar); gentler with head bob off.
@@ -1058,8 +1097,8 @@ G.Game = {
       this.finishBossWave();
     }, { pair, time: 10, boss: true });
   },
-  // the reward for the right answer: the ability honeycomb arrives in round 3
-  // (H); until then the shop follows at once
+  // the reward for the right answer: the ability honeycomb (round 3, H --
+  // js/abilities.js, js/abilityui.js), then the shop
   bossReward(next) {
     if (G.Abilities && G.Abilities.offer) G.Abilities.offer(this, next); else next();
   },
@@ -1177,7 +1216,7 @@ G.Game = {
     G.UI.showScreen(null);
     G.Modal.close("shop");
     // (J, round 3: after wave 10's boss the run is kept here, with the health
-    // the shop left; G.Checkpoint arrives in round 3)
+    // the shop left -- js/checkpoint.js)
     if (this._checkpointDue) { this._checkpointDue = false; if (G.Checkpoint && G.Checkpoint.save) G.Checkpoint.save(this); }
     this.startWave();
   },
@@ -1262,7 +1301,8 @@ G.Game = {
     G.UI.setHudVisible(false);
     G.UI.setTouchControlsVisible(false);
     const cat = this.mode === "daily" ? "daily" : this.mode === "endless" ? "endless" : "level" + this.level.id;
-    G.addLeaderboardEntry(cat, this.player.score);
+    // (J4: a run that came back from its checkpoint is marked on the board)
+    G.addLeaderboardEntry(cat, this.player.score, this._continues ? "continued" : "");
     if (this.mode === "endless") {
       G.save.endlessHighScore = Math.max(G.save.endlessHighScore, this.player.score);
       G.save.endlessHighWave = Math.max(G.save.endlessHighWave, this.wave);
@@ -1272,6 +1312,7 @@ G.Game = {
     if (this.mode === "campaign") G.save.levelHighScores[this.level.id] = Math.max(G.save.levelHighScores[this.level.id] || 0, this.player.score);
     G.persist();
     G.UI.renderResultScreen("lose", { score: this.player.score, wave: this.wave, correct: this.correctCount, wrong: this.wrongCount, money: this.player.money, bosses: G.Bosses.run.downs }, this.wrongWordsThisRun);
+    if (G.Checkpoint) G.Checkpoint.onGameOver(this);     // Continue from Wave 11, once there is a checkpoint
     G.UI.showScreen("screen-gameover");
   },
   onVictory() {
@@ -1280,8 +1321,10 @@ G.Game = {
     G.Input.exitPointerLock();
     G.UI.setHudVisible(false);
     G.UI.setTouchControlsVisible(false);
-    G.addLeaderboardEntry("level" + this.level.id, this.player.score);
+    G.addLeaderboardEntry("level" + this.level.id, this.player.score, this._continues ? "continued" : "");
     G.save.levelHighScores[this.level.id] = Math.max(G.save.levelHighScores[this.level.id] || 0, this.player.score);
+    // the level is done: its checkpoint goes (J3)
+    if (G.Checkpoint) G.Checkpoint.remove(this.level.id);
     const nextId = this.level.id + 1;
     if (G.getLevel(nextId) && !G.save.unlockedLevels.includes(nextId)) G.save.unlockedLevels.push(nextId);
     if (!this.player.wasHitThisLevel) G.unlockAchievement("no_hit_level");
@@ -1303,6 +1346,10 @@ G.Game = {
     G.UI.applyControlMode();
     G.UI.renderPauseObjectives();
     G.UI.renderPausePerks();
+    // round 3: the abilities held, the third floor's checklist, the checkpoint
+    if (G.UI.renderPauseAbilities) G.UI.renderPauseAbilities();
+    if (G.Floor3) G.Floor3.renderPause(this);
+    if (G.Checkpoint) G.Checkpoint.renderPause(this);
     G.UI.showScreen("screen-pause");
   },
   resume() {
@@ -1357,6 +1404,7 @@ G.Game = {
     document.body.classList.toggle("slowmo", this._slowmoT > 0);
 
     this.updatePlayerMovement(dt);
+    G.Abilities.update(this, dt);                      // round 3 (H): cooldowns and what is running
     this.updateRegen(dt);
     this.updateShooting(dt);
     this.updateZombies(worldDt);
@@ -1381,6 +1429,7 @@ G.Game = {
     G.Perf.cullZombies(this);
     if (G.Zones) G.Zones.update(this);
     if (G.Notes) G.Notes.update(this, dt);
+    if (G.Floor3) G.Floor3.update(this, dt);
     if (G.Details) G.Details.update(this, dt);
     if (G.Sky) G.Sky.update(this, dt);
     this.relocateStragglers(worldDt);
@@ -1460,8 +1509,12 @@ G.Game = {
     const bossHint = G.Bosses.fighting() ? G.T("hud.bossAim", { w: G.T("boss." + G.Bosses.boss.def.id + ".weak") }) : null;
     let meaning = this.targetPair ? this.targetPair[1] : (this.zombies.length ? "-" : bossHint || G.T("hud.waiting"));
     // Hint Reader: the first letter, and at level 2 how many letters
+    // (round 3: the Whisper ability says more -- the first three and the length)
     const hint = G.Perks.level("perk_hint");
-    if (hint && this.targetPair) {
+    if (this.targetPair && G.Abilities.whisper()) {
+      const w = this.targetPair[0];
+      meaning += G.T("hud.whisper", { s: w.slice(0, 3).toUpperCase(), n: w.replace(/[^A-Za-z]/g, "").length });
+    } else if (hint && this.targetPair) {
       const w = this.targetPair[0];
       meaning += hint >= 2 ? G.T("hud.hintLen", { c: w[0].toUpperCase(), n: w.replace(/[^A-Za-z]/g, "").length })
         : G.T("hud.hintFirst", { c: w[0].toUpperCase() });
@@ -1553,15 +1606,16 @@ G.Game = {
     // Pack Mule: half of that penalty is gone
     const mule = G.Perks.has("pack_mule") ? G.Perks.val("pack_mule") / 100 : 0;
     const speedMult = 1 - (1 - wcls.speedMult) * (1 - mule), staminaMult = 1 + (wcls.staminaMult - 1) * (1 - mule);
-    if (sprinting) this.stamina = Math.max(0, this.stamina - 22 * staminaMult * dt);
-    else this.stamina = Math.min(this.maxStamina, this.stamina + 14 * (secondWind ? G.Perks.val("second_wind") : 1) * dt);
+    // (Overdrive, round 3: sprinting costs nothing while it lasts)
+    if (sprinting && !G.Abilities.freeStamina()) this.stamina = Math.max(0, this.stamina - 22 * staminaMult * dt);
+    else if (!sprinting) this.stamina = Math.min(this.maxStamina, this.stamina + 14 * (secondWind ? G.Perks.val("second_wind") : 1) * dt);
     // Adrenaline: a burst of speed for three seconds after every kill
     const rush = this._adrenalineT > 0 ? 1 + G.Perks.val("adrenaline") / 100 : 1;
     // a boss's roar slows you down; its roots hold you where you stand
     // (5.2 sprint / 3.2 walk: G.Bosses.LASER_SPEED is exactly the walk)
     this.bossRootT = Math.max(0, (this.bossRootT || 0) - dt);
     const held = (this.bossSlow || 1) * (this.bossRootT > 0 ? 0 : 1);
-    const speed = (sprinting ? 5.2 : 3.2) * this.player.moveSpeedMult * speedMult * rush * held * dt;
+    const speed = (sprinting ? 5.2 : 3.2) * this.player.moveSpeedMult * speedMult * rush * held * G.Abilities.moveMult() * dt;
     const forward = new THREE.Vector3(-Math.sin(this.yawObject.rotation.y), 0, -Math.cos(this.yawObject.rotation.y));
     // right = forward rotated -90 deg around Y. (forward.z, 0, -forward.x) was
     // actually pointing left, which swapped A/D: D (mx=+1) moved the player
@@ -1597,7 +1651,7 @@ G.Game = {
     // Category N: a sniper's `scope` is its own aimed FOV, well past the
     // general ADS zoom, and it draws a scope overlay once fully shouldered.
     const aimedFov = def.scope || this.aimFov;
-    this.camera.fov = this.baseFov + (aimedFov - this.baseFov) * this.aimT;
+    this.camera.fov = this.baseFov + (aimedFov - this.baseFov) * this.aimT + G.Abilities.fovKick() * (1 - this.aimT);
     this.camera.updateProjectionMatrix();
     if (G.UI.setAimingVisual) G.UI.setAimingVisual(this.aimT > 0.5);
     if (G.UI.setScopeVisual) G.UI.setScopeVisual(!!def.scope && this.aimT > 0.85);
@@ -1765,6 +1819,16 @@ G.Game = {
       // still coming in (out of the ground, a locker, a vent...): it can be
       // shot but cannot move or bite yet
       if (z.emerge) { G.ZombieFX.step(this, z, dt); continue; }
+      // (round 3, H) an ability on it: frozen or dazed it stands (a frozen
+      // one does not even sway), lost in smoke or drawn to a decoy it walks
+      // elsewhere, in a slow field or glue it is slower. None of it hurts.
+      const mod = G.Abilities.zombieMod(this, z, dt);
+      if (mod.skip) {
+        if (!mod.frozen) z.animate(dt, 0);
+        z.attackCooldown -= dt;
+        continue;
+      }
+      const noBite = mod.noBite, zdt = dt * mod.speed, abTarget = mod.target;
       const zRegion = G.getRegionAt(this.world, z.mesh.position.x, z.mesh.position.z, z.mesh.position.y);
       let moveTarget = playerPos;
       // Mid-flight the region lookup flips between the hall (below 2.3) and
@@ -1846,17 +1910,21 @@ G.Game = {
             : ex.x > 0 ? new THREE.Vector3(sb.max.x + 1.5, 0, z.mesh.position.z) : new THREE.Vector3(sb.min.x - 1.5, 0, z.mesh.position.z);
         stairKeepOut = null;
       }
+      if (abTarget) { moveTarget = abTarget; stairKeepOut = null; }   // the decoy, or wandering in smoke
       z._goal = moveTarget;          // where it is headed (see updateRoomDoors)
       const near = G.ColGrid.near(this.world, z.mesh.position.x, z.mesh.position.z, 2.4, z._cols || (z._cols = []));
-      const dist = z.update(dt, moveTarget, playerPos, near, G.save.settings.gameSpeed, stairKeepOut);
+      const dist = z.update(zdt, moveTarget, abTarget || playerPos, near, G.save.settings.gameSpeed, stairKeepOut);
       z.mesh.position.y = G.getFloorHeightAt(this.world, z.mesh.position.x, z.mesh.position.z, z.mesh.position.y);
       // a bite needs the same floor too -- the distance is measured flat, so a
       // zombie on the hall floor could bite a player on the gallery above it
+      // (and a player in the air -- Pole Vault -- is out of reach)
       const sameFloor = Math.abs(z.mesh.position.y - (playerPos.y - 1.7)) < 1.5;
-      if (dist !== undefined && dist < 1.1 && sameFloor && z.attackCooldown <= 0) {
+      if (!noBite && dist !== undefined && dist < 1.1 && sameFloor && z.attackCooldown <= 0) {
         z.attackCooldown = 1.0;
         if (z.lunge) z.lunge();
-        const dmg = z.damage * (1 - this.player.armorPct);
+        // (Dash: nothing lands while it lasts; Barrier: a quarter does)
+        const dmg = z.damage * (1 - this.player.armorPct) * G.Abilities.damageTakenMult();
+        if (dmg <= 0) continue;
         this.player.hp -= dmg;
         G.Audio.sfx("hurt");
         this.player.wasHitThisLevel = true;
@@ -2007,41 +2075,18 @@ G.Game = {
     } else if (found.kind === "note") {
       G.Notes.read(this, found.ref);
     } else if (found.kind === "gate3") {
-      if (!found.ref.unlocked) { G.Audio.sfx("rattle", { pos: found.mesh.position.clone() }); G.UI.flashPurchaseBanner(G.T("banner.gate3Locked"), this.thirdFloorStatus()); }
+      if (!found.ref.unlocked && G.Floor3) G.Floor3.interact(this, found);
     } else if (found.kind === "safe" || found.kind === "trophy" || found.kind === "coffee" || found.kind === "radio") {
       this.useReward(found.ref);
     }
   },
 
-  // ---------------- The third floor (round 3, F1) ----------------
-  // Harder to open than the second: the grille at the foot of its stair lifts
-  // once the second floor is open, the player has read four of this run's
-  // story notes (the principal locked it for "someone who knows what really
-  // happened here") and answered forty words right.
-  thirdFloorStatus() {
-    const tf = this.world.thirdFloor, sf = this.world.secondFloor;
-    if (!tf) return "";
-    return G.T("prompt.gate3", {
-      n: Math.min(this.notesReadRun ? this.notesReadRun.size : 0, tf.notesNeeded), nn: tf.notesNeeded,
-      c: Math.min(this.correctCount, tf.correctNeeded), cc: tf.correctNeeded,
-    }) + (sf && !sf.unlocked ? G.T("prompt.gate3Second") : "");
-  },
-  checkThirdFloorUnlock() {
-    const tf = this.world && this.world.thirdFloor;
-    if (!tf || tf.unlocked) return;
-    if (this.world.secondFloor && !this.world.secondFloor.unlocked) return;
-    if ((this.notesReadRun ? this.notesReadRun.size : 0) < tf.notesNeeded || this.correctCount < tf.correctNeeded) return;
-    tf.unlocked = true;
-    G.ColGrid.remove(this.world, tf.barrierCollider);
-    G.Audio.sfx("gate_open", { pos: tf.stairFoot.clone().setY(tf.stairFoot.y + 1.5) });
-    // the grille rolls up into the ceiling, then is gone
-    this._swingProps = this._swingProps || [];
-    const m = tf.barrierMesh, y0 = m.position.y;
-    this._swingProps.push({ lift: true, mesh: m, y0, t: 0 });
-    this.spawnDrop("crate", tf.landing.clone());
-    G.UI.flashPurchaseBanner(G.T("banner.thirdFloor"), G.T("banner.thirdFloorText"));
-    if (G.Zones) G.Zones.dirty = true;
-  },
+  // ---------------- The third floor (round 3, I: js/floor3.js) ----------------
+  // Six steps: the second floor open, the wave 5 boss beaten, 50 right-word
+  // kills and 3 notes read this run; then the Floor 3 Keycard turns up on
+  // the second floor, and the grille's Vocabulary Lock asks three hard words.
+  thirdFloorStatus() { return G.Floor3 ? G.Floor3.prompt(this) : ""; },
+  checkThirdFloorUnlock() { if (G.Floor3) G.Floor3.check(this); },
   // the four rewards on the third floor, each good once a run
   useReward(ref) {
     if (ref.used) return;
@@ -2469,7 +2514,9 @@ G.Game = {
       t.cooldown -= dt;
       if (t.active && t.cooldown <= 0 && t.mesh.position.distanceTo(this.yawObject.position) < 1.3) {
         t.cooldown = 1.0;
-        this.player.hp -= t.damage * (1 - this.player.armorPct);    // Riot Gear covers traps too
+        const dmg = t.damage * (1 - this.player.armorPct) * G.Abilities.damageTakenMult();   // Riot Gear covers traps too (and a Barrier)
+        if (dmg <= 0) continue;
+        this.player.hp -= dmg;
         this.player.wasHitThisLevel = true;
         G.UI.flashDamage();
         this.checkPlayerDeath();
@@ -2547,6 +2594,8 @@ G.onKeyDown = function (e) {
     if (e.code === kb.melee) { Game.switchSlot(0); return; }
     // slot2..slot7: the four gun slots, and the two Extra Weapon Slot adds
     for (let s = 2; s <= 7; s++) if (kb["slot" + s] && e.code === kb["slot" + s]) { Game.switchSlot(s - 1); return; }
+    // ability1..ability4 (round 3); a held key uses it once
+    for (let a = 1; a <= 4; a++) if (kb["ability" + a] && e.code === kb["ability" + a]) { if (!e.repeat) G.onAbilityPress(a - 1); return; }
   } else if (Game.state === "PAUSE") {
     // (the Escape that just unlocked the mouse and paused the game can
     // arrive here as a key press too -- it must not resume straight away)

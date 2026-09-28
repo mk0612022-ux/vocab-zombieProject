@@ -45,6 +45,9 @@ G.Round6Test = (function () {
   function place(x, z) { g.yawObject.position.set(x, 1.7, z); g._prevPos = null; }
   function sim(sec, each) { const n = Math.round(sec / DT); for (let i = 0; i < n; i++) { if (each) each(i); up(1); if (!B.boss || B.phase !== "fight") break; } }
   const taken = () => B.stats.taken;
+  // (round 3 of the new series: a right answer opens the ability honeycomb
+  // first -- pick the first hexagon and carry on)
+  const hive = () => { if (G.Modal.isOpen("abilities")) { G.UI.hivePick(0); G.UI.hiveFinishReveal(); G.UI.hiveClose(null, G.Abilities.slots.length >= G.Abilities.MAX); } };
 
   // ---------------- F: twenty waves ----------------
   async function waves() {
@@ -317,15 +320,16 @@ G.Round6Test = (function () {
       const q = !!g.challenge && G.Modal.isOpen("challenge") && document.getElementById("hud-challenge-box").classList.contains("boss");
       const pair = g.challenge && g.challenge.pair;
       const wallsGone = G.Arena.cols.length === 0;
-      if (answer === "right") g.answerChallenge(g.challenge.choices.indexOf(pair[0]));
+      let hiveOpen = false;
+      if (answer === "right") { g.answerChallenge(g.challenge.choices.indexOf(pair[0])); hiveOpen = G.Modal.isOpen("abilities"); hive(); }
       else if (answer === "wrong") g.answerChallenge(g.challenge.choices.findIndex((c) => c !== pair[0]));
       else { g.challenge.timeLeft = 0.01; g.updateChallengeTimer(0.05); }
-      return { dying, n, q, pair, wallsGone, result: g._bossQuestion.result, state: g.state, shop: G.Modal.isOpen("shop"), phase: B.phase, money: g.player.money - money0 };
+      return { dying, n, q, pair, wallsGone, hiveOpen, result: g._bossQuestion.result, state: g.state, shop: G.Modal.isOpen("shop"), phase: B.phase, money: g.player.money - money0 };
     };
     const a = path("right");
     ok("G6 1: a grand death (4.6 s), the walls come down", a.dying && Math.abs(a.n - 276) <= 1 && a.wallsGone, a.n);
     ok("G6 2: then one hard word, against the clock", a.q && a.pair && g._bossQuestion);
-    ok("G6 right answer: (3: the ability choice, round 3) then 4: the shop", a.result === "right" && a.state === "SHOP" && a.shop && a.phase === null);
+    ok("G6 right answer: 3: the ability choice, then 4: the shop", a.result === "right" && a.hiveOpen && a.state === "SHOP" && a.shop && a.phase === null);
     ok("G6 the shop has Ready, a timer and the rotating perks", !!document.getElementById("btn-shop-continue") && g._perkOffer.length === 4);
     ok("G6 the bounty is paid", a.money === G.ECONOMY.waveBonus(5) + G.ECONOMY.bossBounty(5), a.money);
     g.leaveShop();
@@ -339,9 +343,10 @@ G.Round6Test = (function () {
     // wave 10: the checkpoint hook (round 3)
     toBoss("eye", 10); B.damage(g, 1e9, null);
     let n = 0; while (G.Cutscene.active && n < 500) { up(1); n++; }
-    g.answerChallenge(0);
+    g.answerChallenge(0); hive();
     ok("G6 5: after wave 10's boss the checkpoint is due (kept in round 3)", g._checkpointDue === true);
     g.leaveShop();
+    ok("G6 5: ...and kept as the shop closes", G.Checkpoint.has(1) && G.Checkpoint.get(1).wave === 11);
     ok("G4 names on the result screen", (() => { G.UI.renderResultScreen("win", { score: 1, wave: 20, correct: 1, wrong: 0, money: 0, bosses: B.run.downs }, {}); const t = document.getElementById("victory-review").textContent; return /Mortimer Grave, The Relentless/.test(t) && /Iris Glare, The Omniscient/.test(t); })());
     ok("G4 met and beaten go into the save", G.save.bosses.seen.gravedigger >= 3 && G.save.bosses.defeated.gravedigger >= 3);
     ok("G4 objective: bosses x/4", (() => { const r = G.Objectives.list(g).find((x) => /bosses/.test(x.label)); return r && /\/ 4$/.test(r.value); })());
@@ -349,8 +354,9 @@ G.Round6Test = (function () {
     const S = G.Objectives.state; S.latched = true; S.keysFound = S.keysTotal; for (let i = 0; i < S.roomsNeeded; i++) S.visited.add("test" + i); g.notesReadRun = new Set(["a", "b", "c", "d"]); S.bossesDown = 3;
     toBoss("coach", 20); B.damage(g, 1e9, null);
     n = 0; while (G.Cutscene.active && n < 500) { up(1); n++; }
-    g.answerChallenge(0);
+    g.answerChallenge(0); hive();
     ok("G6 wave 20's boss down, objectives done: Victory", g.state === "VICTORY", g.state);
+    ok("J3 a win deletes the level's checkpoint", !G.Checkpoint.has(1));
   }
 
   // ---------------- the Boss Codex ----------------

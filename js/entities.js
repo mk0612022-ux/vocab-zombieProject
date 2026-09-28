@@ -1292,9 +1292,16 @@ G.Zombie = function (type, position, wordPair, theme) {
   this.mesh.add(this.sprite);
   this.walkT = G.rng() * 10;
 };
+// (Round 3: a word crossed out by the Fifty-Fifty ability is drawn grey with
+// a cross. The label is only redrawn when it changes -- this is called for
+// every zombie each time the target is checked.)
 G.Zombie.prototype.setTarget = function (isTarget) {
   this.isTarget = isTarget;
-  G.updateWordSprite(this.sprite, this.word, isTarget ? "#ffe36b" : "#ffffff");
+  const out = !!this.ruledOut && !isTarget;
+  const key = (isTarget ? "t" : out ? "x" : "n");
+  if (this._label === key) return;
+  this._label = key;
+  G.updateWordSprite(this.sprite, out ? "✗ " + this.word : this.word, isTarget ? "#ffe36b" : out ? "#6c7078" : "#ffffff");
 };
 G.Zombie.prototype.takeDamage = function (dmg) {
   this.hp -= dmg;

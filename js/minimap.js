@@ -11,6 +11,9 @@
 //   keys     the caretaker's keys not yet found, pinned to the rim when far
 //   stairs   up and down, on the floors they join
 //   grille   the locked stair to the third floor
+//   keycard  the Floor 3 Keycard once it has turned up (round 3, I), pinned
+//            to the rim when far
+//   radar    the zombie with the word, while Word Radar lasts (round 3, H)
 //   boss     a boss wave: where its boss will be fought; during the fight,
 //            the arena's energy fence and the boss
 // The map of each storey is drawn once into its own canvas when the level
@@ -156,6 +159,10 @@ G.Minimap = {
     });
     // the mystery box
     if (world.mysteryBox && onFloor(world.mysteryBox.mesh.position.y - 0.7)) dot(pin(world.mysteryBox.x, world.mysteryBox.z, false), "#a07aff", r0 * 0.75, "?");
+    // (round 3) the Floor 3 Keycard, and the word Word Radar has found
+    if (G.Floor3) G.Floor3.mapMarks(game, dot, pin, onFloor, r0);
+    const rz = G.Abilities && G.Abilities.radarTarget;
+    if (rz && rz.alive) dot(pin(rz.mesh.position.x, rz.mesh.position.z, true), "#ffd23a", r0 * 1.05, "◎");
     // the player: an arrow pointing up
     c.fillStyle = "#6bff7a"; c.strokeStyle = "#0b1a0e"; c.lineWidth = Math.max(1, R / 45);
     c.beginPath(); c.moveTo(R, R - r0 * 1.5); c.lineTo(R + r0, R + r0); c.lineTo(R, R + r0 * 0.4); c.lineTo(R - r0, R + r0); c.closePath(); c.fill(); c.stroke();

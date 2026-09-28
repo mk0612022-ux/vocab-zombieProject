@@ -5,7 +5,7 @@
 //   in play    left stick move, right stick look (read in game.js)
 //              RT fire, LT aim, A jump, L3 sprint, X reload, Y use,
 //              B knife, LB / RB previous / next weapon, View hear the word,
-//              Menu pause
+//              Menu pause, D-pad up / right / down / left the four abilities
 //   in windows D-pad or left stick moves between buttons, A presses the one
 //              highlighted, B backs out (keeps the loadout, resumes, "Back"),
 //              Menu pauses / resumes
@@ -49,6 +49,8 @@ G.Pad = {
       if (edge(B.LB)) G.Loadout.cycle(g, -1);
       if (edge(B.RB)) G.Loadout.cycle(g, 1);
       if (edge(B.VIEW)) g.speakCurrentWord();
+      // round 3: the four abilities on the D-pad -- up, right, down, left
+      [B.UP, B.RIGHT, B.DOWN, B.LEFT].forEach((b, i) => { if (edge(b) && G.onAbilityPress) G.onAbilityPress(i); });
     } else {
       this.releaseHeld();
       this.navigate(gp, now, edge, dt);
@@ -63,7 +65,8 @@ G.Pad = {
   // visible screen.
   scope() {
     const top = G.Modal.top();
-    const byModal = { challenge: "hud-challenge-box", crate: "screen-crate", mystery: "screen-mystery", shop: "screen-shop", inventory: "screen-inventory", update: "update-dialog", codex: "codex-detail" };
+    const byModal = { challenge: "hud-challenge-box", crate: "screen-crate", mystery: "screen-mystery", shop: "screen-shop", inventory: "screen-inventory", update: "update-dialog", codex: "codex-detail",
+      abilities: "screen-abilities", dialog: "dialog-box" };
     if (top && byModal[top.id]) return document.getElementById(byModal[top.id]);
     if (G.TouchCfg && G.TouchCfg.editing) return document.getElementById("touchcfg-panel");
     const cur = G.UI._currentScreen;

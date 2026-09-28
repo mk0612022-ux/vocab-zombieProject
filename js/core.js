@@ -69,6 +69,7 @@ G.defaultSave = function () {
     customWords: { level1: [], level2: [], level3: [] },   // words the player added to each level ([[en,th],...])
     notes: { level1: [], level2: [], level3: [] },          // story notes kept in the journal (ids), round 3
     bosses: { seen: {}, defeated: {} },                      // the Boss Codex: {bossId: times met / beaten}, round 2
+    checkpoints: {},                                         // {level1: the run kept after wave 10}, round 3 (js/checkpoint.js)
   };
 };
 
@@ -127,6 +128,8 @@ G.normalizeSave = function (data) {
     return out;
   };
   s.bosses = { seen: counts(rawB.seen), defeated: counts(rawB.defeated) };
+  // checkpoints: one per level, well-formed or dropped (js/checkpoint.js)
+  s.checkpoints = G.Checkpoint ? G.Checkpoint.normalize(s.checkpoints) : (s.checkpoints && typeof s.checkpoints === "object" ? s.checkpoints : {});
   return s;
 };
 
@@ -296,6 +299,7 @@ G.defaultKeybinds = function () {
     sprint: "ShiftLeft", jump: "Space", reload: "KeyR", interact: "KeyE",
     melee: "Digit1", slot2: "Digit2", slot3: "Digit3", slot4: "Digit4", slot5: "Digit5",
     slot6: "Digit6", slot7: "Digit7",          // the slots the Extra Weapon Slot perk adds
+    ability1: "KeyQ", ability2: "KeyF", ability3: "KeyC", ability4: "KeyX",   // round 3: the bosses' rewards
     pause: "Escape",
   };
 };

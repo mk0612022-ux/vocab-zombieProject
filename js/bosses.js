@@ -1407,6 +1407,16 @@
       FX.update(dt);
       const b = this.boss;
       if (!b || this.phase !== "fight") return;
+      // (round 3) an ability's hold: a Frost Sprite or a Shockwave stops it
+      // for a moment -- far shorter than a zombie -- and Time Warp or Glue
+      // slow it a little; the rest of the abilities do nothing to a boss
+      if (b.frozenT > 0) {
+        b.frozenT -= dt;
+        this.updatePools(game, dt);
+        G.UI.setBossBar(true, b.label, b.hp / b.maxHp * 100, b.vulnT > 0);
+        return;
+      }
+      if (G.Abilities) dt *= G.Abilities.bossSpeed(b);
       const A = this.arena, P = game.yawObject.position;
       b.t += dt;
       this.stats.fightT += dt;
@@ -1445,7 +1455,36 @@
       const gv = game._bossVel || (game._bossVel = new V3());
       if (game._bossLastP) gv.set((P.x - game._bossLastP.x) / Math.max(dt, 1e-3), 0, (P.z - game._bossLastP.z) / Math.max(dt, 1e-3));
       game._bossLastP = (game._bossLastP || new V3()).copy(P);
+      this.resupply(game, b, dt);
       G.UI.setBossBar(true, b.label, b.hp / b.maxHp * 100, b.vulnT > 0);
+    },
+    // (round 3, found by the playtest bot) The arena is sealed, and a player
+    // whose every gun has run dry was left with the knife against thousands
+    // of health -- no way to win and no way out. Once every gun is down to
+    // under half a magazine, a supply box turns up a few metres away (on the
+    // side away from the boss); one at a time, twelve seconds apart. It
+    // fills every gun with two magazines.
+    resupply(game, b, dt) {
+      const pl = game.player;
+      b.supplyT = Math.max(0, (b.supplyT || 0) - dt);
+      if (b.supplyT > 0 || !pl.gunSlots.length) return;
+      const dry = pl.gunSlots.every((id) => { const a = pl.ammo[id], d = G.WEAPON_DEFS[id]; return !a || !d || a.mag + a.reserve < d.magSize * 0.5; });
+      if (!dry || (game.drops || []).some((d) => d.arena)) return;
+      const A = this.arena, r = A.rect, P = game.yawObject.position;
+      let best = null, bs = -1;
+      for (let i = 0; i < 12; i++) {
+        const a = i / 12 * Math.PI * 2, x = P.x + Math.cos(a) * 5, z = P.z + Math.sin(a) * 5;
+        if (x < r.minX + 2 || x > r.maxX - 2 || z < r.minZ + 2 || z > r.maxZ - 2) continue;
+        const s = Math.hypot(x - b.pos.x, z - b.pos.z);
+        if (s > bs) { bs = s; best = { x, z }; }
+      }
+      if (!best) best = { x: (r.minX + r.maxX) / 2, z: (r.minZ + r.maxZ) / 2 };
+      game.spawnDrop("ammo", new V3(best.x, A.floorY, best.z));
+      game.drops[game.drops.length - 1].arena = true;
+      b.supplyT = 12;
+      FX.shock(best.x, best.z, 2.2, 0x3388ff, 0.6);
+      G.Audio.sfx("pickup");
+      if (!b.supplied) { b.supplied = true; G.UI.flashPurchaseBanner(G.T("banner.arenaAmmo"), G.T("banner.arenaAmmoText")); }
     },
     // how far into the level: 0 at the first boss (wave 5), 1 by wave 20.
     // The first boss is a new player's first: its moves come less often and
@@ -1568,7 +1607,10 @@
       if (!pl || game.state !== "GAMEPLAY") return;
       // (softer early on -- see late(); the slam keeps its full weight)
       const k = o.src === "slam" ? 1 : 0.75 + 0.35 * this.late(game);
-      let dmg = pl.maxHp * frac * k * (1 - (pl.armorPct || 0));
+      // (round 3: nothing lands during a Dash, a quarter behind a Barrier)
+      const ab = G.Abilities ? G.Abilities.damageTakenMult() : 1;
+      if (ab <= 0) { if (this.stats) this.stats.dodged++; return; }
+      let dmg = pl.maxHp * frac * k * (1 - (pl.armorPct || 0)) * ab;
       // (the slam never kills a player who had full health)
       if (o.notLethalFromFull && pl.hp >= pl.maxHp - 0.5) dmg = Math.min(dmg, pl.hp - 1);
       pl.hp -= dmg;
