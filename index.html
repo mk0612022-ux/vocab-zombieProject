@@ -144,7 +144,11 @@
     <!-- (round 2) the boss's health: name and title over a big red bar -->
     <div class="hud-boss-bar hidden" id="hud-boss-bar" role="progressbar" data-i18n-aria="hud.boss">
       <div class="hud-boss-name" id="hud-boss-name"></div>
-      <div class="hud-boss-hp-track"><div class="hud-boss-hp-lag" id="hud-boss-hp-lag"></div><div class="hud-boss-hp-fill" id="hud-boss-hp-fill"></div></div>
+      <div class="hud-boss-hp-track"><div class="hud-boss-hp-lag" id="hud-boss-hp-lag"></div><div class="hud-boss-hp-fill" id="hud-boss-hp-fill"></div>
+        <!-- (new series, round 2) where phases 2 and 3 begin -->
+        <div class="hud-boss-mark" id="hud-boss-mark2"></div><div class="hud-boss-mark" id="hud-boss-mark3"></div></div>
+      <!-- what to do about the move under way -->
+      <div class="hud-boss-hint hidden" id="hud-boss-hint"></div>
     </div>
     <!-- stacked under the word prompt and the boss bar, never on top of them -->
     <!-- category O: contextual tutorial card -->
@@ -383,10 +387,8 @@
       <div class="codex-d-title" id="codex-d-title"></div>
       <div class="codex-d-thai" id="codex-d-thai" lang="th"></div>
       <p class="codex-d-look" id="codex-d-look"></p>
-      <div class="codex-d-label" data-i18n="codex.ability"></div>
-      <div class="codex-d-ability" id="codex-d-ability"></div>
-      <p class="codex-d-desc" id="codex-d-desc"></p>
-      <div class="codex-d-label" data-i18n="codex.counter"></div>
+      <!-- (new series, round 2) its three moves, a phase each, and how to survive each -->
+      <div class="codex-d-moves" id="codex-d-moves"></div>
       <p class="codex-d-counter" id="codex-d-counter"></p>
       <p class="codex-d-stats" id="codex-d-stats"></p>
     </div>
@@ -568,6 +570,7 @@ window.addEventListener("load", function () {
 <script src="js/sky.js"></script>
 <script src="js/bossmodels.js"></script>
 <script src="js/bosses.js"></script>
+<script src="js/bossmoves.js"></script>
 <script src="js/cutscene.js"></script>
 <script src="js/abilities.js"></script>
 <script src="js/floor3.js"></script>

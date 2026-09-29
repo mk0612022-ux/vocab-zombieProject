@@ -16,10 +16,14 @@
 //   3. its death (js/cutscene.js), then the one hard word, then the shop
 //      (js/game.js afterBoss)
 //
-// Every boss has a basic swipe for anyone who comes too close, and one move
-// of its own (ABIL below), always shown before it lands -- a red circle, a
-// lane, a ring on the ground, a sound winding up -- and always with a way
-// out:
+// Every boss has a basic swipe for anyone who comes too close, and three
+// moves of its own, one a phase (new series, round 2): the old one below
+// until it is down to 66% of its health, then a roar and its first new move,
+// then below 33% its second -- faster, sooner, and chained into combos with
+// the other two. The twenty new moves are in js/bossmoves.js. Every move is
+// shown before it lands -- a mark on the ground, a wind-up, a sound -- and
+// always has a way out; no single blow kills a player at full health.
+// Every number is in js/config.js (G.CONFIG.boss). The phase-1 moves:
 //
 //   gravedigger  Grave Slam      leaps at where you stand; step out of the
 //                                red circle before he lands (55% of your
@@ -48,27 +52,30 @@
 //                                only one is real -- the copies are faintly
 //                                see-through and have blue eyes
 //
-// A boss's health is set when it arrives: bigger for later waves and
-// harder levels, and held between what the player's guns would take two
-// and four minutes to wear down (hpFor), so a fight lasts about as long
-// whatever the loadout. The first boss (wave 5) is a new player's first:
-// its moves come less often and hit softer, rising to full by wave 20
-// (late(); the slam keeps its full half-health blow at every wave).
+// A boss's health comes from the wave (hpFor; the same for every boss at a
+// wave). The first boss (wave 5) is a new player's first: its moves come
+// less often, warn longer and hit softer, and it walks slower, rising to
+// full by wave 20 (late(), G.CONFIG.boss.byWave; the slam keeps its full
+// half-health blow at every wave).
 // ===================================================================
 (function () {
   const V3 = THREE.Vector3;
+  // (the invisible balls round things that can be shot down: G.Bosses.addTarget)
+  const TARGET_MAT = new THREE.MeshBasicMaterial({ color: 0xff00ff });
 
+  // (new series, round 2) moves: the three phases' moves, in order -- the
+  // first is the old one (`ability`); the new ones are in js/bossmoves.js
   G.BOSS_DEFS = [
-    { id: "gravedigger", word: "relentless", ability: "slam", intro: "burst", speed: 2.3, reach: 3.4, every: 9.5, color: 0x9dff6a, voice: { f: 52, rough: 16, len: 1.8 } },
-    { id: "eye", word: "omniscient", ability: "laser", intro: "descend", speed: 1.9, reach: 3.2, range: 11, every: 9, color: 0xffb028, voice: { f: 180, rough: 30, len: 1.4 } },
-    { id: "headmaster", word: "tyrannical", ability: "roar", intro: "spotlight", speed: 2.1, reach: 3.5, every: 10.5, color: 0xff3a2a, voice: { f: 70, rough: 12, len: 2.2 } },
-    { id: "matron", word: "prolific", ability: "summon", intro: "blackwater", speed: 2.0, reach: 3.8, range: 8, every: 11, color: 0xb25aff, voice: { f: 240, rough: 40, len: 1.2 } },
-    { id: "coach", word: "indomitable", ability: "charge", intro: "wallcrash", speed: 2.5, reach: 3.4, every: 8.5, color: 0xff8a2a, voice: { f: 60, rough: 20, len: 1.4 } },
-    { id: "thorn", word: "tenacious", ability: "roots", intro: "roots", speed: 1.7, reach: 3.8, every: 10, color: 0xffb03a, voice: { f: 44, rough: 8, len: 2.4 } },
-    { id: "storm", word: "capricious", ability: "lightning", intro: "lightning", speed: 2.2, reach: 3.2, range: 10, every: 9.5, color: 0x7ad8ff, voice: { f: 120, rough: 50, len: 1.1 } },
-    { id: "chemist", word: "malevolent", ability: "acid", intro: "fog", speed: 2.0, reach: 3.4, range: 10, every: 8.5, color: 0x8aff3a, voice: { f: 95, rough: 26, len: 1.3 } },
-    { id: "void", word: "insatiable", ability: "vortex", intro: "portal", speed: 1.7, reach: 3.4, every: 11, color: 0xa24aff, voice: { f: 38, rough: 6, len: 2.6 } },
-    { id: "examiner", word: "duplicitous", ability: "clones", intro: "papers", speed: 2.2, reach: 3.2, range: 9, every: 10.5, color: 0xff2a2a, voice: { f: 150, rough: 18, len: 1.2 } },
+    { id: "gravedigger", word: "relentless", ability: "slam", moves: ["slam", "ward", "graveyard"], intro: "burst", speed: 2.3, reach: 3.4, every: 9.5, color: 0x9dff6a, voice: { f: 52, rough: 16, len: 1.8 } },
+    { id: "eye", word: "omniscient", ability: "laser", moves: ["laser", "orbs", "mirror"], intro: "descend", speed: 1.9, reach: 3.2, range: 11, every: 9, color: 0xffb028, voice: { f: 180, rough: 30, len: 1.4 } },
+    { id: "headmaster", word: "tyrannical", ability: "roar", moves: ["roar", "detention", "assembly"], intro: "spotlight", speed: 2.1, reach: 3.5, every: 10.5, color: 0xff3a2a, voice: { f: 70, rough: 12, len: 2.2 } },
+    { id: "matron", word: "prolific", ability: "summon", moves: ["summon", "needles", "eggs"], intro: "blackwater", speed: 2.0, reach: 3.8, range: 8, every: 11, color: 0xb25aff, voice: { f: 240, rough: 40, len: 1.2 } },
+    { id: "coach", word: "indomitable", ability: "charge", moves: ["charge", "ball", "line"], intro: "wallcrash", speed: 2.5, reach: 3.4, every: 8.5, color: 0xff8a2a, voice: { f: 60, rough: 20, len: 1.4 } },
+    { id: "thorn", word: "tenacious", ability: "roots", moves: ["roots", "bark", "overgrowth"], intro: "roots", speed: 1.7, reach: 3.8, every: 10, color: 0xffb03a, voice: { f: 44, rough: 8, len: 2.4 } },
+    { id: "storm", word: "capricious", ability: "lightning", moves: ["lightning", "pylons", "arcs"], intro: "lightning", speed: 2.2, reach: 3.2, range: 10, every: 9.5, color: 0x7ad8ff, voice: { f: 120, rough: 50, len: 1.1 } },
+    { id: "chemist", word: "malevolent", ability: "acid", moves: ["acid", "spray", "miasma"], intro: "fog", speed: 2.0, reach: 3.4, range: 10, every: 8.5, color: 0x8aff3a, voice: { f: 95, rough: 26, len: 1.3 } },
+    { id: "void", word: "insatiable", ability: "vortex", moves: ["vortex", "blackout", "chains"], intro: "portal", speed: 1.7, reach: 3.4, every: 11, color: 0xa24aff, voice: { f: 38, rough: 6, len: 2.6 } },
+    { id: "examiner", word: "duplicitous", ability: "clones", moves: ["clones", "choice", "stamp"], intro: "papers", speed: 2.2, reach: 3.2, range: 9, every: 10.5, color: 0xff2a2a, voice: { f: 150, rough: 18, len: 1.2 } },
   ];
   G.BOSS_BY_ID = {};
   G.BOSS_DEFS.forEach((d) => { G.BOSS_BY_ID[d.id] = d; });
@@ -114,6 +121,11 @@
     "    float edge = smoothstep(uR - uW, uR, abs(vP.x));",
     "    float chev = step(0.55, fract(vP.y * 0.35 - uTime * 1.6)) * 0.14;",
     "    a = edge * 0.8 + 0.12 + chev + step(vP.y, uLen * uProg) * 0.2;",
+    "  } else if (uMode > 4.5) {",
+    "    if (d < uR || d > uLen) discard;",
+    "    float edge = 1.0 - smoothstep(uR, uR + uW, d);",
+    "    float stripe = step(0.5, fract((vP.x + vP.y) * 0.25 - uTime * 0.8)) * 0.1;",
+    "    a = 0.16 + uProg * 0.18 + edge * 0.7 + stripe;",
     "  } else {",
     "    float wob = uR * (1.0 + 0.06 * sin(atan(vP.y, vP.x) * 5.0 + uTime * 2.0));",
     "    if (d > wob) discard;",
@@ -122,7 +134,9 @@
     "  gl_FragColor = vec4(uColor, clamp(a, 0.0, 1.0) * uOpacity);",
     "}",
   ].join("\n");
-  const MODES = { disc: 0, ring: 1, sector: 2, lane: 3, blob: 4 };
+  // (5, "hole": everything from r out to len except the circle -- the
+  // Headmaster's Assembly, where only the circle is safe)
+  const MODES = { disc: 0, ring: 1, sector: 2, lane: 3, blob: 4, hole: 5 };
 
   function roundTex() {
     const cv = document.createElement("canvas"); cv.width = cv.height = 64;
@@ -167,8 +181,9 @@
       for (let i = 0; i < P; i++) this.hideInst(this.papers, i);
       this.papers.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       scene.add(this.papers);
-      // thorn spikes for the root rings and the rising roots (five slots of 90)
-      const S = 450;
+      // thorn spikes for the root rings and the rising roots (five slots of
+      // 90), and (round 2) Overgrowth's thorn walls (three more)
+      const S = 720;
       const sg = new THREE.ConeGeometry(0.2, 1.2, 5); sg.translate(0, 0.6, 0);
       this.spikes = new THREE.InstancedMesh(sg, new THREE.MeshLambertMaterial({ color: 0x4a3a2a }), S);
       this.spikes.frustumCulled = false;
@@ -238,6 +253,7 @@
       u.uHalf.value = o.half; u.uLen.value = o.len;
       u.uColor.value.setHex(o.color);
       if (m === 3) { d.mesh.scale.set(o.r + 0.05, o.len / 2, 1); d.mesh.position.set(0, 0, o.len / 2); u.uS.value.set(o.r + 0.05, o.len / 2, o.len / 2); }
+      else if (m === 5) { const S = o.len; d.mesh.scale.set(S, S, 1); d.mesh.position.set(0, 0, 0); u.uS.value.set(S, S, 0); }
       else { const S = o.r + (m === 1 ? o.w : 0) + 0.3; d.mesh.scale.set(S, S, 1); d.mesh.position.set(0, 0, 0); u.uS.value.set(S, S, 0); }
     },
     // a ring that runs out from (x, z) and fades: a landing, a roar, a death
@@ -694,10 +710,14 @@
   const inRect = (A, x, z, pad) => ({ x: clamp(x, A.rect.minX + pad, A.rect.maxX - pad), z: clamp(z, A.rect.minZ + pad, A.rect.maxZ - pad) });
 
   const ABIL = {};
+  // every move's numbers (js/config.js), and how much longer its warnings
+  // are at this wave and phase (G.Bosses.warnK)
+  const MV = () => G.CONFIG.boss.moves;
 
   // the one move every boss has: a swipe at anyone standing too close
   function swipe(M, game, b) {
-    const P = game.yawObject.position, wind = b.enraged ? 0.5 : 0.65, reach = b.def.reach + b.rig.R;
+    const C = MV().swipe;
+    const P = game.yawObject.position, wind = (b.enraged ? C.windP3 : C.wind) * M.warnK(game, b), reach = b.def.reach + b.rig.R;
     let t = 0, struck = false;
     const tel = FX.decal({ mode: "sector", x: b.pos.x, z: b.pos.z, r: reach + 0.3, half: 1.05, w: 0.3, color: 0xff3a1a, opacity: 0.85, yaw: b.root.rotation.y });
     b.dangers = [{ kind: "sector", x: b.pos.x, z: b.pos.z, r: reach + 0.3, yaw: b.root.rotation.y, half: 1.05, at: wind }];
@@ -717,11 +737,11 @@
             let ang = Math.atan2(dx, dz) - b.root.rotation.y;
             ang = Math.atan2(Math.sin(ang), Math.cos(ang));
             if (d < reach + 0.5 && Math.abs(ang) < 1.15 && feetOf(game) < M.arena.floorY + 3) {
-              M.hurt(game, 0.13, { push: { x: b.pos.x, z: b.pos.z, d: 2.2 }, src: "swipe" });
+              M.hurt(game, C.damage, { push: { x: b.pos.x, z: b.pos.z, d: C.push }, src: "swipe" });
             } else M.stats.dodged++;
           }
         }
-        if (t >= wind + 0.75) { b.swipeCd = (b.enraged ? 1.6 : 2.2) * (1.35 - 0.35 * M.late(game)); b.pose = {}; return true; }
+        if (t >= wind + 0.75) { b.swipeCd = (b.enraged ? C.cdP3 : C.cd) * (1.35 - 0.35 * M.late(game)); b.pose = {}; return true; }
         return false;
       },
       end() { tel.hide(); b.dangers = []; },
@@ -732,8 +752,9 @@
   ABIL.slam = function (M, game, b) {
     // (a walk out of it from the centre fits in the warning after a normal
     // reaction: 1.5 s x 3.2 m/s > 3.8 m + the body; a heavy gun needs a sprint)
-    const P = game.yawObject.position, A = M.arena, R = 3.8, crouch = 0.6, air = 1.4;
-    let t = 0, landed = false, left = b.enraged ? 2 : 1, tel = null, sx = 0, sz = 0, tx = 0, tz = 0;
+    const C = MV().slam, W = M.warnK(game, b);
+    const P = game.yawObject.position, A = M.arena, R = C.radius, crouch = C.crouch * W, air = C.air * W;
+    let t = 0, landed = false, left = b.enraged ? C.timesP3 : 1, tel = null, sx = 0, sz = 0, tx = 0, tz = 0;
     const aim = () => {
       const p = inRect(A, P.x, P.z, b.rig.R);
       tx = p.x; tz = p.z; sx = b.pos.x; sz = b.pos.z;
@@ -773,7 +794,7 @@
           game.shake(0.12, 0.45);
           const d = Math.hypot(P.x - tx, P.z - tz);
           if (d < R + 0.3 && feetOf(game) < A.floorY + 1.5) {
-            M.hurt(game, M.SLAM_FRAC, { notLethalFromFull: true, push: { x: tx, z: tz, d: 3 }, src: "slam" });
+            M.hurt(game, C.damage, { push: { x: tx, z: tz, d: C.push }, src: "slam" });
             M.stats.slamHits++;
           } else M.stats.dodged++;
         } else if (t >= tot + 0.9) {
@@ -792,7 +813,8 @@
   // exactly walking pace; after the charge a beam burns along it. Walking,
   // it stays on you; sprinting (any gun: G.Bosses.laserCheck) pulls away.
   ABIL.laser = function (M, game, b) {
-    const P = game.yawObject.position, A = M.arena, charge = 1.3, dur = b.enraged ? 4 : 3, R = 1.1;
+    const C = MV().laser;
+    const P = game.yawObject.position, A = M.arena, charge = C.charge * M.warnK(game, b), dur = b.enraged ? C.timeP3 : C.time, R = C.radius;
     let t = 0, firing = false, loop = null, scorchT = 0;
     // a metre short of the player, on the boss's side: inside the burn (R +
     // the player's 0.3) for anyone who only walks, clear at once for anyone
@@ -834,7 +856,7 @@
         if (Math.random() < 0.8) FX.sparks(spot.x, A.floorY + 0.1, spot.z, 2, 0xffa050, 4);
         G.Perf.flash(tmpV2, 0xff5a2a, 2.4, 7, 60);
         b.dangers = [{ kind: "laser", x: spot.x, z: spot.z, r: R, at: 0, speed: M.LASER_SPEED }];
-        if (Math.hypot(P.x - spot.x, P.z - spot.z) < R + 0.3 && feetOf(game) < A.floorY + 1.6) { M.dot(game, 0.11, dt, "laser"); this.hit = true; }
+        if (Math.hypot(P.x - spot.x, P.z - spot.z) < R + 0.3 && feetOf(game) < A.floorY + 1.6) { M.dot(game, C.dps, dt, "laser"); this.hit = true; }
         return t >= charge + dur;
       },
       end() { mark.hide(); beam.hide(); if (loop) loop.stop(); b.charging = false; b.dangers = []; if (b.rig.lidOpen) b.rig.lidOpen(1); if (!this.hit) M.stats.dodged++; },
@@ -843,7 +865,8 @@
 
   // Deafening Roar: a ring round him; inside it you burn and slow down
   ABIL.roar = function (M, game, b) {
-    const P = game.yawObject.position, R = 8.5, wind = 1.4, dur = 4;
+    const C = MV().roar;
+    const P = game.yawObject.position, R = C.radius, wind = C.wind * M.warnK(game, b), dur = C.time;
     let t = 0, roaring = false, loop = null, caught = false, waveT = 0;
     const cx = b.pos.x, cz = b.pos.z;
     const zone = FX.decal({ mode: "disc", x: cx, z: cz, r: R, w: 0.55, color: 0xff3020, opacity: 0.8, prog: 0 });
@@ -867,8 +890,8 @@
         if ((waveT -= dt) <= 0) { waveT = 0.4; FX.shock(cx, cz, R, 0xff7a5a, 0.55); }
         game.shake(0.035, 0.1);
         b.dangers = [{ kind: "roar", x: cx, z: cz, r: R, at: 0 }];
-        if (Math.hypot(P.x - cx, P.z - cz) < R) { caught = true; M.dot(game, 0.07, dt, "roar"); }
-        game.bossSlow = caught ? 0.5 : 1;
+        if (Math.hypot(P.x - cx, P.z - cz) < R) { caught = true; M.dot(game, C.dps, dt, "roar"); }
+        game.bossSlow = caught ? C.slow : 1;
         return t >= wind + dur;
       },
       end() {
@@ -882,9 +905,10 @@
 
   // Brood Call: ordinary zombies climb out of the ground round the player
   ABIL.summon = function (M, game, b) {
-    const P = game.yawObject.position, A = M.arena, wind = 1.5;
+    const C = MV().summon;
+    const P = game.yawObject.position, A = M.arena, wind = C.wind * M.warnK(game, b);
     const alive = game.zombies.filter((z) => z.alive).length;
-    const want = [3, 4, 5, 6][clamp(Math.round(game.wave / 5) - 1, 0, 3)] + (b.enraged ? 1 : 0);
+    const want = Math.round(M.ws(game, C.count)) + (b.enraged ? 1 : 0);
     const n = Math.max(0, Math.min(want, M.MAX_MINIONS - alive));
     const spots = [];
     const a0 = Math.random() * Math.PI * 2;
@@ -909,7 +933,7 @@
           done = true;
           sig.forEach((d) => d.hide());
           b.dangers = [];
-          const fastShare = game.wave >= 10 ? 0.4 : 0.25;
+          const fastShare = M.ws(game, C.fastShare);
           spots.forEach((p) => {
             const end = new V3(p.x, A.floorY, p.z);
             const sp = { pos: end.clone(), types: ["normal", "fast"], cooldown: 0, ground: true, emerge: { kind: "ground", end, floorY: A.floorY } };
@@ -926,8 +950,9 @@
 
   // Bull Rush: a lane to the arena's edge, then down it at full tilt
   ABIL.charge = function (M, game, b) {
-    const P = game.yawObject.position, A = M.arena, aimT = b.enraged ? 1.05 : 1.3, speed = 17, W = 1.8;
-    let t = 0, phase = "aim", left = b.enraged ? 2 : 1, lane = null, dir = new V3(), len = 0, run = 0, hitThis = false;
+    const C = MV().charge;
+    const P = game.yawObject.position, A = M.arena, aimT = C.aim * M.warnK(game, b), speed = C.speed, W = C.width;
+    let t = 0, phase = "aim", left = b.enraged ? C.timesP3 : 1, lane = null, dir = new V3(), len = 0, run = 0, hitThis = false;
     const aim = () => {
       dir.set(P.x - b.pos.x, 0, P.z - b.pos.z);
       if (dir.lengthSq() < 0.01) dir.set(0, 0, 1);
@@ -973,14 +998,14 @@
             hitThis = true;
             // thrown to whichever side of his line they were on
             const side = (P.x - b.pos.x) * dir.z - (P.z - b.pos.z) * dir.x >= 0 ? 1 : -1;
-            M.hurt(game, 0.3, { push: { x: b.pos.x - dir.z * side * 3, z: b.pos.z + dir.x * side * 3, d: 3.5 }, src: "charge" });
+            M.hurt(game, C.damage, { push: { x: b.pos.x - dir.z * side * 3, z: b.pos.z + dir.x * side * 3, d: C.push }, src: "charge" });
           }
           if (moved < step * 0.4 || run >= len - 0.05) {
             phase = "stun"; t = 0;
             lane.hide(); b.dangers = [];
             if (!hitThis) M.stats.dodged++;
             // into the energy wall (or a real one): he goes down, open to fire
-            b.vuln = 1.5; b.vulnT = 2.3;
+            b.vuln = C.vuln; b.vulnT = C.stun;
             G.Audio.boss("crash", { pos: b.pos });
             FX.burst(b.pos.x + dir.x * b.rig.R, A.floorY + 1.2, b.pos.z + dir.z * b.rig.R, 18, 0x3ad0ff, 5, 0.18, 4);
             FX.sparks(b.pos.x + dir.x * b.rig.R, A.floorY + 1.5, b.pos.z + dir.z * b.rig.R, 26, 0x9ae8ff, 7);
@@ -992,7 +1017,7 @@
           b.pose.torso = 0.9; b.pose.head = 0.5; b.pose.armL = [0.2, 0.9]; b.pose.armR = [0.2, -0.9];
           b.movedSpeed = 0;
           if (Math.random() < 0.1) FX.sparks(b.pos.x, A.floorY + b.rig.H, b.pos.z, 3, 0xffe080, 2);
-          if (t >= 2.3) {
+          if (t >= C.stun) {
             b.vuln = 1;
             if (--left > 0) { phase = "aim"; t = 0; aim(); return false; }
             b.pose = {};
@@ -1008,7 +1033,8 @@
 
   // Root Ripple: rings of thorns rolling out -- jump them
   ABIL.roots = function (M, game, b) {
-    const P = game.yawObject.position, A = M.arena, rings = b.enraged ? 4 : 3, gap = 0.95, speed = 7, maxR = 22, wind = 0.9, W = 0.9;
+    const C = MV().roots;
+    const P = game.yawObject.position, A = M.arena, rings = b.enraged ? C.ringsP3 : C.rings, gap = C.gap, speed = C.speed, maxR = C.reach, wind = C.wind * M.warnK(game, b), W = C.width;
     const cx = b.pos.x, cz = b.pos.z;
     const R = [];
     for (let i = 0; i < rings; i++) R.push({ start: wind + i * gap, r: 0, done: false, hit: false, on: false, band: null });
@@ -1045,7 +1071,7 @@
           if (!g.hit && Math.abs(d - g.r) < W * 0.5 + 0.35) {
             g.hit = true;
             if (airborne(game)) M.stats.dodged++;
-            else { M.hurt(game, 0.14, { src: "roots" }); game.bossRootT = 1.0; FX.spikeRing(4, P.x, P.z, 0.6, 0.7, 8); FX.later(1.0, () => FX.spikeRing(4, 0, 0, 0, 0)); }
+            else { M.hurt(game, C.damage, { src: "roots" }); game.bossRootT = C.hold; FX.spikeRing(4, P.x, P.z, 0.6, 0.7, 8); FX.later(C.hold, () => FX.spikeRing(4, 0, 0, 0, 0)); }
           }
         });
         if (b.stomp) b.stomp = Math.max(0, b.stomp - dt);
@@ -1059,9 +1085,10 @@
 
   // Forked Fury: blue circles, a crack of lightning in each, then again
   ABIL.lightning = function (M, game, b) {
-    const P = game.yawObject.position, A = M.arena, R = 2.3;
-    const n1 = (game.wave >= 15 ? 6 : 5) + (b.enraged ? 1 : 0);
-    const volleys = [{ at: 0, warn: 1.45, n: n1 }, { at: 1.9, warn: 1.0, n: 3 }];
+    const C = MV().lightning, W = M.warnK(game, b);
+    const P = game.yawObject.position, A = M.arena, R = C.radius;
+    const n1 = Math.round(M.ws(game, C.first)) + (b.enraged ? 1 : 0);
+    const volleys = [{ at: 0, warn: C.warn * W, n: n1 }, { at: C.secondAt * W, warn: C.secondWarn * W, n: C.second }];
     let t = 0;
     b.charging = true;
     const skyY = A.kind === "field" ? A.floorY + 32 : A.ceiling - 0.2;
@@ -1103,7 +1130,7 @@
             G.Audio.boss("thunder", { pos: b.pos });
             if (G.Cutscene) G.Cutscene.flashScreen(0.25);
             game.shake(0.05, 0.25);
-            if (hit) M.hurt(game, 0.24, { src: "lightning" }); else M.stats.dodged++;
+            if (hit) M.hurt(game, C.damage, { src: "lightning" }); else M.stats.dodged++;
           }
         });
         b.dangers = dz;
@@ -1115,7 +1142,8 @@
 
   // Acid Rain: flasks thrown where the player is going; the acid lingers
   ABIL.acid = function (M, game, b) {
-    const P = game.yawObject.position, A = M.arena, n = b.enraged ? 5 : 3, flight = 1.1, R = 2.2;
+    const C = MV().acid;
+    const P = game.yawObject.position, A = M.arena, n = b.enraged ? C.flasksP3 : C.flasks, flight = C.flight * M.warnK(game, b), R = C.radius;
     const vel = game._bossVel || new V3();
     let t = 0, thrown = 0, landed = 0;
     const targets = [];
@@ -1143,7 +1171,7 @@
             FX.sparks(at.x, A.floorY + 0.3, at.z, 14, 0x8aff3a, 4);
             FX.burst(at.x, A.floorY + 0.2, at.z, 6, 0x9aff5a, 2.5, 0.12, 3);
             G.Audio.boss("splash", { pos: at });
-            if (Math.hypot(P.x - at.x, P.z - at.z) < R + 0.3 && feetOf(game) < A.floorY + 1.5) M.hurt(game, 0.1, { src: "acid" });
+            if (Math.hypot(P.x - at.x, P.z - at.z) < R + 0.3 && feetOf(game) < A.floorY + 1.5) M.hurt(game, C.damage, { src: "acid" });
             M.addPool(at.x, at.z, R);
           });
           b.pose.armL = [-2.6, 0.2];
@@ -1162,7 +1190,8 @@
   ABIL.vortex = function (M, game, b) {
     // (in a hall there is nowhere twenty metres away: a shorter, weaker pull)
     const hall = M.arena.kind === "hall";
-    const P = game.yawObject.position, A = M.arena, wind = 1.2, dur = b.enraged ? 5.5 : 4.5, pullR = hall ? 13 : 20, coreR = 2.6, pull = hall ? 1.7 : 2.2;
+    const C = MV().vortex;
+    const P = game.yawObject.position, A = M.arena, wind = C.wind * M.warnK(game, b), dur = b.enraged ? C.timeP3 : C.time, pullR = hall ? C.reachHall : C.reach, coreR = C.core, pull = hall ? C.pullHall : C.pull;
     const fwdX = Math.sin(b.root.rotation.y), fwdZ = Math.cos(b.root.rotation.y);
     const c = inRect(A, b.pos.x + fwdX * 2.5, b.pos.z + fwdZ * 2.5, 1);
     const core = FX.decal({ mode: "disc", x: c.x, z: c.z, r: coreR, w: 0.5, color: 0xa24aff, opacity: 0.95, prog: 0, add: true });
@@ -1191,7 +1220,7 @@
           game.tryMove(dx / d * Math.min(s, d), dz / d * Math.min(s, d));
           touched = true;
         }
-        if (d < coreR + 0.3) M.dot(game, 0.15, dt, "vortex");
+        if (d < coreR + 0.3) M.dot(game, C.dps, dt, "vortex");
         b.dangers = [{ kind: "pull", x: c.x, z: c.z, r: pullR, core: coreR, speed: pull, at: 0 }];
         return t >= wind + dur;
       },
@@ -1208,7 +1237,8 @@
   // Trick Question: copies of him round the player, throwing paper blades;
   // only one of them is real (the copies are faintly see-through, blue-eyed)
   ABIL.clones = function (M, game, b) {
-    const P = game.yawObject.position, A = M.arena, fakes = b.enraged ? 3 : 2, dur = 7;
+    const C = MV().clones;
+    const P = game.yawObject.position, A = M.arena, fakes = b.enraged ? C.copiesP3 : C.copies, dur = C.time, wind = C.wind * M.warnK(game, b);
     let t = 0, split = false, hp0 = b.hp, throwT = [];
     const figs = [];
     G.Audio.boss("papers", { pos: b.pos });
@@ -1228,7 +1258,7 @@
         t += dt;
         if (!split) {
           b.pose.armL = [-2.2, 0.8]; b.pose.armR = [-2.2, -0.8];
-          if (t < 0.8) return false;
+          if (t < wind) return false;
           split = true;
           const spots = place();
           b.pos.x = spots[0].x; b.pos.z = spots[0].z;
@@ -1238,7 +1268,7 @@
             c.root.position.set(spots[i].x, A.floorY, spots[i].z);
             figs.push({ real: false, root: c.root, clone: c, x: spots[i].x, z: spots[i].z });
           }
-          figs.forEach((f, i) => { throwT[i] = 0.8 + i * 0.65; for (let k = 0; k < 12; k++) FX.paper(f.x, A.floorY + 1 + Math.random() * 4, f.z, (Math.random() - 0.5) * 5, Math.random() * 3, (Math.random() - 0.5) * 5, 2.2); });
+          figs.forEach((f, i) => { throwT[i] = wind + i * 0.65; for (let k = 0; k < 12; k++) FX.paper(f.x, A.floorY + 1 + Math.random() * 4, f.z, (Math.random() - 0.5) * 5, Math.random() * 3, (Math.random() - 0.5) * 5, 2.2); });
           hp0 = b.hp;
           G.Audio.boss("poof", { pos: b.pos });
           return false;
@@ -1255,14 +1285,14 @@
           }
           throwT[i] -= dt;
           if (throwT[i] <= 0) {
-            throwT[i] = 3.2;
+            throwT[i] = C.throwEvery;
             const hand = f.real ? b.rig.hand : f.clone.hand;
             hand.getWorldPosition(tmpV);
             const aimAt = new V3(P.x, P.y - 0.4, P.z);
             const dir = aimAt.sub(tmpV).normalize();
             G.Audio.boss("throw", { pos: tmpV });
-            FX.blade(tmpV, dir, 8, (bl) => {
-              if (bl.pos.distanceTo(tmpV2.set(P.x, P.y - 0.5, P.z)) < 0.75) { M.hurt(game, 0.04, { src: "blade" }); return false; }
+            FX.blade(tmpV, dir, C.bladeSpeed, (bl) => {
+              if (bl.pos.distanceTo(tmpV2.set(P.x, P.y - 0.5, P.z)) < 0.75) { M.hurt(game, C.bladeDamage, { src: "blade" }); return false; }
               if (bl.pos.y < A.floorY) return false;
               return true;
             });
@@ -1271,8 +1301,8 @@
           dz.push({ kind: "figure", x: root.position.x, z: root.position.z, real: f.real });
         });
         b.dangers = dz;
-        const bursted = hp0 - b.hp >= b.maxHp * 0.05;
-        if (t >= 0.8 + dur || bursted) {
+        const bursted = hp0 - b.hp >= b.maxHp * C.breakAt;
+        if (t >= wind + dur || bursted) {
           if (bursted) M.stats.cloneFound++;
           return true;
         }
@@ -1291,11 +1321,25 @@
   // ================================================================
   G.Bosses = {
     LASER_SPEED: G.CONFIG.player.walkSpeed,    // the player's base walking speed (js/config.js: 3.2 m/s)
-    SLAM_FRAC: 0.55,
-    MAX_MINIONS: 8,
+    SLAM_FRAC: G.CONFIG.boss.moves.slam.damage,
+    MAX_MINIONS: G.CONFIG.boss.maxMinions,
     boss: null, phase: null, arena: null,
     run: { met: [], bag: [], last: null, downs: [], lastHp: 0 },
     pools: [], clones: [], stats: null, forceNext: null,
+    // (round 2) things a move leaves on the field that live on their own --
+    // eggs, pylons, a gas cloud, thorn walls -- and the things the player can
+    // shoot down (orbs, eggs, pylons, a canister, a chain, the Examiner's
+    // copies holding words): see addObj / addTarget
+    objs: [], targets: [],
+
+    // ---- how hard, by wave and phase (G.CONFIG.boss.byWave) ----
+    // a [wave 5, wave 20] pair at this wave (a plain number is itself)
+    ws(game, v) { return Array.isArray(v) ? v[0] + (v[1] - v[0]) * this.late(game) : v; },
+    // warnings: longer at wave 5, a little shorter in phase 3
+    warnK(game, b) { const B = G.CONFIG.boss; return this.ws(game, B.byWave.warn) * (b && b.phaseN === 3 ? B.phase3.warn : 1); },
+    speedK(game, b) { const B = G.CONFIG.boss; return this.ws(game, B.byWave.speed) * (b && b.phaseN === 3 ? B.phase3.speed : 1) * (b && b.speedBoost || 1); },
+    // which phase a health share is in: 1 down to 66%, 2 down to 33%, then 3
+    phaseOf(frac) { const P = G.CONFIG.boss.phases; return frac > P[0] ? 1 : frac > P[1] ? 2 : 3; },
 
     resetRun() { this.run = { met: [], bag: [], last: null, downs: [], lastHp: 0 }; },
     active() { return !!this.phase; },
@@ -1376,13 +1420,18 @@
         swipeCd: 2, abilityCd: 3.5, act: null, pose: {}, cur: {}, dangers: [], hurtT: 0, vuln: 1, vulnT: 0,
         enraged: false, walkW: 0, stepPh: 0, movedSpeed: 0, stuckT: 0, detourT: 0, detourSign: 1, squat: 0, chest: 0, paw: 0,
         label: this.label(def), uses: 0,
+        // (round 2) the phase, the moves cast in it, a combo's next move;
+        // armour (a share of the damage that gets through), bullets thrown
+        // back, the weak spot's worth (1.5, more while it is laid open)
+        phaseN: 1, phaseCasts: 0, comboNext: null, armor: 1, reflect: false, weakMult: 1.5, weakOpen: false, speedBoost: 1, scale: 1,
       };
       b.pos.copy(A.boss);
       b.root.rotation.y = Math.atan2(A.player.x - A.boss.x, A.player.z - A.boss.z);
       game.scene.add(b.root);
       this.restPose(rig);
       this.pools = []; this.clones = []; this._dot = {};
-      this.stats = { id: def.id, wave: game.wave, hp, dps: Math.round(this.playerDps(game)), fightT: 0, dealt: 0, taken: 0, hitsTaken: 0, dodged: 0, slamHits: 0, minions: 0, cloneFound: 0, abilities: 0 };
+      this.clearObjs(game);
+      this.stats = { id: def.id, wave: game.wave, hp, dps: Math.round(this.playerDps(game)), fightT: 0, dealt: 0, taken: 0, hitsTaken: 0, dodged: 0, slamHits: 0, minions: 0, cloneFound: 0, abilities: 0, moves: {}, phaseAt: {} };
       game.teleportPlayer(A.player, A.boss);
       const S = G.save.bosses;
       S.seen[def.id] = (S.seen[def.id] || 0) + 1;
@@ -1398,7 +1447,7 @@
       b.abilityCd = 3.5; b.swipeCd = 1.5;
       b.pos.y = this.arena.floorY;
       G.Audio.bossMusic(true, b.def);
-      G.UI.setBossBar(true, b.label, 100);
+      G.UI.setBossBar(true, b.label, 100, false, 1);
     },
 
     // ---- every frame of the fight ----
@@ -1413,7 +1462,8 @@
       if (b.frozenT > 0) {
         b.frozenT -= dt;
         this.updatePools(game, dt);
-        G.UI.setBossBar(true, b.label, b.hp / b.maxHp * 100, b.vulnT > 0);
+        this.updateObjs(game, dt);
+        G.UI.setBossBar(true, b.label, b.hp / b.maxHp * 100, b.vulnT > 0, b.phaseN);
         return;
       }
       if (G.Abilities) dt *= G.Abilities.bossSpeed(b);
@@ -1422,21 +1472,31 @@
       this.stats.fightT += dt;
       b.swipeCd -= dt; b.abilityCd -= dt;
       b.hurtT = Math.max(0, b.hurtT - dt); b.vulnT = Math.max(0, b.vulnT - dt);
-      if (!b.enraged && b.hp < b.maxHp * 0.4) {
-        b.enraged = true;
-        G.Audio.boss("enrage", { pos: b.pos, voice: b.def.voice });
-        G.UI.flashPurchaseBanner(G.T("boss." + b.def.id + ".name"), G.T("hud.bossEnraged"));
+      // (round 2) 66% and 33% of its health each start a phase, with a roar:
+      // whatever it was in the middle of is dropped
+      const ph = this.phaseOf(b.hp / b.maxHp);
+      if (ph > b.phaseN && !(b.act && b.act.phaseShift)) {
+        if (b.act && b.act.end) b.act.end();
+        b.act = this.phaseShift(game, b, ph);
       }
       const dx = P.x - b.pos.x, dz = P.z - b.pos.z, dist = Math.hypot(dx, dz);
       b.dist = dist;
       b.movedSpeed = 0;
       let walk = 0;
       if (b.act) {
-        if (b.act.update(dt)) { if (b.act.end) b.act.end(); const was = b.act; b.act = null; if (was.ability) b.abilityCd = this.cooldown(game, b); }
+        if (b.act.update(dt)) {
+          if (b.act.end) b.act.end();
+          const was = b.act; b.act = null;
+          // (a phase-3 combo: the next move follows almost at once)
+          if (was.ability) b.abilityCd = b.comboNext ? G.CONFIG.boss.comboGap : this.cooldown(game, b, was.id);
+          if (was.phaseShift) b.abilityCd = Math.min(b.abilityCd, 1.2);
+        }
       } else if (b.abilityCd <= 0 && dist < 40) {
-        b.act = ABIL[b.def.ability](this, game, b);
-        b.act.ability = true;
+        const id = this.nextMove(b);
+        b.act = ABIL[id](this, game, b);
+        b.act.ability = true; b.act.id = id;
         b.uses++; this.stats.abilities++;
+        this.stats.moves[id] = (this.stats.moves[id] || 0) + 1;
       } else if (b.swipeCd <= 0 && dist < b.def.reach + b.rig.R + 0.4) {
         b.act = swipe(this, game, b);
       } else walk = 1;
@@ -1444,19 +1504,150 @@
       if (walk) {
         // a boss that fights at range keeps its distance; the rest close in
         const want = b.def.range ? (dist > b.def.range + 2 ? 1 : dist < b.def.range - 3 ? -0.7 : 0) : (dist > b.def.reach + b.rig.R - 0.4 ? 1 : 0);
-        if (want) this.step(game, b, want * b.def.speed * (b.enraged ? 1.15 : 1), dt);
+        if (want) this.step(game, b, want * b.def.speed * this.speedK(game, b), dt);
       }
       // the player cannot walk through it
       const minD = b.rig.R + 0.45;
       if (dist < minD && dist > 0.001 && feetOf(game) < b.pos.y + b.rig.H) game.tryMove(dx / dist * (minD - dist), dz / dist * (minD - dist));
       this.animate(b, dt);
       this.updatePools(game, dt);
+      this.updateObjs(game, dt);
       // how fast the player is going (Acid Rain aims ahead of them)
       const gv = game._bossVel || (game._bossVel = new V3());
       if (game._bossLastP) gv.set((P.x - game._bossLastP.x) / Math.max(dt, 1e-3), 0, (P.z - game._bossLastP.z) / Math.max(dt, 1e-3));
       game._bossLastP = (game._bossLastP || new V3()).copy(P);
       this.resupply(game, b, dt);
-      G.UI.setBossBar(true, b.label, b.hp / b.maxHp * 100, b.vulnT > 0);
+      G.UI.setBossBar(true, b.label, b.hp / b.maxHp * 100, b.vulnT > 0 || b.weakOpen, b.phaseN);
+    },
+
+    // ---- (round 2) the phases ----
+    // which move comes next: phase 1 its old one; phase 2 the first new one,
+    // with the old one every third time; phase 3 the second new one, and
+    // every other time a combo straight into one of the other two
+    nextMove(b) {
+      const mv = b.def.moves || [b.def.ability];
+      if (b.comboNext) { const id = b.comboNext; b.comboNext = null; return id; }
+      const n = b.phaseCasts++;
+      if (b.phaseN <= 1 || mv.length < 3) return mv[0];
+      if (b.phaseN === 2) return n % 3 === 2 ? mv[0] : mv[1];
+      if (n % 2 === 1) b.comboNext = n % 4 === 1 ? mv[1] : mv[0];
+      return mv[2];
+    },
+    // a new phase: it stands and roars, grows and glows, and the banner
+    // names the move it has now
+    phaseShift(game, b, ph) {
+      const B = G.CONFIG.boss;
+      b.phaseN = ph; b.phaseCasts = 0; b.comboNext = null;
+      b.enraged = ph === 3;
+      this.stats.phaseAt[ph] = Math.round(this.stats.fightT);
+      const s0 = b.scale, s1 = B.phaseScale[ph - 1] || 1, mv = (b.def.moves || [])[ph - 1];
+      let t = 0;
+      G.Audio.boss("phase", { pos: b.pos, voice: b.def.voice });
+      FX.shock(b.pos.x, b.pos.z, 12, b.def.color, 1.0);
+      FX.shock(b.pos.x, b.pos.z, 7, 0xffffff, 0.6);
+      game.shake(0.08, 0.6);
+      if (mv) G.UI.flashPurchaseBanner(G.T("boss.phase", { n: ph }), G.T("boss.phaseText", { move: G.T("boss.move." + mv + ".name") }));
+      // (and it drops a health box: a later phase is a longer, harder fight)
+      if (B.arenaHealth.atPhase) this.dropAmmo(game, b, true, "health");
+      return {
+        phaseShift: true,
+        update(dt) {
+          t += dt;
+          b.scale = s0 + (s1 - s0) * Math.min(1, t / 0.8);
+          b.root.scale.setScalar(b.scale);
+          b.pose.torso = -0.35; b.pose.head = -0.45; b.pose.armL = [-2.6, 1.0]; b.pose.armR = [-2.6, -1.0];
+          b.chest = 0.15 * Math.min(1, t / 0.6);
+          if (b.rig.jawOpen) b.rig.jawOpen(0.95);
+          if (Math.random() < 0.6) FX.sparks(b.pos.x, b.pos.y + b.rig.H * 0.6 * b.scale, b.pos.z, 3, b.def.color, 5);
+          return t >= B.phaseRoar;
+        },
+        end() { b.pose = {}; b.chest = 0; if (b.rig.jawOpen) b.rig.jawOpen(0); b.scale = s1; b.root.scale.setScalar(s1); },
+      };
+    },
+
+    // ---- (round 2) things left on the field, and things to shoot down ----
+    // obj: { update(game, dt) -> false when it is done, dangers() -> [...], end() }
+    addObj(o) { this.objs.push(o); return o; },
+    updateObjs(game, dt) {
+      for (let i = this.objs.length - 1; i >= 0; i--) {
+        const o = this.objs[i];
+        if (o.update(game, dt) === false) { if (o.end) o.end(); this.objs.splice(i, 1); }
+      }
+      // (rounds are tested against their matrices, and a playtest steps many
+      // frames between two renders)
+      this.targets.forEach((tg) => tg.obj.updateMatrixWorld(true));
+    },
+    // An invisible ball of radius r on `obj` that rounds and blasts can hit;
+    // `hp` of damage (x byWave targetHp, unless flatHp) brings it down:
+    // onDown(game). kind: what it is (orb, egg, pylon, canister, link).
+    addTarget(game, o) {
+      const id = (this._tid = (this._tid || 0) + 1);
+      const hb = new THREE.Mesh(new THREE.SphereGeometry(o.r || 0.7, 8, 6), TARGET_MAT);
+      hb.visible = false;
+      hb.userData.bossHit = { target: id };
+      if (o.y) hb.position.y = o.y;
+      o.obj.add(hb);
+      const tg = { id, obj: o.obj, hb, r: o.r || 0.7, kind: o.kind, onDown: o.onDown, down: false,
+        hp: (o.hp || 1) * (o.flatHp ? 1 : this.ws(game, G.CONFIG.boss.byWave.targetHp)) };
+      this.targets.push(tg);
+      return tg;
+    },
+    hitTarget(game, tg, dmg, point) {
+      if (tg.down) return;
+      tg.hp -= dmg;
+      if (point) G.spawnHitParticles(game.scene, point, 0xfff0c0, G.save.settings.graphicsQuality);
+      if (tg.hp <= 0) {
+        this.dropTarget(tg);
+        if (tg.onDown) tg.onDown(game);
+        if (this.stats) this.stats.shotDown = (this.stats.shotDown || 0) + 1;
+      }
+    },
+    dropTarget(tg) {
+      tg.down = true;
+      if (tg.hb.parent) tg.hb.parent.remove(tg.hb);
+      tg.hb.geometry.dispose();
+      this.targets = this.targets.filter((x) => x !== tg);
+    },
+    clearObjs(game) {
+      (this.objs || []).forEach((o) => { if (o.end) o.end(); });
+      this.objs = [];
+      (this.targets || []).slice().forEach((tg) => this.dropTarget(tg));
+      this.targets = [];
+      this.setDim(game, 1);
+      this.hint(null);
+    },
+    // a line under the boss's bar saying what to do about the move under way
+    hint(text, secs) { if (G.UI.setBossHint) G.UI.setBossHint(text, secs); },
+    // Lights Out: every light in the scene at k of its own brightness (the
+    // marks on the ground and the boss's eyes glow on their own)
+    setDim(game, k) {
+      if (k >= 1 && !this._lights) return;
+      if (!this._lights && game && game.scene) {
+        const skip = new Set((G.Perf.pool || []).concat(G.Perf.flashLight ? [G.Perf.flashLight] : []));
+        this._lights = [];
+        game.scene.traverse((o) => { if (o.isLight && !skip.has(o)) this._lights.push({ l: o, base: o.intensity }); });
+      }
+      (this._lights || []).forEach((x) => { x.l.intensity = x.base * k; });
+      G.Perf.dimK = k;
+      if (k >= 1) this._lights = null;
+    },
+    // Mirror Gaze: a round that hits while it glows comes back (a thin gold
+    // line to the player); the player feels it at most every reflectEvery s
+    reflectShot(game, b, point) {
+      // (the timers are the boss's own: a new fight starts its clock at 0)
+      const C = MV().mirror, P = game.yawObject.position;
+      if (point && (b._reflLine == null || b.t - b._reflLine > 0.06)) {
+        b._reflLine = b.t;
+        const bm = FX.beam(0xffd84a, 0xffffff);
+        bm.set(point, new V3(P.x, P.y - 0.35, P.z), 0.025);
+        FX.later(0.07, () => bm.hide());
+        FX.sparks(point.x, point.y, point.z, 4, 0xffe08a, 4);
+      }
+      if (b._reflHurt != null && b.t - b._reflHurt < C.reflectEvery) return;
+      b._reflHurt = b.t;
+      G.Audio.boss("reflect", { pos: point || b.pos });
+      this.hurt(game, C.reflectDamage, { src: "reflect" });
+      if (this.stats) this.stats.reflected = (this.stats.reflected || 0) + 1;
     },
     // Ammunition in the sealed arena (new series, round 1, C; round 3 found a
     // player run dry in there with only the knife and no way out). A box
@@ -1470,14 +1661,15 @@
       b.supplyT -= dt;
       if (b.supplyT <= 0) {
         b.supplyT = A.every[0] + Math.random() * (A.every[1] - A.every[0]);
-        if ((game.drops || []).filter((d) => d.arena).length < A.maxLying) this.dropAmmo(game, b, false);
+        if ((game.drops || []).filter((d) => d.arena && d.kind === "ammo").length < A.maxLying) this.dropAmmo(game, b, false);
       }
       b.dropsDone = b.dropsDone || 0;
       while (b.dropsDone < A.dropsAt.length && b.hp <= b.maxHp * A.dropsAt[b.dropsDone]) { b.dropsDone++; this.dropAmmo(game, b, true); }
     },
     // fromBoss: out of the boss, towards the player; else anywhere open in
-    // the arena, clear of the boss and not right under the player's feet
-    dropAmmo(game, b, fromBoss) {
+    // the arena, clear of the boss and not right under the player's feet.
+    // kind: "ammo", or (round 2: as each new phase begins) "health"
+    dropAmmo(game, b, fromBoss, kind) {
       const AR = this.arena, r = AR.rect, P = game.yawObject.position, pad = 2.5;
       const inside = (x, z) => x > r.minX + pad && x < r.maxX - pad && z > r.minZ + pad && z < r.maxZ - pad;
       const blocked = (x, z) => G.ColGrid.near(game.world, x, z, 1.5, []).some((c) => c.min.y < AR.floorY + 1.5 && c.max.y > AR.floorY + 0.05 && x + 0.5 > c.min.x && x - 0.5 < c.max.x && z + 0.5 > c.min.z && z - 0.5 < c.max.z);
@@ -1498,19 +1690,26 @@
         at = { x, z };
       }
       if (!at) at = { x: (r.minX + r.maxX) / 2, z: (r.minZ + r.maxZ) / 2 };
-      game.spawnDrop("ammo", new V3(at.x, AR.floorY, at.z));
+      const health = kind === "health";
+      game.spawnDrop(health ? "health" : "ammo", new V3(at.x, AR.floorY, at.z));
       game.drops[game.drops.length - 1].arena = true;
-      FX.shock(at.x, at.z, 2.2, 0x3388ff, 0.6);
-      if (fromBoss) FX.sparks(at.x, AR.floorY + 1, at.z, 14, 0x6ab0ff, 4);
+      FX.shock(at.x, at.z, 2.2, health ? 0xff3355 : 0x3388ff, 0.6);
+      if (fromBoss) FX.sparks(at.x, AR.floorY + 1, at.z, 14, health ? 0xff7a8a : 0x6ab0ff, 4);
       G.Audio.sfx("pickup", { pos: new V3(at.x, AR.floorY + 1, at.z) });
-      if (!b.supplied) { b.supplied = true; G.UI.flashPurchaseBanner(G.T("banner.arenaAmmo"), G.T("banner.arenaAmmoText")); }
+      if (health) return;
+      // (said once a fight -- but never over a new phase's banner)
+      if (!b.supplied && !(b.act && b.act.phaseShift)) { b.supplied = true; G.UI.flashPurchaseBanner(G.T("banner.arenaAmmo"), G.T("banner.arenaAmmoText")); }
     },
     // how far into the level: 0 at the first boss (wave 5), 1 by wave 20.
-    // The first boss is a new player's first: its moves come less often and
-    // hit softer (the slam's half-health blow excepted), rising to full.
+    // The first boss is a new player's first: its moves come less often, warn
+    // longer and hit softer (the slam's half-health blow excepted), rising to
+    // full (G.CONFIG.boss.byWave).
     late(game) { return clamp((game.wave - 5) / 15, 0, 1); },
-    cooldown(game, b) {
-      return (b.def.every || 10) * (1.2 - 0.45 * this.late(game)) * (b.enraged ? 0.72 : 1);
+    // (a move that fills the arena with zombies waits longer after it: its
+    // cdMult in G.CONFIG.boss.moves)
+    cooldown(game, b, after) {
+      const B = G.CONFIG.boss, last = after ? B.moves[after] : null;
+      return (b.def.every || 10) * this.ws(game, B.byWave.cooldown) * (b.phaseN === 3 ? B.phase3.cooldown : 1) * (last && last.cdMult || 1);
     },
     face(b, x, z, rate) {
       const want = Math.atan2(x - b.pos.x, z - b.pos.z);
@@ -1612,11 +1811,20 @@
       const bob = r.float ? Math.sin(b.t * 1.4) * 0.2 : Math.abs(Math.cos(b.stepPh)) * 0.1 * b.walkW;
       if (r.hips) r.hips.position.y = r.hipY + bob - (b.squat || 0) * r.hipY * 0.3;
       if (r.idle) r.idle(b, b.t, dt);
-      // hit: a red flash; open to extra damage: a pulse; enraged: a glow
+      // hit: a red flash; open to extra damage: a pulse; (round 2) phases 2
+      // and 3: a glow in its own colour, pulsing in 3, with sparks rising off
+      // it; a move's own tint on top (Mirror Gaze's gold)
       const e = r.shared.lambert.emissive;
-      const vul = b.vulnT > 0 ? 0.25 + 0.2 * Math.sin(b.t * 18) : 0;
-      const rage = b.enraged ? 0.08 + 0.06 * Math.sin(b.t * 5) : 0;
-      e.setRGB(Math.min(1, (b.hurtT > 0 ? 0.45 : 0) + rage + vul), (b.hurtT > 0 ? 0.05 : 0) + vul * 0.8, vul * 0.2);
+      const vul = b.vulnT > 0 || b.weakOpen ? 0.25 + 0.2 * Math.sin(b.t * 18) : 0;
+      const glow = b.phaseN === 2 ? 0.09 : b.phaseN === 3 ? 0.15 + 0.08 * Math.sin(b.t * 5) : 0;
+      const pc = this._pc || (this._pc = new THREE.Color());
+      pc.setHex(b.def.color);
+      const tn = b.tint || { r: 0, g: 0, b: 0 };
+      e.setRGB(Math.min(1, (b.hurtT > 0 ? 0.45 : 0) + vul + pc.r * glow + tn.r), Math.min(1, (b.hurtT > 0 ? 0.05 : 0) + vul * 0.8 + pc.g * glow + tn.g), Math.min(1, vul * 0.2 + pc.b * glow + tn.b));
+      if (b.phaseN >= 2 && Math.random() < (b.phaseN === 3 ? 0.7 : 0.3)) {
+        const a = Math.random() * Math.PI * 2, rr = r.R * b.scale * (0.6 + Math.random() * 0.5);
+        FX.mote(b.pos.x + Math.cos(a) * rr, b.pos.y + Math.random() * r.H * b.scale, b.pos.z + Math.sin(a) * rr, 0, 1.2 + Math.random(), 0, b.def.color, 1.0, 0.6, 0);
+      }
     },
 
     // ---- the player getting hurt ----
@@ -1625,13 +1833,14 @@
       const pl = game.player;
       if (!pl || game.state !== "GAMEPLAY") return;
       // (softer early on -- see late(); the slam keeps its full weight)
-      const k = o.src === "slam" ? 1 : 0.75 + 0.35 * this.late(game);
+      const k = o.src === "slam" ? 1 : this.ws(game, G.CONFIG.boss.byWave.damage);
       // (round 3: nothing lands during a Dash, a quarter behind a Barrier)
       const ab = G.Abilities ? G.Abilities.damageTakenMult() : 1;
       if (ab <= 0) { if (this.stats) this.stats.dodged++; return; }
       let dmg = pl.maxHp * frac * k * (1 - (pl.armorPct || 0)) * ab;
-      // (the slam never kills a player who had full health)
-      if (o.notLethalFromFull && pl.hp >= pl.maxHp - 0.5) dmg = Math.min(dmg, pl.hp - 1);
+      // (no single blow ever kills a player who had full health -- the slam
+      // was the only one that could; round 2 made it every move's rule)
+      if (pl.hp >= pl.maxHp - 0.5) dmg = Math.min(dmg, pl.hp - 1);
       pl.hp -= dmg;
       pl.wasHitThisLevel = true;
       if (this.stats) { this.stats.taken += dmg; this.stats.hitsTaken++; }
@@ -1656,45 +1865,74 @@
       this.hurt(game, k, { src: key });
     },
 
+    // one of its own zombies down (js/game.js onZombieDeath); right: shot by
+    // the word the meaning asked for
+    onMinionDeath(game, z, right) {
+      const b = this.boss;
+      if (!b || this.phase !== "fight") return;
+      if (b.act && b.act.onMinionDeath) b.act.onMinionDeath(z, right);
+    },
+
     // ---- the boss getting hurt ----
     hitboxes() {
       if (this.phase !== "fight" || !this.boss) return [];
       const out = this.boss.rig.hitboxes.slice();
       this.clones.forEach((c) => { if (!c.popped) out.push(...c.hitboxes); });
+      this.targets.forEach((tg) => out.push(tg.hb));
       return out;
     },
-    // a round hit a hitbox: the boss (or a copy of it) takes it
+    // a round hit a hitbox: the boss (or a copy of it, or something it put
+    // on the field) takes it. reflected: Mirror Gaze threw it back.
     onShot(game, hitObj, dmg, point) {
       const info = hitObj.userData.bossHit || {};
-      if (info.clone !== undefined) {
-        const c = this.clones.find((x) => x.id === info.clone);
-        if (c && !c.popped) { this.popClone(game, c); return { hit: true, weak: false }; }
+      if (info.target !== undefined) {
+        const tg = this.targets.find((x) => x.id === info.target);
+        if (tg && !tg.down) { this.hitTarget(game, tg, dmg, point); return { hit: true, weak: false }; }
         return { hit: false };
       }
-      this.damage(game, dmg * (info.weak ? 1.5 : 1), point);
+      if (info.clone !== undefined) {
+        const c = this.clones.find((x) => x.id === info.clone);
+        if (c && !c.popped) {
+          if (c.onShot) c.onShot(game); else this.popClone(game, c);
+          return { hit: true, weak: false };
+        }
+        return { hit: false };
+      }
+      if (this.boss && this.boss.reflect) { this.reflectShot(game, this.boss, point); return { hit: true, reflected: true }; }
+      const b = this.boss;
+      this.damage(game, dmg * (info.weak && b ? b.weakMult : 1), point, { weak: !!info.weak });
       return { hit: true, weak: !!info.weak };
     },
-    damage(game, dmg, point) {
+    // o.weak: on the weak spot. Armour (Tombstone Ward, Barkskin) lets only
+    // its share through -- except onto a weak spot laid open.
+    damage(game, dmg, point, o) {
       const b = this.boss;
       if (!b || this.phase !== "fight" || b.hp <= 0) return;
-      const d = dmg * b.vuln;
+      if (b.reflect) { this.reflectShot(game, b, point); return; }
+      const armor = o && o.weak && b.weakOpen ? 1 : b.armor;
+      const d = dmg * b.vuln * armor;
       b.hp -= d;
       b.hurtT = 0.1;
       this.stats.dealt += d;
-      if (point) G.spawnHitParticles(game.scene, point, b.def.color, G.save.settings.graphicsQuality);
+      if (point) G.spawnHitParticles(game.scene, point, armor < 1 ? 0xb0b0b0 : b.def.color, G.save.settings.graphicsQuality);
       const now = performance.now();
-      if (now - (this._hurtSndAt || 0) > 420) { this._hurtSndAt = now; G.Audio.boss("hurt", { pos: b.pos, voice: b.def.voice }); }
+      if (now - (this._hurtSndAt || 0) > 420) { this._hurtSndAt = now; G.Audio.boss(armor < 1 ? "clink" : "hurt", { pos: b.pos, voice: b.def.voice }); }
       if (b.hp <= 0) { b.hp = 0; this.die(game); }
     },
     // an explosion's worth: whatever part of the radius the boss is inside
+    // (and whatever it has put on the field that can be shot down)
     splash(game, point, r, baseDmg) {
       const b = this.boss;
       if (!b || this.phase !== "fight") return;
+      this.targets.slice().forEach((tg) => {
+        const p = tg.hb.getWorldPosition(tmpV);
+        if (p.distanceTo(point) < r + tg.r) this.hitTarget(game, tg, baseDmg * 0.6, null);
+      });
       const d = Math.hypot(point.x - b.pos.x, point.z - b.pos.z) - b.rig.R;
       const dy = point.y - (b.pos.y + b.rig.H / 2);
       if (d > r || Math.abs(dy) > b.rig.H / 2 + r) return;
       this.damage(game, baseDmg * 0.6 * (1 - 0.7 * Math.max(0, d) / r), null);
-      this.clones.forEach((c) => { if (!c.popped && c.root.position.distanceTo(point) < r + 1) this.popClone(game, c); });
+      this.clones.forEach((c) => { if (!c.popped && !c.onShot && c.root.position.distanceTo(point) < r + 1) this.popClone(game, c); });
     },
     // the knife
     melee(game, origin, dir, def) {
@@ -1708,14 +1946,17 @@
     },
 
     // ---- the Examiner's copies ----
-    makeClone(game, b, id) {
+    // solid: (Multiple Choice) a copy with nothing to give it away
+    makeClone(game, b, id, solid) {
       const root = b.root.clone(true);
       const mats = [];
       root.traverse((o) => {
         if (!o.isMesh || o.userData.bossHit) return;
         const m = o.material.clone();
-        m.transparent = true; m.opacity = 0.76; m.depthWrite = true;
-        if (m.color && m.color.getHex && m.color.getHex() === 0xff2a2a) m.color.setHex(0x9ad8ff);
+        if (!solid) {
+          m.transparent = true; m.opacity = 0.76; m.depthWrite = true;
+          if (m.color && m.color.getHex && m.color.getHex() === 0xff2a2a) m.color.setHex(0x9ad8ff);
+        }
         o.material = m;
         mats.push(m);
       });
@@ -1742,7 +1983,7 @@
     addPool(x, z, r) {
       if (this.pools.length >= 8) { const old = this.pools.shift(); old.d.hide(); }
       const d = FX.decal({ mode: "blob", x, z, r, w: 0.4, color: 0x5aff1a, opacity: 0.75, y: this.arena.floorY + 0.05, add: true });
-      this.pools.push({ x, z, r, t: 7, d });
+      this.pools.push({ x, z, r, t: MV().acid.poolTime, d });
     },
     updatePools(game, dt) {
       const P = game.yawObject.position;
@@ -1752,7 +1993,7 @@
         if (p.t <= 0) { p.d.hide(); this.pools.splice(i, 1); continue; }
         p.d.set({ opacity: 0.75 * Math.min(1, p.t) });
         if (Math.random() < 0.25) FX.mote(p.x + (Math.random() - 0.5) * p.r * 1.4, this.arena.floorY + 0.1, p.z + (Math.random() - 0.5) * p.r * 1.4, 0, 0.8, 0, 0x6aff2a, 0.7, 1, 0);
-        if (Math.hypot(P.x - p.x, P.z - p.z) < p.r + 0.2 && feetOf(game) < this.arena.floorY + 0.8) this.dot(game, 0.12, dt, "pool");
+        if (Math.hypot(P.x - p.x, P.z - p.z) < p.r + 0.2 && feetOf(game) < this.arena.floorY + 0.8) this.dot(game, MV().acid.poolDps, dt, "pool");
       }
     },
     // everything a player (or the playtest bot) should keep out of right now
@@ -1761,8 +2002,17 @@
       if (!b || this.phase !== "fight") return [];
       // (and paper blades in the air: where each will be in half a second)
       const blades = (FX.blades || []).filter((f) => f.on).map((f) => ({ kind: "blade", x: f.pos.x + f.dir.x * f.speed * 0.5, z: f.pos.z + f.dir.z * f.speed * 0.5, r: 0.8, at: 0.5 }));
-      return b.dangers.concat(this.pools.map((p) => ({ kind: "pool", x: p.x, z: p.z, r: p.r, at: 0 })), blades);
+      const objs = [];
+      this.objs.forEach((o) => { if (o.dangers) objs.push(...o.dangers()); });
+      return b.dangers.concat(this.pools.map((p) => ({ kind: "pool", x: p.x, z: p.z, r: p.r, at: 0 })), blades, objs);
     },
+    // (round 2, for the playtest bot) what can be shot down right now, and
+    // whether shooting the boss would only come back (Mirror Gaze)
+    shootables() {
+      return this.targets.filter((tg) => !tg.down).map((tg) => ({ tg, pos: tg.hb.getWorldPosition(new V3()), kind: tg.kind }))
+        .concat(this.clones.filter((c) => !c.popped && c.word).map((c) => ({ clone: c, pos: c.root.position.clone().setY(c.root.position.y + 3), kind: "copy", word: c.word, hb: c.hitboxes[0] })));
+    },
+    holdFire() { return !!(this.boss && this.boss.reflect); },
 
     // ---- the end ----
     die(game) {
@@ -1774,8 +2024,10 @@
       b.act = null;
       this.pools.forEach((p) => p.d.hide()); this.pools = [];
       this.clones.forEach((c) => this.popClone(game, c, true)); this.clones = [];
+      this.clearObjs(game);
       FX.clearTransient();
-      game.bossSlow = 1; game.bossRootT = 0;
+      game.bossSlow = 1; game.bossRootT = 0; game.bossSedateT = 0;
+      b.reflect = false; b.armor = 1; b.weakOpen = false; b.tint = null;
       b.dangers = [];
       G.UI.setBossBar(false);
       G.Audio.bossMusic(false);
@@ -1833,11 +2085,12 @@
     reset(game) {
       if (this.boss) G.BossModels.dispose(this.boss.rig);
       this.clones.forEach((c) => { if (c.root.parent) c.root.parent.remove(c.root); c.mats.forEach((m) => m.dispose()); });
+      this.clearObjs(game);
       this.boss = null; this.phase = null; this.pools = []; this.clones = [];
       G.Arena.reset(game);
       FX.reset();
       if (G.Audio && G.Audio.bossMusic) G.Audio.bossMusic(false);
-      if (game) { game.bossSlow = 1; game.bossRootT = 0; }
+      if (game) { game.bossSlow = 1; game.bossRootT = 0; game.bossSedateT = 0; }
     },
     // every gun's sprint against the gaze (reported by the round 6 test):
     // sprint is 5.2 m/s times the gun's weight class
@@ -1848,4 +2101,8 @@
       });
     },
   };
+  // (round 2) the twenty new moves are in js/bossmoves.js, which adds them
+  // here and borrows the effects and helpers
+  G.BossAbil = ABIL;
+  G.BossKit = { FX, V3, MV, clamp, inRect, feetOf, airborne, swipe };
 })();

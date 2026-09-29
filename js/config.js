@@ -58,6 +58,68 @@ G.CONFIG = {
     // ammunition in the sealed arena: a box now and then, somewhere round the
     // arena, and one each time the boss falls past 75%, 50% and 25%
     arenaAmmo: { firstAfter: 12, every: [20, 30], maxLying: 3, dropsAt: [0.75, 0.5, 0.25], magsPerGun: 3 },
+    // (round 2) and a health box as each new phase begins: a share of full health
+    arenaHealth: { atPhase: true, heal: 0.3 },
+
+    // (new series, round 2) Three phases by health: its old move down to
+    // 66%, its first new one down to 33%, its second new one below that --
+    // faster, sooner and chained into combos. Each phase starts with a roar
+    // (phaseRoar seconds) and the body grows (phaseScale) and glows.
+    phases: [0.66, 0.33],
+    phaseRoar: 1.8,
+    phaseScale: [1, 1.08, 1.16],
+    comboGap: 0.7,                           // seconds between the moves of a phase-3 combo
+    // Harder by wave. A pair is [at wave 5, at wave 20], on a straight line
+    // in between (and past 20 stays at the wave-20 end): wave 5 is slower
+    // with longer warnings, wave 20 the fastest.
+    byWave: {
+      warn: [1.35, 1],                       // every warning (the marks on the ground, a wind-up) x this
+      speed: [0.88, 1.08],                   // walking speed x this
+      cooldown: [1.2, 0.75],                 // the time between its moves x this
+      damage: [0.75, 1.1],                   // what its moves take x this (the slam keeps its full blow)
+      targetHp: [1, 1.8],                    // things to shoot down (orbs, eggs, pylons...) x this
+    },
+    phase3: { warn: 0.88, speed: 1.15, cooldown: 0.72 },
+    maxMinions: 8,
+    // Every move. Damage is a share of the player's full health (x byWave
+    // damage); no single blow ever kills a player who had full health.
+    // A pair [a, b] is by wave as above; "P3" is the phase-3 figure;
+    // cdMult: how much longer than usual the boss waits after this move.
+    moves: {
+      swipe: { wind: 0.65, windP3: 0.5, damage: 0.13, push: 2.2, cd: 2.2, cdP3: 1.6 },
+      // ---- phase 1: the old move of each ----
+      slam: { radius: 3.8, crouch: 0.6, air: 1.4, damage: 0.55, push: 3, timesP3: 2 },
+      laser: { charge: 1.3, time: 3, timeP3: 4, radius: 1.1, dps: 0.11 },
+      roar: { radius: 8.5, wind: 1.4, time: 4, dps: 0.07, slow: 0.5 },
+      summon: { wind: 1.5, count: [3, 4], fastShare: [0.25, 0.4], cdMult: 1.2 },
+      charge: { aim: 1.3, speed: 17, width: 1.8, damage: 0.3, push: 3.5, stun: 2.3, vuln: 1.5, timesP3: 2 },
+      roots: { rings: 3, ringsP3: 4, gap: 0.95, speed: 7, reach: 22, wind: 0.9, width: 0.9, damage: 0.14, hold: 1.0 },
+      lightning: { radius: 2.3, first: [5, 6], warn: 1.45, secondAt: 1.9, secondWarn: 1.0, second: 3, damage: 0.24 },
+      acid: { flasks: 3, flasksP3: 4, flight: 1.1, radius: 2.2, damage: 0.1, poolTime: 6, poolDps: 0.12 },
+      vortex: { wind: 1.2, time: 4.0, timeP3: 5.0, reach: 20, reachHall: 13, core: 2.6, pull: 2.2, pullHall: 1.7, dps: 0.15 },
+      clones: { copies: 2, copiesP3: 3, wind: 0.8, time: 7, throwEvery: 3.2, bladeSpeed: 8, bladeDamage: 0.04, breakAt: 0.05 },
+      // ---- phase 2 and 3: two new moves each ----
+      ward: { wind: 1.6, keepers: [3, 4], armor: 0.15, maxTime: [20, 17], stun: 3, vuln: 1.5 },
+      graveyard: { tile: 4, grid: 5, warn: [1.6, 1.25], nextWarn: [1.4, 1.1], rounds: 2, roundsP3: 3, damage: 0.14 },
+      orbs: { count: [3, 5], wind: 1.2, speed: [2.2, 2.9], turn: 2.5, life: 9, hitR: 0.75, blast: 1.4, damage: 0.1, hp: 1 },
+      mirror: { wind: 1.0, reflect: [4, 3.5], open: [4, 2.5], weakMult: 2.5, reflectDamage: 0.02, reflectEvery: 0.3 },
+      detention: { radius: 7, wind: [1.5, 1.1], close: [5, 3.6], gapDeg: 55, lineDamage: 0.05, trapped: 0.18, root: 1.2 },
+      assembly: { radius: [5.5, 4.2], warn: [3.2, 2.3], burn: 1.8, dps: 0.14, secondRadius: 0.75, secondWarn: 0.8, near: 8, far: 12 },
+      needles: { lanes: [3, 5], step: 0.21, wind: [1.2, 0.85], width: 0.5, reach: 24, speed: 26, damage: 0.07, slow: 0.55, slowTime: 2.5, volleys: [2, 3], gap: 1.0 },
+      eggs: { count: [3, 4], flight: 1.0, hatch: [8, 6], hp: 40, near: 5, far: 9, cdMult: 1.7 },
+      ball: { radius: 1.1, speed: [15, 19], bounces: [2, 3], warn: [1.0, 0.65], damage: 0.18, push: 3 },
+      line: { speed: [7, 9.5], gapWidth: [5, 3.8], gaps: [2, 1], warn: [2.4, 1.7], damage: 0.2, push: 4, depth: 1.4, seg: 2 },
+      bark: { wind: 1.2, time: [8, 10], armor: 0.3, open: [2.2, 1.5], closed: [2.4, 3.0], heartMult: 2.5, speed: 1.3 },
+      overgrowth: { lines: [3, 5], wind: [1.5, 1.05], width: 1.0, reach: 18, stay: [6, 8], damage: 0.12, dps: 0.1, slow: 0.5 },
+      pylons: { count: [3, 4], wind: 1.3, hp: 45, radius: 1.3, dropDamage: 0.1, on: [1.3, 1.8], off: [2.2, 1.4], flicker: [1.0, 0.65], life: 12, width: 0.6, damage: 0.12, cdMult: 1.3 },
+      arcs: { shots: [3, 4], track: [0.7, 0.5], lock: [0.8, 0.6], gap: [0.8, 0.6], width: 0.7, damage: 0.1 },
+      spray: { reach: 12, half: 0.42, sweep: 1.7, wind: [1.3, 0.9], time: [2.8, 2.0], dps: 0.14 },
+      miasma: { radius: 3.0, speed: [2.0, 2.4], life: [7, 8], dps: 0.08, hp: 30, flight: 1.0, cdMult: 2.2 },
+      blackout: { wind: 1.3, time: [7, 8], blinks: [2, 3], behind: 5, warn: [1.1, 0.75], reach: 5.2, damage: 0.16, dim: 0.12 },
+      chains: { wind: [1.3, 1.0], width: 0.9, reach: 24, fly: 30, pull: 4.2, hold: 3.0, hp: 30, touchDps: 0.18 },
+      choice: { copies: 4, wind: 1.0, time: [11, 8], wrongDamage: 0.08, stun: 2.5, vuln: 1.3 },
+      stamp: { count: [3, 5], half: 1.7, warn: [1.25, 0.85], gap: [0.5, 0.35], damage: 0.2 },
+    },
   },
 
   // ---------------- abilities (their cooldowns and durations: G.ABILITIES below) ----------------

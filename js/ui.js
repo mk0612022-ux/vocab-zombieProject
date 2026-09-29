@@ -1124,17 +1124,41 @@ G.UI = {
   },
   // (round 2, G4) The boss's health: a big red bar across the top with its
   // name and title over it; it pulses while the boss is open to extra damage.
-  setBossBar(visible, name, hpPct, vulnerable) {
+  // (New series, round 2) two marks on it where phases 2 and 3 begin (66%
+  // and 33%, G.CONFIG.boss.phases), lit once passed; the bar takes the
+  // phase's colour.
+  setBossBar(visible, name, hpPct, vulnerable, phase) {
     const bar = this.el("hud-boss-bar");
     if (bar.classList.contains("hidden") === !visible && !visible) return;
     bar.classList.toggle("hidden", !visible);
     document.body.classList.toggle("boss-on", !!visible);
-    if (!visible) return;
+    if (!visible) { this.setBossHint(null); return; }
     if (name && this.el("hud-boss-name").textContent !== name) this.el("hud-boss-name").textContent = name;
     const w = Math.max(0, Math.min(100, hpPct)).toFixed(1) + "%";
     const fill = this.el("hud-boss-hp-fill");
     if (fill.style.width !== w) { fill.style.width = w; this.el("hud-boss-hp-lag").style.width = w; }
     bar.classList.toggle("vuln", !!vulnerable);
+    const P = G.CONFIG.boss.phases, ph = phase || 1;
+    [2, 3].forEach((n) => {
+      const m = this.el("hud-boss-mark" + n);
+      const left = Math.round(P[n - 2] * 1000) / 10 + "%";
+      if (m.style.left !== left) m.style.left = left;
+      m.classList.toggle("passed", ph >= n);
+    });
+    bar.classList.toggle("phase2", ph === 2);
+    bar.classList.toggle("phase3", ph >= 3);
+  },
+  // (new series, round 2) a line under the boss's bar: what to do about the
+  // move under way; gone after secs (null: at once)
+  setBossHint(text, secs) {
+    const el = this.el("hud-boss-hint");
+    if (!el) return;
+    clearTimeout(this._bossHintT);
+    if (!text) { el.classList.add("hidden"); return; }
+    if (el.textContent !== text) el.textContent = text;
+    el.classList.remove("hidden");
+    el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash");
+    this._bossHintT = setTimeout(() => el.classList.add("hidden"), Math.max(1, secs || 4) * 1000);
   },
   // Desktop, mid-game, no window open and still no pointer lock: the browser
   // refused to re-lock (a question timed out, the shop timer ran out -- no

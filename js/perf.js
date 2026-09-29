@@ -393,7 +393,8 @@ G.Perf = {
     for (let i = 0; i < n; i++) {
       const l = this.pool[i], a = best[i];
       if (!a) { l.intensity = 0; continue; }
-      l.position.copy(a.pos); l.color.copy(a.color); l.distance = a.distance; l.intensity = a.intensity;
+      // (dimK: a boss's Lights Out, js/bossmoves.js)
+      l.position.copy(a.pos); l.color.copy(a.color); l.distance = a.distance; l.intensity = a.intensity * (this.dimK == null ? 1 : this.dimK);
     }
     if (this.flashLight && performance.now() > this._flashUntil) this.flashLight.intensity = 0;
   },

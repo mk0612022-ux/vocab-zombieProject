@@ -179,6 +179,14 @@ G.UIAudit = {
       // question, the title card of every cutscene
       const longBoss = G.BOSS_DEFS.slice().sort((a, b) => G.Bosses.label(b).length - G.Bosses.label(a).length)[0];
       await step("boss bar", () => { UI.setBossBar(true, G.Bosses.label(longBoss), 64, true); UI.updateHud(Game.buildHudState()); });
+      // (newer list, round 2) phase 3, and the longest line under the bar:
+      // every move's hint, and Multiple Choice's question with the longest meaning
+      const hints = Object.keys(G.STRINGS.en).filter((k) => /^boss\.move\.\w+\.(hint2?|broken)$/.test(k)).map((k) => T(k));
+      const longMeaning = G.WORDS_LEVEL_3.slice().sort((a, b) => b[1].length - a[1].length)[0][1];
+      hints.push(T("boss.move.choice.prompt", { th: longMeaning }));
+      const longHint = hints.sort((a, b) => b.length - a.length)[0];
+      await step("boss bar: phase 3, the longest hint", () => { UI.setBossBar(true, G.Bosses.label(longBoss), 25, false, 3); UI.setBossHint(longHint, 30); UI.updateHud(Game.buildHudState()); });
+      await step("boss bar: Multiple Choice's question", () => { UI.setBossHint(T("boss.move.choice.prompt", { th: longMeaning }), 30); });
       UI.setBossBar(false);
       await step("boss question", () => Game.startWordChallenge(T("challenge.boss"), () => {}, () => {}, { pair: G.WORDS_LEVEL_3.slice().sort((a, b) => b[1].length - a[1].length)[0], time: 10, boss: true }));
       await step("boss question (answered)", () => Game.answerChallenge(0));
@@ -256,7 +264,9 @@ G.UIAudit = {
       await step("codex (none met)", () => { G.save.bosses = { seen: {}, defeated: {} }; UI.openCodex("screen-mainmenu"); });
       await step("codex (some met)", () => { G.save.bosses = { seen: { gravedigger: 2, eye: 1, examiner: 1 }, defeated: { gravedigger: 1 } }; UI.renderCodex(); });
       await step("codex (all met)", () => { G.BOSS_DEFS.forEach((d) => { G.save.bosses.seen[d.id] = 3; G.save.bosses.defeated[d.id] = 2; }); UI.renderCodex(); });
-      const wordy = G.BOSS_DEFS.slice().sort((a, b) => (T("boss." + b.id + ".desc") + T("boss." + b.id + ".counter")).length - (T("boss." + a.id + ".desc") + T("boss." + a.id + ".counter")).length)[0];
+      // (the card with the most to say: all three moves, newer list round 2)
+      const say = (d) => UI.codexMoves(d).map((m) => m.name + m.desc + m.counter).join("").length;
+      const wordy = G.BOSS_DEFS.slice().sort((a, b) => say(b) - say(a))[0];
       await step("codex card", () => UI.openCodexDetail(wordy.id));
       UI.closeCodexDetail();
       G.save.bosses = bossSave;

@@ -304,7 +304,7 @@ G.Game = {
     G.Modal.reset();
     this.paused = false;
     this._onCrateClose = null; this._burst = null; this._chargeT = 0;
-    this.bossSlow = 1; this.bossRootT = 0; this._shakeT = 0; this._shakeA = 0; this._checkpointDue = false; this._quizDue = false;
+    this.bossSlow = 1; this.bossRootT = 0; this.bossSedateT = 0; this._shakeT = 0; this._shakeA = 0; this._checkpointDue = false; this._quizDue = false;
     this._mysteryHand = null; this._mysteryPick = null;
     this.weaponAnim = { switchT: 0, switchDur: 0.42, pendingRebuild: false, recoilPos: 0, recoilRot: 0 };
     this.reloadState = null;
@@ -717,6 +717,8 @@ G.Game = {
         bossHit.add(key);
         const r = G.Bosses.onShot(this, hit.object, dmg, hit.point);
         if (!r.hit) continue;
+        // (Mirror Gaze threw it back: no hit, and it goes no further)
+        if (r.reflected) break;
         hitAny = true;
         if (r.weak) G.UI.showHitmarker(true);
         if (def && def.splash) this.splashDamage(hit.point, def, dmg, true);
@@ -934,6 +936,9 @@ G.Game = {
       this.zombies.forEach((zz) => { if (zz.alive) zz.speedMultiplier = Math.min(2, zz.speedMultiplier + 0.25); });
       this.rollLootDrop(z, false);
     }
+    // (new series, round 2) a boss's own zombie down: Tombstone Ward counts
+    // the ones shot by their right word
+    if (z.minion) G.Bosses.onMinionDeath(this, z, !!wasCorrect);
     this.zombies = this.zombies.filter((zz) => zz !== z);
     this.checkSecondFloorUnlock();
     this.checkThirdFloorUnlock();
@@ -998,7 +1003,11 @@ G.Game = {
       const ids = drop.arena ? this.player.gunSlots : [cur !== "melee" ? cur : this.player.gunSlots[0]];
       const mags = drop.arena ? G.CONFIG.boss.arenaAmmo.magsPerGun : 2;
       ids.forEach((id) => { if (id && this.player.ammo[id] && G.WEAPON_DEFS[id]) this.player.ammo[id].reserve += G.WEAPON_DEFS[id].magSize * mags; });
-    } else if (drop.kind === "health") this.player.hp = Math.min(this.player.maxHp, this.player.hp + G.CONFIG.player.healthPickup);
+    } else if (drop.kind === "health") {
+      // (a boss's health box, as a new phase begins: a share of full health)
+      const heal = drop.arena ? this.player.maxHp * G.CONFIG.boss.arenaHealth.heal : G.CONFIG.player.healthPickup;
+      this.player.hp = Math.min(this.player.maxHp, this.player.hp + heal);
+    }
     else if (drop.kind === "crate") this.openCrate(drop.rarity, null, null, { source: "drop", dropPos: drop.mesh.position.clone() });
   },
 
@@ -1543,8 +1552,10 @@ G.Game = {
     // capacity the Extra Weapon Slot perk adds can be seen)
     const slots = [{ active: this.player.currentSlot === 0 }].concat(this.player.gunSlots.map((_, i) => ({ active: this.player.currentSlot === i + 1 })));
     for (let i = this.player.gunSlots.length; i < G.Loadout.maxSlots(this); i++) slots.push({ active: false, empty: true });
-    // (a boss fight with nothing else about: where to aim instead)
-    const bossHint = G.Bosses.fighting() ? G.T("hud.bossAim", { w: G.T("boss." + G.Bosses.boss.def.id + ".weak") }) : null;
+    // (a boss fight with nothing else about: where to aim instead -- or, in
+    // the Examiner's Multiple Choice, the meaning whose word to shoot)
+    const fb = G.Bosses.fighting() ? G.Bosses.boss : null;
+    const bossHint = fb ? (fb.choiceMeaning || G.T("hud.bossAim", { w: G.T("boss." + fb.def.id + ".weak") })) : null;
     let meaning = this.targetPair ? this.targetPair[1] : (this.zombies.length ? "-" : bossHint || G.T("hud.waiting"));
     // Hint Reader: the first letter, and at level 2 how many letters
     // (round 3: the Whisper ability says more -- the first three and the length)
@@ -1654,7 +1665,9 @@ G.Game = {
     // a boss's roar slows you down; its roots hold you where you stand
     // (5.2 sprint / 3.2 walk: G.Bosses.LASER_SPEED is exactly the walk)
     this.bossRootT = Math.max(0, (this.bossRootT || 0) - dt);
-    const held = (this.bossSlow || 1) * (this.bossRootT > 0 ? 0 : 1);
+    // (new series, round 2: a sedative needle, or a thorn wall, slows you a while)
+    this.bossSedateT = Math.max(0, (this.bossSedateT || 0) - dt);
+    const held = (this.bossSlow || 1) * (this.bossRootT > 0 ? 0 : 1) * (this.bossSedateT > 0 ? (this.bossSedateK || 1) : 1);
     const speed = (sprinting ? PC.sprintSpeed : PC.walkSpeed) * this.player.moveSpeedMult * speedMult * rush * held * G.Abilities.moveMult() * dt;
     const forward = new THREE.Vector3(-Math.sin(this.yawObject.rotation.y), 0, -Math.cos(this.yawObject.rotation.y));
     // right = forward rotated -90 deg around Y. (forward.z, 0, -forward.x) was

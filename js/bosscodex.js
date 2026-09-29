@@ -3,8 +3,9 @@
 // -------------------------------------------------------------------
 // One card per boss. A boss met at least once shows its picture (its body,
 // rendered by G.BossModels.portrait), its name, its title with the title's
-// Thai meaning, and its signature move; opening the card (a G.Modal window)
-// adds what it looks like, what the move does, how to survive it, its weak
+// Thai meaning, and its three moves; opening the card (a G.Modal window)
+// adds what it looks like, what each move does and when (phase 1 down to
+// 66% of its health, 2 down to 33%, 3 below), how to survive each, its weak
 // spot and how often it has been met and beaten. A boss never met is a
 // dark silhouette and "???".
 //
@@ -16,6 +17,13 @@
   const T = (k, v) => G.T(k, v);
 
   Object.assign(G.UI, {
+    // a boss's three moves: its old one (boss.<id>.*), then its two new ones
+    // (boss.move.<move>.*)
+    codexMoves(d) {
+      return (d.moves || [d.ability]).map((mv, i) => (i === 0
+        ? { name: T("boss." + d.id + ".ability"), desc: T("boss." + d.id + ".desc"), counter: T("boss." + d.id + ".counter") }
+        : { name: T("boss.move." + mv + ".name"), desc: T("boss.move." + mv + ".desc"), counter: T("boss.move." + mv + ".counter") }));
+    },
     openCodex(returnTo) {
       this._codexReturn = returnTo || "screen-mainmenu";
       this.renderCodex();
@@ -37,7 +45,7 @@
           `<div class="codex-name">${esc(name)}</div>` +
           `<div class="codex-title">${esc(T("boss.the", { w: d.word.charAt(0).toUpperCase() + d.word.slice(1) }))}</div>` +
           `<div class="codex-thai" lang="th">${esc(G.Bosses.thai(d))}</div>` +
-          `<div class="codex-sub">${esc(T("boss." + d.id + ".ability"))}</div>` +
+          `<div class="codex-sub">${esc(this.codexMoves(d).map((m) => m.name).join(" · "))}</div>` +
           (S.defeated[d.id] ? `<div class="codex-beaten">✓</div>` : "") + `</button>`;
       }).join("");
       grid.querySelectorAll("button.codex-card").forEach((b) => { b.onclick = () => this.openCodexDetail(b.dataset.id); });
@@ -61,9 +69,12 @@
       this.el("codex-d-title").textContent = T("boss.the", { w: d.word.charAt(0).toUpperCase() + d.word.slice(1) });
       this.el("codex-d-thai").textContent = G.Bosses.thai(d);
       this.el("codex-d-look").textContent = T("boss." + id + ".look");
-      this.el("codex-d-ability").textContent = T("boss." + id + ".ability");
-      this.el("codex-d-desc").textContent = T("boss." + id + ".desc");
-      this.el("codex-d-counter").textContent = T("boss." + id + ".counter") + " " + T("codex.weak", { w: T("boss." + id + ".weak") }) + " " + T("codex.swipe");
+      // (new series, round 2) its three moves, a phase each, with the way out of each
+      this.el("codex-d-moves").innerHTML = this.codexMoves(d).map((m, i) =>
+        `<div class="codex-move"><div class="codex-d-label">${esc(T("codex.phase" + (i + 1)))}</div>` +
+        `<div class="codex-d-ability">${esc(m.name)}</div><p class="codex-d-desc">${esc(m.desc)}</p>` +
+        `<p class="codex-d-how"><span class="codex-how-k">${esc(T("codex.counter"))}:</span> ${esc(m.counter)}</p></div>`).join("");
+      this.el("codex-d-counter").textContent = T("codex.weak", { w: T("boss." + id + ".weak") }) + " " + T("codex.swipe");
       this.el("codex-d-stats").textContent = T("codex.record", { m: S.seen[id] || 0, d: S.defeated[id] || 0 });
       this.el("codex-detail").classList.remove("hidden");
       G.Modal.open("codex", { keys: (e) => {

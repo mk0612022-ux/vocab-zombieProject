@@ -183,7 +183,8 @@ G.Round6Test = (function () {
     ok("G5 slam: out of the circle before it lands, no damage", taken() === t0);
     quiet(b); place(cx, -25); g.player.hp = g.player.maxHp; b.abilityCd = 0; up(1); b.abilityCd = 999;
     t0 = taken();
-    sim(2.6);
+    // (new series, round 2: wave 5 warns longer -- G.CONFIG.boss.byWave.warn)
+    sim(3.2);
     const lost = taken() - t0;
     ok("G5 slam: in it, about 55% of health", Math.abs(lost / g.player.maxHp - 0.55) < 0.05, r1(lost / g.player.maxHp * 100) + "%");
     ok("G5 slam: never a kill from full health", g.player.hp > 0 && g.state === "GAMEPLAY");
@@ -228,7 +229,7 @@ G.Round6Test = (function () {
     ok("G5 roar: outside the ring, nothing", roarD && taken() === t0 && g.bossSlow === 1, roarD && roarD.r);
     quiet(b); g.player.hp = g.player.maxHp; place(cx, -40 + 5); b.abilityCd = 0; up(1); b.abilityCd = 999;
     t0 = taken(); sim(2); const slowIn = g.bossSlow;
-    sim(3.8);
+    sim(4.3);
     ok("G5 roar: inside, burning and at half speed until it ends", taken() > t0 && slowIn === 0.5 && g.bossSlow === 1, r1(taken() - t0) + " slow " + slowIn);
     // Brood Call
     b = toBoss("matron", 10); quiet(b); b.pos.set(cx, 0, -40); place(cx, -25);
@@ -281,7 +282,7 @@ G.Round6Test = (function () {
     // Acid Rain
     b = toBoss("chemist", 5); quiet(b); b.pos.set(cx, 0, -40); place(cx, -28);
     b.abilityCd = 0; up(1); b.abilityCd = 999;
-    sim(2.2);
+    sim(2.9);
     ok("G5 acid: pools on the ground afterwards", B.pools.length >= 3, B.pools.length);
     const pool = B.pools[0];
     quiet(b); t0 = taken(); place(pool.x, pool.z); sim(1);
@@ -298,7 +299,7 @@ G.Round6Test = (function () {
     // Trick Question
     b = toBoss("examiner", 5); quiet(b); b.pos.set(cx, 0, -40); place(cx, -28);
     b.abilityCd = 0; up(1); b.abilityCd = 999;
-    sim(1.0);
+    sim(1.4);
     const figs = B.dangers().filter((d) => d.kind === "figure");
     ok("G5 clones: copies round the player, one real", figs.length >= 3 && figs.filter((f) => f.real).length === 1, figs.length);
     ok("G5 clones: the copies are see-through (the tell)", B.clones.length >= 2 && B.clones.every((c) => c.mats.every((m) => m.transparent && m.opacity < 1)));
@@ -385,7 +386,7 @@ G.Round6Test = (function () {
     ok("G4 pictures: the boss in colour, the unseen as a silhouette", /^data:image\/png/.test(pic) && /^data:image\/png/.test(sil) && pic !== sil);
     seenC.click();
     ok("G4 a card opens as a window (G.Modal)", G.Modal.isOpen("codex") && !document.getElementById("codex-detail").classList.contains("hidden"));
-    ok("G4 ... with the move and the way out", /pull is slower than your walk/.test(document.getElementById("codex-d-counter").textContent));
+    ok("G4 ... with the move and the way out", /pull is slower than your walk/.test(document.getElementById("codex-d-moves").textContent));
     ok("G4 a controller works inside it", G.Pad.scope() === document.getElementById("codex-detail"));
     key("Escape");
     ok("G4 Escape closes it", !G.Modal.isOpen("codex") && document.getElementById("codex-detail").classList.contains("hidden"));

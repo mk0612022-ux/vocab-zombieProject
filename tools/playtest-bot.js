@@ -235,6 +235,14 @@ G.Bot = {
           else if (d.kind === "lane") { const px = x - d.x, pz = z - d.z, along = px * d.dx + pz * d.dz, across = Math.abs(px * d.dz - pz * d.dx); v = along > -2 && along < d.len + 1.5 ? d.w + 1.2 - across : 0; }
           // (the pull is slower than a walk: only its burning middle is worth running from)
           else if (d.kind === "pull") v = dd < d.core + 3 ? (d.core + 3 - dd) * 3 : 0;
+          // (new series, round 2) Detention: inside the ring, out through its
+          // gap -- the line itself holds you; Assembly: only its circle is safe
+          else if (d.kind === "cage") {
+            const a = Math.atan2(x - d.x, z - d.z) - d.gapYaw, off = Math.abs(Math.atan2(Math.sin(a), Math.cos(a)));
+            const gap = off < d.gapHalf * 0.8;
+            if (dd < d.r) v = (d.r - dd) * 0.3 + (gap ? 0.2 : 1.5 + (dd > d.r - 1.3 ? 3 : 0));
+            else v = gap || !d.trapped ? 0 : 4;
+          } else if (d.kind === "safe") v = dd > d.r - 1.0 ? dd - d.r + 2.0 : 0;
           if (v > 0) s += v;
         }
         return s;
@@ -390,7 +398,7 @@ G.Bot = {
         if (opt.godMode && g.player) { R.hurtTaken = (R.hurtTaken || 0) + Math.max(0, (R._hpPrev || g.player.maxHp) - g.player.hp); g.player.hp = g.player.maxHp; R._hpPrev = g.player.hp; }
 
         if (g.state === "GAME_OVER") {
-          if (bossOn) { const st = G.Bosses.stats || {}; (R.bosses = R.bosses || []).push({ id: bossOn.id, wave: bossOn.wave, hp: bossOn.hp, playerDps: bossOn.dps, secs: Math.round(st.fightT || 0), taken: Math.round(st.taken || 0), hitsTaken: st.hitsTaken || 0, dodged: st.dodged || 0, abilities: st.abilities || 0, bossHpLeft: G.Bosses.boss ? Math.round(G.Bosses.boss.hp) : 0, won: false }); }
+          if (bossOn) { const st = G.Bosses.stats || {}; (R.bosses = R.bosses || []).push({ id: bossOn.id, wave: bossOn.wave, hp: bossOn.hp, playerDps: bossOn.dps, secs: Math.round(st.fightT || 0), taken: Math.round(st.taken || 0), hitsTaken: st.hitsTaken || 0, dodged: st.dodged || 0, abilities: st.abilities || 0, bossHpLeft: G.Bosses.boss ? Math.round(G.Bosses.boss.hp) : 0, phaseAt: st.phaseAt, moves: st.moves, shotDown: st.shotDown || 0, reflected: st.reflected || 0, won: false }); }
           R.deathAt = Math.round(t); ev(t, "DIED on wave " + g.wave + (bossOn ? " fighting " + bossOn.id : "")); break;
         }
         if (g.state === "VICTORY") { R.victoryAt = Math.round(t); ev(t, "VICTORY"); break; }
@@ -516,7 +524,7 @@ G.Bot = {
         if (BF && !bossOn) { bossOn = { id: BF.boss.def.id, wave: g.wave, hp: BF.boss.maxHp, dps: BF.stats.dps }; ev(t, "boss " + bossOn.id + " (" + bossOn.hp + " hp)"); }
         if (bossOn && G.Bosses.phase !== "fight") {
           const st = G.Bosses.stats || {};
-          (R.bosses = R.bosses || []).push({ id: bossOn.id, wave: bossOn.wave, hp: bossOn.hp, playerDps: bossOn.dps, secs: Math.round(st.fightT || 0), taken: Math.round(st.taken || 0), hitsTaken: st.hitsTaken || 0, dodged: st.dodged || 0, abilities: st.abilities || 0, won: g.state !== "GAME_OVER" });
+          (R.bosses = R.bosses || []).push({ id: bossOn.id, wave: bossOn.wave, hp: bossOn.hp, playerDps: bossOn.dps, secs: Math.round(st.fightT || 0), taken: Math.round(st.taken || 0), hitsTaken: st.hitsTaken || 0, dodged: st.dodged || 0, abilities: st.abilities || 0, phaseAt: st.phaseAt, moves: st.moves, shotDown: st.shotDown || 0, reflected: st.reflected || 0, won: g.state !== "GAME_OVER" });
           ev(t, "boss " + bossOn.id + (g.state === "GAME_OVER" ? " killed us" : " down") + " after " + Math.round(st.fightT || 0) + "s");
           bossOn = null;
           if (opt.bossOnly) break;
@@ -634,8 +642,11 @@ G.Bot = {
         }
         if (bossMove) {
           // (sprint held through the start of a reload stays locked until it
-          // is pressed again -- as a player would, let go for a frame)
-          setMove(bossMove[0], bossMove[1], bossMove[2] && !g._sprintLatch);
+          // is pressed again -- as a player would, let go for a frame. Not
+          // while reloading, though: a fresh sprint press abandons the
+          // reload, and a bot dodging thorn rings non-stop never finished one
+          // -- the "Thorn stalls" of the new series' round 1)
+          setMove(bossMove[0], bossMove[1], bossMove[2] && !g._sprintLatch && !g.player.reloading);
           moving = true; path = null;
         }
         else if (BF && !threatened) { setMove(0, 0, false); }
@@ -652,7 +663,7 @@ G.Bot = {
             for (const z of sameFloor) { const dd = Math.hypot(p.x + dx * 1.6 - z.mesh.position.x, p.z + dz * 1.6 - z.mesh.position.z); s += Math.min(dd, 8) * 2; }
             if (s > bs) { bs = s; best = [dx, dz]; }
           }
-          if (best) { setMove(best[0], best[1], nd < 2); moving = true; path = null; }
+          if (best) { setMove(best[0], best[1], nd < 2 && !g.player.reloading); moving = true; path = null; }
           else { setMove(0, 0, false); if (nearest && visible.includes(nearest)) { tgt = nearest; tgtRef = tgt; why = nearest.word === tw ? "known" : "panic"; } }
         } else if (tgt && dist2(tgt.mesh.position, p) < opt.engage) {
           setMove(0, 0, false);                  // a new player stops to shoot
@@ -740,12 +751,35 @@ G.Bot = {
         // (round 2: with no zombie to shoot, the boss -- its weak spot some of
         // the time, the body otherwise)
         let bossAP = null;
-        if (BF && !(tgt && tgt.alive)) {
-          const hbs = BF.boss.rig.hitboxes;
-          if (!bossAim.hb || t > bossAim.t) { const weak = hbs.find((h) => h.userData.bossHit.weak); bossAim.hb = weak && Math.random() < 0.35 ? weak : hbs[0]; bossAim.t = t + 2.5; }
-          bossAP = bossAim.hb.getWorldPosition(new THREE.Vector3());
+        // (new series, round 2) glowing gold, it throws rounds back: hold fire;
+        // anything to shoot down (orbs, eggs, pylons, a canister, a chain)
+        // comes first; Multiple Choice: the copy with the right word if it
+        // knows the word, a guess if not; a weak spot laid open: that
+        const hold = BF && BF.holdFire();
+        if (BF && !(tgt && tgt.alive) && !hold) {
+          const shoot = BF.shootables();
+          const things = shoot.filter((s) => s.kind !== "copy");
+          if (things.length) {
+            const s = things.reduce((a, q) => (dist2(q.pos, p) < dist2(a.pos, p) ? q : a));
+            bossAP = s.pos;
+          } else if (BF.boss.word) {
+            if (!bossAim.choice || bossAim.choiceWord !== BF.boss.word) {
+              const opts = shoot.filter((s) => s.kind === "copy").map((s) => ({ word: s.word, hb: s.hb })).concat([{ word: BF.boss.word, hb: BF.boss.rig.hitboxes[0], real: true }]);
+              bossAim.choiceWord = BF.boss.word;
+              bossAim.choice = knowsWord(BF.boss.word) ? opts.find((o) => o.real) : opts[Math.floor(Math.random() * opts.length)];
+            }
+            // (a wrong copy popped: guess again among the rest)
+            if (!bossAim.choice.real && !shoot.some((s) => s.word === bossAim.choice.word)) bossAim.choice = null;
+            else bossAP = bossAim.choice.hb.getWorldPosition(new THREE.Vector3());
+          } else {
+            bossAim.choice = null;
+            const hbs = BF.boss.rig.hitboxes, weak = hbs.find((h) => h.userData.bossHit.weak);
+            if (BF.boss.weakOpen && weak) bossAim.hb = weak;
+            else if (!bossAim.hb || t > bossAim.t) { bossAim.hb = weak && Math.random() < 0.35 ? weak : hbs[0]; bossAim.t = t + 2.5; }
+            bossAP = bossAim.hb.getWorldPosition(new THREE.Vector3());
+          }
         }
-        if ((tgt && tgt.alive && dist2(tgt.mesh.position, p) < opt.engage + 4) || (bossAP && dist2(bossAP, p) < 45)) {
+        if (!hold && ((tgt && tgt.alive && dist2(tgt.mesh.position, p) < opt.engage + 4) || (bossAP && dist2(bossAP, p) < 45))) {
           // (a moving fight with a boss: the aim wobbles more)
           const ae = bossAP ? opt.aimErr * 1.8 : opt.aimErr;
           if (t > aimOff.t) { aimOff = { y: (Math.random() - 0.5) * 2 * ae, p: (Math.random() - 0.5) * 2 * ae, t: t + 0.35 }; }

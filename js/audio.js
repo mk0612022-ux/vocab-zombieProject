@@ -509,8 +509,66 @@ G.Audio = {
       case "poof": this.noise({ dur: 0.28, filter: "bandpass", freq: 1500, q: 0.7, gain: 0.4, pos, prio: P }); break;
       case "throw": this.noise({ dur: 0.18, filter: "highpass", freq: 2000, freqEnd: 5000, gain: 0.25, pos }); break;
       case "hurt": this.bossVoice("hurt", o.voice, { pos }); break;
-      case "enrage": this.bossVoice("roar", o.voice, { pos }); this.tone({ type: "sawtooth", freq: 55, freqEnd: 110, dur: 1.2, gain: 0.25, filter: { type: "lowpass", freq: 600 }, prio: P }); break;
       case "seal": this.tone({ type: "sine", freq: 180, freqEnd: 620, dur: 0.9, gain: 0.3, prio: P }); this.tone({ type: "square", freq: 90, freqEnd: 310, dur: 0.9, gain: 0.06, filter: { type: "lowpass", freq: 1400 }, prio: P }); break;
+      // ---- (new series, round 2) the phases and the twenty new moves: every
+      // warning has its own sound ----
+      case "phase":
+        this.bossVoice("roar", o.voice, { pos });
+        this.tone({ type: "sawtooth", freq: 55, freqEnd: 165, dur: 1.6, gain: 0.28, filter: { type: "lowpass", freq: 900 }, prio: P });
+        [220, 262, 311].forEach((f, i) => this.tone({ type: "square", freq: f, dur: 0.5, gain: 0.06, at: 0.2 + i * 0.12, filter: { type: "lowpass", freq: 1500 }, prio: P }));
+        break;
+      case "clink": this.tone({ type: "triangle", freq: 1900, freqEnd: 1500, dur: 0.12, gain: 0.14, pos }); this.noise({ dur: 0.05, filter: "highpass", freq: 3000, gain: 0.12, pos }); break;
+      case "grave_bell": [196, 392, 588].forEach((f, i) => this.tone({ type: "sine", freq: f, dur: 2.6 - i * 0.5, gain: 0.22 / (i + 1), attack: 0.005, rev: 0.9, prio: P })); this.bossVoice("growl", o.voice, { pos }); break;
+      case "stone_break": this.noise({ dur: 0.35, filter: "bandpass", freq: 900, q: 0.8, gain: 0.5, pos, prio: P }); this.tone({ type: "sine", freq: 120, freqEnd: 50, dur: 0.3, gain: 0.4, pos }); break;
+      case "graves": this.bossVoice("growl", o.voice, { pos }); this.noise({ dur: 1.3, filter: "lowpass", freq: 180, freqEnd: 500, gain: 0.45, attack: 0.9, prio: P }); break;
+      case "graves_next": this.noise({ dur: 0.9, filter: "lowpass", freq: 220, freqEnd: 520, gain: 0.4, attack: 0.6, prio: P }); break;
+      case "erupt": this.noise({ dur: 0.7, filter: "lowpass", freq: 600, freqEnd: 90, gain: 0.8, prio: P }); this.tone({ type: "sine", freq: 70, freqEnd: 32, dur: 0.6, gain: 0.6, prio: P }); break;
+      case "orbs": this.tone({ type: "sine", freq: 440, freqEnd: 1320, dur: 1.1, gain: 0.14, vibrato: { rate: 9, depth: 30 }, attack: 0.2, pos, prio: P }); this.tone({ type: "triangle", freq: 660, freqEnd: 1760, dur: 1.1, gain: 0.08, attack: 0.3, pos, prio: P }); break;
+      case "orb_pop": this.tone({ type: "sine", freq: 900, freqEnd: 200, dur: 0.18, gain: 0.3, pos }); this.noise({ dur: 0.12, filter: "bandpass", freq: 1800, gain: 0.25, pos }); break;
+      case "mirror_wind": [880, 1175, 1480].forEach((f, i) => this.tone({ type: "sine", freq: f, dur: 1.1, gain: 0.1, at: i * 0.15, rev: 0.7, prio: P })); this.tone({ type: "sine", freq: 300, freqEnd: 900, dur: 1.0, gain: 0.1, attack: 0.4, prio: P }); break;
+      case "mirror_on": this.tone({ type: "triangle", freq: 1760, dur: 0.5, gain: 0.14, vibrato: { rate: 18, depth: 40 }, rev: 0.8, prio: P }); break;
+      case "reflect": this.tone({ type: "triangle", freq: 2400, freqEnd: 3200, dur: 0.1, gain: 0.16, pos }); this.tone({ type: "sine", freq: 1200, freqEnd: 600, dur: 0.15, gain: 0.1 }); break;
+      case "eye_open": this.tone({ type: "sawtooth", freq: 140, freqEnd: 70, dur: 0.8, gain: 0.2, filter: { type: "lowpass", freq: 800 }, pos, prio: P }); this.noise({ dur: 0.5, filter: "bandpass", freq: 400, gain: 0.25, pos }); break;
+      case "school_bell": for (let i = 0; i < 10; i++) this.tone({ type: "square", freq: 1250, dur: 0.07, gain: 0.08, at: i * 0.09, filter: { type: "bandpass", freq: 1500, q: 3 }, prio: P }); this.tone({ type: "sine", freq: 1250, dur: 1.2, gain: 0.1, rev: 0.7, prio: P }); break;
+      case "chalk": this.noise({ dur: 0.22, filter: "bandpass", freq: 3200, freqEnd: 4200, q: 2, gain: 0.25, pos }); break;
+      case "detention_shut": this.tone({ type: "sine", freq: 90, freqEnd: 40, dur: 0.5, gain: 0.6, prio: P }); this.noise({ dur: 0.3, filter: "lowpass", freq: 700, gain: 0.5, prio: P }); break;
+      case "pa": case "pa_again":
+        [659, 523, 392].forEach((f, i) => this.tone({ type: "sine", freq: f, dur: 0.45, gain: 0.14, at: i * 0.28, rev: 0.6, prio: P }));
+        if (name === "pa") this.bossVoice("growl", o.voice, { pos });
+        break;
+      case "assembly_burn": this.noise({ dur: 1.8, filter: "bandpass", freq: 500, freqEnd: 1800, q: 0.6, gain: 0.4, attack: 0.1, prio: P }); this.tone({ type: "sawtooth", freq: 60, dur: 1.8, gain: 0.1, filter: { type: "lowpass", freq: 300 }, prio: P }); break;
+      case "needle_wind": this.noise({ dur: 1.0, filter: "highpass", freq: 4000, freqEnd: 7000, gain: 0.18, attack: 0.6, pos, prio: P }); this.bossVoice("shriek", o.voice, { pos }); break;
+      case "needles": for (let i = 0; i < 5; i++) this.noise({ dur: 0.1, filter: "highpass", freq: 4500, gain: 0.25, at: i * 0.03, pos, prio: P }); break;
+      case "gurgle": for (let i = 0; i < 8; i++) this.tone({ type: "sine", freq: 120 + Math.random() * 200, freqEnd: 260 + Math.random() * 200, dur: 0.12, gain: 0.18, at: i * 0.1, pos }); this.bossVoice("shriek", o.voice, { pos }); break;
+      case "egg_land": this.noise({ dur: 0.25, filter: "lowpass", freq: 700, gain: 0.35, pos }); this.tone({ type: "sine", freq: 200, freqEnd: 90, dur: 0.2, gain: 0.25, pos }); break;
+      case "hatch": this.noise({ dur: 0.45, filter: "bandpass", freq: 1200, freqEnd: 400, gain: 0.45, pos, prio: P }); this.bossVoice("shriek", { f: 300, rough: 50, len: 0.6 }, { pos }); break;
+      case "ball_wind": this.bossVoice("growl", o.voice, { pos }); this.tone({ type: "sine", freq: 80, freqEnd: 200, dur: 1.0, gain: 0.2, attack: 0.5, prio: P }); break;
+      case "throw_heavy": this.noise({ dur: 0.4, filter: "bandpass", freq: 300, freqEnd: 900, gain: 0.5, pos, prio: P }); break;
+      case "bounce": this.tone({ type: "sine", freq: 95, freqEnd: 45, dur: 0.4, gain: 0.8, pos, prio: P }); this.noise({ dur: 0.2, filter: "lowpass", freq: 500, gain: 0.4, pos }); break;
+      case "line_wind": for (let i = 0; i < 6; i++) this.tone({ type: "sine", freq: 70, freqEnd: 45, dur: 0.25, gain: 0.5, at: i * 0.32, prio: P }); this.bossVoice("roar", o.voice, { pos }); break;
+      case "stampede": for (let i = 0; i < 14; i++) this.noise({ dur: 0.12, filter: "lowpass", freq: 260, gain: 0.45, at: i * 0.11 + Math.random() * 0.04, prio: P }); break;
+      case "bark": this.tone({ type: "sawtooth", freq: 90, freqEnd: 60, dur: 1.2, gain: 0.14, vibrato: { rate: 20, depth: 10 }, filter: { type: "bandpass", freq: 500, q: 5 }, rev: 0.4, pos, prio: P }); this.bossVoice("growl", o.voice, { pos }); break;
+      case "bark_off": this.noise({ dur: 0.6, filter: "bandpass", freq: 700, gain: 0.3, pos }); break;
+      case "heart": [0, 0.22].forEach((at) => this.tone({ type: "sine", freq: 62, freqEnd: 40, dur: 0.2, gain: 0.7, at, pos, prio: P })); this.tone({ type: "sine", freq: 520, dur: 0.4, gain: 0.08, rev: 0.7, prio: P }); break;
+      case "overgrowth_wind": this.noise({ dur: 1.4, filter: "lowpass", freq: 150, freqEnd: 420, gain: 0.55, attack: 1.0, prio: P }); this.tone({ type: "sawtooth", freq: 70, freqEnd: 90, dur: 1.4, gain: 0.1, vibrato: { rate: 16, depth: 8 }, filter: { type: "lowpass", freq: 400 }, prio: P }); break;
+      case "overgrowth": for (let i = 0; i < 8; i++) this.noise({ dur: 0.1, filter: "bandpass", freq: 900 + Math.random() * 900, gain: 0.3, at: i * 0.04, prio: P }); this.tone({ type: "sine", freq: 80, freqEnd: 40, dur: 0.6, gain: 0.6, prio: P }); break;
+      case "pylon_wind": this.tone({ type: "sawtooth", freq: 110, freqEnd: 440, dur: 1.2, gain: 0.1, filter: { type: "bandpass", freq: 1200, q: 2 }, attack: 0.3, prio: P }); this.boss("crackle", { pos }); break;
+      case "pylon_break": this.noise({ dur: 0.5, filter: "highpass", freq: 2500, gain: 0.4, pos, prio: P }); this.tone({ type: "square", freq: 600, freqEnd: 90, dur: 0.4, gain: 0.08, pos }); break;
+      case "arc_charge": for (let i = 0; i < 8; i++) this.noise({ dur: 0.04, filter: "highpass", freq: 3800, gain: 0.14, at: i * 0.08, pos }); break;
+      case "zap": this.noise({ dur: 0.35, filter: "highpass", freq: 2200, gain: 0.5, pos, prio: P }); this.tone({ type: "sawtooth", freq: 180, freqEnd: 90, dur: 0.3, gain: 0.12, pos }); break;
+      case "arcs_wind": this.tone({ type: "sawtooth", freq: 60, freqEnd: 240, dur: 1.0, gain: 0.12, filter: { type: "lowpass", freq: 900 }, prio: P }); this.boss("crackle", { pos }); break;
+      case "lock": [0, 0.07].forEach((at) => this.tone({ type: "square", freq: 2200, dur: 0.04, gain: 0.12, at, prio: P })); break;
+      case "spray_wind": this.bossVoice("cackle", o.voice, { pos }); for (let i = 0; i < 3; i++) this.noise({ dur: 0.18, filter: "bandpass", freq: 800, gain: 0.3, at: i * 0.3, pos, prio: P }); break;
+      case "gas": this.noise({ dur: 1.4, filter: "highpass", freq: 2500, gain: 0.3, attack: 0.05, pos, prio: P }); this.tone({ type: "sine", freq: 180, freqEnd: 90, dur: 0.4, gain: 0.3, pos }); break;
+      case "lights_out": this.tone({ type: "sawtooth", freq: 120, freqEnd: 30, dur: 1.3, gain: 0.2, filter: { type: "lowpass", freq: 800 }, prio: P }); this.tone({ type: "sine", freq: 60, freqEnd: 30, dur: 1.4, gain: 0.35, prio: P }); this.noise({ dur: 0.08, filter: "highpass", freq: 3000, gain: 0.3, at: 1.2, prio: P }); break;
+      case "lights_on": this.tone({ type: "sine", freq: 60, freqEnd: 120, dur: 0.8, gain: 0.3, prio: P }); this.tone({ type: "square", freq: 118, dur: 0.6, gain: 0.05, vibrato: { rate: 42, depth: 30 }, filter: { type: "lowpass", freq: 1500 }, prio: P }); break;
+      case "whisper": this.noise({ dur: 0.9, filter: "bandpass", freq: 1800, freqEnd: 900, q: 1.5, gain: 0.5, attack: 0.25, pos, rev: 0.5, prio: P }); this.bossVoice("growl", o.voice, { pos }); break;
+      case "chain_wind": for (let i = 0; i < 9; i++) this.tone({ type: "triangle", freq: 1400 + Math.random() * 600, dur: 0.06, gain: 0.1, at: i * 0.1, pos, prio: P }); break;
+      case "chain_throw": this.noise({ dur: 0.35, filter: "bandpass", freq: 1500, freqEnd: 3000, gain: 0.4, pos, prio: P }); break;
+      case "chain_hit": this.tone({ type: "triangle", freq: 700, dur: 0.3, gain: 0.3, prio: P }); this.noise({ dur: 0.25, filter: "bandpass", freq: 2200, gain: 0.35, prio: P }); break;
+      case "chain_snap": this.tone({ type: "triangle", freq: 2600, freqEnd: 1200, dur: 0.25, gain: 0.25, pos, prio: P }); this.noise({ dur: 0.2, filter: "highpass", freq: 3000, gain: 0.3, pos }); break;
+      case "stamp_wind": this.tone({ type: "sine", freq: 300, freqEnd: 80, dur: 1.0, gain: 0.18, pos, prio: P }); break;
+      case "stamp": this.tone({ type: "sine", freq: 65, freqEnd: 30, dur: 0.6, gain: 0.9, pos, prio: P }); this.noise({ dur: 0.4, filter: "lowpass", freq: 900, gain: 0.6, pos, prio: P }); break;
       case "unseal": this.tone({ type: "sine", freq: 620, freqEnd: 110, dur: 1.0, gain: 0.3, prio: P }); this.tone({ type: "square", freq: 310, freqEnd: 55, dur: 1.0, gain: 0.05, filter: { type: "lowpass", freq: 1200 }, prio: P }); break;
     }
   },
@@ -545,6 +603,12 @@ G.Audio = {
       const lfo = ctx.createOscillator(), lg = ctx.createGain(); lfo.frequency.value = 7; lg.gain.value = v.rough; lfo.connect(lg); lg.connect(a.frequency); lg.connect(b.frequency); lfo.start(); nodes.push(lfo);
       hiss("bandpass", 500, 0.5);
       target = 0.42;
+    } else if (name === "spray") {
+      // (new series, round 2: Acid Sprayer) a hiss with a pump under it
+      hiss("bandpass", 1600, 0.5); hiss("highpass", 4200, 0.25);
+      const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 240; lp.connect(out);
+      osc("sawtooth", 55, 0.4, lp);
+      target = 0.34;
     } else if (name === "vortex") {
       const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 300; lp.connect(out);
       osc("sine", 46, 0.8, lp); osc("sawtooth", 92, 0.35, lp);

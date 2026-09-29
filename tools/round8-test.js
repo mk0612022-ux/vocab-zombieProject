@@ -255,19 +255,19 @@ G.Round8Test = (function () {
     b.act = null; b.swipeCd = 999; b.abilityCd = 999;
     const AM = G.CONFIG.boss.arenaAmmo;
     for (let i = 0; i < Math.round((AM.firstAfter - 0.5) * 60); i++) { up(1); b.swipeCd = 999; b.abilityCd = 999; g.player.hp = g.player.maxHp; }
-    ok("C arena: no box in the first seconds", !g.drops.some((d) => d.arena));
+    ok("C arena: no box in the first seconds", !g.drops.some((d) => d.arena && d.kind === "ammo"));
     up(60);
-    const first = g.drops.filter((d) => d.arena);
+    const first = g.drops.filter((d) => d.arena && d.kind === "ammo");
     const r = B.arena.rect;
     ok("C arena: a box after " + AM.firstAfter + " s, inside the arena", first.length === 1 && first[0].mesh.position.x > r.minX && first[0].mesh.position.x < r.maxX, first.length);
     ok("C arena: the next in 20-30 s", b.supplyT >= AM.every[0] - 1.1 && b.supplyT <= AM.every[1]);
     b.hp = b.maxHp * 0.74; up(1);
-    ok("C arena: the boss drops one at 75%", g.drops.filter((d) => d.arena).length === 2 && b.dropsDone === 1);
+    ok("C arena: the boss drops one at 75%", g.drops.filter((d) => d.arena && d.kind === "ammo").length === 2 && b.dropsDone === 1);
     b.hp = b.maxHp * 0.2; up(1);
-    ok("C arena: ...and at 50% and 25%", b.dropsDone === 3 && g.drops.filter((d) => d.arena).length === 4);
+    ok("C arena: ...and at 50% and 25%", b.dropsDone === 3 && g.drops.filter((d) => d.arena && d.kind === "ammo").length === 4);
     const pl = g.player; pl.gunSlots = ["pistol", "smg"]; pl.ammo.smg = { mag: 0, reserve: 0 }; pl.weaponLevels.smg = { dmg: 1, rate: 1, mag: 1 };
     const pr = pl.ammo.pistol.reserve;
-    g.collectDrop(g.drops.find((d) => d.arena));
+    g.collectDrop(g.drops.find((d) => d.arena && d.kind === "ammo"));
     ok("C arena: a box fills every gun (" + AM.magsPerGun + " magazines each)",pl.ammo.smg.reserve === G.WEAPON_DEFS.smg.magSize * AM.magsPerGun && pl.ammo.pistol.reserve === pr + G.WEAPON_DEFS.pistol.magSize * AM.magsPerGun);
     B.reset(g);
   }

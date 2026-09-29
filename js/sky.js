@@ -572,7 +572,8 @@ G.Sky = {
     if (this.halo) this.halo.material.opacity = 0.5 * u.value;
     if (this.moon) this.moon.material.opacity = 0.35 + 0.65 * u.value;   // dimmer behind a cloud
     if (this.light) {
-      this.light.intensity = this.LIGHT * (0.38 + 0.62 * u.value);
+      // (x G.Perf.dimK: a boss's Lights Out, js/bossmoves.js)
+      this.light.intensity = this.LIGHT * (0.38 + 0.62 * u.value) * (G.Perf && G.Perf.dimK != null ? G.Perf.dimK : 1);
       if (this.light.castShadow) {
         const region = G.getRegionAt(game.world, eye.x, eye.z, eye.y - 1.7) || "";
         const outdoors = /^YARD/.test(region);

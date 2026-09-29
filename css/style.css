@@ -1561,3 +1561,26 @@ body.fx-low .touch-btn { background: rgba(12,18,16,0.58); }
 .hudcfg-sel { outline: 2px solid #6bff7a !important; outline-offset: 3px; box-shadow: 0 0 16px rgba(107,255,122,0.6) !important; }
 body.hudcfg-open .hud-minimap, body.hudcfg-open .hud-abilities { opacity: 1 !important; }
 body.hudcfg-open .hud-perks { display: flex; }
+
+/* =====================================================================
+   New series, round 2: the boss's phases -- the marks on its bar where
+   phases 2 and 3 begin, the bar's colour by phase, and the line under it
+   saying what to do about the move under way
+   ===================================================================== */
+.hud-boss-mark { position: absolute; top: 0; bottom: 0; width: 3px; margin-left: -1.5px; background: rgba(255,255,255,0.85); box-shadow: 0 0 6px rgba(255,255,255,0.7); z-index: 2; }
+.hud-boss-mark.passed { background: rgba(255,200,80,0.9); box-shadow: 0 0 8px rgba(255,190,60,0.9); }
+.hud-boss-bar.phase2 .hud-boss-hp-fill { background: linear-gradient(180deg, #ff8a3a 0%, #e0401a 55%, #a0200a 100%); }
+.hud-boss-bar.phase3 .hud-boss-hp-fill { background: linear-gradient(180deg, #ff5ad8 0%, #c01a8a 55%, #7a0a5a 100%); animation: bossP3 0.9s ease-in-out infinite alternate; }
+@keyframes bossP3 { from { filter: brightness(1); } to { filter: brightness(1.35); } }
+.hud-boss-hint { margin: 6px auto 0; display: inline-block; max-width: 100%; padding: 4px 12px; border-radius: 12px; background: rgba(0,0,0,0.62); border: 1px solid rgba(255,210,120,0.55);
+  color: #ffe6b0; font-weight: 700; font-size: 0.86rem; letter-spacing: 0.3px; text-shadow: 0 1px 3px #000; }
+.hud-boss-hint.flash { animation: bossHint 0.5s ease-out; }
+@keyframes bossHint { from { transform: scale(1.08); background: rgba(120,70,0,0.8); } to { transform: scale(1); } }
+@media (max-height: 520px) { .hud-boss-hint { font-size: 0.72rem; padding: 2px 8px; margin-top: 3px; } }/* the Boss Codex: a boss's three moves, a phase each */
+.codex-move { margin-top: 8px; padding: 6px 10px 4px; border-left: 3px solid #ff6a5a; background: rgba(255,90,70,0.06); border-radius: 0 6px 6px 0; }
+.codex-move + .codex-move { border-left-color: #ff9a3a; }
+.codex-move + .codex-move + .codex-move { border-left-color: #ff5ad8; }
+.codex-move .codex-d-label { margin-top: 0; }
+.codex-d-how { font-size: 0.86rem; margin: 2px 0 4px; color: #d8f0d8; }
+.codex-how-k { color: #6bff7a; font-weight: 800; }
+@media (max-height: 520px) { .codex-d-how { font-size: 0.76rem; } .codex-move { padding: 4px 8px 2px; margin-top: 5px; } }
