@@ -75,7 +75,10 @@ G.Round3Test = (function () {
     const g = fresh(1, "low"), Z = G.Zones, P = g.yawObject.position;
     const drawn = (x, y, z) => { P.set(x, y, z); Z.update(g, true); return Z.items.filter((i) => i.on); };
     let on = drawn(-9.75, 1.7, -25);                         // inside W4, away from the stairs, doors shut
-    ok("zones: in a room, the campus is not drawn", on.every((i) => i.zone !== "O" && i.zone !== "X"));
+    // (newer list, round 3: a room with real windows sees the grounds through
+    // them -- js/schoolshell.js, js/glass.js -- one without never does)
+    const seesOut = (g.world.windowRooms || []).includes("W4");
+    ok("zones: in a room, the campus is drawn only through its real windows", seesOut ? on.some((i) => i.zone === "O") && on.every((i) => i.zone !== "Y") : on.every((i) => i.zone !== "O" && i.zone !== "X"));
     ok("zones: in a room, other storeys are not drawn", on.every((i) => i.zone[0] !== "I" || (i.s0 <= 1 && i.s1 >= 1)), on.filter((i) => i.zone[0] === "I" && !(i.s0 <= 1 && i.s1 >= 1)).map((i) => i.zone).join(","));
     ok("zones: rooms behind shut doors are not drawn", on.every((i) => !i.room || i.room === "W4"));
     on = drawn(-9.75, 1.7, 13.5);                            // W1, by the entry hall: the gallery above can be seen

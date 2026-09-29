@@ -69,12 +69,15 @@ G.Sky = {
     game.scene.children.forEach((o) => {
       const cls = o.userData && o.userData.zone ? o.userData.zone[0] : "";
       if (o.isMesh && !o.isInstancedMesh && (cls === "O" || cls === "S")) o.castShadow = true;
-      // the grass takes the shadows; the trees and bushes cast them
+      // the grass takes the shadows; the trees and bushes cast them. (A chunk
+      // of grass has its bounds padded by 1.3 m -- js/schooldress.js emit --
+      // so it passed for tall and cast too, doubling its cost for specks no
+      // one could see: it says it is low-lying instead.)
       if (o.isInstancedMesh) {
         o.receiveShadow = true;
         if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
         const bb = o.geometry.boundingBox;
-        if (bb && bb.max.y - bb.min.y > 1.2) o.castShadow = true;
+        if (bb && bb.max.y - bb.min.y > 1.2 && !o.userData.lowLying) o.castShadow = true;
       }
     });
   },

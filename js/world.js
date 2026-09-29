@@ -371,7 +371,11 @@ G.buildLevelScene = function (scene, level, quality) {
     const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), wallMat);
     m.position.set(x, (baseY || 0) + h / 2, z);
     scene.add(m);
-    world.colliders.push(new THREE.Box3().setFromObject(m));
+    const box = new THREE.Box3().setFromObject(m);
+    world.colliders.push(box);
+    // (kept, so a wall can be cut for a real window later -- js/schoolshell.js)
+    (world.wallSegs = world.wallSegs || []).push({ mesh: m, box, x, z, w, d, h, baseY: baseY || 0 });
+    return m;
   }
   // Cuts a doorway into a wall run: axis 'x' = wall runs along X at world Z=fixedCoord
   // (wallCenterAlong is its X center); axis 'z' = runs along Z at world X=fixedCoord.
@@ -1489,8 +1493,11 @@ G.buildLevelScene = function (scene, level, quality) {
       const nearDoor = (z) => cfg.rows.some((rw) => Math.abs(z - rw.cz) < 2.6);
       for (let z = corrZ1 - 3; z > corrZ0 + 1; z -= 4.4) {
         const mat = M.locker[Math.abs(Math.round(z / 4.4)) % M.locker.length];
-        if (!nearDoor(z)) addSolid(-HALF + 0.35, y, z, 0.5, 2.2, 0.9, mat);
-        if (z - 2.2 > corrZ0 + 1 && !nearDoor(z - 2.2)) addSolid(HALF - 0.35, y, z - 2.2, 0.5, 2.2, 0.9, mat);
+        // (kept: js/wear.js hangs some of their doors off their hinges)
+        const lockers = world.corridorLockers = world.corridorLockers || [];
+        const color = mat && mat.color ? mat.color.getHex() : 0x6f93b3;
+        if (!nearDoor(z)) { addSolid(-HALF + 0.35, y, z, 0.5, 2.2, 0.9, mat); lockers.push({ x: -HALF + 0.35, y, z, side: -1, color }); }
+        if (z - 2.2 > corrZ0 + 1 && !nearDoor(z - 2.2)) { addSolid(HALF - 0.35, y, z - 2.2, 0.5, 2.2, 0.9, mat); lockers.push({ x: HALF - 0.35, y, z: z - 2.2, side: 1, color }); }
       }
       cfg.corrSegs.forEach((c) => scatterClutter(0, c.cz, HALF * 2, c.d, y, Math.max(1, Math.round(c.d / 9)), { axis: "z", at: 0, half: 1.95 }));
     });

@@ -137,6 +137,8 @@ G.Game = {
       if (this.world.dressDetails && G.SchoolDress) G.SchoolDress.applyQuality(this.world, q);
       if (G.Details) G.Details.applyQuality(q);
       if (G.Sky) G.Sky.applyQuality(q);
+      if (G.Glass) G.Glass.applyQuality(q);
+      if (G.SchoolWear) G.SchoolWear.applyQuality(this, q);
     }
   },
 
@@ -252,6 +254,7 @@ G.Game = {
     if (G.Notes) G.Notes.place(this, restoring ? restoring.notesRead : null);
     if (G.Details) G.Details.build(this);
     if (G.Sky) G.Sky.build(this);                 // the moon, its light and its beams
+    if (G.Glass) G.Glass.build(this);             // the panes in the real windows
     this.prepareScene();
     if (G.Minimap) G.Minimap.init(this);
     this.yawObject.position.set(this.world.spawn.x, 1.7, this.world.spawn.z);
@@ -353,6 +356,7 @@ G.Game = {
     if (G.Zones) G.Zones.prepare(this.world);
     this.perfReport = G.Perf.mergeStatic(this.scene, this.world, [this.yawObject]);
     if (G.Sky) G.Sky.afterPrepare(this);          // what casts moon shadows
+    if (G.SchoolWear) G.SchoolWear.applyQuality(this, G.save.settings.graphicsQuality);   // the marks' tiers
     if (G.Zones) G.Zones.init(this);
     G.Perf.initLightPool(this.scene, this.world, G.save.settings.graphicsQuality);
     this.syncViewmodelLights();
@@ -369,6 +373,7 @@ G.Game = {
     // (the same baking as a run: since round 3 the raw school is thousands of
     // meshes and dozens of lights, and drawn unbaked it froze the page)
     if (G.Sky) G.Sky.build(this);
+    if (G.Glass) G.Glass.build(this);
     this.prepareScene();
     this.yawObject.position.set(this.world.spawn.x, 1.7, this.world.spawn.z);
     this.pitchObject.rotation.x = 0;
@@ -402,6 +407,7 @@ G.Game = {
     if (G.Zones) G.Zones.reset();
     if (G.Details) G.Details.reset();
     if (G.Sky) G.Sky.reset();
+    if (G.Glass) G.Glass.reset();
     if (G.Notes) G.Notes.reset();
     if (G.Abilities) G.Abilities.clearWorld();
     if (G.Floor3) G.Floor3.clearWorld();
@@ -703,6 +709,7 @@ G.Game = {
     const hits = this.raycaster.intersectObjects(meshes, true);
     let hitAny = false;
     let through = 0;
+    let stopAt = wallAt;                  // where the round ended (a pane before it breaks)
     // Piercing Rounds: every bullet goes on through that many more zombies
     const maxThrough = (pierce ? (pierce === true ? 99 : pierce) : 1) + (G.Perks.val("piercing_rounds") || 0);
     const hitZombieUids = new Set();
@@ -718,11 +725,11 @@ G.Game = {
         const r = G.Bosses.onShot(this, hit.object, dmg, hit.point);
         if (!r.hit) continue;
         // (Mirror Gaze threw it back: no hit, and it goes no further)
-        if (r.reflected) break;
+        if (r.reflected) { stopAt = hit.distance; break; }
         hitAny = true;
         if (r.weak) G.UI.showHitmarker(true);
         if (def && def.splash) this.splashDamage(hit.point, def, dmg, true);
-        if (++through >= maxThrough) break;
+        if (++through >= maxThrough) { stopAt = hit.distance; break; }
         continue;
       }
       // the word label of a zombie still coming in is hidden, and so not there
@@ -741,8 +748,10 @@ G.Game = {
       this.damageZombie(z, head ? dmg * G.HEADSHOT_MULT : dmg, hit.point, { dir: dir.clone(), head });
       if (head) G.UI.showHitmarker(true);
       if (def && def.splash) this.splashDamage(hit.point, def, dmg);
-      if (++through >= maxThrough) break;
+      if (++through >= maxThrough) { stopAt = hit.distance; break; }
     }
+    // Round 3 (H): a window pane on the way breaks, and the round goes on
+    if (G.Glass) G.Glass.onShot(origin, dir, stopAt);
     // A missed explosive still goes off where it lands -- on the wall it hit,
     // not forty units beyond it.
     if (def && def.splash && !hitAny) {
@@ -771,7 +780,8 @@ G.Game = {
     ray.origin.copy(origin); ray.direction.copy(dir);
     let best = far;
     for (const c of G.ColGrid.alongRay(this.world, origin, dir, far, this._rayCols || (this._rayCols = []))) {
-      if (c.containsPoint(origin) || !ray.intersectBox(c, hit)) continue;
+      // (a real window's opening stops walking, not rounds: js/glass.js)
+      if (c.passShots || c.containsPoint(origin) || !ray.intersectBox(c, hit)) continue;
       const d = hit.distanceTo(origin);
       if (d < best) best = d;
     }
@@ -798,6 +808,7 @@ G.Game = {
     G.Audio.explosion(point, r >= 6);
     G.spawnHitParticles(this.scene, point, 0xffa64d, G.save.settings.graphicsQuality);
     if (!bossDone) G.Bosses.splash(this, point, r, baseDmg);
+    if (G.Glass) G.Glass.splash(point, r);
     // snapshot: damageZombie can remove entries from this.zombies mid-loop
     this.zombies.slice().forEach((z) => {
       if (!z.alive) return;
@@ -1479,10 +1490,11 @@ G.Game = {
     if (G.Floor3) G.Floor3.update(this, dt);
     if (G.Details) G.Details.update(this, dt);
     if (G.Sky) G.Sky.update(this, dt);
+    if (G.Glass) G.Glass.update(dt);
     this.relocateStragglers(worldDt);
     if (G.Minimap) G.Minimap.update(this, dt);
     G.updateDriftingFog(this.scene, this.world, performance.now() / 1000);
-    if (this.world.dress) this.world.dress.update(dt);
+    if (this.world.dress) this.world.dress.update(dt, this.yawObject.position);
     G.updateSparks(this.scene, this.world, dt);
     this.updateChallengeTimer(dt);
 

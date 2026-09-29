@@ -6,8 +6,9 @@
 // phone or an iPad can carry at 30 FPS. Almost none of it can be seen from
 // any one place, though: from a classroom you cannot see the football field,
 // from the third floor you cannot see the ground floor, from the grass
-// outside you cannot see the furniture behind the walls (the windows are
-// solid), and nobody sees into a room whose door is shut. So everything
+// outside you cannot see the furniture behind the walls (through a window
+// you see a dark room: "Y" below), and nobody sees into a room whose door is
+// shut. So everything
 // static in the level is sorted, once, into:
 //
 //   "O"        outdoors: the campus, the grass, the trees
@@ -15,6 +16,9 @@
 //              inside and the building's face on the outside
 //   "X"        outside only: the render and windows on the outer walls, the
 //              roofs, the facade -- nothing of it faces a room
+//   "Y"        strictly from outdoors: the dark room seen through a real
+//              window (newer list, round 3) -- a room with real windows sees
+//              the grounds through them, the grounds see only this of it
 //   "Iab"      indoors, on storeys a to b (a double-height wall is "I12")
 //   "Iab:W3"   ...and inside one room with a door: only there, or seen
 //              through that door while it is open
@@ -39,6 +43,7 @@
 // arm's reach.
 // ===================================================================
 G.Zones = {
+  WINDOW_VIEW: 24,                                    // metres of the grounds seen from a room through its windows
   _b: new THREE.Box3(),
   _tmp: [],
   dirty: true,
@@ -61,6 +66,7 @@ G.Zones = {
       name: r.name, minX: r.minX, maxX: r.maxX, minZ: r.minZ, maxZ: r.maxZ, y0: (r.y || 0) - 0.5, y1: (r.y || 0) + 4.35,
     }));
     world.zoneKey = (o) => {
+      if (o.userData.zone) return o.userData.zone;          // (set by what built it: "Y")
       const g = o.geometry;
       if (!g.boundingBox) g.computeBoundingBox();
       return this.keyOfBox(world, this._b.copy(g.boundingBox).applyMatrix4(o.matrixWorld));
@@ -172,7 +178,13 @@ G.Zones = {
     const dFront = Math.hypot(p.x - this.front.x, p.z - this.front.z);
     // outdoors near the doors you see into the hall; in the hall you see out
     const seeIn = !inside && dFront < 34;
-    const seeOut = !inside || region === "ENTRY" || region === "GAL" || (region === "C1S" && p.z > 14);
+    // (newer list, round 3: a room with real windows looks out at the grounds)
+    const winRooms = game.world.windowRooms || [];
+    const seeOut = !inside || region === "ENTRY" || region === "GAL" || (region === "C1S" && p.z > 14) || winRooms.includes(region);
+    // ...but through a window, at night, not far: only what is near the
+    // building (a room drew the whole campus through its glass and cost ten
+    // times what it had)
+    const winOnly = inside && winRooms.includes(region);
     const fog = game.scene.fog ? game.scene.fog.far : 60;
     const far = fog + 8;
     const open = (room) => (this.doorsOf[room] || []).some((d) => d.open || d.p > 0.02);
@@ -185,7 +197,8 @@ G.Zones = {
       const b = it.box;
       let on = boxDist(b, p.x, p.z) < far;
       if (on) {
-        if (it.cls === "O" || it.cls === "X") on = seeOut;
+        if (it.cls === "O" || it.cls === "X") on = seeOut && (!winOnly || boxDist(b, p.x, p.z) < this.WINDOW_VIEW);
+        else if (it.cls === "Y") on = !inside;              // the dark room behind a window, from outside only
         else if (it.cls === "I") {
           if (inside) {
             on = it.s1 >= storey && it.s0 <= storey;

@@ -782,6 +782,12 @@ G.STRINGS = {
     "board.music": "Year 8 Choir|Practice: Thursday, 3 pm",
     "board.wellDone": "Well done, Year 9!|Sports Day Champions",
     "board.blank": " ",
+    // newer list, round 3 (I3): what the last people here wrote -- in chalk on
+    // the boards, in red paint and black marker on the walls (js/wear.js)
+    "scrawl.1": "DON'T MAKE A SOUND", "scrawl.2": "THEY KNOW THE WORDS", "scrawl.3": "CLASS DISMISSED. FOREVER.",
+    "scrawl.4": "NO ONE IS COMING", "scrawl.5": "STAY IN THE LIGHT", "scrawl.6": "WE WAITED FOR THE BUS",
+    "scrawl.7": "GET OUT", "scrawl.8": "HELP US", "scrawl.9": "THEY'RE INSIDE", "scrawl.10": "DON'T OPEN", "scrawl.11": "RUN",
+    "scrawl.12": "EXIT ->", "scrawl.13": "SAFE ROOM X", "scrawl.14": "3:17",
     // round 3: places on the campus (the explore objective, the minimap)
     "place.FIELD": "Football Field", "place.GARDEN": "Flower Garden", "place.SALA_FRONT": "Front Sala",
     "place.SALA_FIELD": "Field Sala", "place.SALA_GARDEN": "Garden Sala", "place.CARPARK": "Car Park",

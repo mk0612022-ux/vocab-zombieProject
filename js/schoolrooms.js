@@ -264,6 +264,15 @@
     [[-0.5, -0.25], [0.5, -0.25], [-0.5, 0.25], [0.5, 0.25]].forEach(([a, b]) => P.box(g, 0.05, 0.7, 0.05, L(C.metalD), a, -0.05, b));
     solidGroup(A, g);
   }
+  // I3: a desk shoved out of line, turned a little (solid, its collider the
+  // box round it as it now stands)
+  function shovedDesk(A, F, u, v, R) {
+    const P = PP(), g = grp(A, F, u, v, 1);
+    g.rotation.y += (R() - 0.5) * 0.6;
+    P.box(g, 1.1, 0.05, 0.6, L(C.wood), 0, 0.715, 0);
+    [[-0.5, -0.25], [0.5, -0.25], [-0.5, 0.25], [0.5, 0.25]].forEach(([a, b]) => P.box(g, 0.05, 0.69, 0.05, L(C.metalD), a, 0.345, b));
+    solidGroup(A, g);
+  }
   // a tall case of shelves (solid), long along `alongV` ? v : u
   function shelves(A, F, u, v, su, sv, h, frameCol, fill, levels, R) {
     put(A, F, u, v, 0, su, h, sv, L(frameCol || C.woodD), true);
@@ -316,12 +325,27 @@
       // in the middle
       const bv = spec.gun ? 3.6 : 0, bw = spec.gun ? 3.2 : 4.2;
       put(A, F, W - 0.08, bv, 0.95, 0.06, 1.55, bw + 0.2, L(C.woodD), false);
-      const bp = boardPlane(Math.floor(R() * 4), bw, 1.35);
+      // Newer list, round 3 (I3): some rooms were wrecked -- desks shoved
+      // about and knocked over, chairs everywhere -- and in those (and a few
+      // others) the lesson has been wiped off the board and a warning chalked
+      // there instead. The desks only ever move away from the aisle, so the
+      // way through stays open.
+      const wrecked = R() < 0.4;
+      spec.wrecked = wrecked;
+      const warn = !!G.SchoolWear && (wrecked || R() < 0.2);
+      const bp = boardPlane(warn ? BOARDS.indexOf("board.blank") : Math.floor(R() * 4), bw, 1.35);
       bp.position.set(F.X(W - 0.115), F.y + 1.72, F.Z(bv)); bp.rotation.y = F.o > 0 ? -Math.PI / 2 : Math.PI / 2; A.scene.add(bp);
       put(A, F, W - 0.2, bv, 0.95, 0.16, 0.05, bw, L(C.woodL), false);                 // the chalk ledge
+      if (warn) {
+        spec.chalk = 1 + Math.floor(R() * 6);
+        const ww = bw * 0.92, msg = G.SchoolWear.scrawl(spec.chalk, ww, ww / 4, "A");
+        msg.position.set(F.X(W - 0.122), F.y + 1.72 + (R() - 0.5) * 0.3, F.Z(bv));
+        msg.rotation.set(0, F.o > 0 ? -Math.PI / 2 : Math.PI / 2, (R() - 0.5) * 0.1);
+        A.scene.add(msg);
+      }
       // the teacher's desk
       desk(A, F, W - 2.0, -3.9, 0.8, 1.6, 0.76, C.woodD);
-      chair(A, F, W - 1.25, -3.9, -1, C.black);
+      chair(A, F, W - 1.25, -3.9, -1, C.black, wrecked && R() < 0.6);
       put(A, F, W - 2.0, -4.3, 0.76, 0.3, 0.02, 0.22, L(C.paper), false);
       spot(A, F, W - 2.05, -3.55, 0.77);
       // sixteen pupils' desks in two blocks either side of the aisle
@@ -330,12 +354,20 @@
         [-1.05, 1.05].forEach((dv) => {
           [2.7, 4.5, 6.3, 8.1].forEach((u) => {
             if (Math.abs(mid + dv) > F.d / 2 - 0.8) return;
-            if (R() < 0.1) { tippedDesk(A, F, u, mid + dv, R); chair(A, F, u - 0.9, mid + dv + 0.3, 1, C.orange, true); return; }
+            if (R() < (wrecked ? 0.4 : 0.1)) { tippedDesk(A, F, u, mid + dv + Math.sign(dv) * 0.1, R); chair(A, F, u - 0.9, mid + dv + 0.3, 1, C.orange, true); return; }
+            if (wrecked && R() < 0.6) {
+              shovedDesk(A, F, u + (R() - 0.5) * 0.3, mid + dv + Math.sign(dv) * (0.08 + R() * 0.12), R);
+              const c = chair(A, F, u - 0.6 + (R() - 0.5) * 0.9, mid + dv + (R() - 0.5) * 0.9, 1, R() < 0.5 ? C.blue : C.orange, R() < 0.55);
+              c.rotation.y += (R() - 0.5) * 2.4;
+              return;
+            }
             desk(A, F, u, mid + dv, 0.6, 1.1, 0.74);
             chair(A, F, u - 0.58, mid + dv, 1, R() < 0.5 ? C.blue : C.orange, R() < 0.08);
             if (R() < 0.3) put(A, F, u, mid + dv + (R() - 0.5) * 0.4, 0.74, 0.24, 0.02, 0.3, L(C.paper), false, 0, R() * 3, 0);
           });
         });
+        // what was on the desks is on the floor now: books, a bag
+        if (wrecked) for (let k = 0; k < 6; k++) put(A, F, 2 + R() * 6.5, mid + (R() < 0.5 ? -1 : 1) * (1 + R() * 1.2), 0, 0.22 + R() * 0.1, 0.04 + R() * 0.04, 0.16 + R() * 0.08, L(BOOKS[Math.floor(R() * BOOKS.length)]), false, 0, R() * 3, (R() - 0.5) * 0.3);
       });
       shelves(A, F, 0.45, -F.d / 2 + 1.2, 0.4, 1.8, 1.8, C.woodD, BOOKS, 4, R);
     },

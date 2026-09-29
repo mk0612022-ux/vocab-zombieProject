@@ -31,11 +31,25 @@
   const RANK = { vlow: 0, low: 1, medium: 2, high: 3, vhigh: 4 };
   // how much of each kind of detail each quality level keeps
   const TABLE = {
-    grass: { vlow: 0.15, low: 0.3, medium: 0.65, high: 1, vhigh: 1.25 },
+    // (newer list, round 3, I1: the field holds twice the tufts it did, so
+    // Very Low and Low keep about the number they always drew -- in the
+    // cheaper five-blade tufts, LOD_Q -- Medium a little more, High half as
+    // many again (thin blades: about the old cost in pixels), Very High all)
+    grass: { vlow: 0.08, low: 0.16, medium: 0.42, high: 0.8, vhigh: 1.25 },
     vines: { vlow: 0.2, low: 0.35, medium: 0.75, high: 1, vhigh: 1 },
     small: { vlow: 0, low: 0.35, medium: 0.7, high: 1, vhigh: 1.2 },   // leaves, paper
     dust: { vlow: 0, low: 0, medium: 0.6, high: 1, vhigh: 1.3 },
+    flowers: { vlow: 0, low: 0.4, medium: 0.75, high: 1, vhigh: 1.25 },
+    patch: { vlow: 1.3, low: 1.3, medium: 1.3, high: 1.3, vhigh: 1.3 },   // bare earth: always all of it
+    decal: { vlow: 0.35, low: 0.55, medium: 0.8, high: 1, vhigh: 1.3 },   // scuffs, stains, handprints (I3)
   };
+  // (I1) how much of a chunk of grass is drawn at `d` metres from it: all of
+  // it close by, thinning out to a fifth by 40 m and a tenth far off; past
+  // LOD_D the chunk draws its cheaper tufts (fewer, wider blades)
+  const LOD_D = 16;
+  const LOD_Q = { vlow: 0, low: 0, medium: 10, high: LOD_D, vhigh: 24 };   // (by quality: 0 = the cheap tufts everywhere)
+  const LOW_LYING = { grass: true, flowers: true, patch: true, small: true };
+  const farK = (d) => (d < 6 ? 1 : d < 40 ? 1 - (d - 6) / 34 * 0.8 : Math.max(0.1, 0.2 - (d - 40) / 40 * 0.1));
   const MAXK = 1.3;   // instance buffers are sized for the densest setting
 
   // ---- one palette texture for all the dressing ----------------------------
@@ -158,7 +172,10 @@
       setColorAt(i, c) { (this.items[i] = this.items[i] || {}).c = c.clone(); },
     };
   }
-  function emit(world, scene, geo, mat, col, kind, grid) {
+  // (newer list, round 3, I1) `far`: a cheaper geometry drawn instead of `geo`
+  // when the chunk is far off -- the same instances (one buffer, shared) --
+  // and the chunk thins out with distance (G.SchoolDress.thin)
+  function emit(world, scene, geo, mat, col, kind, grid, far) {
     const items = col.items.slice(0, col.count || col.items.length).filter((it) => it && it.m);
     const p = new THREE.Vector3();
     let groups = [items];
@@ -177,11 +194,27 @@
       g.boundingBox = b; g.boundingSphere = b.getBoundingSphere(new THREE.Sphere());
       const mesh = new THREE.InstancedMesh(g, mat, its.length);
       mesh.frustumCulled = true;   // r128 switches it off for every InstancedMesh; these bounds are real
+      // (casts no moon shadow, whatever its padded bounds say: js/sky.js)
+      if (LOW_LYING[kind]) mesh.userData.lowLying = true;
       its.forEach((it, i) => { mesh.setMatrixAt(i, it.m); if (it.c) mesh.setColorAt(i, it.c); });
       scene.add(mesh);
       detail(world, mesh, kind);
+      if (!far) return;
+      const dd = world.dressDetails[world.dressDetails.length - 1];
+      dd.thin = true;                   // (far === true: thins, has no cheaper version)
+      if (!far.isBufferGeometry) return;
+      const fg = far.clone();
+      fg.boundingBox = b; fg.boundingSphere = g.boundingSphere;
+      const fm = new THREE.InstancedMesh(fg, mat, its.length);
+      fm.instanceMatrix = mesh.instanceMatrix;
+      if (mesh.instanceColor) fm.instanceColor = mesh.instanceColor;
+      fm.frustumCulled = true; fm.visible = false;
+      fm.userData.lowLying = mesh.userData.lowLying;
+      scene.add(fm);
+      dd.far = fm;
     });
     geo.dispose();
+    if (far && far.isBufferGeometry) far.dispose();
   }
 
   // ---- wind for the grass: the blade tip moves, the root stays ------------
@@ -189,12 +222,26 @@
   // through it -- the player and the nearest zombies (js/details.js fills it
   // in every frame; w is the radius, 0 = unused) -- and a tuft within reach
   // of one leans away from it, flattening the nearer it is.
-  function swayMaterial(world, base) {
+  // Newer list, round 3 (I1): gusts run across the field too -- a slow wave
+  // along the wind that bows the grass over as it passes and shows the paler
+  // undersides of the blades. `o.headOnly` (the flowers): the instance colour
+  // tints only the white parts of the geometry, the heads, not the stems.
+  function swayMaterial(world, base, o) {
     const u = world.dress.uniforms;
+    o = o || {};
     base.onBeforeCompile = (shader) => {
       shader.uniforms.uTime = u.uTime;
       shader.uniforms.uBend = u.uBend;
-      shader.vertexShader = "uniform float uTime;\nuniform vec4 uBend[6];\n" + shader.vertexShader.replace("#include <project_vertex>", [
+      let vs = shader.vertexShader;
+      if (o.headOnly) {
+        vs = vs.replace("#include <color_vertex>", [
+          "#include <color_vertex>",
+          "#if defined( USE_INSTANCING_COLOR ) && defined( USE_COLOR )",
+          "  if ( color.r + color.g + color.b < 2.95 ) vColor.rgb = color.rgb;",
+          "#endif",
+        ].join("\n"));
+      }
+      shader.vertexShader = "uniform float uTime;\nuniform vec4 uBend[6];\n" + vs.replace("#include <project_vertex>", [
         "vec4 mvPosition = vec4( transformed, 1.0 );",
         "#ifdef USE_INSTANCING",
         "  mvPosition = instanceMatrix * mvPosition;",
@@ -204,6 +251,14 @@
         "  float w = sin( uTime * 1.6 + ip.x * 0.31 + ip.y * 0.23 ) + 0.45 * sin( uTime * 2.9 + ip.x * 0.83 + ip.y * 0.5 );",
         "  mvPosition.x += w * 0.09 * gust * gh * gh;",
         "  mvPosition.z += w * 0.05 * gust * gh * gh;",
+        "  vec2 wd = vec2( 0.86, 0.5 );",
+        "  float wv = sin( dot( ip, wd ) * 0.21 + sin( dot( ip, vec2( -0.5, 0.86 ) ) * 0.05 ) * 2.0 - uTime * 1.5 ) * 0.5 + 0.5;",
+        "  float wave = wv * wv * wv;",
+        "  mvPosition.xz += wd * wave * 0.17 * gh * gh;",
+        "  mvPosition.y -= wave * 0.07 * gh * gh;",
+        "  #if defined( USE_COLOR ) || defined( USE_INSTANCING_COLOR )",
+        "    vColor.rgb *= 1.0 + 0.28 * wave * gh;",
+        "  #endif",
         "  for ( int i = 0; i < 6; i++ ) {",
         "    vec4 b = uBend[ i ];",
         "    if ( b.w <= 0.0 ) continue;",
@@ -221,28 +276,41 @@
         "gl_Position = projectionMatrix * mvPosition;",
       ].join("\n"));
     };
-    base.customProgramCacheKey = () => "grass-sway-bend";
+    base.customProgramCacheKey = () => "grass-sway-bend" + (o.headOnly ? "-head" : "");
     return base;
   }
-  // A tuft: six tapered blades leaning out from a common root, darker at the
-  // root. Normals point up so a tuft is lit evenly from every side.
-  function tuftGeometry(R, blades) {
+  // A tuft (newer list, round 3, I1): thin pointed blades from a common root,
+  // each its own height, lean and curl -- straight at the root, bending over
+  // towards the tip -- and its own tint (some yellower, some bluer, a few
+  // dry), darker at the root. Five points a blade, three triangles. `o.w`
+  // widens the blades (the far version of a tuft: fewer, wider blades that
+  // cover the same ground), `o.lean` spreads them out. Normals point up so a
+  // tuft is lit evenly from every side.
+  function tuftGeometry(R, blades, o) {
+    o = o || {};
+    const W = o.w || 1, LEAN = o.lean || 1;
+    const TINTS = [[1, 1, 1], [1, 1, 1], [1.12, 1.06, 0.72], [0.84, 1, 0.96], [1.22, 1.02, 0.66]];
     const pos = [], col = [], nor = [], idx = [];
     for (let b = 0; b < blades; b++) {
-      const a = (b / blades) * Math.PI * 2 + R() * 0.8;
-      const ox = Math.cos(a) * 0.05 * R(), oz = Math.sin(a) * 0.05 * R();
+      const a = (b / blades) * Math.PI * 2 + R() * 0.9;
+      // (the blades come up over a patch of ground, not from one point: a
+      // lawn of these reads as a lawn, not as rows of clumps)
+      const r0 = (o.spread || 0.16) * Math.sqrt(R()), ra = a + (R() - 0.5) * 1.2, ox = Math.cos(ra) * r0, oz = Math.sin(ra) * r0;
       const dx = Math.cos(a + 1.57), dz = Math.sin(a + 1.57);     // blade width direction
-      const lean = 0.15 + 0.3 * R(), lx = Math.cos(a) * lean, lz = Math.sin(a) * lean;
-      const top = 0.75 + 0.25 * R(), w = 0.03 + 0.02 * R();
+      const lean = (0.1 + 0.36 * R()) * LEAN, lx = Math.cos(a) * lean, lz = Math.sin(a) * lean;
+      const top = 0.5 + 0.5 * R(), w = (0.011 + 0.01 * R()) * W;
+      const mid = 0.5 + 0.15 * R();                                // where it starts to bend over
+      const droop = top * (1 - 0.35 * lean / LEAN);                // (a long lean droops the tip)
       const base = pos.length / 3;
       const V = [
         [ox - dx * w, 0, oz - dz * w], [ox + dx * w, 0, oz + dz * w],
-        [ox - dx * w * 0.6 + lx * 0.35, top * 0.5, oz - dz * w * 0.6 + lz * 0.35],
-        [ox + dx * w * 0.6 + lx * 0.35, top * 0.5, oz + dz * w * 0.6 + lz * 0.35],
-        [ox + lx, top, oz + lz],
+        [ox - dx * w * 0.75 + lx * 0.22, top * mid, oz - dz * w * 0.75 + lz * 0.22],
+        [ox + dx * w * 0.75 + lx * 0.22, top * mid, oz + dz * w * 0.75 + lz * 0.22],
+        [ox + lx, droop, oz + lz],
       ];
-      const shade = [0.45, 0.45, 0.78, 0.78, 1.05];
-      V.forEach((v, i) => { pos.push(v[0], v[1], v[2]); col.push(shade[i], shade[i], shade[i]); nor.push(0, 1, 0); });
+      const shade = [0.38, 0.38, 0.74, 0.74, 1.08];
+      const t = TINTS[Math.floor(R() * TINTS.length)], v0 = 0.86 + R() * 0.28;
+      V.forEach((v, i) => { pos.push(v[0], v[1], v[2]); col.push(shade[i] * t[0] * v0, shade[i] * t[1] * v0, shade[i] * t[2] * v0); nor.push(0, 1, 0); });
       idx.push(base, base + 1, base + 3, base, base + 3, base + 2, base + 2, base + 3, base + 4);
     }
     const g = new THREE.BufferGeometry();
@@ -251,6 +319,67 @@
     g.setAttribute("normal", new THREE.Float32BufferAttribute(nor, 3));
     g.setIndex(idx);
     return g;
+  }
+  // A weed in flower (I1): a rosette of broad leaves at the root, a thin stem
+  // with a kink in it, and a head -- a flat star of petals, and a small cross
+  // so it still reads from the side. The head is white, for the instance
+  // colour to tint (swayMaterial's headOnly); one unit tall.
+  function flowerGeometry(R) {
+    const pos = [], col = [], nor = [], idx = [];
+    const put = (x, y, z, c) => { pos.push(x, y, z); col.push(c[0], c[1], c[2]); nor.push(0, 1, 0); return pos.length / 3 - 1; };
+    const LEAF = [0.24, 0.4, 0.16], STEM = [0.34, 0.48, 0.22], HEAD = [1, 1, 1], EYE = [0.55, 0.42, 0.12];
+    for (let k = 0; k < 5; k++) {
+      const a = k / 5 * Math.PI * 2 + R() * 0.6, c = Math.cos(a), s = Math.sin(a), L = 0.13 + R() * 0.07, w = 0.03;
+      const r = put(0, 0.01, 0, LEAF), l = put(c * L * 0.5 - s * w, 0.05, s * L * 0.5 + c * w, LEAF);
+      const m = put(c * L * 0.5 + s * w, 0.05, s * L * 0.5 - c * w, LEAF), t = put(c * L, 0.03, s * L, LEAF);
+      idx.push(r, l, t, r, t, m);
+    }
+    const kx = (R() - 0.5) * 0.06, kz = (R() - 0.5) * 0.06;
+    [0, Math.PI / 2].forEach((a) => {
+      const c = Math.cos(a) * 0.007, s = Math.sin(a) * 0.007;
+      const a0 = put(-c, 0, -s, STEM), a1 = put(c, 0, s, STEM), m0 = put(kx - c, 0.5, kz - s, STEM), m1 = put(kx + c, 0.5, kz + s, STEM), tp = put(kx * 0.3, 0.97, kz * 0.3, STEM);
+      idx.push(a0, a1, m1, a0, m1, m0, m0, m1, tp);
+    });
+    const hy = 0.97, hx = kx * 0.3, hz = kz * 0.3, P = 6;
+    const ctr = put(hx, hy + 0.012, hz, EYE);
+    for (let k = 0; k < P; k++) {
+      const a0 = k / P * Math.PI * 2, a1 = (k + 0.5) / P * Math.PI * 2, a2 = (k + 1) / P * Math.PI * 2;
+      const i0 = put(hx + Math.cos(a0) * 0.03, hy, hz + Math.sin(a0) * 0.03, HEAD);
+      const i1 = put(hx + Math.cos(a1) * 0.1, hy + 0.012, hz + Math.sin(a1) * 0.1, HEAD);
+      const i2 = put(hx + Math.cos(a2) * 0.03, hy, hz + Math.sin(a2) * 0.03, HEAD);
+      idx.push(ctr, i0, i1, ctr, i1, i2);
+    }
+    // (from the side: a flat lens, as a flower head looks edge on)
+    [0, Math.PI / 2].forEach((a) => {
+      const c = Math.cos(a) * 0.085, s = Math.sin(a) * 0.085;
+      const q0 = put(hx - c, hy, hz - s, HEAD), q1 = put(hx, hy - 0.025, hz, EYE), q2 = put(hx + c, hy, hz + s, HEAD), q3 = put(hx, hy + 0.03, hz, HEAD);
+      idx.push(q0, q1, q2, q0, q2, q3);
+    });
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
+    g.setAttribute("normal", new THREE.Float32BufferAttribute(nor, 3));
+    g.setIndex(idx);
+    return g;
+  }
+  // bare ground (I1): a patch of trodden earth, ragged at the edge, with
+  // darker damp spots and a few stones; flat, drawn over the lawn
+  let dirtTex = null;
+  function dirtTexture() {
+    if (dirtTex) return dirtTex;
+    const S = 128, cv = document.createElement("canvas"); cv.width = cv.height = S;
+    const c = cv.getContext("2d"), R = G.makeRng(777);
+    for (let k = 0; k < 26; k++) {
+      const a = R() * Math.PI * 2, r = R() * S * 0.26, x = S / 2 + Math.cos(a) * r, y = S / 2 + Math.sin(a) * r, rr = S * (0.1 + R() * 0.16);
+      const g = c.createRadialGradient(x, y, 0, x, y, rr);
+      const tone = R() < 0.3 ? "58,44,30" : R() < 0.5 ? "96,76,52" : "78,62,42";
+      g.addColorStop(0, `rgba(${tone},0.9)`); g.addColorStop(0.7, `rgba(${tone},0.6)`); g.addColorStop(1, `rgba(${tone},0)`);
+      c.fillStyle = g; c.fillRect(0, 0, S, S);
+    }
+    c.globalCompositeOperation = "source-atop";
+    for (let k = 0; k < 90; k++) { c.fillStyle = R() < 0.5 ? "rgba(140,128,110,0.8)" : "rgba(40,32,24,0.5)"; const d = 1 + R() * 2.5; c.fillRect(R() * S, R() * S, d, d); }
+    dirtTex = new THREE.CanvasTexture(cv);
+    return dirtTex;
   }
 
   // ---- a texture atlas: torn posters and notices ---------------------------
@@ -352,10 +481,12 @@
       if (world.dress) return world.dress;
       const d = world.dress = {
         uniforms: { uTime: { value: 0 }, uBend: { value: Array.from({ length: 6 }, () => new THREE.Vector4(0, 0, 0, 0)) } }, t: 0, flags: [],
-        update: (dt) => {
+        // (`at`: where the player is, for the grass thinning with distance)
+        update: (dt, at) => {
           d.t += dt;
           d.uniforms.uTime.value = d.t;
           d.flags.forEach((f) => f.step(d.t));
+          if (at) this.thin(world, at);
         },
       };
       world.noMerge = world.noMerge || [];
@@ -366,10 +497,34 @@
     applyQuality(world, q) {
       (world.dressDetails || []).forEach((dd) => {
         const k = (TABLE[dd.kind] || TABLE.grass)[q];
-        const n = Math.round(dd.max * (k == null ? 1 : k) / MAXK);
+        dd.qk = k == null ? 1 : k;
+        const n = Math.round(dd.max * dd.qk / MAXK);
         if (dd.mesh.isPoints) dd.mesh.geometry.setDrawRange(0, n);
         else dd.mesh.count = n;
         dd.mesh.visible = n > 0;
+        if (dd.far) { dd.far.count = n; dd.far.visible = false; }
+      });
+      world.dressLod = LOD_Q[q] != null ? LOD_Q[q] : LOD_D;
+      const at = world.dressThin || world.spawn;
+      if (at) this.thin(world, at, true);
+    },
+
+    // I1: the grass (and the flowers in it) thins out with distance, chunk by
+    // chunk, and far chunks swap to their cheaper tufts. The instances of a
+    // chunk are in no order, so its first n are an even sprinkling over it.
+    // Redone when the player has moved a little, not every frame.
+    thin(world, at, force) {
+      const T = world.dressThin || (world.dressThin = { x: 1e9, z: 1e9 });
+      if (!force && Math.abs(at.x - T.x) + Math.abs(at.z - T.z) < 0.75) return;
+      T.x = at.x; T.z = at.z;
+      (world.dressDetails || []).forEach((dd) => {
+        if (!dd.thin || dd.qk == null) return;
+        const b = dd.mesh.geometry.boundingBox;
+        const d = Math.hypot(Math.max(b.min.x - at.x, 0, at.x - b.max.x), Math.max(b.min.z - at.z, 0, at.z - b.max.z));
+        const n = Math.round(dd.max * dd.qk / MAXK * farK(d));
+        const near = !dd.far || d < (world.dressLod != null ? world.dressLod : LOD_D);
+        dd.mesh.count = n; dd.mesh.visible = n > 0 && near;
+        if (dd.far) { dd.far.count = n; dd.far.visible = n > 0 && !near; }
       });
     },
 
@@ -397,13 +552,49 @@
       const fenceDist = (x, z) => Math.min(x - CAM.x0, CAM.x1 - x, z - CAM.z0, CAM.z1 - z);
       const area = (CAM.x1 - CAM.x0) * (CAM.z1 - CAM.z0);
 
+      // ---- bare earth (newer list, round 3, I1): trodden patches in the
+      // lawns, more of them on the pitch and by the building, where nothing
+      // grows in the middle and the grass comes back ragged at the edge
+      const dirt = [];
+      {
+        const want = Math.round(area / 380);
+        for (let i = 0; i < want * 6 && dirt.length < want; i++) {
+          const x = CAM.x0 + 3 + R() * (CAM.x1 - CAM.x0 - 6), z = CAM.z0 + 3 + R() * (CAM.z1 - CAM.z0 - 6);
+          if (onPath(x, z) || Math.abs(x) < PATH + 2 || nearDoor(x, z) || inFoot(x, z) || bare(x, z)) continue;
+          const byWall = (world.footprint || []).some((f) => x > f.minX - 5 && x < f.maxX + 5 && z > f.minZ - 5 && z < f.maxZ + 5);
+          if (!onPitch(x, z) && !byWall && R() < 0.45) continue;
+          const r = 0.8 + R() * 1.9;
+          if (dirt.some((d) => Math.hypot(d.x - x, d.z - z) < d.r + r)) continue;
+          dirt.push({ x, z, r, sx: 1 + R() * 0.8, a: R() * Math.PI });
+        }
+        const g = new THREE.PlaneGeometry(1, 1); g.rotateX(-Math.PI / 2);
+        const mat = new THREE.MeshLambertMaterial({ map: dirtTexture(), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+        const mesh = collector();
+        const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
+        dirt.forEach((d, i) => {
+          q.setFromAxisAngle(up, d.a);
+          mesh.setMatrixAt(i, m4.compose(p.set(d.x, floorAt(d.x, d.z) + 0.02, d.z), q, s.set(d.r * 2.3 * d.sx, 1, d.r * 2.3)));
+        });
+        mesh.count = dirt.length;
+        if (dirt.length) emit(world, scene, g, mat, mesh, "patch", [2, 2]);
+      }
+      // (the grass round a patch: none in the middle, sparse at its edge)
+      const inDirt = (x, z) => dirt.some((d) => {
+        const dx = x - d.x, dz = z - d.z;
+        const ca = Math.cos(d.a), sa = Math.sin(d.a);
+        const u = (dx * ca - dz * sa) / d.sx, v = dx * sa + dz * ca;
+        return u * u + v * v < d.r * d.r;
+      });
+
       // ---- grass tufts: dark green, yellow-green and dry brown, in patches
       {
         // the old yard had 4000 on 1400 m2; the campus is sparser in the
-        // middle of its lawns and dense where nobody ever mowed
-        const COUNT = Math.round(Math.max(4000, area * 1.25) * MAXK);
+        // middle of its lawns and dense where nobody ever mowed. I1: twice as
+        // thick as it was, in thinner blades (G.SchoolDress.thin keeps the far
+        // grass cheap)
+        const COUNT = Math.round(Math.max(8000, area * 2.6) * MAXK);
         const mat = swayMaterial(world, new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }));
-        const geo = tuftGeometry(R, 5), mesh = collector();
+        const geo = tuftGeometry(R, 8, { spread: 0.2 }), far = tuftGeometry(R, 4, { w: 2.4, spread: 0.2 }), mesh = collector();
         const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
         const cols = [new THREE.Color(0x3a5528), new THREE.Color(0x4f6e33), new THREE.Color(0x7f8638), new THREE.Color(0x86704a)];
         const col = new THREE.Color();
@@ -413,20 +604,22 @@
           if (onPath(x, z) && R() > 0.04) continue;          // a few creep onto the path edge
           if (nearDoor(x, z) || inFoot(x, z)) continue;
           if (bare(x, z) && R() > 0.03) continue;
+          if (inDirt(x, z) && R() > 0.06) continue;
           const fence = fenceDist(x, z) < 4, field = onPitch(x, z), dry = inGarden(x, z);
           const inOldYard = x > x0 && x < x1 && z > z0 && z < z1;
           // how thick it grows here, relative to the densest
-          const dens = inOldYard ? 1 : fence ? 1 : field ? 0.95 : dry ? 0.6 : 0.62;
+          const dens = inOldYard ? 1 : fence ? 1 : field ? 0.95 : dry ? 0.7 : 0.78;
           if (R() > dens) continue;
           // patches: slow noise picks lush, seeding or dried-out ground
           const patch = Math.sin(x * 0.21 + 1.3) * Math.sin(z * 0.17 + 0.4) + 0.5 * Math.sin(x * 0.53 + z * 0.41);
           const edge = fence || (inOldYard && Math.min(x - x0, x1 - x, z1 - z) < 3) ? 1.35 : 1;   // taller along the fence
           // the pitch: long, uneven, knee-high in clumps
           const tall = field ? 1.25 + Math.max(0, Math.sin(x * 0.9 + z * 0.37) * Math.sin(z * 0.61 - x * 0.2)) * 0.9 : 1;
-          const h = (0.28 + R() * 0.55) * edge * tall * (patch > 0.6 ? 1.3 : 1);
+          const ragged = inDirt(x, z) ? 0.45 : 1;              // short and sparse at a bare patch
+          const h = (0.22 + R() * 0.66) * edge * tall * (patch > 0.6 ? 1.3 : 1) * ragged;
           p.set(x, floorAt(x, z), z);
           q.setFromAxisAngle(up, R() * Math.PI * 2);
-          s.set(0.8 + R() * 0.6, h, 0.8 + R() * 0.6);
+          s.set(0.75 + R() * 0.6, h, 0.75 + R() * 0.6);
           m4.compose(p, q, s);
           mesh.setMatrixAt(n, m4);
           let k = patch > 0.45 ? (R() < 0.65 ? 3 : 2) : patch > -0.2 ? (R() < 0.45 ? 1 : R() < 0.6 ? 2 : 0) : (R() < 0.6 ? 0 : 1);
@@ -439,8 +632,50 @@
         mesh.instanceMatrix.needsUpdate = true;
         if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
         // in 15 m chunks, each culled on its own (and by the zone culling in
-        // js/zones.js when it is past the fog)
-        emit(world, scene, geo, mat, mesh, "grass", [Math.max(1, Math.round((CAM.x1 - CAM.x0) / 15)), Math.max(1, Math.round((CAM.z1 - CAM.z0) / 15))]);
+        // js/zones.js when it is past the fog), thinning out with distance
+        emit(world, scene, geo, mat, mesh, "grass", [Math.max(1, Math.round((CAM.x1 - CAM.x0) / 15)), Math.max(1, Math.round((CAM.z1 - CAM.z0) / 15))], far);
+      }
+
+      // ---- weeds in flower (I1): dandelions, daisies, clover, a few purple
+      // ones, and tall ones gone to seed -- in clumps, most along the fence,
+      // round the bare patches and in the dried-out garden
+      {
+        const COUNT = Math.round(Math.max(1200, area * 0.11) * MAXK);
+        const mat = swayMaterial(world, new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }), { headOnly: true });
+        const geo = flowerGeometry(R), mesh = collector();
+        const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
+        const HEADS = [[0xf2cf3a, 4], [0xf2f0e6, 4], [0x8c62c8, 2], [0xd9829e, 1], [0xcfc6a8, 2]];
+        const pickHead = (dry) => {
+          if (dry && R() < 0.6) return 0xcfc6a8;
+          let t = R() * 13;
+          for (const [c, w] of HEADS) { if ((t -= w) < 0) return c; }
+          return HEADS[0][0];
+        };
+        const col = new THREE.Color();
+        let n = 0;
+        for (let i = 0; i < COUNT && n < COUNT; i++) {
+          // a clump: its middle, then a handful round it
+          let cx, cz, ok = false;
+          for (let t = 0; t < 12 && !ok; t++) {
+            cx = CAM.x0 + 1 + R() * (CAM.x1 - CAM.x0 - 2); cz = CAM.z0 + 1 + R() * (CAM.z1 - CAM.z0 - 2);
+            const liked = fenceDist(cx, cz) < 5 || inGarden(cx, cz) || dirt.some((d) => Math.hypot(d.x - cx, d.z - cz) < d.r * d.sx + 2);
+            ok = !(onPath(cx, cz) || nearDoor(cx, cz) || inFoot(cx, cz) || bare(cx, cz)) && (liked || R() < 0.55);
+          }
+          if (!ok) continue;
+          const head = pickHead(inGarden(cx, cz)), many = 3 + Math.floor(R() * 6);
+          const seeding = head === 0xcfc6a8;
+          for (let k = 0; k < many && n < COUNT; k++) {
+            const x = cx + (R() - 0.5) * 2.2, z = cz + (R() - 0.5) * 2.2;
+            if (onPath(x, z) || inFoot(x, z) || inDirt(x, z)) continue;
+            q.setFromAxisAngle(up, R() * Math.PI * 2);
+            const h = seeding ? 0.6 + R() * 0.5 : 0.28 + R() * 0.3;
+            mesh.setMatrixAt(n, m4.compose(p.set(x, floorAt(x, z), z), q, s.set(1, h, 1)));
+            mesh.setColorAt(n, col.setHex(head).multiplyScalar(0.85 + R() * 0.25));
+            n++;
+          }
+        }
+        mesh.count = n;
+        emit(world, scene, geo, mat, mesh, "flowers", [Math.max(1, Math.round((CAM.x1 - CAM.x0) / 30)), Math.max(1, Math.round((CAM.z1 - CAM.z0) / 30))], true);
       }
 
       // ---- weeds pushing up through the cracked path
@@ -448,7 +683,7 @@
         const pathEnd = CAM.z1 - 1.2;
         const COUNT = Math.round(170 * (pathEnd - z0) / (z1 - z0) * MAXK);
         const mat = swayMaterial(world, new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }));
-        const geo = tuftGeometry(R, 4), mesh = collector();
+        const geo = tuftGeometry(R, 6, { w: 1.8, lean: 1.3 }), mesh = collector();
         const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
         const col = new THREE.Color();
         let n = 0;
@@ -854,19 +1089,32 @@
           x += Math.sin(-a) * len * 0.9; y -= Math.cos(a) * len * 0.9;
         }
       }
+      const WR = G.SchoolWear;
+      const onFront = (kind, w, h, x, y, rot) => { const m = kind > 0 ? WR.scrawl(kind, w, h, "A") : WR.mark(kind, w, h, "A"); m.position.set(x, y, face + 0.012); m.rotation.z = rot || 0; scene.add(m); };
       for (let k = 0; k < 22; k++) {
         const x = (R() - 0.5) * (W - 1.5), y = 0.5 + R() * 7.6;
         if (!clear(x, y)) continue;
-        const pw = 0.3 + R() * 0.9, ph = 0.2 + R() * 0.6;
-        const m = R() < 0.55 ? decal(0x6f6a5e) : decal(0xc2bba8);
+        const pw = 0.3 + R() * 0.9, ph = 0.2 + R() * 0.6, dark = R() < 0.55;
+        const m = dark ? decal(0x6f6a5e) : decal(0xc2bba8);
+        // (newer list, round 3, I3: paint lifting and plaster knocked off,
+        // cut from js/wear.js's atlas, where there were flat grey patches)
+        if (WR) { onFront(dark ? "paint" : "plaster", pw * 1.5 + 0.3, pw * 1.5 + 0.3, x, y); continue; }
         box(scene, pw, ph, 0.012, m, x, y, face + 0.007);
         box(scene, pw * 0.6, ph * 0.7, 0.012, m, x + pw * 0.4, y - ph * 0.3, face + 0.007);
+      }
+      // and by the doors: hands dragged down the wall, a word sprayed on it
+      if (WR) {
+        onFront("handsDown", 0.85, 0.85, 4.75, 1.45, 0.05);
+        onFront("splash", 0.8, 0.8, -4.9, 1.2);
+        onFront(8, 2.4, 0.6, -8.6, 1.2, 0.04);         // "HELP US"
       }
       const moss = [decal(0x34442a), decal(0x44532e)];
       for (let x = -W / 2 + 0.3; x < W / 2; x += 0.6 + R() * 0.9) {
         if (Math.abs(x) < 3.9) continue;
-        const h = 0.15 + R() * (Math.abs(x) > W / 2 - 3 ? 0.9 : 0.45);
-        box(scene, 0.4 + R() * 0.7, h, 0.012, moss[Math.floor(R() * 2)], x, h / 2, face + 0.008);
+        const h = 0.15 + R() * (Math.abs(x) > W / 2 - 3 ? 0.9 : 0.45), w = 0.4 + R() * 0.7, k = Math.floor(R() * 2);
+        // (newer list, round 3, I3: soft-edged mould, not a flat green slab)
+        if (G.SchoolWear) { const m = G.SchoolWear.mark("mould", w * 1.4, h * 1.6 + 0.2, "A"); m.position.set(x, (h * 1.6 + 0.2) / 2, face + 0.01); scene.add(m); }
+        else box(scene, w, h, 0.012, moss[k], x, h / 2, face + 0.008);
       }
       WINDOWS.forEach((w) => { if (R() < 0.6) box(scene, 1.4 + R() * 0.6, 0.03, 0.2, moss[1], w.wx, w.wy - 0.68, zf + 0.46); });
     },
@@ -946,10 +1194,15 @@
         const segs = [];
         gaps.forEach(([a, b]) => { if (a > t) segs.push([t, a]); t = Math.max(t, b); });
         if (end > t) segs.push([t, end]);
+        // (newer list, round 3: a room's real windows are openings in its
+        // outer wall -- the paint above the rail goes round them)
+        const holes = w.axis === "z" && G.SchoolShell && G.SchoolShell.holesIn ? G.SchoolShell.holesIn(world, w.fixed, w.y) : [];
         segs.forEach(([a, b]) => {
-          const len = b - a, mid = (a + b) / 2;
-          if (len < 0.2) return;
-          const put = (h, y0, dep, m) => {
+          if (b - a < 0.2) return;
+          const put = (h, y0, dep, m, a2, b2) => {
+            a2 = a2 == null ? a : a2; b2 = b2 == null ? b : b2;
+            const len = b2 - a2, mid = (a2 + b2) / 2;
+            if (len < 0.02 || h < 0.01) return;
             const p = wallPoint(w, mid, 0.2 + dep / 2, w.y + y0 + h / 2);
             const g = w.axis === "z" ? new THREE.BoxGeometry(dep, h, len) : new THREE.BoxGeometry(len, h, dep);
             const mesh = mk(g, m); mesh.position.copy(p); scene.add(mesh);
@@ -957,7 +1210,17 @@
           put(1.02, 0.12, 0.025, wDado);
           put(0.06, 1.12, 0.05, wRail);
           put(0.12, 0, 0.04, skirt);
-          if (wUpper) put(2.2, 1.16, 0.016, wUpper);
+          if (wUpper) {
+            let t2 = a;
+            holes.filter((hl) => hl.z + hl.w / 2 > a && hl.z - hl.w / 2 < b).sort((p, q) => p.z - q.z).forEach((hl) => {
+              const ha = hl.z - hl.w / 2, hb = hl.z + hl.w / 2;
+              put(2.2, 1.16, 0.016, wUpper, t2, ha);
+              put(hl.y0 - w.y - 1.16, 1.16, 0.016, wUpper, ha, hb);                  // under the opening
+              put(1.16 + 2.2 - (hl.y1 - w.y), hl.y1 - w.y, 0.016, wUpper, ha, hb);   // over it
+              t2 = hb;
+            });
+            put(2.2, 1.16, 0.016, wUpper, t2, b);
+          }
         });
       });
 
@@ -970,10 +1233,17 @@
         const doorX = spec.doorX != null ? spec.doorX : s * HALF;
         (spec.doorZs || [spec.room.cz]).forEach((z) => {
           const sign = G.SchoolRooms.signPlane(text, 1.45, 0.34);
-          sign.position.set(doorX - s * 0.222, (spec.baseY || 0) + 3.17, z);
-          sign.rotation.y = s < 0 ? Math.PI / 2 : -Math.PI / 2;
+          const y = (spec.baseY || 0) + 3.17;
+          // I3: now and then one has lost a screw and hangs from the other
+          // end (turned about its own middle, then dropped so that end stays
+          // where the screw is)
+          const tilt = R() < 0.2 ? (R() < 0.5 ? -1 : 1) * (0.35 + R() * 0.45) : 0;
+          if (tilt) world.signsAskew = (world.signsAskew || 0) + 1;
+          const drop = Math.abs(Math.sin(tilt)) * 0.76, slide = (1 - Math.cos(tilt)) * 0.76 * Math.sign(tilt);
+          sign.position.set(doorX - s * 0.222, y - drop, z + slide * s);
+          sign.rotation.set(0, s < 0 ? Math.PI / 2 : -Math.PI / 2, tilt);
           scene.add(sign);
-          box(scene, 0.03, 0.38, 1.52, lam(0x2a2a2c), doorX - s * 0.207, (spec.baseY || 0) + 3.17, z);
+          box(scene, 0.03, 0.38, 1.52, lam(0x2a2a2c), doorX - s * 0.207, y - drop, z + slide * s, -s * tilt, 0, 0);
         });
       });
 
@@ -1096,6 +1366,19 @@
           : Array.from({ length: Math.max(1, Math.round(f.d / 4.5)) }, (_, i) => [0, (i - (Math.max(1, Math.round(f.d / 4.5)) - 1) / 2) * 4.2]);
         const flick = [];   // a failing light's tubes become one mesh: one draw call, one material to dim
         spots.forEach(([dx, dz]) => {
+          // I3: a dead one has sometimes come down at one end -- hanging
+          // from its wires, a tube gone, the glass of it on the floor below
+          if (f.mode === "off" && R() < 0.35) {
+            const x = f.x + dx, z = f.z + dz, a = 0.5 + R() * 0.4, e = R() < 0.5 ? -1 : 1;
+            const g = new THREE.Group(); g.position.set(x, y + 0.01, z + e * 0.65); g.rotation.x = -e * a; scene.add(g);
+            box(g, 0.3, 0.05, 1.3, housing, 0, 0, -e * 0.65);
+            box(g, 0.05, 0.04, 1.2, tubeOff, 0.07, -0.04, -e * 0.65);
+            const endY = y + 0.01 - Math.sin(a) * 1.3, endZ = z + e * 0.65 - e * Math.cos(a) * 1.3;
+            [-0.1, 0.1].forEach((ox) => box(scene, 0.015, y - endY, 0.015, lam(0x1c1c1e), x + ox, (y + endY) / 2, endZ + e * 0.04, 0, 0, (R() - 0.5) * 0.1));
+            for (let k = 0; k < 7; k++) box(scene, 0.03 + R() * 0.07, 0.006, 0.02 + R() * 0.05, lam(0xc8ccc8), x + (R() - 0.5) * 0.9, f.baseY + 0.006, z + (R() - 0.5) * 1.2, 0, R() * 3, 0);
+            world.fallenLights = (world.fallenLights || 0) + 1;
+            return;
+          }
           box(scene, 0.3, 0.05, 1.3, housing, f.x + dx, y + 0.01, f.z + dz);
           [-0.07, 0.07].forEach((ox) => {
             if (f.mode === "flicker") flick.push(new THREE.BoxGeometry(0.05, 0.04, 1.2).translate(f.x + dx + ox, y - 0.03, f.z + dz));
@@ -1139,11 +1422,14 @@
         world.dressDetails = world.dressDetails || [];
         world.dressDetails.push({ mesh: pts, max: pts.count, kind: "dust" });
       }
+      // ---- I3: scuffs, cracks, stains, blood, writing on the walls, hanging
+      // locker doors, cables out of the ceiling (js/wear.js) ----
+      if (G.SchoolWear) G.SchoolWear.build({ scene, world, walls, specs, free, placed, api });
       this.applyQuality(world, api.quality || G.save.settings.graphicsQuality);
     },
   };
   // Round 3: the campus (js/campus.js) and the room kits (js/schoolrooms.js)
   // paint with the same one-texture palette, so everything they add merges
   // into the same couple of draw calls per cell.
-  G.SchoolDress.P = { PAL, texel, lam, basic, mk, decal, concatGeos, box, cyl, blob, blobGeo, detail, collector, emit, swayMaterial, tuftGeometry, posterAtlas, atlasPlane, wallPoint, wallBox, faceRotY, TABLE, MAXK };
+  G.SchoolDress.P = { PAL, texel, lam, basic, mk, decal, concatGeos, box, cyl, blob, blobGeo, detail, collector, emit, swayMaterial, tuftGeometry, flowerGeometry, dirtTexture, posterAtlas, atlasPlane, wallPoint, wallBox, faceRotY, TABLE, MAXK };
 })();

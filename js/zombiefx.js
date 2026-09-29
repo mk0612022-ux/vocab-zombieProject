@@ -68,7 +68,9 @@ G.ZombieFX = {
     const occ = [];
     const sz = new THREE.Vector3();
     scene.traverse((o) => {
-      if (!o.isMesh || o.isInstancedMesh) return;
+      // (not the dark "room behind" a real window: it is only there for the
+      // view from outside, and stands where a zombie climbs in)
+      if (!o.isMesh || o.isInstancedMesh || o.userData.zone === "Y") return;
       const b = new THREE.Box3().setFromObject(o);
       b.getSize(sz);
       if (sz.x > 5.5 || sz.z > 5.5) return;
@@ -154,9 +156,12 @@ G.ZombieFX = {
         const front = wallBox(c, -0.48, 0.48, 0.7, 1.75, 0.1, 1.8);
         if (!free(front)) continue;
         w.taken = true;
+        const yaw = Math.atan2(c.n.x, c.n.z);
+        // (newer list, round 3: a real window -- the zombie climbs in through
+        // the opening and breaks its pane as it comes, js/glass.js)
+        if (w.real) return { kind, prop: null, realWin: w, yaw, floorY, sill: w.base + 1.25, n: c.n, start: c.at(0, -0.6).setY(floorY), face: c.at(0, 0).setY(floorY), end: c.at(0, 1.2).setY(floorY) };
         w.meshes.forEach((m) => { if (m.parent) m.parent.remove(m); m.geometry.dispose(); });
         if (world.curtains) world.curtains = world.curtains.filter((cu) => !w.curtains.includes(cu));
-        const yaw = Math.atan2(c.n.x, c.n.z);
         const prop = this.buildWindow(ctx, c.at(0, 0), yaw, floorY);
         return { kind, prop, yaw, floorY, n: c.n, start: c.at(0, -0.6).setY(floorY), face: c.at(0, 0).setY(floorY), end: c.at(0, 1.2).setY(floorY) };
       }
@@ -377,8 +382,12 @@ G.ZombieFX = {
       this.puff(E.start.clone().setY(E.ceilY - 0.3), 2, 0.9, [0.55, 0.55, 0.52]);
       A.sfx("vent_clang", { pos: E.start });
     } else if (E.kind === "window") {
-      this.glass(game, E.face.clone().setY(E.floorY + 1.5), E.n, Math.max(4, Math.round(Q.dirt * 0.5)));
-      A.sfx("glass_break", { pos: E.face.clone().setY(E.floorY + 1.5) });
+      // (a real window: its pane goes -- if it is still there)
+      const shatter = !E.realWin || (G.Glass && G.Glass.breakWindow(E.realWin, E.n, true));
+      if (shatter) {
+        this.glass(game, E.face.clone().setY((E.sill || E.floorY + 1.1) + 0.4), E.n, Math.max(4, Math.round(Q.dirt * 0.5)));
+        A.sfx("glass_break", { pos: E.face.clone().setY(E.floorY + 1.5) });
+      }
     } else if (E.kind === "desk") {
       A.sfx("desk_scrape", { pos: at });
     }
@@ -460,22 +469,24 @@ G.ZombieFX = {
       // arms in over the sill, the body after, then down onto the floor
       const face = E.face, n = E.n;
       const at = (d) => new THREE.Vector3(face.x + n.x * d, 0, face.z + n.z * d);
-      // (the wall has no real hole: what is behind its face is hidden, so it
-      // leans in first -- legs still outside, head and arms through the
-      // frame above the sill -- then slides over and drops)
+      // (it leans in first -- legs still outside, head and arms through the
+      // frame above the sill -- then slides over and drops. A real window's
+      // sill (js/glass.js) is higher than the old painted one's: it climbs
+      // that much higher)
+      const lift = E.sill ? Math.max(0, E.sill - E.floorY - 0.9) : 0;
       if (t < 0.45) {
         const k = ease(t / 0.45);
-        pos.copy(at(-0.5)); pos.y = E.floorY + 0.5;
+        pos.copy(at(-0.5)); pos.y = E.floorY + 0.5 + lift;
         m.rotation.x = 0.35 + 0.45 * k;
         arms(-1.7 - 0.35 * Math.sin(t * 16), -0.5);
       } else if (t < 1.05) {
         const k = easeIO((t - 0.45) / 0.6);
-        pos.copy(at(-0.5 + 0.8 * k)); pos.y = E.floorY + 0.5 + 0.25 * Math.sin(k * Math.PI);
+        pos.copy(at(-0.5 + 0.8 * k)); pos.y = E.floorY + 0.5 + lift + 0.25 * Math.sin(k * Math.PI);
         m.rotation.x = 0.8 + 0.45 * Math.sin(k * Math.PI * 0.6);
         arms(-1.9 + 0.5 * k, -0.7); legs(-0.4 * k, 1.0 * k);
       } else {
         const k = ease((t - 1.05) / (M.dur - 1.05));
-        pos.copy(at(0.3 + 0.9 * k)); pos.y = E.floorY + 0.55 * (1 - k);
+        pos.copy(at(0.3 + 0.9 * k)); pos.y = E.floorY + (0.55 + lift) * (1 - k);
         m.rotation.x = 1.1 * (1 - k);
         arms(-1.2, -0.4); legs(-0.4 * (1 - k), 1.0 * (1 - k));
         if (!M.landed && k > 0.6) { M.landed = true; this.puff(E.end.clone().setY(E.floorY + 0.15), 2, 0.8, [0.5, 0.48, 0.44]); }

@@ -149,6 +149,13 @@ G.CONFIG = {
   // ---------------- the checkpoint ----------------
   checkpoint: { afterWave: 10 },
 
+  // ---------------- odd zombies (newer list, round 3, I2) ----------------
+  // How often a zombie is one of the odd ones, and which kind (relative
+  // weights): a deformed face, its own head carried in its hand (the head
+  // hitbox goes with it), one arm too long, one arm too big. A crawler can
+  // only have the face; a boss is never odd. js/entities.js
+  zombieLooks: { oddChance: 0.24, odd: { deformed: 3, headInHand: 1.3, longArm: 1.6, bigArm: 1.6 } },
+
   // ---------------- touch and HUD settings (their limits) ----------------
   touch: { lookDrag: 2.2 },                  // pixels of drag -> turn (x the player's sensitivity)
   hud: { minScale: 0.5, maxScale: 1.5 },
