@@ -32,7 +32,7 @@
   const copy = (o) => JSON.parse(JSON.stringify(o));
 
   G.Checkpoint = {
-    AFTER_WAVE: 10,
+    AFTER_WAVE: G.CONFIG.checkpoint.afterWave,           // (js/config.js)
     key(levelId) { return "level" + levelId; },
     get(levelId) { const c = G.save.checkpoints; return (c && c[this.key(levelId)]) || null; },
     has(levelId) { return !!this.get(levelId); },

@@ -309,6 +309,21 @@ G.UIAudit = {
       await step("dialog: continue or new run", () => CP.chooseRun(1));
       await step("dialog: delete the checkpoint?", () => { G.Dialog.close(); CP.confirmDelete(1, () => {}); });
       await step("dialog closed", () => G.Dialog.close());
+      // ---- newer series, round 1: the end-of-wave quiz, HUD sizes, touch look sensitivity ----
+      const longMeanings = G.WORDS_LEVEL_1.slice().sort((a, b) => b[1].length - a[1].length).slice(0, 6).map((p) => p.slice());
+      const allWrong = () => { let n = 0; while (G.Quiz.stage !== "result" && n++ < 30) { if (G.Quiz.stage === "question") { const q = G.Quiz.qs[G.Quiz.i]; G.Quiz.answer((q.answer + 1) % 4); } G.Quiz.update(5); } };
+      await step("quiz: a Thai meaning", () => { Game.update = function () {}; Game.startLevel(1); Game.state = "GAMEPLAY"; UI.setHudVisible(true); Game.waveWords = longMeanings; Game.waveMissed = new Set(); G.Quiz.open(Game, () => {}); });
+      await step("quiz: answered wrong", () => { const q = G.Quiz.qs[0]; G.Quiz.answer((q.answer + 1) % 4); });
+      await step("quiz: an English word, Thai choices", () => G.Quiz.update(5));
+      await step("quiz: out of time", () => G.Quiz.update(99));
+      await step("quiz: failed, the words listed", () => allWrong());
+      await step("quiz: passed, no mistakes", () => { G.Quiz.close(); G.Quiz.open(Game, () => {}); let n = 0; while (G.Quiz.stage !== "result" && n++ < 30) { if (G.Quiz.stage === "question") G.Quiz.answer(G.Quiz.qs[G.Quiz.i].answer); G.Quiz.update(5); } });
+      await step("quiz closed", () => G.Quiz.close());
+      await step("settings: touch look sensitivities, HUD size", () => { Game.quitToMainMenu(); UI._settingsReturn = "screen-mainmenu"; UI.renderSettings(); UI.showScreen("screen-settings"); });
+      await step("hud sizes editor", () => G.HudCfg.openEditor());
+      await step("hud sizes at 150%", () => { G.HudCfg.PARTS.concat("all").forEach((p) => G.HudCfg.set(p, 1.5)); G.HudCfg.renderPanel(); });
+      await step("hud sizes at 50%", () => { G.HudCfg.PARTS.concat("all").forEach((p) => G.HudCfg.set(p, 0.5)); G.HudCfg.renderPanel(); });
+      await step("hud sizes closed", () => { G.HudCfg.reset(); G.HudCfg.closeEditor(); });
       // Custom Vocabulary: the page, an error, a warning, a long list, edit mode
       const thaiWord = G.WORDS_LEVEL_2[3][1];
       await step("custom vocab", () => {

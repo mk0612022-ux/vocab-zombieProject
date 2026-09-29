@@ -23,7 +23,9 @@
   const esc = (s) => G.escapeHtml(String(s));
 
   G.Floor3 = {
-    CORRECT_KILLS: 50, NOTES: 3, BOSS_WAVE: 5, WORDS: 3, WORD_TIME: 15, LOCKOUT: 30,
+    // (the numbers: G.CONFIG.floor3, js/config.js)
+    CORRECT_KILLS: G.CONFIG.floor3.correctKills, NOTES: G.CONFIG.floor3.notes, BOSS_WAVE: G.CONFIG.floor3.bossWave,
+    WORDS: G.CONFIG.floor3.words, WORD_TIME: G.CONFIG.floor3.wordSeconds, LOCKOUT: G.CONFIG.floor3.lockout,
     s: null,
 
     reset(game) {

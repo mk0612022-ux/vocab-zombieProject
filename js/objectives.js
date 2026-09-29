@@ -12,26 +12,7 @@
 // here can become permanently impossible -- accuracy only rises with more
 // correct answers, and the keys and rooms stay where they are.
 // ===================================================================
-// Accuracy bars were 75/80/85%. The category P playtest showed why that was
-// out of reach: accuracy counts EVERY wrong kill -- a panic shot at a zombie
-// biting you, a stray round, a launcher's splash -- so players who knew about
-// three words in four finished at 55-73%, then sat in overtime until they died.
-// The bar is now 65/70/75%, and it only has to be reached once (see `latched`).
-// Round 3: the school is three storeys and a campus now -- forty rooms and
-// eight places outside (the field, the garden, the three salas...). Exploring
-// asks for 24 of those (rooms and places both count), and the level asks for
-// four of the story notes to be read, which is also what the third floor's
-// grille wants (with 40 right answers), so a player finishing the level has
-// the third floor within reach without it being required.
-// Round 2: twenty waves, so the word goal is sized for them (the school
-// sends about 340 zombies in twenty waves, the hospital 370, the bunker
-// 400: the goal is under half of those) and the boss goal is every one of
-// the level's four bosses.
-G.LEVEL_OBJECTIVES = {
-  1: { accuracy: 0.65, minCorrect: 150, rooms: 24, keys: 3, notes: 4, bosses: 4 },
-  2: { accuracy: 0.70, minCorrect: 165, rooms: 19, keys: 3, bosses: 4 },
-  3: { accuracy: 0.75, minCorrect: 180, rooms: 20, keys: 3, bosses: 4 },
-};
+// G.LEVEL_OBJECTIVES (the targets per level): js/config.js
 
 G.Objectives = {
   state: null,

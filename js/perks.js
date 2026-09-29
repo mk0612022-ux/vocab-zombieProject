@@ -15,35 +15,7 @@
 // ============================================================
 window.G = window.G || {};
 
-// cat: move | shoot | survive | money | vocab. `vals` holds the figures per
-// level (index 0 = level 1) that the description and the effect both read.
-G.PERKS = [
-  // ---- the word game ----
-  { id: "perk_hint", icon: "🔤", cat: "vocab", max: 2, base: 300, growth: 1.6, vals: [1, 2] },               // 1: first letter, 2: + letter count
-  { id: "focus_time", icon: "⏳", cat: "vocab", max: 2, base: 450, growth: 1.6, vals: [1.5, 2.5] },          // seconds of slowed zombies after a right answer
-  { id: "combo_shield", icon: "🛡️", cat: "vocab", max: 1, base: 400, growth: 1, vals: [5] },                 // right answers to recharge
-  { id: "word_bounty", icon: "💎", cat: "vocab", max: 2, base: 350, growth: 1.7, vals: [75, 150] },          // % extra money for a hard word
-  { id: "extra_time", icon: "⏱️", cat: "vocab", max: 2, base: 300, growth: 1.6, vals: [4, 8] },              // seconds added to word questions
-  // ---- movement ----
-  { id: "perk_speed", icon: "👟", cat: "move", max: 2, base: 350, growth: 1.5, vals: [15, 30] },             // % move speed
-  { id: "second_wind", icon: "💨", cat: "move", max: 1, base: 350, growth: 1, vals: [2] },                   // stamina regen multiplier
-  { id: "pack_mule", icon: "🎒", cat: "move", max: 1, base: 400, growth: 1, vals: [50] },                    // % of the weight penalty removed
-  { id: "adrenaline", icon: "⚡", cat: "move", max: 1, base: 350, growth: 1, vals: [35] },                   // % speed for 3 s after a kill
-  // ---- shooting ----
-  { id: "quick_hands", icon: "✋", cat: "shoot", max: 2, base: 400, growth: 1.6, vals: [35, 70] },           // % faster reloads and swaps
-  { id: "piercing_rounds", icon: "➶", cat: "shoot", max: 2, base: 500, growth: 1.7, vals: [1, 2] },          // extra zombies a bullet goes through
-  { id: "last_round", icon: "🎯", cat: "shoot", max: 2, base: 350, growth: 1.6, vals: [1, 2] },              // last N rounds of a magazine hit 3x
-  { id: "marksman", icon: "🔭", cat: "shoot", max: 1, base: 450, growth: 1, vals: [40] },                    // % damage while aiming
-  // ---- survival ----
-  { id: "bloodthirst", icon: "🩸", cat: "survive", max: 2, base: 400, growth: 1.6, vals: [[10, 30], [20, 60]] }, // HP per kill / per right kill
-  { id: "perk_armor", icon: "🦺", cat: "survive", max: 2, base: 400, growth: 1.5, vals: [12, 24] },          // % less damage from bites and traps
-  { id: "second_life", icon: "❤️‍🔥", cat: "survive", max: 1, base: 700, growth: 1, vals: [25] },          // % HP a fatal hit leaves you with
-  { id: "thorns", icon: "🌵", cat: "survive", max: 2, base: 350, growth: 1.6, vals: [60, 120] },             // damage back to a zombie that bites
-  // ---- money and loadout ----
-  { id: "extra_slot", icon: "➕", cat: "money", max: 2, base: 900, growth: 1.8, vals: [1, 2] },              // extra gun slots
-  { id: "interest", icon: "🏦", cat: "money", max: 2, base: 500, growth: 1.7, vals: [[10, 250], [15, 400]] }, // % of banked money paid at each shop, capped
-  { id: "lucky_charm", icon: "🍀", cat: "money", max: 2, base: 600, growth: 1.8, vals: [2, 3] },             // crate rarity rolls, best one kept
-];
+// G.PERKS -- levels, prices and what each level gives: js/config.js
 G.PERK_BY_ID = {};
 G.PERKS.forEach((p) => { G.PERK_BY_ID[p.id] = p; });
 

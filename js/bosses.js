@@ -1290,16 +1290,9 @@
   // The fight
   // ================================================================
   G.Bosses = {
-    LASER_SPEED: 3.2,        // the player's base walking speed (js/game.js: 3.2 m/s)
+    LASER_SPEED: G.CONFIG.player.walkSpeed,    // the player's base walking speed (js/config.js: 3.2 m/s)
     SLAM_FRAC: 0.55,
     MAX_MINIONS: 8,
-    // a fight lasts between these at the player's own damage per second, if
-    // about three quarters of it lands (the boss is a big target and the
-    // weak spot pays half again; dodging, minions and misses take their
-    // share). Measured with the playtest bot, whose aim is sharper than most
-    // players': 70-200 s.
-    FIGHT_MIN: 120, FIGHT_MAX: 240, EFFECTIVE: 0.75,
-    BASE_HP: [4500, 9000, 15000, 22000],
     boss: null, phase: null, arena: null,
     run: { met: [], bag: [], last: null, downs: [], lastHp: 0 },
     pools: [], clones: [], stats: null, forceNext: null,
@@ -1349,14 +1342,21 @@
       });
       return best;
     },
+    // (new series, round 1, C) A boss's health comes from the wave it arrives
+    // on, not from which boss it is or from the player's guns: every boss at
+    // wave 5 has the same, and each boss wave more than the last --
+    // G.CONFIG.boss.hpByWave (js/config.js), times the level's own multiplier.
+    // (It used to follow the best gun held, so a strong gun found early made
+    // the wave 5 boss a marathon that ran the player out of ammunition.)
+    // Endless, past wave 20: a quarter of the wave-20 health more a boss.
     hpFor(game) {
-      const k = Math.max(1, Math.round(game.wave / G.BOSS_EVERY));
-      const base = this.BASE_HP[Math.min(3, k - 1)] * (k > 4 ? 1 + (k - 4) * 0.25 : 1);
-      const d = ((game.level && game.level.difficulty) || 1) - 1;
-      const want = base * (1 + d * 0.4);
-      const dps = this.playerDps(game) * this.EFFECTIVE;
-      let hp = clamp(want, dps * this.FIGHT_MIN, dps * this.FIGHT_MAX);
-      hp = Math.max(hp, (this.run.lastHp || 0) * 1.12);      // each boss of a run tougher than the last
+      const B = G.CONFIG.boss, w = Math.max(G.BOSS_EVERY, game.wave);
+      const steps = Object.keys(B.hpByWave).map(Number).sort((a, b) => a - b);
+      const top = steps[steps.length - 1];
+      let hp;
+      if (w > top) hp = B.hpByWave[top] * (1 + B.endlessGrowth * Math.round((w - top) / G.BOSS_EVERY));
+      else hp = B.hpByWave[steps.filter((s) => s <= w).pop() || steps[0]];
+      hp *= B.levelHpMult[game.level && game.level.id] || 1;
       return Math.round(hp / 50) * 50;
     },
 
@@ -1458,32 +1458,51 @@
       this.resupply(game, b, dt);
       G.UI.setBossBar(true, b.label, b.hp / b.maxHp * 100, b.vulnT > 0);
     },
-    // (round 3, found by the playtest bot) The arena is sealed, and a player
-    // whose every gun has run dry was left with the knife against thousands
-    // of health -- no way to win and no way out. Once every gun is down to
-    // under half a magazine, a supply box turns up a few metres away (on the
-    // side away from the boss); one at a time, twelve seconds apart. It
-    // fills every gun with two magazines.
+    // Ammunition in the sealed arena (new series, round 1, C; round 3 found a
+    // player run dry in there with only the knife and no way out). A box
+    // turns up somewhere round the arena now and then -- the first after
+    // firstAfter seconds, then every 20-30 s, a few at most lying about --
+    // and the boss drops one each time it falls past 75%, 50% and 25% of its
+    // health. A box fills every gun with three magazines. G.CONFIG.boss.arenaAmmo.
     resupply(game, b, dt) {
-      const pl = game.player;
-      b.supplyT = Math.max(0, (b.supplyT || 0) - dt);
-      if (b.supplyT > 0 || !pl.gunSlots.length) return;
-      const dry = pl.gunSlots.every((id) => { const a = pl.ammo[id], d = G.WEAPON_DEFS[id]; return !a || !d || a.mag + a.reserve < d.magSize * 0.5; });
-      if (!dry || (game.drops || []).some((d) => d.arena)) return;
-      const A = this.arena, r = A.rect, P = game.yawObject.position;
-      let best = null, bs = -1;
-      for (let i = 0; i < 12; i++) {
-        const a = i / 12 * Math.PI * 2, x = P.x + Math.cos(a) * 5, z = P.z + Math.sin(a) * 5;
-        if (x < r.minX + 2 || x > r.maxX - 2 || z < r.minZ + 2 || z > r.maxZ - 2) continue;
-        const s = Math.hypot(x - b.pos.x, z - b.pos.z);
-        if (s > bs) { bs = s; best = { x, z }; }
+      const A = G.CONFIG.boss.arenaAmmo;
+      if (b.supplyT == null) b.supplyT = A.firstAfter;
+      b.supplyT -= dt;
+      if (b.supplyT <= 0) {
+        b.supplyT = A.every[0] + Math.random() * (A.every[1] - A.every[0]);
+        if ((game.drops || []).filter((d) => d.arena).length < A.maxLying) this.dropAmmo(game, b, false);
       }
-      if (!best) best = { x: (r.minX + r.maxX) / 2, z: (r.minZ + r.maxZ) / 2 };
-      game.spawnDrop("ammo", new V3(best.x, A.floorY, best.z));
+      b.dropsDone = b.dropsDone || 0;
+      while (b.dropsDone < A.dropsAt.length && b.hp <= b.maxHp * A.dropsAt[b.dropsDone]) { b.dropsDone++; this.dropAmmo(game, b, true); }
+    },
+    // fromBoss: out of the boss, towards the player; else anywhere open in
+    // the arena, clear of the boss and not right under the player's feet
+    dropAmmo(game, b, fromBoss) {
+      const AR = this.arena, r = AR.rect, P = game.yawObject.position, pad = 2.5;
+      const inside = (x, z) => x > r.minX + pad && x < r.maxX - pad && z > r.minZ + pad && z < r.maxZ - pad;
+      const blocked = (x, z) => G.ColGrid.near(game.world, x, z, 1.5, []).some((c) => c.min.y < AR.floorY + 1.5 && c.max.y > AR.floorY + 0.05 && x + 0.5 > c.min.x && x - 0.5 < c.max.x && z + 0.5 > c.min.z && z - 0.5 < c.max.z);
+      // (never in a pool of acid or anything else the boss has left burning)
+      const inPool = (x, z) => (this.pools || []).some((p) => Math.hypot(x - p.x, z - p.z) < p.r + 1);
+      let at = null;
+      if (fromBoss) {
+        // (not at the player's feet either, where it would be picked up unseen)
+        const dx = P.x - b.pos.x, dz = P.z - b.pos.z, d = Math.hypot(dx, dz) || 1;
+        for (const k of [b.rig.R + 2.5, b.rig.R + 1.5, b.rig.R + 4]) {
+          const x = b.pos.x + dx / d * k, z = b.pos.z + dz / d * k;
+          if (inside(x, z) && !blocked(x, z) && !inPool(x, z) && Math.hypot(x - P.x, z - P.z) > 2.5) { at = { x, z }; break; }
+        }
+      }
+      for (let i = 0; !at && i < 30; i++) {
+        const x = r.minX + pad + Math.random() * (r.maxX - r.minX - pad * 2), z = r.minZ + pad + Math.random() * (r.maxZ - r.minZ - pad * 2);
+        if (Math.hypot(x - b.pos.x, z - b.pos.z) < b.rig.R + 3 || Math.hypot(x - P.x, z - P.z) < 3 || blocked(x, z) || inPool(x, z)) continue;
+        at = { x, z };
+      }
+      if (!at) at = { x: (r.minX + r.maxX) / 2, z: (r.minZ + r.maxZ) / 2 };
+      game.spawnDrop("ammo", new V3(at.x, AR.floorY, at.z));
       game.drops[game.drops.length - 1].arena = true;
-      b.supplyT = 12;
-      FX.shock(best.x, best.z, 2.2, 0x3388ff, 0.6);
-      G.Audio.sfx("pickup");
+      FX.shock(at.x, at.z, 2.2, 0x3388ff, 0.6);
+      if (fromBoss) FX.sparks(at.x, AR.floorY + 1, at.z, 14, 0x6ab0ff, 4);
+      G.Audio.sfx("pickup", { pos: new V3(at.x, AR.floorY + 1, at.z) });
       if (!b.supplied) { b.supplied = true; G.UI.flashPurchaseBanner(G.T("banner.arenaAmmo"), G.T("banner.arenaAmmoText")); }
     },
     // how far into the level: 0 at the first boss (wave 5), 1 by wave 20.
@@ -1824,7 +1843,7 @@
     // sprint is 5.2 m/s times the gun's weight class
     laserCheck() {
       return Object.values(G.WEAPON_DEFS).map((d) => {
-        const sprint = 5.2 * G.weightClass(d).speedMult;
+        const sprint = G.CONFIG.player.sprintSpeed * G.weightClass(d).speedMult;
         return { id: d.id, sprint: Math.round(sprint * 100) / 100, ok: sprint > this.LASER_SPEED };
       });
     },

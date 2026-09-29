@@ -3,28 +3,7 @@
 // ============================================================
 window.G = window.G || {};
 
-// ---------------- Level definitions ----------------
-// names are "level.<id>" in js/strings.js, set on load by G.localizeData
-// (new list, round 2: twenty waves each, a boss every fifth -- the curve is
-// G.WAVE_TABLE and G.BOSS_EVERY in js/systems.js; `difficulty` makes the
-// later levels harder)
-G.LEVELS = [
-  {
-    id: 1, theme: "school", icon: "🏚️", wordsKey: "level1",
-    waves: 20, difficulty: 1,
-    spawnBaseInterval: 5.0, maxAliveZombies: 7,
-  },
-  {
-    id: 2, theme: "hospital", icon: "🏥", wordsKey: "level2",
-    waves: 20, difficulty: 1.35,
-    spawnBaseInterval: 4.2, maxAliveZombies: 9,
-  },
-  {
-    id: 3, theme: "bunker", icon: "🛡️", wordsKey: "level3",
-    waves: 20, difficulty: 1.7,
-    spawnBaseInterval: 3.4, maxAliveZombies: 11,
-  },
-];
+// ---------------- Level definitions: G.LEVELS is in js/config.js ----------------
 
 G.getLevel = (id) => G.LEVELS.find((l) => l.id === id);
 

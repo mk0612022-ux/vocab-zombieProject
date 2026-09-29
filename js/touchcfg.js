@@ -18,7 +18,7 @@ G.TouchCfg = {
   editing: false,
   _sel: null,
 
-  defaults() { return { pos: {}, scale: {}, opacity: 1, lookSens: 1 }; },
+  defaults() { return { pos: {}, scale: {}, opacity: 1, lookSens: 1, btnLookSens: 1 }; },
 
   // Tolerates a save file written before this feature existed, and repairs a
   // partially-written one rather than throwing halfway through a frame.
@@ -30,6 +30,7 @@ G.TouchCfg = {
     if (!c.scale || typeof c.scale !== "object") c.scale = {};
     if (!Number.isFinite(c.opacity)) c.opacity = 1;
     if (!Number.isFinite(c.lookSens)) c.lookSens = 1;
+    if (!Number.isFinite(c.btnLookSens)) c.btnLookSens = 1;       // dragging from FIRE / AIM (new series, round 1, D)
     return c;
   },
 
@@ -98,6 +99,8 @@ G.TouchCfg = {
   setOpacity(v) { this.cfg().opacity = Math.min(1, Math.max(0.2, v)); this.apply(); },
   setLookSens(v) { this.cfg().lookSens = Math.min(3, Math.max(0.3, v)); },
   lookSens() { return this.cfg().lookSens; },
+  setBtnLookSens(v) { this.cfg().btnLookSens = Math.min(3, Math.max(0.3, v)); },
+  btnLookSens() { return this.cfg().btnLookSens; },
 
   resetOne(id) { const c = this.cfg(); delete c.pos[id]; delete c.scale[id]; this.apply(); G.persist(); },
   resetAll() {
@@ -264,11 +267,18 @@ G.TouchCfg = {
       p("touchcfg-sensval").textContent = "(" + parseFloat(e.target.value).toFixed(2) + "x)";
     };
     p("touchcfg-sens").onchange = () => G.persist();
+    p("touchcfg-bsens").oninput = (e) => {
+      this.setBtnLookSens(parseFloat(e.target.value));
+      p("touchcfg-bsensval").textContent = "(" + parseFloat(e.target.value).toFixed(2) + "x)";
+    };
+    p("touchcfg-bsens").onchange = () => G.persist();
     p("touchcfg-reset").onclick = () => {
       if (!confirm(G.T("touchcfg.confirmReset"))) return;
       this.resetAll(); this.renderPanel();
     };
     p("touchcfg-done").onclick = () => this.closeEditor();
+    // (new series, round 1, F) the HUD's sizes, from here too
+    p("touchcfg-hud").onclick = () => { this.closeEditor(); G.HudCfg.openEditor({ back: "touchcfg" }); };
   },
 
   renderPanel() {
@@ -277,6 +287,8 @@ G.TouchCfg = {
     p("touchcfg-opval").textContent = "(" + Math.round(c.opacity * 100) + "%)";
     p("touchcfg-sens").value = c.lookSens;
     p("touchcfg-sensval").textContent = "(" + c.lookSens.toFixed(2) + "x)";
+    p("touchcfg-bsens").value = c.btnLookSens;
+    p("touchcfg-bsensval").textContent = "(" + c.btnLookSens.toFixed(2) + "x)";
     this.syncPanelSelection();
   },
 

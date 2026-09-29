@@ -176,10 +176,10 @@
     <div class="hud-left">
       <div class="hud-stat hud-health"><span class="hud-icon">❤</span><div class="bar-track"><div class="bar-fill hp-fill" id="hud-hp-fill"></div></div><span id="hud-hp-text">100</span></div>
       <div class="hud-stat hud-stamina"><span class="hud-icon">⚡</span><div class="bar-track"><div class="bar-fill stamina-fill" id="hud-stamina-fill"></div></div></div>
-      <div class="hud-stat"><span class="hud-icon">💰</span><span id="hud-money">0</span></div>
-      <div class="hud-stat"><span class="hud-icon">⭐</span><span id="hud-score">0</span></div>
-      <div class="hud-stat"><span id="hud-level-wave"></span></div>
-      <div class="hud-stat"><span id="hud-zombies-left"></span></div>
+      <div class="hud-stat hud-money-stat"><span class="hud-icon">💰</span><span id="hud-money">0</span></div>
+      <div class="hud-stat hud-score-stat"><span class="hud-icon">⭐</span><span id="hud-score">0</span></div>
+      <div class="hud-stat hud-wave-stat"><span id="hud-level-wave"></span></div>
+      <div class="hud-stat hud-wave-stat"><span id="hud-zombies-left"></span></div>
       <div class="hud-perks hidden" id="hud-perks"></div>
     </div>
     <div class="hud-right">
@@ -219,16 +219,20 @@
 
 <!-- Touch controls -->
 <div id="touch-controls" class="touch-controls hidden">
-  <div id="touch-joystick" class="touch-joystick"><div id="touch-joystick-knob" class="touch-joystick-knob"></div></div>
+  <!-- (new series, round 1, E) frosted-glass buttons with icons; the name of
+       each sits under it (data-label-key), the full one is its aria-label -->
+  <div id="touch-joystick" class="touch-joystick">
+    <svg class="tj-arrows" viewBox="0 0 100 100" aria-hidden="true"><path d="M50 9 l-6 7 h12z M50 91 l-6 -7 h12z M9 50 l7 -6 v12z M91 50 l-7 -6 v12z"/></svg>
+    <div id="touch-joystick-knob" class="touch-joystick-knob"></div>
+  </div>
   <div id="touch-lookzone" class="touch-lookzone"></div>
-  <button id="touch-fire" class="touch-btn touch-fire" data-i18n="touch.fire"></button>
-  <button id="touch-ads" class="touch-btn touch-ads" data-i18n="touch.aim"></button>
-  <!-- (B) the one-letter buttons carry their name under them -->
-  <button id="touch-interact" class="touch-btn touch-interact icon-btn" data-i18n="touch.interact" data-label-key="touch.interactLabel"></button>
-  <button id="touch-reload" class="touch-btn touch-reload icon-btn" data-i18n="touch.reload" data-label-key="touch.reloadLabel"></button>
-  <button id="touch-jump" class="touch-btn touch-jump" data-i18n="touch.jump"></button>
-  <button id="touch-sprint" class="touch-btn touch-sprint" data-i18n="touch.sprint"></button>
-  <button id="touch-pause" class="touch-btn touch-pause icon-btn" data-i18n="touch.pause" data-label-key="touch.pauseLabel"></button>
+  <button id="touch-fire" class="touch-btn touch-fire icon-btn" data-i18n-aria="touch.fireLabel" data-label-key="touch.fireLabel"><svg class="tb-ico" viewBox="0 0 24 24" aria-hidden="true"><path class="fill" d="M10.2 2.5h3.6l1.2 3.2v9.8H9V5.7z"/><path d="M8 18h8M8.8 21h6.4M12 2.5v3"/></svg></button>
+  <button id="touch-ads" class="touch-btn touch-ads icon-btn" data-i18n-aria="touch.aimLabel" data-label-key="touch.aimLabel"><svg class="tb-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6.5"/><path d="M12 2.5v5M12 16.5v5M2.5 12h5M16.5 12h5"/><circle class="fill" cx="12" cy="12" r="1.3"/></svg></button>
+  <button id="touch-interact" class="touch-btn touch-interact icon-btn" data-i18n-aria="touch.interactLabel" data-label-key="touch.interactLabel"><svg class="tb-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 12V5.5a1.5 1.5 0 0 1 3 0V11M11.5 10V4a1.5 1.5 0 0 1 3 0v6.5M14.5 10.5V6a1.5 1.5 0 0 1 3 0v7c0 4-2.5 7.5-6.5 7.5-3 0-4.5-1.5-6-4l-1.8-3.2a1.4 1.4 0 0 1 2.4-1.4L8.5 14"/></svg><span class="tb-key">E</span></button>
+  <button id="touch-reload" class="touch-btn touch-reload icon-btn" data-i18n-aria="touch.reloadLabel" data-label-key="touch.reloadLabel"><span class="tb-ring" aria-hidden="true"></span><svg class="tb-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path class="fill" d="M20.5 3.5v6h-6z"/></svg></button>
+  <button id="touch-jump" class="touch-btn touch-jump icon-btn" data-i18n-aria="touch.jumpLabel" data-label-key="touch.jumpLabel"><svg class="tb-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 13l7-7 7 7M8 18l4-4 4 4"/></svg></button>
+  <button id="touch-sprint" class="touch-btn touch-sprint icon-btn" data-i18n-aria="touch.sprintLabel" data-label-key="touch.sprintLabel"><svg class="tb-ico" viewBox="0 0 24 24" aria-hidden="true"><circle class="fill" cx="15" cy="4" r="2"/><path d="M8.5 9.5l3.5-2 3 2 2 3.5 3 .5M12 7.5l-1.5 6 4 3-1 5M10.5 13.5l-3 4-4-.5M5 9.5h3"/></svg></button>
+  <button id="touch-pause" class="touch-btn touch-pause icon-btn" data-i18n-aria="touch.pauseLabel" data-label-key="touch.pauseLabel"><svg class="tb-ico" viewBox="0 0 24 24" aria-hidden="true"><path class="fill" d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/></svg></button>
   <div id="touch-slots" class="touch-slots"></div>
   <!-- (round 3, H) one button per ability held -->
   <div id="touch-abilities" class="touch-abilities empty"></div>
@@ -259,9 +263,26 @@
       <input type="range" id="touchcfg-op" min="0.2" max="1" step="0.05" value="1"></div>
     <div class="touchcfg-row"><label><span data-i18n="touchcfg.sens"></span> <span id="touchcfg-sensval"></span></label>
       <input type="range" id="touchcfg-sens" min="0.3" max="3" step="0.05" value="1"></div>
+    <div class="touchcfg-row"><label><span data-i18n="touchcfg.bsens"></span> <span id="touchcfg-bsensval"></span></label>
+      <input type="range" id="touchcfg-bsens" min="0.3" max="3" step="0.05" value="1"></div>
+    <div class="touchcfg-row"><label></label><button id="touchcfg-hud" data-i18n="touchcfg.hudSizes"></button></div>
     <div class="touchcfg-actions">
       <button id="touchcfg-reset" data-i18n="touchcfg.resetAll"></button>
       <button id="touchcfg-done" class="primary" data-i18n="touchcfg.done"></button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== HUD SIZES (new series round 1, js/hudcfg.js) ===================== -->
+<div id="hudcfg-panel" class="touchcfg-panel hudcfg-panel hidden" role="dialog" aria-modal="true" aria-labelledby="hudcfg-title">
+  <div class="touchcfg-head"><strong id="hudcfg-title" data-i18n="hudcfg.title"></strong></div>
+  <div class="touchcfg-body">
+    <div class="touchcfg-hint" data-i18n="hudcfg.hint"></div>
+    <div id="hudcfg-rows"></div>
+    <div class="hudcfg-fit hidden" id="hudcfg-fit"></div>
+    <div class="touchcfg-actions">
+      <button id="hudcfg-reset" data-i18n="hudcfg.reset"></button>
+      <button id="hudcfg-done" class="primary" data-pad-back><span data-i18n="hudcfg.done"></span> <span class="kbd-only">(Esc)</span></button>
     </div>
   </div>
 </div>
@@ -401,6 +422,31 @@
   </div>
 </div>
 
+<!-- ===================== END-OF-WAVE QUIZ (new series round 1, js/quiz.js) ===================== -->
+<div id="screen-quiz" class="screen hidden">
+  <div class="quiz-box" role="dialog" aria-modal="true" aria-labelledby="quiz-kicker">
+    <div class="quiz-head">
+      <div class="quiz-kicker" id="quiz-kicker"></div>
+      <div class="quiz-counters"><span class="qc ok" id="quiz-correct"></span><span class="qc bad" id="quiz-mistakes"></span></div>
+    </div>
+    <div class="quiz-q" id="quiz-q">
+      <div class="quiz-progress" id="quiz-progress"></div>
+      <div class="quiz-ask" id="quiz-ask"></div>
+      <div class="quiz-prompt" id="quiz-prompt"></div>
+      <div class="quiz-choices" id="quiz-choices"></div>
+      <div class="quiz-timer"><div class="quiz-timer-fill" id="quiz-timer-fill"></div></div>
+      <div class="quiz-feedback" id="quiz-feedback" role="status"></div>
+      <div class="quiz-hint kbd-only" data-i18n="quiz.hint"></div>
+    </div>
+    <div class="quiz-result hidden" id="quiz-result">
+      <div class="quiz-verdict" id="quiz-verdict"></div>
+      <div class="quiz-verdict-sub" id="quiz-verdict-sub"></div>
+      <div class="quiz-missed" id="quiz-missed"></div>
+      <div class="row-center"><button class="btn btn-primary" id="btn-quiz-continue"><span data-i18n="quiz.continue"></span> <span class="kbd-only">(Enter)</span></button></div>
+    </div>
+  </div>
+</div>
+
 <!-- ===================== QUESTION WINDOW (round 3, js/dialog.js) ===================== -->
 <div id="dialog" class="dialog-overlay hidden">
   <div class="dialog-box" id="dialog-box" role="alertdialog" aria-modal="true" aria-labelledby="dialog-title" aria-describedby="dialog-text">
@@ -485,6 +531,7 @@ window.addEventListener("load", function () {
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="js/strings.js"></script>
+<script src="js/config.js"></script>
 <script src="js/data/words_school.js"></script>
 <script src="js/data/words_hospital.js"></script>
 <script src="js/data/words_bunker.js"></script>
@@ -529,6 +576,8 @@ window.addEventListener("load", function () {
 <script src="js/tutorial.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/abilityui.js"></script>
+<script src="js/quiz.js"></script>
+<script src="js/hudcfg.js"></script>
 <script src="js/tips.js"></script>
 <script src="js/journal.js"></script>
 <script src="js/bosscodex.js"></script>

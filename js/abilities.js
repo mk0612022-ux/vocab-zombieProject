@@ -34,34 +34,16 @@
 (function () {
   const V3 = THREE.Vector3;
 
-  G.ABILITIES = [
-    { id: "dash", icon: "💨", cat: "move", cd: 6 },
-    { id: "overdrive", icon: "⚡", cat: "move", cd: 24, dur: 6 },
-    { id: "vault", icon: "🦘", cat: "move", cd: 10 },
-    { id: "rewind", icon: "⏪", cat: "move", cd: 20 },
-    { id: "barrier", icon: "🛡️", cat: "defend", cd: 22, dur: 4 },
-    { id: "smoke", icon: "🌫️", cat: "defend", cd: 24, dur: 5 },
-    { id: "decoy", icon: "🎭", cat: "defend", cd: 22, dur: 6 },
-    { id: "patch", icon: "🩹", cat: "defend", cd: 30, dur: 3 },
-    { id: "freeze", icon: "🧊", cat: "control", cd: 14, dur: 4.5 },
-    { id: "shockwave", icon: "🌀", cat: "control", cd: 12 },
-    { id: "timewarp", icon: "⏳", cat: "control", cd: 22, dur: 5 },
-    { id: "glue", icon: "🍯", cat: "control", cd: 18, dur: 8 },
-    { id: "flashbang", icon: "✨", cat: "control", cd: 16, dur: 2.5 },
-    { id: "well", icon: "🧿", cat: "control", cd: 20, dur: 3 },
-    { id: "radar", icon: "📡", cat: "words", cd: 20, dur: 8 },
-    { id: "whisper", icon: "🔡", cat: "words", cd: 25, dur: 10 },
-    { id: "fifty", icon: "✂️", cat: "words", cd: 30, dur: 10 },
-    { id: "lens", icon: "🔍", cat: "words", cd: 40, dur: 6 },
-    { id: "resupply", icon: "📦", cat: "support", cd: 28 },
-    { id: "magnet", icon: "🧲", cat: "support", cd: 25 },
-  ];
+  // the twenty, with their cooldowns and durations: G.ABILITIES in
+  // js/config.js; what each does with its numbers: G.CONFIG.abilities
   G.ABILITY_BY_ID = {};
   G.ABILITIES.forEach((a) => { G.ABILITY_BY_ID[a.id] = a; });
+  const C = G.CONFIG.abilities;
+  const dur = (id) => G.ABILITY_BY_ID[id].dur;
   // what each one does to a boss (the rest: nothing)
-  const BOSS_FREEZE = 0.8, BOSS_STAGGER = 0.4, BOSS_WARP = 0.8, BOSS_GLUE = 0.75;
+  const BOSS_FREEZE = C.freeze.boss, BOSS_STAGGER = C.shockwave.boss, BOSS_WARP = C.timewarp.boss, BOSS_GLUE = C.glue.boss;
   // the sizes of things, shared with the tests
-  const R = { smoke: 12, decoy: 15, warp: 12, glue: 3.6, well: 10, shock: 6, flash: 15, magnet: 30, freezeRange: 40 };
+  const R = { smoke: C.smoke.radius, decoy: C.decoy.radius, warp: C.timewarp.radius, glue: C.glue.radius, well: C.well.radius, shock: C.shockwave.radius, flash: C.flashbang.range, magnet: C.magnet.radius, freezeRange: C.freeze.range };
 
   const tmp = new V3(), tmp2 = new V3();
   const FX = () => G.BossFX;
@@ -97,7 +79,7 @@
   }
 
   G.Abilities = {
-    MAX: 4, OFFER: 5, TRAIL_SECONDS: 4, R,
+    MAX: C.max, OFFER: C.offer, TRAIL_SECONDS: C.rewind.seconds, R,
     slots: [], bag: [], fx: {}, trail: [], _trailT: 0,
 
     name(id) { return G.T("ability." + id + ".name"); },
@@ -192,13 +174,13 @@
       if (F._dashLeft > 0) {
         const s = Math.min(F._dashLeft, dt);
         F._dashLeft -= s;
-        game.tryMove(F.dashDir.x * 34 * s, F.dashDir.z * 34 * s);
+        game.tryMove(F.dashDir.x * C.dash.speed * s, F.dashDir.z * C.dash.speed * s);
         if (Math.random() < 0.8) FX().mote(P.x, P.y - 1.2, P.z, 0, 0.4, 0, 0x9ae8ff, 0.4, 2, 0);
       }
-      if (F.vaultT > 0 && game.velocityY !== 0) game.tryMove(F.vaultDir.x * 6.5 * dt, F.vaultDir.z * 6.5 * dt);
+      if (F.vaultT > 0 && game.velocityY !== 0) game.tryMove(F.vaultDir.x * C.vault.forward * dt, F.vaultDir.z * C.vault.forward * dt);
       if (F.patch > 0) game.player.hp = Math.min(game.player.maxHp, game.player.hp + F._patchRate * dt);
       // the fields and clouds, shown as long as they last
-      if (F.decoy > 0 && F.decoyMesh) { F.decoyMesh.rotation.y += dt * 0.6; if (F.decoyRing) F.decoyRing.set({ prog: 1 - F.decoy / 6 }); }
+      if (F.decoy > 0 && F.decoyMesh) { F.decoyMesh.rotation.y += dt * 0.6; if (F.decoyRing) F.decoyRing.set({ prog: 1 - F.decoy / dur("decoy") }); }
       if (!(F.decoy > 0) && F.decoyMesh) this.dropDecoy();
       [["timewarp", "warpDecal"], ["glue", "glueDecal"], ["well", "wellDecal"], ["smoke", "smokeDecal"]].forEach(([k, d]) => {
         if (F[k] > 0) {
@@ -248,9 +230,9 @@
     // boss): none while dashing, a quarter behind the Barrier
     damageTakenMult() {
       if (this.fx.dashSafe > 0) return 0;
-      return this.fx.barrier > 0 ? 0.25 : 1;
+      return this.fx.barrier > 0 ? C.barrier.damageTaken : 1;
     },
-    moveMult() { return this.fx.overdrive > 0 ? 1.25 : 1; },
+    moveMult() { return this.fx.overdrive > 0 ? C.overdrive.speedMult : 1; },
     freeStamina() { return this.fx.overdrive > 0; },
     fovKick() { return (this.fx._dashLeft > 0 ? 9 : 0) + (this.fx.overdrive > 0 ? 3 : 0); },
     whisper() { return this.fx.whisper > 0; },
@@ -267,7 +249,7 @@
       if (F.well > 0 && Math.hypot(p.x - F.wellAt.x, p.z - F.wellAt.z) < R.well && Math.abs(p.y - F.wellAt.y) < 2) {
         // pulled in, stumbling: no bite
         const dx = F.wellAt.x - p.x, dz = F.wellAt.z - p.z, d = Math.hypot(dx, dz);
-        if (d > 0.9) game.pushZombie(z, dx, dz, Math.min(d - 0.9, 3.2 * dt));
+        if (d > 0.9) game.pushZombie(z, dx, dz, Math.min(d - 0.9, C.well.pull * dt));
         m.skip = true; m.noBite = true;
         return m;
       }
@@ -282,8 +264,8 @@
       } else if (F.decoy > 0 && F.decoyAt && Math.hypot(p.x - F.decoyAt.x, p.z - F.decoyAt.z) < R.decoy && Math.abs(p.y - F.decoyAt.y) < 2) {
         m.target = F.decoyAt; m.noBite = true;
       }
-      if (F.timewarp > 0 && Math.hypot(p.x - F.warpAt.x, p.z - F.warpAt.z) < R.warp) m.speed *= 0.33;
-      if (F.glue > 0 && Math.hypot(p.x - F.glueAt.x, p.z - F.glueAt.z) < R.glue && Math.abs(p.y - F.glueAt.y) < 1.5) m.speed *= 0.2;
+      if (F.timewarp > 0 && Math.hypot(p.x - F.warpAt.x, p.z - F.warpAt.z) < R.warp) m.speed *= C.timewarp.speed;
+      if (F.glue > 0 && Math.hypot(p.x - F.glueAt.x, p.z - F.glueAt.z) < R.glue && Math.abs(p.y - F.glueAt.y) < 1.5) m.speed *= C.glue.speed;
       return m;
     },
     // a boss: how much of its time passes (Time Warp, Glue)
@@ -524,14 +506,14 @@
       const gp = I.pollGamepad();
       if (gp) { const lx = gp.axes[0] || 0, ly = gp.axes[1] || 0; if (Math.hypot(lx, ly) > 0.25) { mx += lx; mz += ly; } }
       const dir = Math.hypot(mx, mz) > 0.2 ? f.clone().multiplyScalar(-mz).add(r.clone().multiplyScalar(mx)).normalize() : f;
-      A.fx.dashDir = dir; A.fx._dashLeft = 0.18; A.fx.dashT = 0.18; A.fx.dashSafe = 0.3;
+      A.fx.dashDir = dir; A.fx._dashLeft = C.dash.time; A.fx.dashT = C.dash.time; A.fx.dashSafe = C.dash.safe;
       ensureFX(game);
       return true;
     },
-    overdrive(A, game) { A.fx.overdrive = 6; game.stamina = game.maxStamina; game.staminaExhausted = false; return true; },
+    overdrive(A, game) { A.fx.overdrive = dur("overdrive"); game.stamina = game.maxStamina; game.staminaExhausted = false; return true; },
     vault(A, game) {
       if (game.velocityY !== 0) return false;              // already in the air
-      game.velocityY = 6.2;                                // about two metres up: over their heads
+      game.velocityY = C.vault.up;                         // about two metres up: over their heads
       A.fx.vaultDir = flatFwd(game); A.fx.vaultT = 1.4;
       ensureFX(game);
       const P = game.yawObject.position;
@@ -551,33 +533,33 @@
       if (G.Zones) G.Zones.update(game, true);
       return true;
     },
-    barrier(A) { A.fx.barrier = 4; return true; },
+    barrier(A) { A.fx.barrier = dur("barrier"); return true; },
     smoke(A, game) {
       ensureFX(game);
       const P = game.yawObject.position, y = feetY(game);
-      A.fx.smoke = 5; A.fx.smokeAt = new V3(P.x, y, P.z);
+      A.fx.smoke = dur("smoke"); A.fx.smokeAt = new V3(P.x, y, P.z);
       if (A.fx.smokeDecal) A.fx.smokeDecal.hide();
       A.fx.smokeDecal = FX().decal({ mode: "blob", x: P.x, z: P.z, y: y + 0.05, r: R.smoke - 1, w: 3, color: 0x3a3e44, opacity: 0.5 });
-      game.zombies.forEach((z) => { if (z.alive && Math.hypot(z.mesh.position.x - P.x, z.mesh.position.z - P.z) < R.smoke && Math.abs(z.mesh.position.y - y) < 2) { z.lostT = 5; z._wander = null; } });
+      game.zombies.forEach((z) => { if (z.alive && Math.hypot(z.mesh.position.x - P.x, z.mesh.position.z - P.z) < R.smoke && Math.abs(z.mesh.position.y - y) < 2) { z.lostT = dur("smoke"); z._wander = null; } });
       return true;
     },
     decoy(A, game) {
       ensureFX(game);
       A.dropDecoy();
       const f = flatFwd(game), P = game.yawObject.position;
-      let x = P.x + f.x * 2.2, z = P.z + f.z * 2.2;
-      if (game.wallDistance(tmp2.set(P.x, P.y - 1, P.z), tmp.set(f.x, 0, f.z), 2.2) < 2.2) { x = P.x + f.x * 0.8; z = P.z + f.z * 0.8; }
+      let x = P.x + f.x * C.decoy.distance, z = P.z + f.z * C.decoy.distance;
+      if (game.wallDistance(tmp2.set(P.x, P.y - 1, P.z), tmp.set(f.x, 0, f.z), C.decoy.distance) < C.decoy.distance) { x = P.x + f.x * 0.8; z = P.z + f.z * 0.8; }
       const y = G.getFloorHeightAt(game.world, x, z, P.y - 1.7);
       const m = A.buildDecoy();
       m.position.set(x, y, z); m.rotation.y = game.yawObject.rotation.y + Math.PI;
       game.scene.add(m);
-      A.fx.decoy = 6; A.fx.decoyAt = new V3(x, y, z); A.fx.decoyMesh = m;
+      A.fx.decoy = dur("decoy"); A.fx.decoyAt = new V3(x, y, z); A.fx.decoyMesh = m;
       A.fx.decoyRing = FX().decal({ mode: "disc", x, z, y: y + 0.05, r: 1.3, w: 0.3, color: 0xff7ad0, opacity: 0.8, prog: 0, add: true });
       return true;
     },
     patch(A, game) {
       if (game.player.hp >= game.player.maxHp - 0.5) return false;
-      A.fx.patch = 3; A.fx._patchRate = game.player.maxHp * 0.35 / 3;
+      A.fx.patch = dur("patch"); A.fx._patchRate = game.player.maxHp * C.patch.heal / dur("patch");
       return true;
     },
     freeze(A, game) {
@@ -603,7 +585,7 @@
       game.zombies.forEach((z) => {
         if (!z.alive || z.emerge) return;
         const dx = z.mesh.position.x - P.x, dz = z.mesh.position.z - P.z, d = Math.hypot(dx, dz);
-        if (d < R.shock && Math.abs(z.mesh.position.y - y) < 2) { game.pushZombie(z, dx, dz, 4); z.stunT = Math.max(z.stunT || 0, 1.0); }
+        if (d < R.shock && Math.abs(z.mesh.position.y - y) < 2) { game.pushZombie(z, dx, dz, C.shockwave.push); z.stunT = Math.max(z.stunT || 0, C.shockwave.daze); }
       });
       const b = G.Bosses.fighting() ? G.Bosses.boss : null;
       if (b && Math.hypot(b.pos.x - P.x, b.pos.z - P.z) < R.shock + b.rig.R) b.frozenT = Math.max(b.frozenT || 0, BOSS_STAGGER);
@@ -613,15 +595,15 @@
     timewarp(A, game) {
       ensureFX(game);
       const P = game.yawObject.position, y = feetY(game);
-      A.fx.timewarp = 5; A.fx.warpAt = new V3(P.x, y, P.z);
+      A.fx.timewarp = dur("timewarp"); A.fx.warpAt = new V3(P.x, y, P.z);
       if (A.fx.warpDecal) A.fx.warpDecal.hide();
       A.fx.warpDecal = FX().decal({ mode: "ring", x: P.x, z: P.z, y: y + 0.06, r: R.warp, w: 0.6, color: 0x7ad8ff, opacity: 0.8, add: true });
       return true;
     },
     glue(A, game) {
       ensureFX(game);
-      const at = A.aimFloor(game, 22);
-      A.fx.glue = 8; A.fx.glueAt = at;
+      const at = A.aimFloor(game, C.glue.range);
+      A.fx.glue = dur("glue"); A.fx.glueAt = at;
       if (A.fx.glueDecal) A.fx.glueDecal.hide();
       A.fx.glueDecal = FX().decal({ mode: "blob", x: at.x, z: at.z, y: at.y + 0.05, r: R.glue - 0.1, w: 0.6, color: 0xd89a2a, opacity: 0.85 });
       FX().burst(at.x, at.y + 0.2, at.z, 10, 0xd89a2a, 3, 0.15, 2);
@@ -632,29 +614,29 @@
       game.zombies.forEach((z) => {
         if (!z.alive || z.emerge) return;
         const dx = z.mesh.position.x - P.x, dz = z.mesh.position.z - P.z, d = Math.hypot(dx, dz);
-        if (d < R.flash && (dx * f.x + dz * f.z) / (d || 1) > 0.35 && Math.abs(z.mesh.position.y - (P.y - 1.7)) < 2.5) z.stunT = Math.max(z.stunT || 0, 2.5);
+        if (d < R.flash && (dx * f.x + dz * f.z) / (d || 1) > 0.35 && Math.abs(z.mesh.position.y - (P.y - 1.7)) < 2.5) z.stunT = Math.max(z.stunT || 0, dur("flashbang"));
       });
       if (G.Cutscene) G.Cutscene.flashScreen(0.45);
       return true;
     },
     well(A, game) {
       ensureFX(game);
-      const at = A.aimFloor(game, 12);
-      A.fx.well = 3; A.fx.wellAt = at;
+      const at = A.aimFloor(game, C.well.range);
+      A.fx.well = dur("well"); A.fx.wellAt = at;
       if (A.fx.wellDecal) A.fx.wellDecal.hide();
       A.fx.wellDecal = FX().decal({ mode: "disc", x: at.x, z: at.z, y: at.y + 0.05, r: 1.6, w: 0.5, color: 0xb07aff, opacity: 0.9, prog: 1, add: true });
       return true;
     },
-    radar(A, game) { if (!game.targetPair) return false; A.fx.radar = 8; return true; },
-    whisper(A, game) { if (!game.targetPair) return false; A.fx.whisper = 10; return true; },
+    radar(A, game) { if (!game.targetPair) return false; A.fx.radar = dur("radar"); return true; },
+    whisper(A, game) { if (!game.targetPair) return false; A.fx.whisper = dur("whisper"); return true; },
     fifty(A, game) {
       if (!game.targetPair) return false;
       if (A.fx.fiftyOn) A.clearFifty(game);
       if (!crossOut(A, game)) { A.fx.fiftyOn = false; return false; }
-      A.fx.fifty = 10;
+      A.fx.fifty = dur("fifty");
       return true;
     },
-    lens(A) { A.fx.lens = 6; A._lensT = 0; return true; },
+    lens(A) { A.fx.lens = dur("lens"); A._lensT = 0; return true; },
     resupply(A, game) {
       const pl = game.player;
       if (!pl.gunSlots.length) return false;
@@ -662,7 +644,7 @@
         const d = G.WEAPON_DEFS[id], a = pl.ammo[id];
         if (!d || !a) return;
         const mag = Math.round(d.magSize * (pl.weaponLevels[id] ? pl.weaponLevels[id].mag : 1));
-        a.mag = mag; a.reserve += mag;
+        a.mag = mag; a.reserve += mag * C.resupply.spareMags;
       });
       game.cancelReload();
       G.UI.pulseHudStat("ammo");

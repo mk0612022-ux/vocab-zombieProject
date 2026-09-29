@@ -83,6 +83,16 @@ G.Round7Test = (function () {
       G.UI.hivePick(pick || 0); G.UI.hiveFinishReveal();
       G.UI.hiveClose(null, A.slots.length >= A.MAX && G.UI._hive && G.UI._hive.stage === "replace");
     }
+    quiz(true);
+    return true;
+  }
+  // (new series, round 1) the wave's six-question quiz, answered right (or wrong)
+  function quiz(pass) {
+    const Q = G.Quiz;
+    if (!Q.active) return false;
+    let n = 0;
+    while (Q.stage !== "result" && n++ < 40) { if (Q.stage === "question") { const q = Q.qs[Q.i]; Q.answer(pass === false ? (q.answer + 1) % q.choices.length : q.answer); } Q.update(5); }
+    Q.close();
     return true;
   }
 
@@ -272,12 +282,13 @@ G.Round7Test = (function () {
     pl.gunSlots = ["pistol", "smg"]; pl.ammo.smg = { mag: 0, reserve: 0 }; pl.weaponLevels.smg = { dmg: 1, rate: 1, mag: 1 }; pl.ammo.pistol = { mag: 0, reserve: 3 };
     b.supplyT = 0; g.drops.filter((d) => d.arena).forEach((d) => g.collectDrop(d));
     quiet(b); up(2);
-    const box = g.drops.find((d) => d.arena);
-    ok("bug fix: guns dry in a boss arena -> a supply box drops nearby", !!box && Math.hypot(box.mesh.position.x - P.x, box.mesh.position.z - P.z) < 6);
+    const box = g.drops.find((d) => d.arena), ar = B.arena.rect;
+    ok("C arena ammo: a supply box turns up in the arena", !!box && box.mesh.position.x > ar.minX && box.mesh.position.x < ar.maxX && box.mesh.position.z > ar.minZ && box.mesh.position.z < ar.maxZ);
     up(60);
-    ok("bug fix: ...one at a time", g.drops.filter((d) => d.arena).length === 1);
+    ok("C arena ammo: ...then the next 20-30 s later", g.drops.filter((d) => d.arena).length === 1 && b.supplyT >= 18 && b.supplyT <= 30, r1(b.supplyT));
     g.switchSlot(0); g.collectDrop(box);
-    ok("bug fix: ...it fills every gun, even with the knife out", pl.ammo.smg.reserve === G.WEAPON_DEFS.smg.magSize * 2 && pl.ammo.pistol.reserve === 3 + G.WEAPON_DEFS.pistol.magSize * 2);
+    const mags = G.CONFIG.boss.arenaAmmo.magsPerGun;
+    ok("bug fix: ...it fills every gun, even with the knife out", pl.ammo.smg.reserve === G.WEAPON_DEFS.smg.magSize * mags && pl.ammo.pistol.reserve === 3 + G.WEAPON_DEFS.pistol.magSize * mags);
     g.spawnDrop("ammo", P.clone()); const r0 = pl.ammo.pistol.reserve; g.collectDrop(g.drops[g.drops.length - 1]);
     ok("bug fix: an ammo pickup with the knife out is no longer lost", pl.ammo.pistol.reserve === r0 + G.WEAPON_DEFS.pistol.magSize * 2);
     B.reset(g);

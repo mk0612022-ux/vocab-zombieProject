@@ -5,42 +5,7 @@
 window.G = window.G || {};
 
 // ---------------- Spawner ----------------
-// ---------------- The waves (new list, round 2, F) ----------------
-// Twenty waves a level. The first four ease a new player in; 5, 10, 15 and 20
-// end with a boss (js/bosses.js) once their own zombies are down; in between
-// there are more zombies each wave, a little faster, and more of the quick
-// and the crawling kinds. One row per wave, for the school; the hospital and
-// the bunker take the same curve a notch harder (G.waveSpec).
-//   kills     zombies in the wave (a boss wave's, before its boss)
-//   speed     their walking speed, x the kind's own
-//   fast      share of fast zombies; crawler: of crawlers
-//   alive     at most this many at once
-//   every     seconds between spawns
-G.WAVE_COUNT = 20;
-G.BOSS_EVERY = 5;
-G.WAVE_TABLE = [
-  // kills speed fast crawler alive every
-  [6, 0.85, 0.00, 0.05, 4, 4.6],     // 1
-  [8, 0.90, 0.06, 0.06, 5, 4.2],     // 2
-  [10, 0.95, 0.10, 0.08, 5, 3.9],    // 3
-  [12, 1.00, 0.14, 0.09, 6, 3.6],    // 4
-  [12, 1.00, 0.15, 0.10, 6, 3.5],    // 5  boss
-  [14, 1.03, 0.18, 0.10, 7, 3.3],    // 6
-  [15, 1.05, 0.20, 0.11, 7, 3.1],    // 7
-  [16, 1.07, 0.22, 0.11, 7, 3.0],    // 8
-  [17, 1.09, 0.24, 0.12, 8, 2.9],    // 9
-  [16, 1.10, 0.25, 0.12, 8, 2.8],    // 10 boss
-  [18, 1.12, 0.27, 0.12, 8, 2.7],    // 11
-  [19, 1.14, 0.29, 0.13, 9, 2.6],    // 12
-  [20, 1.16, 0.31, 0.13, 9, 2.5],    // 13
-  [21, 1.18, 0.33, 0.14, 9, 2.4],    // 14
-  [20, 1.19, 0.34, 0.14, 9, 2.3],    // 15 boss
-  [22, 1.21, 0.36, 0.14, 10, 2.2],   // 16
-  [23, 1.23, 0.38, 0.15, 10, 2.1],   // 17
-  [24, 1.25, 0.40, 0.15, 10, 2.0],   // 18
-  [25, 1.27, 0.42, 0.15, 11, 1.9],   // 19
-  [22, 1.28, 0.44, 0.16, 11, 1.8],   // 20 boss
-];
+// ---------------- The waves: G.WAVE_COUNT, G.BOSS_EVERY and G.WAVE_TABLE are in js/config.js ----------------
 // the wave `wave` of `level`: its row, made harder for the later levels.
 // Campaign overtime (past 20, objectives still to do) plays like wave 19;
 // Endless keeps climbing slowly past 20, to a ceiling.
@@ -63,17 +28,7 @@ G.waveSpec = function (level, wave, mode) {
 };
 G.isBossWave = function (wave) { return wave > 0 && wave % G.BOSS_EVERY === 0; };
 
-// ---------------- Money (new list, round 2, F) ----------------
-// Twenty waves earn four times what five did, so what a run buys is priced
-// to match: the prices below are the old ones scaled, and the growth of the
-// two essentials is gentler (bought every wave for twenty waves, the old
-// 20%-a-time growth reached thirty times the first price).
-G.ECONOMY = {
-  waveBonus: (wave) => 50 + 10 * wave,           // a cleared wave, before the shop
-  bossBounty: (wave) => 200 + 30 * wave,         // a boss down
-  perkScale: 1.3,                                 // every perk's price
-  gunScale: 1.25,                                 // wall guns
-};
+// ---------------- Money: G.ECONOMY is in js/config.js ----------------
 (function () {
   Object.values(G.WEAPON_DEFS || {}).forEach((d) => { if (d.price && d.price < 9999) d.price = Math.round(d.price * G.ECONOMY.gunScale / 50) * 50; });
 })();
@@ -216,21 +171,7 @@ G.Shop = {
   recordPurchase(baseKey) { this.prices[baseKey] = (this.prices[baseKey] || 0) + 1; },
 };
 
-// labels are "shopItem.<id>" in js/strings.js, set on load by G.localizeData.
-// Full Health and Full Ammo are on sale at every shop; the perks rotate
-// (G.PERKS and G.PerkBag in js/perks.js); the rest is the armory.
-// (round 2: priced for twenty waves -- see G.ECONOMY)
-G.SHOP_ITEMS = [
-  { id: "heal", base: 150, growth: 1.07, kind: "heal", section: "essential" },
-  { id: "ammo_refill", base: 100, growth: 1.06, kind: "refill_ammo", section: "essential" },
-  { id: "dmg_up", base: 300, growth: 1.35, kind: "upgrade_damage" },
-  { id: "firerate_up", base: 350, growth: 1.35, kind: "upgrade_firerate" },
-  { id: "mag_up", base: 260, growth: 1.3, kind: "upgrade_mag" },
-  { id: "unlock_shotgun", base: 500, growth: 1, kind: "unlock", weapon: "shotgun", once: true },
-  { id: "unlock_smg", base: 1100, growth: 1, kind: "unlock", weapon: "smg", once: true },
-  { id: "unlock_rifle", base: 1500, growth: 1, kind: "unlock", weapon: "rifle", once: true },
-  { id: "crate_common", base: 750, growth: 1.15, kind: "crate" },
-];
+// ---------------- G.SHOP_ITEMS (what the shop sells, and for how much): js/config.js ----------------
 
 // ---------------- Achievements ----------------
 // The ids are save keys (G.save.achievements); name/desc come from

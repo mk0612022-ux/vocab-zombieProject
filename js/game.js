@@ -123,6 +123,9 @@ G.Game = {
 
   applyGraphicsQuality() {
     const q = G.save.settings.graphicsQuality;
+    // (the touch buttons' frosted glass blurs what is behind it every frame:
+    // not on the two lowest settings)
+    document.body.classList.toggle("fx-low", q === "vlow" || q === "low");
     this.renderer.shadowMap.enabled = q === "high" || q === "vhigh";
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, q === "vhigh" ? 2 : q === "high" ? 1.5 : 1));
     if (this.scene && this.scene.fog && this.level) {
@@ -262,7 +265,7 @@ G.Game = {
       // Category P raised it to 450 without touching the damage: in the
       // playtest, four of ten new-player runs were bitten to death by wave 2
       // (12-15 bites) at 375. Now a normal zombie's bite is 6.7% rather than 8%.
-      hp: 450, maxHp: 450, money: 0, score: 0,
+      hp: G.CONFIG.player.maxHp, maxHp: G.CONFIG.player.maxHp, money: 0, score: 0,   // (js/config.js)
       gunSlots: ["pistol"], currentSlot: 1,
       ammo: { pistol: { mag: G.WEAPON_DEFS.pistol.magSize, reserve: G.WEAPON_DEFS.pistol.magSize * 4 } },
       weaponLevels: { pistol: { dmg: 1, rate: 1, mag: 1 } },
@@ -301,7 +304,7 @@ G.Game = {
     G.Modal.reset();
     this.paused = false;
     this._onCrateClose = null; this._burst = null; this._chargeT = 0;
-    this.bossSlow = 1; this.bossRootT = 0; this._shakeT = 0; this._shakeA = 0; this._checkpointDue = false;
+    this.bossSlow = 1; this.bossRootT = 0; this._shakeT = 0; this._shakeA = 0; this._checkpointDue = false; this._quizDue = false;
     this._mysteryHand = null; this._mysteryPick = null;
     this.weaponAnim = { switchT: 0, switchDur: 0.42, pendingRebuild: false, recoilPos: 0, recoilRot: 0 };
     this.reloadState = null;
@@ -402,6 +405,7 @@ G.Game = {
     if (G.Notes) G.Notes.reset();
     if (G.Abilities) G.Abilities.clearWorld();
     if (G.Floor3) G.Floor3.clearWorld();
+    if (G.Quiz) G.Quiz.reset();
     // a boss, its cutscene, its arena walls and its effects
     if (G.Cutscene) G.Cutscene.stop();
     if (G.Bosses) G.Bosses.reset(this.world ? this : null);
@@ -439,7 +443,10 @@ G.Game = {
     // finish their objectives, not to escalate); Endless climbs slowly past
     // 20 to a ceiling.
     G.Spawner.reset(this.level, this.wave, this.mode);
-    this.requiredKills = G.Spawner.spec.kills;
+    // (new series, round 1, A2: never fewer zombies -- so words -- than the
+    // end-of-wave quiz has questions)
+    this.requiredKills = Math.max(G.Spawner.spec.kills, G.CONFIG.quiz.minWordsPerWave);
+    G.Quiz.resetWave(this);
     this.zombies.forEach((z) => (z.speedMultiplier = 1));
     this.currentDiff = this.level.difficulty + (Math.min(this.overtimeWave(), 20) - 1) * 0.18;
   },
@@ -480,11 +487,16 @@ G.Game = {
     const alive = this.zombies.filter((z) => z.alive);
     const usedWords = alive.map((z) => z.word);
     const usedMeanings = alive.map((z) => (z.meaning || "").trim());
-    let candidates = this.wordPool.filter((p) => !usedWords.includes(p[0]) && !usedMeanings.includes(p[1].trim()));
+    // (new series, round 1, A2) a word this wave has not had yet, while there
+    // is one: every wave brings as many different words as it has zombies, so
+    // the end-of-wave quiz always has at least six of its own to ask
+    let candidates = this.wordPool.filter((p) => !usedWords.includes(p[0]) && !usedMeanings.includes(p[1].trim()) && !G.Quiz.usedThisWave(this, p[0]));
+    if (candidates.length === 0) candidates = this.wordPool.filter((p) => !usedWords.includes(p[0]) && !usedMeanings.includes(p[1].trim()));
     if (candidates.length === 0) candidates = this.wordPool.filter((p) => !usedMeanings.includes(p[1].trim()));
     if (candidates.length === 0) candidates = this.wordPool;
     const pair = G.weightedSample(candidates, 1)[0] || G.pick(this.wordPool);
     const z = new G.Zombie(type, pos, pair, this.level.theme);
+    G.Quiz.noteWord(this, pair);                             // (the quiz asks this wave's words, A2)
     z.speed *= G.Spawner.spec ? G.Spawner.spec.speed : 1;   // the wave's pace (G.WAVE_TABLE): gentle early on
     this.scene.add(z.mesh);
     this.zombies.push(z);
@@ -906,13 +918,17 @@ G.Game = {
       G.Audio.sfx("wrong");
       G.recordWordResult(z.word, false);
       this.trackWrongWord(z.word, z.meaning);
+      // (the end-of-wave quiz asks these first: the word shot by mistake, and
+      // the one that should have been)
+      G.Quiz.noteMissed(this, z.word);
+      if (this.targetPair) G.Quiz.noteMissed(this, this.targetPair[0]);
       // Combo Shield: one wrong answer does not cost the combo; it recharges
       // after a run of right ones
       if (pl.comboShield && pl.comboShield.charged && pl.combo > 0) {
         pl.comboShield.charged = false; pl.comboShield.streak = 0;
         G.UI.noteComboSaved && G.UI.noteComboSaved();
       } else this.player.combo = 0;
-      this.player.hp -= 22; // was 6, scaled 3.75x with player HP
+      this.player.hp -= G.CONFIG.player.wrongKillDamage;   // (js/config.js)
       this.player.wasHitThisLevel = true;
       G.UI.flashDamage();
       this.zombies.forEach((zz) => { if (zz.alive) zz.speedMultiplier = Math.min(2, zz.speedMultiplier + 0.25); });
@@ -980,8 +996,9 @@ G.Game = {
       // (round 3: the playtest bot ran dry in a sealed arena and was stuck)
       const cur = this.currentWeaponId();
       const ids = drop.arena ? this.player.gunSlots : [cur !== "melee" ? cur : this.player.gunSlots[0]];
-      ids.forEach((id) => { if (id && this.player.ammo[id] && G.WEAPON_DEFS[id]) this.player.ammo[id].reserve += G.WEAPON_DEFS[id].magSize * 2; });
-    } else if (drop.kind === "health") this.player.hp = Math.min(this.player.maxHp, this.player.hp + 94); // was 25, scaled 3.75x with player HP
+      const mags = drop.arena ? G.CONFIG.boss.arenaAmmo.magsPerGun : 2;
+      ids.forEach((id) => { if (id && this.player.ammo[id] && G.WEAPON_DEFS[id]) this.player.ammo[id].reserve += G.WEAPON_DEFS[id].magSize * mags; });
+    } else if (drop.kind === "health") this.player.hp = Math.min(this.player.maxHp, this.player.hp + G.CONFIG.player.healthPickup);
     else if (drop.kind === "crate") this.openCrate(drop.rarity, null, null, { source: "drop", dropPos: drop.mesh.position.clone() });
   },
 
@@ -1095,7 +1112,7 @@ G.Game = {
     }, () => {
       this._bossQuestion.result = this._challengeEnd === "timeout" ? "timeout" : "wrong";
       this.finishBossWave();
-    }, { pair, time: 10, boss: true });
+    }, { pair, time: G.CONFIG.boss.questionSeconds, boss: true });
   },
   // the reward for the right answer: the ability honeycomb (round 3, H --
   // js/abilities.js, js/abilityui.js), then the shop
@@ -1106,7 +1123,7 @@ G.Game = {
     if (G.Bosses.phase !== "after") return;
     G.Bosses.phase = null;
     // (J, round 3: the checkpoint after wave 10's boss is kept as the shop closes)
-    if (this.mode === "campaign" && this.wave === 10) this._checkpointDue = true;
+    if (this.mode === "campaign" && this.wave === G.CONFIG.checkpoint.afterWave) this._checkpointDue = true;
     this.afterWaveCleared();
   },
 
@@ -1136,7 +1153,25 @@ G.Game = {
     // boss's bounty; overtime pays like the last regular wave.
     this._waveBonus = G.ECONOMY.waveBonus(this.overtimeWave()) + (this.isBossWave() ? G.ECONOMY.bossBounty(this.wave) : 0);
     this.player.money += this._waveBonus;
-    this.openShop();
+    // (new series, round 1, A) six questions on this wave's words: passed,
+    // the shop; failed, no shop -- the next wave at once (the money is kept
+    // for the next shop). A window the player is in the middle of (a crate
+    // being opened, a note being read) is finished first.
+    if (["crate", "mystery", "inventory", "note", "dialog"].some((id) => G.Modal.isOpen(id))) { this._quizDue = true; return; }
+    this.startWaveQuiz();
+  },
+  startWaveQuiz() {
+    this._quizDue = false;
+    G.Quiz.open(this, (passed) => {
+      if (this.state !== "GAMEPLAY") return;
+      if (passed) this.openShop(); else this.nextWave();
+    });
+  },
+  // after the shop, or after a failed quiz: the checkpoint if it is due
+  // (after wave 10's boss), then the next wave
+  nextWave() {
+    if (this._checkpointDue) { this._checkpointDue = false; if (G.Checkpoint && G.Checkpoint.save) G.Checkpoint.save(this); }
+    this.startWave();
   },
 
   // ---------------- Shop ----------------
@@ -1217,8 +1252,7 @@ G.Game = {
     G.Modal.close("shop");
     // (J, round 3: after wave 10's boss the run is kept here, with the health
     // the shop left -- js/checkpoint.js)
-    if (this._checkpointDue) { this._checkpointDue = false; if (G.Checkpoint && G.Checkpoint.save) G.Checkpoint.save(this); }
-    this.startWave();
+    this.nextWave();
   },
 
   // ---------------- Generic word challenge (doors/crates/traps) ----------------
@@ -1388,6 +1422,8 @@ G.Game = {
       return;
     }
     G.UI.updateResumeHint();
+    // the end-of-wave quiz keeps its own clock while everything else is paused
+    if (G.Quiz.active) G.Quiz.update(realDt);
     if (this.state !== "GAMEPLAY" || this.paused) return;
     // a boss's cutscene has the whole frame: the world stands still, nobody
     // is hurt, and it runs in real seconds whatever the game speed
@@ -1395,6 +1431,8 @@ G.Game = {
     if (G.Modal.freezesWorld()) { this.updateFrozen(dt); return; }
     // a boss wave's zombies are down: the boss comes once no window is open
     if (G.Bosses.phase === "pending" && !G.Modal.isOpen()) { G.Bosses.start(this); return; }
+    // (the end-of-wave quiz that waited for a window to close)
+    if (this._quizDue && !G.Modal.isOpen()) { this.startWaveQuiz(); return; }
 
     // Focus Time: right after a right answer the zombies (and their spawns
     // and the traps) run at a third of the speed; the player does not
@@ -1454,24 +1492,24 @@ G.Game = {
   },
 
   // (D) Health comes back by itself: once nothing has taken any for
-  // REGEN_DELAY seconds, REGEN_RATE of the maximum a second until full. Any
-  // loss at all -- a bite, a trap, a wrong answer, a boss's roar -- starts
-  // the wait again. It is measured here, by the health going down, rather
-  // than at each source of damage, so nothing new can forget to reset it.
-  // Only runs from the live update: paused, in a window or in the shop,
-  // neither the health nor the wait moves.
-  REGEN_DELAY: 6,
-  REGEN_RATE: 0.08,
+  // regenDelay seconds (12), regenHp every regenEvery seconds (1 HP every 2 s)
+  // until full -- G.CONFIG.player, js/config.js. Any loss at all -- a bite, a
+  // trap, a wrong answer, a boss's roar -- stops it and starts the wait
+  // again. It is measured here, by the health going down, rather than at
+  // each source of damage, so nothing new can forget to reset it. Only runs
+  // from the live update: paused, in a window or in the shop, neither the
+  // health nor the wait moves.
   updateRegen(dt) {
-    const pl = this.player;
-    if (this._regenFor !== pl) { this._regenFor = pl; this._hpSeen = pl.hp; this._sinceHurt = 0; this.regenerating = false; }
-    if (pl.hp < this._hpSeen - 1e-6) this._sinceHurt = 0;
+    const pl = this.player, C = G.CONFIG.player;
+    if (this._regenFor !== pl) { this._regenFor = pl; this._hpSeen = pl.hp; this._sinceHurt = 0; this.regenerating = false; this._regenTick = 0; }
+    if (pl.hp < this._hpSeen - 1e-6) { this._sinceHurt = 0; this._regenTick = 0; }
     else this._sinceHurt += dt;
     const was = this.regenerating;
-    this.regenerating = this._sinceHurt >= this.REGEN_DELAY && pl.hp > 0 && pl.hp < pl.maxHp;
+    this.regenerating = this._sinceHurt >= C.regenDelay && pl.hp > 0 && pl.hp < pl.maxHp;
     if (this.regenerating) {
-      pl.hp = Math.min(pl.maxHp, pl.hp + pl.maxHp * this.REGEN_RATE * dt);
-      if (!was) G.Audio.sfx("regen");
+      if (!was) { G.Audio.sfx("regen"); this._regenTick = 0; }
+      this._regenTick += dt;
+      while (this._regenTick >= C.regenEvery) { this._regenTick -= C.regenEvery; pl.hp = Math.min(pl.maxHp, pl.hp + C.regenHp); }
     }
     this._hpSeen = pl.hp;
   },
@@ -1534,6 +1572,8 @@ G.Game = {
       weightColor: def.id === "melee" ? null : G.weightClass(def).color,
       ammoInMag, ammoReserve, currentMeaning: meaning, slots, combo: this.player.combo,
       regenerating: !!this.regenerating,
+      // (new series, round 1, E: the touch reload button's ring)
+      reloadFrac: this.player.reloading && this.reloadState ? Math.min(1, this.reloadState.t / this.reloadState.plan.dur) : 0,
     };
   },
 
@@ -1595,7 +1635,7 @@ G.Game = {
     // that only clears once stamina is back above 20%.
     // Second Wind: stamina comes back twice as fast, and running dry locks
     // sprint out only until 10% is back instead of 20%
-    const secondWind = G.Perks.has("second_wind");
+    const secondWind = G.Perks.has("second_wind"), PC = G.CONFIG.player;
     if (this.stamina <= 0) this.staminaExhausted = true;
     else if (this.staminaExhausted && this.stamina >= this.maxStamina * (secondWind ? 0.1 : 0.2)) this.staminaExhausted = false;
     const sprinting = wantSprint && !this.staminaExhausted && len > 0.05;
@@ -1607,15 +1647,15 @@ G.Game = {
     const mule = G.Perks.has("pack_mule") ? G.Perks.val("pack_mule") / 100 : 0;
     const speedMult = 1 - (1 - wcls.speedMult) * (1 - mule), staminaMult = 1 + (wcls.staminaMult - 1) * (1 - mule);
     // (Overdrive, round 3: sprinting costs nothing while it lasts)
-    if (sprinting && !G.Abilities.freeStamina()) this.stamina = Math.max(0, this.stamina - 22 * staminaMult * dt);
-    else if (!sprinting) this.stamina = Math.min(this.maxStamina, this.stamina + 14 * (secondWind ? G.Perks.val("second_wind") : 1) * dt);
+    if (sprinting && !G.Abilities.freeStamina()) this.stamina = Math.max(0, this.stamina - PC.staminaDrain * staminaMult * dt);
+    else if (!sprinting) this.stamina = Math.min(this.maxStamina, this.stamina + PC.staminaRegen * (secondWind ? G.Perks.val("second_wind") : 1) * dt);
     // Adrenaline: a burst of speed for three seconds after every kill
     const rush = this._adrenalineT > 0 ? 1 + G.Perks.val("adrenaline") / 100 : 1;
     // a boss's roar slows you down; its roots hold you where you stand
     // (5.2 sprint / 3.2 walk: G.Bosses.LASER_SPEED is exactly the walk)
     this.bossRootT = Math.max(0, (this.bossRootT || 0) - dt);
     const held = (this.bossSlow || 1) * (this.bossRootT > 0 ? 0 : 1);
-    const speed = (sprinting ? 5.2 : 3.2) * this.player.moveSpeedMult * speedMult * rush * held * G.Abilities.moveMult() * dt;
+    const speed = (sprinting ? PC.sprintSpeed : PC.walkSpeed) * this.player.moveSpeedMult * speedMult * rush * held * G.Abilities.moveMult() * dt;
     const forward = new THREE.Vector3(-Math.sin(this.yawObject.rotation.y), 0, -Math.cos(this.yawObject.rotation.y));
     // right = forward rotated -90 deg around Y. (forward.z, 0, -forward.x) was
     // actually pointing left, which swapped A/D: D (mx=+1) moved the player
@@ -1634,7 +1674,7 @@ G.Game = {
     // tracks whatever height zone they're currently over, on top of jump gravity.
     const baseEyeY = 1.7 + G.getFloorHeightAt(this.world, this.yawObject.position.x, this.yawObject.position.z, this.yawObject.position.y - 1.7);
     const jumpPressed = (G.Input.mode === "desktop" && G.Input.isDown("jump")) || G.Input.touchJump || G.Input.padJump;
-    if (jumpPressed && this.yawObject.position.y <= baseEyeY + 0.01 && this.velocityY === 0) this.velocityY = 4.2;
+    if (jumpPressed && this.yawObject.position.y <= baseEyeY + 0.01 && this.velocityY === 0) this.velocityY = PC.jumpSpeed;
     this.velocityY -= 9.8 * dt;
     this.yawObject.position.y += this.velocityY * dt;
     if (this.yawObject.position.y < baseEyeY) { this.yawObject.position.y = baseEyeY; this.velocityY = 0; }

@@ -130,16 +130,20 @@ G.Round5Test = (function () {
     g.state = "GAMEPLAY"; g.paused = false;
     const pl = g.player, max = pl.maxHp;
     pl.hp = max * 0.5; g._regenFor = null;
-    for (let i = 0; i < 59; i++) g.updateRegen(0.1);           // 5.9 s
-    ok("D nothing before 6 s without damage", Math.abs(pl.hp - max * 0.5) < 1e-6);
-    for (let i = 0; i < 11; i++) g.updateRegen(0.1);           // to 7.0 s
-    const got = (pl.hp - max * 0.5) / max;
-    ok("D then about 8% of max a second", got > 0.07 && got < 0.1, (got * 100).toFixed(1) + "%");
+    // (new series, round 1, B: 12 s without damage, then 1 HP every 2 s --
+    // G.CONFIG.player)
+    const C = G.CONFIG.player;
+    for (let i = 0; i < C.regenDelay * 10 - 1; i++) g.updateRegen(0.1);   // 11.9 s
+    ok("D nothing before 12 s without damage", Math.abs(pl.hp - max * 0.5) < 1e-6);
+    for (let i = 0; i < 41; i++) g.updateRegen(0.1);                       // to 16.0 s: 4 s of it
+    const got = pl.hp - max * 0.5;
+    ok("D then 1 HP every 2 seconds", Math.abs(got - 2) < 1e-6, got);
     ok("D the HUD shows it (green glow)", (() => { G.UI.updateHud(g.buildHudState()); return document.querySelector(".hud-health").classList.contains("regen"); })());
     pl.hp -= 20; g.updateRegen(0.1);
     const after = pl.hp;
-    for (let i = 0; i < 50; i++) g.updateRegen(0.1);
-    ok("D any damage starts the 6 s again", Math.abs(pl.hp - after) < 1e-6 && !g.regenerating);
+    for (let i = 0; i < 110; i++) g.updateRegen(0.1);
+    ok("D any damage starts the 12 s again", Math.abs(pl.hp - after) < 1e-6 && !g.regenerating);
+    pl.hp = max - 1.5;
     for (let i = 0; i < 200; i++) g.updateRegen(0.1);
     ok("D up to full, not past it", Math.abs(pl.hp - max) < 1e-6 && !g.regenerating);
     // paused, or a window open: nothing moves

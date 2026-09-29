@@ -48,6 +48,8 @@ G.Round6Test = (function () {
   // (round 3 of the new series: a right answer opens the ability honeycomb
   // first -- pick the first hexagon and carry on)
   const hive = () => { if (G.Modal.isOpen("abilities")) { G.UI.hivePick(0); G.UI.hiveFinishReveal(); G.UI.hiveClose(null, G.Abilities.slots.length >= G.Abilities.MAX); } };
+  // (new series, round 1: then the wave's six-question quiz -- answered right, the shop)
+  const quiz = (pass) => { const Q = G.Quiz; if (!Q.active) return false; let n = 0; while (Q.stage !== "result" && n++ < 40) { if (Q.stage === "question") { const q = Q.qs[Q.i]; Q.answer(pass === false ? (q.answer + 1) % q.choices.length : q.answer); } Q.update(5); } Q.close(); return true; };
 
   // ---------------- F: twenty waves ----------------
   async function waves() {
@@ -324,26 +326,30 @@ G.Round6Test = (function () {
       if (answer === "right") { g.answerChallenge(g.challenge.choices.indexOf(pair[0])); hiveOpen = G.Modal.isOpen("abilities"); hive(); }
       else if (answer === "wrong") g.answerChallenge(g.challenge.choices.findIndex((c) => c !== pair[0]));
       else { g.challenge.timeLeft = 0.01; g.updateChallengeTimer(0.05); }
-      return { dying, n, q, pair, wallsGone, hiveOpen, result: g._bossQuestion.result, state: g.state, shop: G.Modal.isOpen("shop"), phase: B.phase, money: g.player.money - money0 };
+      const quizzed = quiz(true);
+      return { dying, n, q, pair, wallsGone, hiveOpen, quizzed, result: g._bossQuestion.result, state: g.state, shop: G.Modal.isOpen("shop"), phase: B.phase, money: g.player.money - money0 };
     };
     const a = path("right");
     ok("G6 1: a grand death (4.6 s), the walls come down", a.dying && Math.abs(a.n - 276) <= 1 && a.wallsGone, a.n);
     ok("G6 2: then one hard word, against the clock", a.q && a.pair && g._bossQuestion);
-    ok("G6 right answer: 3: the ability choice, then 4: the shop", a.result === "right" && a.hiveOpen && a.state === "SHOP" && a.shop && a.phase === null);
+    // (the wave's quiz comes between -- tools/round8-test.js follows a whole
+    // boss wave; here no zombie came before the boss, so there are no words
+    // to ask and it is skipped)
+    ok("G6 right answer: 3: the ability choice, then the shop", a.result === "right" && a.hiveOpen && a.state === "SHOP" && a.shop && a.phase === null);
     ok("G6 the shop has Ready, a timer and the rotating perks", !!document.getElementById("btn-shop-continue") && g._perkOffer.length === 4);
     ok("G6 the bounty is paid", a.money === G.ECONOMY.waveBonus(5) + G.ECONOMY.bossBounty(5), a.money);
     g.leaveShop();
     ok("G6 6: then the next wave", g.wave === 6 && g.state === "GAMEPLAY");
     const w = path("wrong");
-    ok("G6 wrong answer: straight to the shop", w.result === "wrong" && w.state === "SHOP" && w.phase === null);
+    ok("G6 wrong answer: no ability, the shop", w.result === "wrong" && w.state === "SHOP" && w.phase === null);
     g.leaveShop();
     const t = path("timeout");
-    ok("G6 out of time: straight to the shop, the word noted", t.result === "timeout" && t.state === "SHOP" && !!g.wrongWordsThisRun[t.pair[0]]);
+    ok("G6 out of time: the shop, the word noted", t.result === "timeout" && t.state === "SHOP" && !!g.wrongWordsThisRun[t.pair[0]]);
     g.leaveShop();
     // wave 10: the checkpoint hook (round 3)
     toBoss("eye", 10); B.damage(g, 1e9, null);
     let n = 0; while (G.Cutscene.active && n < 500) { up(1); n++; }
-    g.answerChallenge(0); hive();
+    g.answerChallenge(0); hive(); quiz(true);
     ok("G6 5: after wave 10's boss the checkpoint is due (kept in round 3)", g._checkpointDue === true);
     g.leaveShop();
     ok("G6 5: ...and kept as the shop closes", G.Checkpoint.has(1) && G.Checkpoint.get(1).wave === 11);

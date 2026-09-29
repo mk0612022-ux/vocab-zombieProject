@@ -66,7 +66,7 @@ G.Pad = {
   scope() {
     const top = G.Modal.top();
     const byModal = { challenge: "hud-challenge-box", crate: "screen-crate", mystery: "screen-mystery", shop: "screen-shop", inventory: "screen-inventory", update: "update-dialog", codex: "codex-detail",
-      abilities: "screen-abilities", dialog: "dialog-box" };
+      abilities: "screen-abilities", dialog: "dialog-box", quiz: "screen-quiz", hudcfg: "hudcfg-panel" };
     if (top && byModal[top.id]) return document.getElementById(byModal[top.id]);
     if (G.TouchCfg && G.TouchCfg.editing) return document.getElementById("touchcfg-panel");
     const cur = G.UI._currentScreen;

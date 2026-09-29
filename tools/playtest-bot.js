@@ -156,7 +156,9 @@ G.Bot = {
         (bo.guns || []).forEach((id) => {
           if (!g.player.gunSlots.includes(id)) g.player.gunSlots.push(id);
           const d = G.WEAPON_DEFS[id];
-          g.player.ammo[id] = { mag: d.magSize, reserve: d.magSize * 12 };
+          // (new series, round 1: reserveMags -- what a player would really
+          // carry in; the arena's supply boxes do the rest)
+          g.player.ammo[id] = { mag: d.magSize, reserve: d.magSize * (bo.reserveMags || 12) };
           g.player.weaponLevels[id] = { dmg: bo.dmg || 1, rate: bo.rate || 1, mag: 1 };
         });
         g.wave = bo.wave - 1; g.startWave();
@@ -219,7 +221,7 @@ G.Bot = {
       let path = null, pathI = 0, goal = null, replanT = 0, lastProg = { x: 0, z: 0, t: 0 }, nudge = null;
       const tail = [];
       let lastBitten = -99, lastKillT = 0, killsSeen = 0, stallLogged = 0;
-      let challengeT = 0, interactCd = 0, doorCd = 0, wordDoorRetry = 0, noteReadT = 0, bossOn = null, bossAim = { hb: null, t: 0 };
+      let quizT = 0, challengeT = 0, interactCd = 0, doorCd = 0, wordDoorRetry = 0, noteReadT = 0, bossOn = null, bossAim = { hb: null, t: 0 };
       // round 2: how deep in harm's way a point is, from the boss's marks on
       // the ground (G.Bosses.dangers) -- 0 is safe
       const dangerAt = (x, z, list) => {
@@ -383,6 +385,9 @@ G.Bot = {
         // (a message, not a timer: a hidden tab throttles timers hard)
         if ((Math.round(t / dt) % 45) === 0) await new Promise((r) => { const ch = new MessageChannel(); ch.port1.onmessage = () => r(); ch.port2.postMessage(0); });
         if (G.Bot.abort) { ev(t, "aborted"); break; }
+        // (new series, round 1) godMode: nothing hurts -- to time a boss fight
+        // on damage alone, apart from how long the bot survives it
+        if (opt.godMode && g.player) { R.hurtTaken = (R.hurtTaken || 0) + Math.max(0, (R._hpPrev || g.player.maxHp) - g.player.hp); g.player.hp = g.player.maxHp; R._hpPrev = g.player.hp; }
 
         if (g.state === "GAME_OVER") {
           if (bossOn) { const st = G.Bosses.stats || {}; (R.bosses = R.bosses || []).push({ id: bossOn.id, wave: bossOn.wave, hp: bossOn.hp, playerDps: bossOn.dps, secs: Math.round(st.fightT || 0), taken: Math.round(st.taken || 0), hitsTaken: st.hitsTaken || 0, dodged: st.dodged || 0, abilities: st.abilities || 0, bossHpLeft: G.Bosses.boss ? Math.round(G.Bosses.boss.hp) : 0, won: false }); }
@@ -432,6 +437,40 @@ G.Bot = {
           R.purchases.push(Math.round(t) + "s mystery -> " + got.id);
           continue;
         }
+        // new series, round 1 (A): the end-of-wave quiz -- a word it knows is
+        // answered right; one it does not, a guess (ruling out choices it knows
+        // are other words, sometimes). A few seconds to read each question.
+        if (G.Quiz.active) {
+          const Q = G.Quiz;
+          quizT += dt;
+          if (Q.stage === "question" && quizT > 2.5) {
+            quizT = 0;
+            const q = Q.qs[Q.i];
+            let k = q.answer;
+            if (!knowsWord(q.pair[0])) {
+              let pool = q.choices.map((_, i) => i);
+              if (q.kind === "th2en" && Math.random() < opt.elim) { const un = pool.filter((i) => i === q.answer || !knowsWord(q.choices[i])); if (un.length) pool = un; }
+              k = pool[Math.floor(Math.random() * pool.length)];
+            }
+            Q.answer(k);
+          } else if (Q.stage === "result") {
+            (R.quizzes = R.quizzes || []).push({ wave: g.wave, right: Q.correct, of: Q.qs.length, passed: Q.passed, words: Q.log.words.length, asked: Q.log.asked.slice() });
+            ev(t, "quiz wave " + g.wave + ": " + Q.correct + "/" + Q.qs.length + (Q.passed ? " passed" : " FAILED"));
+            // (a failed quiz skips the shop, where a wave is otherwise written down)
+            if (!Q.passed) {
+              R.waves.push({ wave: g.wave, seconds: Math.round(t - waveStart), spawned: g.spawnedCount, required: g.requiredKills, earned: Math.round(waveEarned), moneyEnd: Math.round(g.player.money), hp: Math.round(g.player.hp), correct: g.correctCount, wrong: g.wrongCount, noShop: true,
+                rooms: G.Objectives.state ? G.Objectives.state.visited.size : 0, keys: G.Objectives.state ? G.Objectives.state.keysFound : 0, guns: g.player.gunSlots.join("/"),
+                rightKills: g.correctKills, notes: g.notesReadRun ? g.notesReadRun.size : 0, f3: G.Floor3 && G.Floor3.applies(g) ? G.Floor3.doneCount(g) : null });
+              waveStart = t; waveEarned = 0;
+            }
+            R.overlaySeconds += 3;
+            Q.close();
+            continue;
+          }
+          R.overlaySeconds += dt;
+          step(dt);
+          continue;
+        }
         // round 3 (H): the ability honeycomb after a boss's word -- one at random
         if (G.Modal.isOpen("abilities")) {
           const H = G.UI._hive;
@@ -465,6 +504,15 @@ G.Bot = {
         // ---- round 2: a boss's cutscene -- hands off -- and its fight ----
         if (G.Cutscene.active) { setMove(0, 0, false); I.touchFire = false; I.touchJump = false; R.cutsceneSeconds = (R.cutsceneSeconds || 0) + dt; step(dt); continue; }
         const BF = G.Bosses.fighting() ? G.Bosses : null;
+        // (new series, round 1, C) did the guns run dry in the arena?
+        if (BF) {
+          const left = g.player.gunSlots.reduce((a, id) => a + ammoLeft(id), 0);
+          R.minAmmo = Math.min(R.minAmmo == null ? Infinity : R.minAmmo, left);
+          if (left === 0) R.drySeconds = (R.drySeconds || 0) + dt;
+          R.boxesTaken = R.boxesTaken || 0;
+          if (R._arenaDrops != null && g.drops.filter((d) => d.arena).length < R._arenaDrops) R.boxesTaken++;
+          R._arenaDrops = g.drops.filter((d) => d.arena).length;
+        }
         if (BF && !bossOn) { bossOn = { id: BF.boss.def.id, wave: g.wave, hp: BF.boss.maxHp, dps: BF.stats.dps }; ev(t, "boss " + bossOn.id + " (" + bossOn.hp + " hp)"); }
         if (bossOn && G.Bosses.phase !== "fight") {
           const st = G.Bosses.stats || {};
@@ -573,9 +621,16 @@ G.Bot = {
               } else if (bd > 16) bossMove = [bp.x - p.x, bp.z - p.z, false];
             }
           }
-          // (round 3) out of ammo: go for the arena's supply box
-          const box = (g.drops || []).find((d) => d.arena);
-          if (box && here <= 0 && g.player.gunSlots.every((id) => ammoLeft(id) < G.WEAPON_DEFS[id].magSize * 0.5)) bossMove = [box.mesh.position.x - p.x, box.mesh.position.z - p.z, true];
+          // (round 3; new series round 1) ammunition running low -- under two
+          // magazines of the best gun, all told -- or a box close by: go for
+          // the nearest of the arena's supply boxes
+          const boxes = (g.drops || []).filter((d) => d.arena && list.every((dd) => dd.kind !== "pool" || Math.hypot(d.mesh.position.x - dd.x, d.mesh.position.z - dd.z) > dd.r));
+          if (boxes.length && here <= 0) {
+            const box = boxes.reduce((a, d) => (dist2(d.mesh.position, p) < dist2(a.mesh.position, p) ? d : a));
+            const total = g.player.gunSlots.reduce((a, id) => a + ammoLeft(id), 0);
+            const best = Math.max(...g.player.gunSlots.map((id) => G.WEAPON_DEFS[id].magSize));
+            if (total < best * 2 || dist2(box.mesh.position, p) < 7) bossMove = [box.mesh.position.x - p.x, box.mesh.position.z - p.z, true];
+          }
         }
         if (bossMove) {
           // (sprint held through the start of a reload stays locked until it

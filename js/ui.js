@@ -46,7 +46,11 @@ G.UI = {
     if (id === "screen-mainmenu" && G.PWA) G.PWA.maybeShow();
   },
   hideAllScreens() { this.showScreen(null); },
-  setHudVisible(v) { this.el("hud").classList.toggle("hidden", !v); },
+  setHudVisible(v) {
+    this.el("hud").classList.toggle("hidden", !v);
+    // (new series, round 1, F) the player's HUD sizes, fitted to the screen
+    if (v && G.HudCfg) G.HudCfg.refresh();
+  },
   setTouchControlsVisible(v) {
     this.el("touch-controls").classList.toggle("hidden", !v);
     // A hidden control measures 0x0, so a stored custom position can only be
@@ -60,7 +64,10 @@ G.UI = {
     if (G.TouchCfg && G.TouchCfg.editing) return;
     const mode = G.Input.mode;
     this.setTouchControlsVisible(mode === "touch" && G.Game && G.Game.state === "GAMEPLAY");
+    const was = document.body.classList.contains("touch-mode");
     document.body.classList.toggle("touch-mode", mode === "touch");
+    // (the HUD is laid out differently for touch: fit its sizes again)
+    if (was !== (mode === "touch") && G.HudCfg) G.HudCfg.refresh();
   },
   // On-screen weapon switcher: one button per slot the player actually holds
   // (knife + up to four guns, six with the Extra Weapon Slot perk), rebuilt
@@ -180,6 +187,12 @@ G.UI = {
         <input type="range" id="set-sens" min="0.2" max="2.5" step="0.05" value="${s.mouseSensitivity}"></div>
       <div class="settings-row"><label>${T("settings.touchLayout")}</label>
         <button class="btn" id="btn-touchcfg">${T("settings.touchLayoutBtn")}</button></div>
+      <div class="settings-row"><label>${T("settings.touchLookSens", { v: G.TouchCfg.lookSens().toFixed(2) })}</label>
+        <input type="range" id="set-tlook" min="0.3" max="3" step="0.05" value="${G.TouchCfg.lookSens()}"></div>
+      <div class="settings-row"><label>${T("settings.btnLookSens", { v: G.TouchCfg.btnLookSens().toFixed(2) })}</label>
+        <input type="range" id="set-blook" min="0.3" max="3" step="0.05" value="${G.TouchCfg.btnLookSens()}"></div>
+      <div class="settings-row"><label>${T("settings.hudSize")}</label>
+        <button class="btn" id="btn-hudcfg">${T("settings.hudSizeBtn")}</button></div>
 
       <div class="settings-section-title">${T("settings.keybinds")}</div>
       ${actions.map((a) => `
@@ -267,6 +280,15 @@ G.UI = {
 
     wrap.querySelector("#set-controlmode").onchange = (e) => { s.controlMode = e.target.value; G.persist(); G.Input.mode = e.target.value === "auto" ? G.Input.mode : e.target.value; this.applyControlMode(); };
     wrap.querySelector("#btn-touchcfg").onclick = () => G.TouchCfg.openEditor();
+    // (new series, round 1, D/F) touch look sensitivities, the HUD's sizes
+    const sens = (id, set, key) => {
+      const inp = wrap.querySelector(id);
+      inp.oninput = (e) => { set(parseFloat(e.target.value)); inp.previousElementSibling.textContent = T(key, { v: parseFloat(e.target.value).toFixed(2) }); };
+      inp.onchange = () => G.persist();
+    };
+    sens("#set-tlook", (v) => G.TouchCfg.setLookSens(v), "settings.touchLookSens");
+    sens("#set-blook", (v) => G.TouchCfg.setBtnLookSens(v), "settings.btnLookSens");
+    wrap.querySelector("#btn-hudcfg").onclick = () => G.HudCfg.openEditor();
     wrap.querySelector("#set-sens").oninput = (e) => { s.mouseSensitivity = parseFloat(e.target.value); G.persist(); this.renderSettings(); };
     wrap.querySelector("#set-fpscap").onchange = (e) => { s.fpsCap = parseInt(e.target.value); G.persist(); };
     wrap.querySelector("#set-showfps").onchange = (e) => { s.showFpsCounter = e.target.checked; G.persist(); this.el("hud-fps-counter").classList.toggle("hidden", !s.showFpsCounter); };
@@ -913,7 +935,17 @@ G.UI = {
       this.el("hud-combo").textContent = G.T("hud.comboSaved", { n: p.combo });
     } else if (p.combo > 1) { this.el("hud-combo").classList.remove("hidden"); this.el("hud-combo").textContent = G.T("hud.combo", { n: p.combo }); }
     else this.el("hud-combo").classList.add("hidden");
-    if (G.Input.mode === "touch") this.refreshTouchSlots(p.slots, p.slots.findIndex((s) => s.active));
+    if (G.Input.mode === "touch") {
+      this.refreshTouchSlots(p.slots, p.slots.findIndex((s) => s.active));
+      // (new series, round 1, E) the reload button fills its ring as the gun reloads
+      const f = Math.round((p.reloadFrac || 0) * 50) / 50;
+      if (f !== this._reloadRing) {
+        this._reloadRing = f;
+        const rb = this.el("touch-reload");
+        rb.style.setProperty("--rp", f);
+        rb.classList.toggle("reloading", f > 0);
+      }
+    }
     this.updateHudPerks();
   },
   noteComboSaved() { this._comboSavedUntil = performance.now() + 1600; },

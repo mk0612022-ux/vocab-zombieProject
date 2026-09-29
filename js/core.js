@@ -64,6 +64,7 @@ G.defaultSave = function () {
       speechVolume: 0.9,
       speechMode: "after",        // off | after (read the word once answered) | before (read the new target aloud)
       shopTime: 45,               // seconds in the shop between waves: 30 | 45 | 60 | 0 (no limit, wait for Ready)
+      hudScale: {},               // {all, hp, stamina, ...}: HUD sizes, 1 when absent (js/hudcfg.js)
     },
     importedSets: {},             // {id: {name, words:[[en,th],...]}}
     customWords: { level1: [], level2: [], level3: [] },   // words the player added to each level ([[en,th],...])
@@ -348,6 +349,17 @@ G.disposeObject3D = function (obj) {
 // Phone/tablet check used for the default graphics tier and the initial
 // control scheme. A coarse pointer with no hover is the reliable signal --
 // an iPad in landscape is wider than plenty of laptops.
+// (new series, round 1, E) A touch button pressed: a ring of light spreads
+// out from it, and the phone gives a short buzz where it can (not iOS).
+// The press itself -- the button sinking, glowing -- is its .pressed style.
+G.touchFeedback = function (el, strong) {
+  if (!el || !el.appendChild) return;
+  const s = document.createElement("span");
+  s.className = "tb-ripple";
+  el.appendChild(s);
+  setTimeout(() => s.remove(), 600);
+  try { if (navigator.vibrate) navigator.vibrate(strong ? 12 : 7); } catch (e) { /* not allowed here */ }
+};
 G.isHandheld = function () {
   const coarse = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
   const noHover = window.matchMedia && window.matchMedia("(hover: none)").matches;
@@ -511,6 +523,7 @@ G.Input = {
     this.touchFire = false; this.touchJump = false; this.touchSprint = false;
     this.touchInteract = false; this.touchReload = false;
     this.touchMove = { x: 0, y: 0, active: false };
+    if (this._btnLookFingers) this._btnLookFingers.clear();
     const knob = document.getElementById("touch-joystick-knob");
     if (knob) knob.style.transform = "translate(0,0)";
     document.querySelectorAll("#touch-controls .touch-btn").forEach((b) => b.classList.remove("pressed", "active"));
@@ -563,9 +576,9 @@ G.Input = {
           lastLook = { x: t.clientX, y: t.clientY };
           // Touch look has its own sensitivity (category B): a figure tuned for
           // a mouse on a desk says nothing about how far a thumb travels on glass.
-          const sens = (G.TouchCfg && G.TouchCfg.lookSens()) || 1;
-          this.mouseDelta.x += dx * 2.2 * sens;
-          this.mouseDelta.y += dy * 2.2 * sens;
+          const sens = ((G.TouchCfg && G.TouchCfg.lookSens()) || 1) * G.CONFIG.touch.lookDrag;
+          this.mouseDelta.x += dx * sens;
+          this.mouseDelta.y += dy * sens;
         }
       }
     }, { passive: true });
@@ -583,6 +596,7 @@ G.Input = {
         e.preventDefault();
         this[prop] = true;
         el.classList.add("pressed");
+        G.touchFeedback(el, id === "touch-fire");
         if (onPress) onPress();
       };
       const release = (e) => {
@@ -603,6 +617,33 @@ G.Input = {
     bindHold("touch-fire", "touchFire", () => G.onFirePress && G.onFirePress());
     bindHold("touch-jump", "touchJump");
     bindHold("touch-sprint", "touchSprint");
+    // (new series, round 1, D) FIRE and AIM are look areas too: a finger that
+    // presses one and drags turns the view -- firing (or aiming) as it turns --
+    // for as long as it stays down, even once it has slid off the button.
+    // Every finger is followed by its own identifier, so a thumb on the stick,
+    // one firing and turning and one on AIM all work at once. Its own
+    // sensitivity (Settings, and the touch layout editor).
+    const lookFingers = this._btnLookFingers = new Map();
+    ["touch-fire", "touch-ads"].forEach((id) => {
+      document.getElementById(id).addEventListener("touchstart", (e) => {
+        for (const t of e.changedTouches) lookFingers.set(t.identifier, { x: t.clientX, y: t.clientY });
+      }, { passive: true });
+    });
+    window.addEventListener("touchmove", (e) => {
+      if (!lookFingers.size) return;
+      for (const t of e.changedTouches) {
+        const f = lookFingers.get(t.identifier);
+        if (!f) continue;
+        const dx = t.clientX - f.x, dy = t.clientY - f.y;
+        f.x = t.clientX; f.y = t.clientY;
+        const sens = ((G.TouchCfg && G.TouchCfg.btnLookSens()) || 1) * G.CONFIG.touch.lookDrag;
+        this.mouseDelta.x += dx * sens;
+        this.mouseDelta.y += dy * sens;
+      }
+    }, { passive: true });
+    const dropFinger = (e) => { for (const t of e.changedTouches) lookFingers.delete(t.identifier); };
+    window.addEventListener("touchend", dropFinger);
+    window.addEventListener("touchcancel", dropFinger);
     // ADS is a hold on desktop (right mouse); on touch it toggles, since you
     // can't comfortably hold a corner button and still aim with the same thumb.
     const adsBtn = document.getElementById("touch-ads");
@@ -610,6 +651,7 @@ G.Input = {
       e.preventDefault();
       this.aimDown = !this.aimDown;
       adsBtn.classList.toggle("active", this.aimDown);
+      G.touchFeedback(adsBtn);
     }, { passive: false });
     // Weapon slots: filled in by G.UI.refreshTouchSlots to match what the
     // player is actually carrying.
@@ -617,21 +659,25 @@ G.Input = {
       const btn = e.target.closest("[data-slot]");
       if (!btn) return;
       e.preventDefault();
+      G.touchFeedback(btn);
       G.onSlotPress && G.onSlotPress(parseInt(btn.dataset.slot, 10));
     }, { passive: false });
     document.getElementById("touch-interact").addEventListener("touchstart", (e) => {
       this.touchInteract = true; e.preventDefault();
+      G.touchFeedback(e.currentTarget);
       G.onInteractPress && G.onInteractPress();
       setTimeout(() => (this.touchInteract = false), 100);
     }, { passive: false });
     document.getElementById("touch-reload").addEventListener("touchstart", (e) => {
       e.preventDefault();
+      G.touchFeedback(e.currentTarget);
       G.onReloadPress && G.onReloadPress();
     }, { passive: false });
     // Touch had no way to pause at all -- ESC was the only route, which a
     // tablet doesn't have.
     document.getElementById("touch-pause").addEventListener("touchstart", (e) => {
       e.preventDefault();
+      G.touchFeedback(e.currentTarget);
       G.onPausePress && G.onPausePress();
     }, { passive: false });
   },

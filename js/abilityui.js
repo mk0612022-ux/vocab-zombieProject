@@ -276,6 +276,7 @@
       if (!b) return;
       e.preventDefault();
       b.classList.add("pressed");
+      if (G.touchFeedback) G.touchFeedback(b);
       G.onAbilityPress(parseInt(b.dataset.ab, 10));
     }, { passive: false });
     const up = (e) => { const b = e.target.closest && e.target.closest("[data-ab]"); if (b) b.classList.remove("pressed"); };
