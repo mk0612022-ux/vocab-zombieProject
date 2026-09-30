@@ -110,14 +110,14 @@ G.Round8Test = (function () {
     ok("A3 fifteen seconds a question", Q.limit === 15);
     // keys 1-4, and weapon keys do nothing meanwhile
     g.player.currentSlot = 1;
-    const st0 = Object.assign({}, G.save.wordStats[Q.qs[0].pair[0].toLowerCase()] || { correct: 0, wrong: 0 });
+    const st0 = Object.assign({}, G.wordStat(Q.qs[0].pair) || { correct: 0, wrong: 0 });
     const wrongK = (Q.qs[0].answer + 1) % 4;
     key("Digit" + (wrongK + 1));
     ok("A3 key 1-4 answers", Q.stage === "feedback" && Q.qs[0].picked === wrongK && g.player.currentSlot === 1);
     const btns = document.querySelectorAll("#quiz-choices .quiz-choice");
     ok("A3 a wrong answer: shown at once, the right one lit", btns[wrongK].classList.contains("is-wrong") && btns[Q.qs[0].answer].classList.contains("is-right") && /The answer is/.test(el("quiz-feedback").textContent));
     ok("A3 Mistakes: 1/2", el("quiz-mistakes").textContent === "Mistakes: 1/2");
-    const st1 = G.save.wordStats[Q.qs[0].pair[0].toLowerCase()];
+    const st1 = G.wordStat(Q.qs[0].pair);
     ok("A3 the answer goes into the long-term word stats", st1 && st1.wrong === st0.wrong + 1);
     ok("A3 ...and onto the run's words to review", !!g.wrongWordsThisRun[Q.qs[0].pair[0]]);
     Q.update(0.5);

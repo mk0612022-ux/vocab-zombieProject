@@ -812,6 +812,12 @@ body.touch-mode .kbd-only { display: none; }
    a word being typed needs both back, to move the caret and to paste) */
 .cv-field input[type=text] { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
 .cv-buttons { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
+.cv-more-row { display: flex; align-items: flex-end; }
+.cv-more-row .btn { padding: 6px 12px; font-size: 0.8rem; }
+.cv-extra { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 10px; border: 1px dashed #345; border-radius: 6px; }
+.cv-extra.hidden { display: none; }
+.cv-wide { grid-column: 1 / -1; }
+.cv-word .cv-extra-note { font-size: 0.72rem; opacity: 0.65; }
 .cv-msg { grid-column: 1 / -1; min-height: 1.4em; font-size: 0.85rem; line-height: 1.45; }
 .cv-msg.error { color: #ff7b7b; }
 .cv-msg.warn { color: #ffd43b; }
@@ -834,7 +840,7 @@ body.touch-mode .kbd-only { display: none; }
 .import-summary .sum-skip { color: #ffb38a; margin-top: 4px; }
 .import-summary .sum-skip i { opacity: 0.8; font-style: normal; }
 .import-summary .sum-warn { color: #ffd43b; margin-top: 4px; }
-@media (max-width: 560px) { .cv-form { grid-template-columns: 1fr; } }
+@media (max-width: 560px) { .cv-form, .cv-extra { grid-template-columns: 1fr; } }
 @media (max-height: 520px) { .cv-content { padding: 10px 12px; } .cv-intro { font-size: 0.75rem; margin-bottom: 6px; } .cv-list { max-height: none; } .cv-field input, .cv-field select { padding: 6px 8px; } }
 /* the way out stays on screen however many slots there are to scroll through */
 #screen-inventory > .row-center {

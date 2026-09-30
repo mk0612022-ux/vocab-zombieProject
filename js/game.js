@@ -172,8 +172,8 @@ G.Game = {
     if (source === "weak") {
       const all = G.getAllBuiltinWords();
       pairs = all.filter((p) => {
-        const s = G.save.wordStats[p[0].toLowerCase()];
-        return s && s.wrong > 0 && !G.isWordMastered(p[0]);
+        const s = G.wordStat(p);
+        return s && s.wrong > 0 && !G.isWordMastered(p);
       });
       if (pairs.length < 4) pairs = G.weightedSample(all, 15);
     } else if (G.WORD_SETS[source]) {
@@ -913,7 +913,7 @@ G.Game = {
       // J3: pronounce the word once it has been earned (default), so the
       // audio reinforces the answer instead of giving it away
       if ((G.save.settings.speechMode || "after") === "after") G.Audio.speak(z.word);
-      const prevWrong = G.save.wordStats[z.word.toLowerCase()] && G.save.wordStats[z.word.toLowerCase()].wrong > 0;
+      const prevStat = G.wordStat(z.word), prevWrong = !!prevStat && prevStat.wrong > 0;
       G.recordWordResult(z.word, true);
       this.player.combo++;
       if (this.player.combo >= 50) G.unlockAchievement("streak50");

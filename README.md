@@ -112,10 +112,40 @@ js/world.js        การสร้างฉากแต่ละด่าน
 js/systems.js      ระบบ spawn บอส ร้านค้า achievement
 js/ui.js           เมนู หน้าจอ และ HUD
 js/game.js         ลูปเกมหลักและกฎการเล่น
-js/data/words.js   คลังคำศัพท์
+js/data/bank_school.js, bank_hospital.js, bank_bunker.js
+                   คลังคำศัพท์หลัก (Master Word Bank) ด่านละไฟล์ — 886 word family:
+                   AWL ครบ 570 family + คำตามหัวข้อ IELTS (ไฟล์เหล่านี้สร้างจาก word-bank.csv)
+js/data/confusables.js  คำที่มักสับสน (ใช้เป็นตัวลวงเท่านั้น ไม่ใช่คำที่ต้องเรียน)
+js/wordbank.js     ดัชนีของคลังคำ (G.WordBank) และคีย์สถิติคำ (G.wordKey = id ของคำ)
+js/data/words.js   ชุดคำของแต่ละด่านที่เกมใช้ และตัวตรวจ G.auditWordSets()
 manifest.json      ข้อมูลแอป (ชื่อ ไอคอน เปิดเต็มจอแนวนอน) สำหรับ Add to Home Screen
 sw.js              service worker: เก็บไฟล์เกมไว้เล่นแบบออฟไลน์ และหาเวอร์ชันใหม่
 icons/             ไอคอนแอป 192 / 512 / 180 (iOS) — สร้างใหม่ได้ด้วย tools/make-icons.ps1
 serve-lan.ps1      เซิร์ฟเวอร์ทดสอบในเครื่อง (เปิดให้อุปกรณ์อื่นในวง Wi-Fi เข้าได้)
 serve.ps1          เซิร์ฟเวอร์ทดสอบเฉพาะเครื่องตัวเอง (มี endpoint จับภาพหน้าจอ)
+```
+
+## แก้ไขคลังคำศัพท์
+
+แก้ใน Excel หรือ Google Sheets แล้วนำกลับเข้าเกม:
+
+1. ส่งออกเป็น CSV (ได้ `word-bank.csv` และ `word-bank-confusables.csv` ที่โฟลเดอร์โปรเจกต์)
+
+   ```bash
+   powershell -ExecutionPolicy Bypass -File tools\words-export.ps1
+   ```
+
+2. แก้ไฟล์ แล้วบันทึกเป็น CSV (ใน Excel เลือก "CSV UTF-8") — ช่องที่มีหลายค่าคั่นด้วย ` | `,
+   ช่อง family เขียนแบบ `analysis (n) | analytical (adj)`, คอลัมน์ `level` คือ 1 โรงเรียน / 2 โรงพยาบาล / 3 บังเกอร์
+   **ห้ามเปลี่ยนค่าในคอลัมน์ `id`** เพราะสถิติคำของผู้เล่นบันทึกไว้ด้วย id นี้
+3. นำเข้า — สร้างไฟล์ `js/data/bank_*.js` และ `confusables.js` ใหม่ แล้วตรวจด้วย validate-words ให้อัตโนมัติ
+
+   ```bash
+   powershell -ExecutionPolicy Bypass -File tools\words-import.ps1
+   ```
+
+ตรวจคลังคำอย่างเดียว (ต้องผ่านก่อนส่งงานทุกครั้ง):
+
+```bash
+powershell -ExecutionPolicy Bypass -File tools\validate-words.ps1
 ```

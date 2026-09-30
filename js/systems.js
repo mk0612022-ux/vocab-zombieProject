@@ -151,7 +151,7 @@ G.pickHardWords = function (wordPool, count) {
   // Priority: previously-wrong words > longer-than-average words > random
   const avgLen = wordPool.reduce((a, p) => a + p[0].length, 0) / wordPool.length;
   const wrongOnes = wordPool.filter((p) => {
-    const s = G.save.wordStats[p[0].toLowerCase()];
+    const s = G.wordStat(p);
     return s && s.wrong > 0 && s.wrong >= s.correct;
   });
   const longOnes = wordPool.filter((p) => p[0].length > avgLen && !wrongOnes.includes(p));

@@ -363,6 +363,14 @@
       <label class="cv-field"><span data-i18n="cv.en"></span><input id="cv-en" type="text" maxlength="32" autocomplete="off" autocapitalize="off" spellcheck="false" lang="en"></label>
       <label class="cv-field"><span data-i18n="cv.th"></span><input id="cv-th" type="text" maxlength="80" autocomplete="off" lang="th"></label>
       <label class="cv-field"><span data-i18n="cv.level"></span><select id="cv-level"></select></label>
+      <div class="cv-more-row"><button class="btn" id="cv-more" type="button" aria-expanded="false" aria-controls="cv-extra" data-i18n="cv.more"></button></div>
+      <div class="cv-extra hidden" id="cv-extra">
+        <label class="cv-field cv-wide"><span data-i18n="cv.definition"></span><input id="cv-def" type="text" maxlength="200" autocomplete="off" spellcheck="false" lang="en"></label>
+        <label class="cv-field"><span data-i18n="cv.synonyms"></span><input id="cv-syn" type="text" maxlength="130" autocomplete="off" autocapitalize="off" spellcheck="false" lang="en"></label>
+        <label class="cv-field"><span data-i18n="cv.collocations"></span><input id="cv-col" type="text" maxlength="250" autocomplete="off" autocapitalize="off" spellcheck="false" lang="en"></label>
+        <label class="cv-field cv-wide"><span data-i18n="cv.example"></span><input id="cv-ex" type="text" maxlength="200" autocomplete="off" spellcheck="false" lang="en"></label>
+        <label class="cv-field"><span data-i18n="cv.topic"></span><select id="cv-topic"></select></label>
+      </div>
       <div class="cv-buttons">
         <button class="btn btn-primary" id="cv-save" data-i18n="cv.add"></button>
         <button class="btn hidden" id="cv-cancel" data-i18n="cv.cancel"></button>
@@ -547,9 +555,11 @@ window.addEventListener("load", function () {
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="js/strings.js"></script>
 <script src="js/config.js"></script>
-<script src="js/data/words_school.js"></script>
-<script src="js/data/words_hospital.js"></script>
-<script src="js/data/words_bunker.js"></script>
+<script src="js/data/bank_school.js"></script>
+<script src="js/data/bank_hospital.js"></script>
+<script src="js/data/bank_bunker.js"></script>
+<script src="js/data/confusables.js"></script>
+<script src="js/wordbank.js"></script>
 <script src="js/data/words.js"></script>
 <script src="js/data/notes_school.js"></script>
 <script src="js/data/words_bosses.js"></script>

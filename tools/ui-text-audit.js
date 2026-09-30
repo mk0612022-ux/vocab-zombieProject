@@ -338,10 +338,17 @@ G.UIAudit = {
       const thaiWord = G.WORDS_LEVEL_2[3][1];
       await step("custom vocab", () => {
         G.save.customWords = { level1: [], level2: [], level3: [] };
-        ["Serendipity", "Ephemeral", "Well-being", "Quintessential", "Juxtaposition", "Idiosyncrasy"].forEach((w, i) => G.CustomVocab.save(w, G.WORDS_LEVEL_3[i][1] + " " + G.WORDS_LEVEL_3[i + 20][1], "level1"));
+        ["Serendipity", "Ephemeral", "Wherewithal", "Quintessential", "Juxtaposition", "Idiosyncrasy"].forEach((w, i) => G.CustomVocab.save(w, G.WORDS_LEVEL_3[i][1] + " " + G.WORDS_LEVEL_3[i + 20][1], "level1"));
         G.CustomVocabUI.open("screen-mainmenu");
       });
       await step("custom vocab: duplicate error", () => { document.getElementById("cv-en").value = "Abandon"; document.getElementById("cv-th").value = thaiWord; G.CustomVocabUI.submit(); });
+      await step("custom vocab: details open, word-family error", () => {
+        G.CustomVocabUI.showExtra(true);
+        document.getElementById("cv-def").value = "the art of persuading people through speech and writing in public";
+        document.getElementById("cv-syn").value = "oratory, eloquence, persuasion";
+        document.getElementById("cv-topic").value = "Urban Life & Transport";
+        document.getElementById("cv-en").value = "analysis"; document.getElementById("cv-th").value = thaiWord; G.CustomVocabUI.submit();
+      });
       await step("custom vocab: same-meaning warning", () => { document.getElementById("cv-en").value = "Forsake"; document.getElementById("cv-th").value = G.WORDS_LEVEL_1[0][1]; document.getElementById("cv-level").value = "level1"; G.CustomVocabUI.submit(); });
       await step("custom vocab: edit + delete armed", () => { G.CustomVocabUI.startEdit("level1", 2); document.querySelector("#cv-list button[data-act=del]").click(); });
       await step("import: into a level, summary", () => {

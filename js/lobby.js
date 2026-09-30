@@ -51,9 +51,9 @@ G.Lobby = {
   locked(m) { return !!m.needs && !G.save.unlockedLevels.includes(m.needs); },
   art(m, card) { return "assets/lobby/" + m.id + (card ? "-card" : "") + ".jpg"; },
   title(m) { return m.level ? G.getLevel(m.level).name : G.T("lobby.mode." + m.id); },
-  // the level's own 100 words (the player's added ones are not counted)
+  // the level's own word families from the word bank (the player's added ones are not counted)
   wordsFor(levelId) { return G.CustomVocab.builtin(G.getLevel(levelId).wordsKey); },
-  mastered(list) { return list.filter((p) => G.isWordMastered && G.isWordMastered(p[0])).length; },
+  mastered(list) { return list.filter((p) => G.isWordMastered && G.isWordMastered(p)).length; },
   // what the player has done in this mode, as rows of [label, value]
   stats(m) {
     const T = G.T, S = G.save, rows = [];
@@ -63,7 +63,7 @@ G.Lobby = {
       const key = "level" + m.level, total = (G.NOTES[key] || []).length || 20;
       rows.push([T("lobby.notes"), (S.notes && S.notes[key] ? S.notes[key].length : 0) + " / " + total]);
       const words = this.wordsFor(m.level);
-      rows.push([T("lobby.words"), this.mastered(words) + " / " + (words.length || 100)]);
+      rows.push([T("lobby.words"), this.mastered(words) + " / " + words.length]);
       const guns = Object.values(G.WEAPON_DEFS).filter((w) => w.level === m.level);
       rows.push([T("lobby.guns"), guns.filter((w) => S.unlockedWeapons.includes(w.id)).length + " / " + guns.length]);
     } else if (m.id === "endless") {
@@ -77,7 +77,7 @@ G.Lobby = {
       rows.push([T("lobby.next"), this.countdown()]);
     } else if (m.id === "practice") {
       const all = G.getAllBuiltinWords();
-      const weak = all.filter((p) => { const s = S.wordStats[p[0].toLowerCase()]; return s && s.wrong > 0 && !G.isWordMastered(p[0]); }).length;
+      const weak = all.filter((p) => { const s = G.wordStat(p); return s && s.wrong > 0 && !G.isWordMastered(p); }).length;
       rows.push([T("lobby.words"), this.mastered(all) + " / " + all.length]);
       rows.push([T("lobby.weak"), weak]);
     } else if (m.id === "custom") {

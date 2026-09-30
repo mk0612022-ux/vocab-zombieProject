@@ -402,9 +402,10 @@ G.UI = {
     const words = G.WORD_SETS[level.wordsKey].words;
     const builtinCount = G.CustomVocab.builtin(level.wordsKey).length;
     const esc = G.escapeHtml;
-    const items = words.map(([en, th], i) => {
+    const items = words.map((pair, i) => {
+      const en = pair[0], th = pair[1];
       const mine = i >= builtinCount ? ` <span class="vocab-badge custom">${G.T("vocablog.custom")}</span>` : "";
-      const stat = G.save.wordStats[en.toLowerCase()];
+      const stat = G.wordStat(pair);
       let badge = `<span class="vocab-badge unseen">${G.T("vocablog.unseen")}</span>`;
       if (stat && (stat.correct > 0 || stat.wrong > 0)) {
         const R = G.T("vocablog.right", { n: stat.correct }), W = G.T("vocablog.wrong", { n: stat.wrong });

@@ -4,6 +4,9 @@
 // Stored in the save (G.save.customWords = {level1: [[en, th], ...], ...}),
 // so they go wherever the save goes, Export Save included. A level's word
 // list (G.WORD_SETS[key].words) is its built-in words followed by these.
+// A word may carry optional fields as a third item, [en, th, {definition,
+// synonyms, example, collocations, topic}] (G.cleanCustomExtra); modes that
+// need a field a word does not have skip that word (G.WordBank.has).
 //
 // Rules, for a word typed in and for every row of an imported CSV alike:
 //   - neither field empty; spaces at either end are dropped
@@ -11,8 +14,10 @@
 //     spaces between letters: "well-being", "give up")
 //   - the Thai meaning has Thai in it
 //   - the English word must not already be ANYWHERE in the game, built-in
-//     or added, in any level, ignoring capitals -- the player is told where
-//     it already is and nothing is saved
+//     or added, in any level, ignoring capitals -- and that includes every
+//     form of a word-bank family and its regular endings ("analysis",
+//     "analysed" belong to analyse). The player is told where it already
+//     is and nothing is saved
 //   - a Thai meaning identical to another word's in the same level is saved
 //     with a warning: two zombies asking for the same meaning at once would
 //     be a coin toss, so the game never has both on the field together
@@ -47,10 +52,14 @@ G.CustomVocab = {
     if (!this.THAI_RE.test(th)) return "cv.errThai";
     return null;
   },
-  // where an English word already is: {key, custom} or null. `skip` is the
-  // entry being edited, {key, index}, which must not count against itself.
+  // where an English word already is: {key, custom, family?} or null --
+  // `family` is the headword when the word is another form of a bank
+  // family. `skip` is the entry being edited, {key, index}, which must not
+  // count against itself.
   findWord(en, skip) {
     const w = en.toLowerCase();
+    const owner = G.WordBank.familyOf(w);
+    if (owner) return { key: "level" + owner.level, custom: false, family: owner.headword.toLowerCase() === w ? null : owner.headword };
     for (const key of this.LEVEL_KEYS) {
       if (this.builtin(key).some((p) => p[0].toLowerCase() === w)) return { key, custom: false };
       const i = this.list(key).findIndex((p) => p[0].toLowerCase() === w);
@@ -66,9 +75,10 @@ G.CustomVocab = {
     return out;
   },
 
-  // add, or with `edit` ({key, index}) change an existing entry.
+  // add, or with `edit` ({key, index}) change an existing entry. `extra` is
+  // the optional fields ({definition, synonyms, example, collocations, topic}).
   // -> { ok, error?, dupWhere?, warnSame? }
-  save(enRaw, thRaw, key, edit) {
+  save(enRaw, thRaw, key, edit, extra) {
     const en = this.cleanEn(enRaw), th = this.cleanTh(thRaw);
     const err = this.checkFields(en, th);
     if (err) return { ok: false, error: err };
@@ -77,10 +87,12 @@ G.CustomVocab = {
     if (dup) return { ok: false, error: "cv.errDup", dupWhere: dup, word: en };
     const same = this.sameMeaning(th, key, edit);
     const store = this.store();
-    if (edit && edit.key === key) store[key][edit.index] = [en, th];
+    const x = G.cleanCustomExtra(extra);
+    const entry = x ? [en, th, x] : [en, th];
+    if (edit && edit.key === key) store[key][edit.index] = entry;
     else {
       if (edit) store[edit.key].splice(edit.index, 1);        // moved to another level
-      store[key].push([en, th]);
+      store[key].push(entry);
     }
     G.persist();
     return { ok: true, word: en, key, warnSame: same };
@@ -108,7 +120,8 @@ G.CustomVocab = {
       const dup = this.findWord(en);
       if (dup) { res.dupes.push({ en, key: dup.key }); return; }
       if (this.sameMeaning(th, key).length) res.sameMeaning.push(en);
-      this.store()[key].push([en, th]);
+      const x = G.cleanCustomExtra(p[2]);
+      this.store()[key].push(x ? [en, th, x] : [en, th]);
       res.added.push(en);
     });
     if (res.added.length) G.persist();
@@ -147,6 +160,7 @@ G.CustomVocabUI = {
   open(returnTo) {
     this.returnTo = returnTo || "screen-mainmenu";
     this.cancelEdit();
+    this.showExtra(false);
     this.showMsg("", "");
     this.render();
     G.UI.showScreen("screen-customvocab");
@@ -157,7 +171,8 @@ G.CustomVocabUI = {
     $("cv-save").onclick = () => this.submit();
     $("cv-cancel").onclick = () => { this.cancelEdit(); this.showMsg("", ""); };
     $("cv-import").onclick = () => G.UI.openImport("screen-customvocab", $("cv-level").value);
-    ["cv-en", "cv-th"].forEach((id) => $(id).addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); this.submit(); } }));
+    $("cv-more").onclick = () => this.showExtra($("cv-extra").classList.contains("hidden"));
+    ["cv-en", "cv-th", "cv-def", "cv-syn", "cv-col", "cv-ex"].forEach((id) => $(id).addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); this.submit(); } }));
     $("cv-list").addEventListener("click", (e) => {
       const b = e.target.closest("button[data-act]");
       if (!b) return;
@@ -187,6 +202,9 @@ G.CustomVocabUI = {
     const keep = sel.value || this.tab;
     sel.innerHTML = G.CustomVocab.LEVEL_KEYS.map((k) => `<option value="${k}">${G.CustomVocab.levelName(k)}</option>`).join("");
     sel.value = keep;
+    const tp = $("cv-topic"), keepTopic = tp.value;
+    tp.innerHTML = `<option value="">${G.T("cv.topicNone")}</option>` + G.WORD_TOPICS.map((t) => `<option value="${G.escapeHtml(t)}">${G.escapeHtml(G.topicLabel(t))}</option>`).join("");
+    tp.value = keepTopic;
     const tabs = $("cv-tabs");
     tabs.innerHTML = G.CustomVocab.LEVEL_KEYS.map((k) =>
       `<button class="tab-btn ${k === this.tab ? "active" : ""}" data-key="${k}">${G.CustomVocab.levelName(k)} (${G.CustomVocab.list(k).length})</button>`).join("");
@@ -200,7 +218,9 @@ G.CustomVocabUI = {
       ? list.map((p, i) => {
         const armed = this.armDelete && this.armDelete.key === this.tab && this.armDelete.index === i;
         const editing = this.editing && this.editing.key === this.tab && this.editing.index === i;
-        return `<div class="cv-row${editing ? " editing" : ""}"><div class="cv-word"><b>${esc(p[0])}</b><span>${esc(p[1])}</span></div>
+        const has = p[2] ? ["definition", "synonyms", "example", "collocations", "topic"].filter((f) => p[2][f]).map((f) => G.T("cv.has." + f)) : [];
+        const note = has.length ? `<span class="cv-extra-note">+ ${esc(has.join(", "))}</span>` : "";
+        return `<div class="cv-row${editing ? " editing" : ""}"><div class="cv-word"><b>${esc(p[0])}</b><span>${esc(p[1])}</span>${note}</div>
           <div class="cv-actions"><button class="btn" data-act="edit" data-idx="${i}">${G.T("cv.edit")}</button>
           <button class="btn${armed ? " danger" : ""}" data-act="del" data-idx="${i}">${G.T(armed ? "cv.confirmDelete" : "cv.delete")}</button></div></div>`;
       }).join("")
@@ -212,6 +232,8 @@ G.CustomVocabUI = {
     this.editing = { key, index };
     const $ = (id) => document.getElementById(id);
     $("cv-en").value = p[0]; $("cv-th").value = p[1]; $("cv-level").value = key;
+    this.fillExtra(p[2]);
+    this.showExtra(!!p[2]);
     $("cv-save").textContent = G.T("cv.saveChanges");
     $("cv-cancel").classList.remove("hidden");
     this.showMsg(G.T("cv.editing", { w: p[0] }), "");
@@ -222,6 +244,7 @@ G.CustomVocabUI = {
     this.editing = null;
     const $ = (id) => document.getElementById(id);
     $("cv-en").value = ""; $("cv-th").value = "";
+    this.fillExtra(null);
     $("cv-save").textContent = G.T("cv.add");
     $("cv-cancel").classList.add("hidden");
     if (document.getElementById("cv-list").children.length) this.renderList();
@@ -229,10 +252,11 @@ G.CustomVocabUI = {
   submit() {
     const $ = (id) => document.getElementById(id);
     const key = $("cv-level").value;
-    const r = G.CustomVocab.save($("cv-en").value, $("cv-th").value, key, this.editing);
+    const r = G.CustomVocab.save($("cv-en").value, $("cv-th").value, key, this.editing, this.readExtra());
     if (!r.ok) {
+      const d = r.dupWhere;
       const msg = r.error === "cv.errDup"
-        ? G.T(r.dupWhere.custom ? "cv.errDupCustom" : "cv.errDup", { w: r.word, level: G.CustomVocab.levelName(r.dupWhere.key) })
+        ? G.T(d.custom ? "cv.errDupCustom" : d.family ? "cv.errDupFamily" : "cv.errDup", { w: r.word, family: d.family || "", level: G.CustomVocab.levelName(d.key) })
         : G.T(r.error);
       this.showMsg(msg, "error");
       return;
@@ -246,6 +270,23 @@ G.CustomVocabUI = {
     this.showMsg(msg, kind);
     this.render();
     $("cv-en").focus();
+  },
+  // the optional fields: open/closed, read, filled in
+  showExtra(open) {
+    document.getElementById("cv-extra").classList.toggle("hidden", !open);
+    const b = document.getElementById("cv-more");
+    b.textContent = G.T(open ? "cv.less" : "cv.more");
+    b.setAttribute("aria-expanded", open ? "true" : "false");
+  },
+  readExtra() {
+    const v = (id) => document.getElementById(id).value;
+    return { definition: v("cv-def"), synonyms: v("cv-syn"), example: v("cv-ex"), collocations: v("cv-col"), topic: v("cv-topic") };
+  },
+  fillExtra(x) {
+    x = x || {};
+    const set = (id, val) => { document.getElementById(id).value = val || ""; };
+    set("cv-def", x.definition); set("cv-syn", (x.synonyms || []).join(", ")); set("cv-ex", x.example);
+    set("cv-col", (x.collocations || []).join(", ")); set("cv-topic", x.topic);
   },
   showMsg(text, kind) {
     const el = document.getElementById("cv-msg");

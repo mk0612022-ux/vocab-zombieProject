@@ -296,37 +296,37 @@ G.Round1Test = (function () {
   async function vocab() {
     const CV = G.CustomVocab;
     G.save.customWords = { level1: [], level2: [], level3: [] };
-    const abandonTh = G.WORDS_LEVEL_1[0][1];                     // "abandon" in the school list
+    const firstEn = G.WORDS_LEVEL_1[0][0], abandonTh = G.WORDS_LEVEL_1[0][1];   // the school list's first word (word bank)
     let r = CV.save("  Serendipity ", "  " + THAI_X + "  ", "level1");
     ok("C: a valid word is saved, trimmed", r.ok && CV.list("level1")[0][0] === "Serendipity" && CV.list("level1")[0][1] === THAI_X);
-    r = CV.save("ABANDON", THAI_X, "level3");
+    r = CV.save(firstEn.toUpperCase(), THAI_X, "level3");
     ok("C: a built-in word (any case, any level) is refused", !r.ok && r.error === "cv.errDup" && r.dupWhere.key === "level1" && !r.dupWhere.custom);
     r = CV.save("serendipity", THAI_X, "level2");
     ok("C: a word already added elsewhere is refused and says where", !r.ok && r.dupWhere.key === "level1" && r.dupWhere.custom);
     ok("C: empty fields refused", CV.save("", THAI_X, "level1").error === "cv.errEmpty" && CV.save("word", "   ", "level1").error === "cv.errEmpty");
     ok("C: non-letters refused", CV.save("abc1", THAI_X, "level1").error === "cv.errLetters" && CV.save("hello!", THAI_X, "level1").error === "cv.errLetters");
-    ok("C: hyphen / space between letters allowed", CV.save("well-being", THAI_X + "1", "level2").ok && CV.save("give up", THAI_X + "2", "level2").ok);
+    ok("C: hyphen / space between letters allowed", CV.save("long-winded", THAI_X + "1", "level2").ok && CV.save("give up", THAI_X + "2", "level2").ok);
     ok("C: meaning must be Thai", CV.save("zebra", "a horse", "level1").error === "cv.errThai");
     r = CV.save("forsake", abandonTh, "level1");
-    ok("C: same meaning as another word in the level -> saved with a warning", r.ok && r.warnSame.includes("abandon"), JSON.stringify(r.warnSame));
+    ok("C: same meaning as another word in the level -> saved with a warning", r.ok && r.warnSame.includes(firstEn), JSON.stringify(r.warnSame));
     // edit / delete
     r = CV.save("Serendipitous", THAI_X, "level1", { key: "level1", index: 0 });
     ok("C: edit in place", r.ok && CV.list("level1")[0][0] === "Serendipitous" && CV.list("level1").length === 2);
-    r = CV.save("abandon", THAI_X, "level1", { key: "level1", index: 0 });
+    r = CV.save(firstEn, THAI_X, "level1", { key: "level1", index: 0 });
     ok("C: an edit can't create a duplicate", !r.ok);
     CV.remove("level1", 0);
     ok("C: delete", CV.list("level1").length === 1 && CV.list("level1")[0][0] === "forsake");
     // import
-    const res = CV.importPairs([["quixotic", THAI_X], ["Abandon", THAI_X], ["quixotic", THAI_X], ["bad1", THAI_X], ["lucid", ""], ["forsake", THAI_X], ["zealous", THAI_X]], "level2");
+    const res = CV.importPairs([["quixotic", THAI_X], [firstEn[0].toUpperCase() + firstEn.slice(1), THAI_X], ["quixotic", THAI_X], ["bad1", THAI_X], ["lucid", ""], ["forsake", THAI_X], ["zealous", THAI_X]], "level2");
     ok("C: CSV import adds the new words", res.added.join() === "quixotic,zealous", res.added.join());
-    ok("C: CSV import leaves out duplicates, and says where", res.dupes.length === 3 && res.dupes.some((d) => d.en === "Abandon" && d.key === "level1") && res.dupes.some((d) => d.en === "quixotic" && d.key === null), JSON.stringify(res.dupes));
+    ok("C: CSV import leaves out duplicates, and says where", res.dupes.length === 3 && res.dupes.some((d) => d.en.toLowerCase() === firstEn && d.key === "level1") && res.dupes.some((d) => d.en === "quixotic" && d.key === null), JSON.stringify(res.dupes));
     ok("C: CSV import leaves out broken rows", res.invalid.length === 2);
     // the level's list, the run, the save
-    ok("C: custom words join the level's word list", G.WORD_SETS.level1.words.some((p) => p[0] === "forsake") && G.WORD_SETS.level1.words.length === 101);
+    ok("C: custom words join the level's word list", G.WORD_SETS.level1.words.some((p) => p[0] === "forsake") && G.WORD_SETS.level1.words.length === G.WORDS_LEVEL_1.length + 1);
     const g = freshRun(1);
     ok("C: ... and the run's word pool", g.wordPool.some((p) => p[0] === "forsake"));
     // never two zombies with the same meaning on the field
-    g.wordPool = [["abandon", abandonTh], ["forsake", abandonTh], ["alpha", THAI_X + "a"], ["beta", THAI_X + "b"]];
+    g.wordPool = [[firstEn, abandonTh], ["forsake", abandonTh], ["alpha", THAI_X + "a"], ["beta", THAI_X + "b"]];
     let clash = 0;
     for (let k = 0; k < 40; k++) {
       g.zombies.forEach((z) => g.scene.remove(z.mesh)); g.zombies = [];
@@ -368,11 +368,11 @@ G.Round1Test = (function () {
     ok("C: Back returns to Settings", G.UI._currentScreen === "screen-settings");
     // the import page, into a level
     G.UI.openImport("screen-customvocab", "level2");
-    G.UI._pendingImport = { name: "t", words: [["ephemeral", THAI_X], ["abandon", THAI_X], ["x2", THAI_X]] };
+    G.UI._pendingImport = { name: "t", words: [["ephemeral", THAI_X], [firstEn, THAI_X], ["x2", THAI_X]] };
     G.UI.el("btn-import-save").disabled = false;
     G.UI.saveImportedSet();
     const sum = document.getElementById("import-summary").textContent;
-    ok("C: import summary: added count, duplicates with their level, broken rows", /Words added to Abandoned Hospital: 1/.test(sum) && /abandon \(already in Abandoned School\)/.test(sum) && /x2/.test(sum), sum);
+    ok("C: import summary: added count, duplicates with their level, broken rows", /Words added to Abandoned Hospital: 1/.test(sum) && new RegExp(firstEn + " \\(already in Abandoned School\\)").test(sum) && /x2/.test(sum), sum);
   }
 
   async function run() {

@@ -3,7 +3,7 @@
 // "<name> the <word>", the word one of C1-C2 level, and its Thai meaning is
 // shown small under the title card in the boss's cutscene and in the Boss
 // Codex -- a word learnt at every boss. (Vocabulary data: the Thai here is
-// part of the game, like js/data/words_*.js.)
+// part of the game, like the word bank in js/data/bank_*.js.)
 // ===================================================================
 window.G = window.G || {};
 G.BOSS_WORDS = {

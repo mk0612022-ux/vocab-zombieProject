@@ -1358,6 +1358,11 @@
 
       // ---- ceiling tubes that match each light: lit, failing, or dead -------
       const tubeOn = basic(0xf2eee0), tubeOff = lam(0x3b3c3a), housing = lam(0x9a9a96);
+      const spotsOf = (f) => (f.w > 8 ? 2 : Math.max(1, Math.round(f.d / 4.5)));
+      // dead tubes still to place, and how many must still come down so the
+      // building always has at least three (a 35% chance each left it at two now and then)
+      let deadLeft = (world.fixtures || []).reduce((n, f) => n + (f.mode === "off" ? spotsOf(f) : 0), 0);
+      const fallTarget = Math.min(3, deadLeft);
       (world.fixtures || []).forEach((f) => {
         let mat = f.mode === "off" ? tubeOff : tubeOn;
         if (f.mode === "flicker" && f.light) { mat = new THREE.MeshBasicMaterial({ color: 0xf2eee0 }); f.light.userData.glow = mat; }
@@ -1368,7 +1373,7 @@
         spots.forEach(([dx, dz]) => {
           // I3: a dead one has sometimes come down at one end -- hanging
           // from its wires, a tube gone, the glass of it on the floor below
-          if (f.mode === "off" && R() < 0.35) {
+          if (f.mode === "off" && (deadLeft-- <= fallTarget - (world.fallenLights || 0) || R() < 0.35)) {
             const x = f.x + dx, z = f.z + dz, a = 0.5 + R() * 0.4, e = R() < 0.5 ? -1 : 1;
             const g = new THREE.Group(); g.position.set(x, y + 0.01, z + e * 0.65); g.rotation.x = -e * a; scene.add(g);
             box(g, 0.3, 0.05, 1.3, housing, 0, 0, -e * 0.65);

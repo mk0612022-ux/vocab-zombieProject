@@ -75,7 +75,7 @@ G.Round4Test = (function () {
       G.save.levelHighScores[1] = 12345;
       G.UI.goToMainMenu({ tab: "campaign", select: "school" });
       const stats = document.getElementById("lp-stats").textContent;
-      ok("preview: high score, notes X/20, words X/100, guns", /12,345/.test(stats) && /3 \/ 20/.test(stats) && /\/ 100/.test(stats) && /Guns found/i.test(stats), stats);
+      ok("preview: high score, notes X/20, words X/(level's word families), guns", /12,345/.test(stats) && /3 \/ 20/.test(stats) && new RegExp("/ " + G.WORDS_LEVEL_1.length).test(stats) && /Guns found/i.test(stats), stats);
       ok("preview: title, description, badge", /Abandoned School/i.test(document.getElementById("lp-title").textContent) && document.getElementById("lp-desc").textContent.length > 40 && /FEATURED/.test(document.getElementById("lp-badge").textContent));
       G.UI.goToMainMenu({ tab: "campaign", select: "daily" });
       ok("daily: a countdown to the next challenge", /\d\d:\d\d:\d\d/.test(document.getElementById("lp-stats").textContent) && /\d\d:\d\d:\d\d/.test(root.querySelector('.lcard[data-id="daily"] .lcard-meta').textContent));

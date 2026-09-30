@@ -43,7 +43,8 @@ G.defaultSave = function () {
     endlessHighScore: 0,
     endlessHighWave: 0,
     leaderboards: { level1: [], level2: [], level3: [], daily: [], endless: [] },
-    wordStats: {},                // {word: {correct, wrong, lastCorrect}}
+    wordStats: {},                // {entry id (G.wordKey): {correct, wrong, lastCorrect}}
+    wordStatsVersion: 2,          // 1: keyed by the word as typed; 2: by word-bank entry id (G.migrateWordStats)
     achievements: {},             // {id: true}
     unlockedWeapons: ["pistol"],
     settings: {
@@ -67,7 +68,7 @@ G.defaultSave = function () {
       hudScale: {},               // {all, hp, stamina, ...}: HUD sizes, 1 when absent (js/hudcfg.js)
     },
     importedSets: {},             // {id: {name, words:[[en,th],...]}}
-    customWords: { level1: [], level2: [], level3: [] },   // words the player added to each level ([[en,th],...])
+    customWords: { level1: [], level2: [], level3: [] },   // words the player added to each level ([[en,th] or [en,th,{definition,...}],...])
     notes: { level1: [], level2: [], level3: [] },          // story notes kept in the journal (ids), round 3
     bosses: { seen: {}, defeated: {} },                      // the Boss Codex: {bossId: times met / beaten}, round 2
     checkpoints: {},                                         // {level1: the run kept after wave 10}, round 3 (js/checkpoint.js)
@@ -105,12 +106,17 @@ G.normalizeSave = function (data) {
   ["wordStats", "achievements", "levelHighScores", "dailyHighScores", "importedSets", "customWords"].forEach((k) => {
     if (!s[k] || typeof s[k] !== "object" || Array.isArray(s[k])) s[k] = def[k] || {};
   });
-  // custom words: three lists of [English, Thai] string pairs, nothing else
+  // word stats: by word-bank entry id, old keys moved over (see below)
+  s.wordStats = G.migrateWordStats(s.wordStats);
+  s.wordStatsVersion = 2;
+  // custom words: three lists of [English, Thai] string pairs, each with an
+  // optional third item of extra fields (definition, synonyms, example,
+  // collocations, topic -- G.cleanCustomExtra); nothing else
   const cw = {};
   Object.keys(def.customWords).forEach((key) => {
     const list = Array.isArray(s.customWords[key]) ? s.customWords[key] : [];
     cw[key] = list.filter((p) => Array.isArray(p) && typeof p[0] === "string" && typeof p[1] === "string" && p[0].trim() && p[1].trim())
-      .map((p) => [p[0], p[1]]);
+      .map((p) => { const x = G.cleanCustomExtra(p[2]); return x ? [p[0], p[1], x] : [p[0], p[1]]; });
   });
   s.customWords = cw;
   // story notes: per level, a list of note ids (strings), no repeats
@@ -132,6 +138,52 @@ G.normalizeSave = function (data) {
   // checkpoints: one per level, well-formed or dropped (js/checkpoint.js)
   s.checkpoints = G.Checkpoint ? G.Checkpoint.normalize(s.checkpoints) : (s.checkpoints && typeof s.checkpoints === "object" ? s.checkpoints : {});
   return s;
+};
+
+// Word stats used to be keyed by the word as the game showed it. Since the
+// word bank they are keyed by entry id (G.wordKey). For almost every word
+// the two are the same -- the ids ARE the old words, "minimize" and
+// "organize" included, though the words now show as "minimise" and
+// "organise". What changes: words merged into another family ("consist"
+// into consistent, "incompatible" into compatible) and any key saved under
+// another spelling. Their counts are added to the id's, the most recent
+// lastCorrect kept, any other field of the id's own record kept; nothing is
+// dropped but records that are not objects. The player's own words and
+// practice-set words keep their lower-cased keys. Safe to run again.
+G.migrateWordStats = function (ws) {
+  const out = {};
+  if (!ws || typeof ws !== "object" || Array.isArray(ws)) return out;
+  // (a page without js/wordbank.js keeps the keys as they are)
+  if (!G.wordKey) G.wordKey = (w) => String(Array.isArray(w) ? w[0] : w).trim().toLowerCase();
+  const num = (v) => { v = Number(v); return isFinite(v) && v > 0 ? v : 0; };
+  // an id's own record first, so its extra fields win over a merged word's
+  const keys = Object.keys(ws).sort((a, b) => (G.wordKey(a) === a ? 0 : 1) - (G.wordKey(b) === b ? 0 : 1));
+  keys.forEach((k) => {
+    const v = ws[k];
+    if (!v || typeof v !== "object" || Array.isArray(v)) return;
+    const id = G.wordKey(k);
+    const cur = out[id];
+    if (!cur) { out[id] = Object.assign({}, v, { correct: num(v.correct), wrong: num(v.wrong), lastCorrect: num(v.lastCorrect) }); return; }
+    cur.correct += num(v.correct);
+    cur.wrong += num(v.wrong);
+    cur.lastCorrect = Math.max(cur.lastCorrect, num(v.lastCorrect));
+  });
+  return out;
+};
+
+// the optional fields of a player's own word, cleaned; null when there are none
+G.cleanCustomExtra = function (x) {
+  if (!x || typeof x !== "object" || Array.isArray(x)) return null;
+  const str = (v, n) => typeof v === "string" ? v.trim().replace(/\s+/g, " ").slice(0, n) : "";
+  const list = (v, n, len) => (Array.isArray(v) ? v : typeof v === "string" ? v.split(/[|,;]/) : [])
+    .map((s) => str(s, len)).filter(Boolean).slice(0, n);
+  const out = {};
+  const d = str(x.definition, 200); if (d) out.definition = d;
+  const sy = list(x.synonyms, 3, 40); if (sy.length) out.synonyms = sy;
+  const ex = str(x.example, 200); if (ex) out.example = ex;
+  const co = list(x.collocations, 4, 60); if (co.length) out.collocations = co;
+  const tp = str(x.topic, 40); if (tp && G.WORD_TOPICS && G.WORD_TOPICS.includes(tp)) out.topic = tp;
+  return Object.keys(out).length ? out : null;
 };
 
 G.loadSave = function () {
@@ -245,8 +297,12 @@ G.importSaveFromFile = function (file, cb) {
 };
 
 // ---------------- Word stats (long-term memory tracking) ----------------
+// `word` everywhere below: the word as shown, or its [en, th] pair -- the
+// stats are found by G.wordKey either way
+G.wordStat = function (word) { return G.save.wordStats[G.wordKey(word)] || null; };
+
 G.recordWordResult = function (word, correct) {
-  const w = word.toLowerCase();
+  const w = G.wordKey(word);
   const stats = G.save.wordStats[w] || { correct: 0, wrong: 0, lastCorrect: 0 };
   if (correct) { stats.correct++; stats.lastCorrect = Date.now(); }
   else { stats.wrong++; }
@@ -259,7 +315,7 @@ G.recordWordResult = function (word, correct) {
 
 // mastery score: higher = better known. Used to weight sampling (weak words appear more often)
 G.wordWeight = function (word) {
-  const s = G.save.wordStats[word.toLowerCase()];
+  const s = G.wordStat(word);
   if (!s) return 3; // unseen words get medium-high priority
   const total = s.correct + s.wrong;
   if (total === 0) return 3;
@@ -269,7 +325,7 @@ G.wordWeight = function (word) {
 };
 
 G.isWordMastered = function (word) {
-  const s = G.save.wordStats[word.toLowerCase()];
+  const s = G.wordStat(word);
   if (!s) return false;
   const total = s.correct + s.wrong;
   return total >= 3 && s.correct / total >= 0.75;

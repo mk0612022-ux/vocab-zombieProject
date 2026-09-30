@@ -43,7 +43,7 @@ G.Round5Test = (function () {
     G.Game.quitToMainMenu();
     G.PWA.offer();
     ok("A4 'New version available' opens in the lobby, as a modal", !document.getElementById("update-dialog").classList.contains("hidden") && G.Modal.isOpen("update"));
-    ok("A4 its text", /New version available/.test(document.getElementById("update-dialog").textContent) && /Reload/.test(document.getElementById("btn-update-reload").textContent));
+    ok("A4 its text", /New version available/.test(document.getElementById("update-dialog").textContent) && /reload/i.test(document.getElementById("btn-update-reload").textContent), document.getElementById("btn-update-reload").textContent);
     ok("A4 a controller's navigation stays in it", G.Pad.scope() === document.getElementById("update-dialog"));
     key("Escape");
     ok("A4 Escape = Later: closed", document.getElementById("update-dialog").classList.contains("hidden") && !G.Modal.isOpen("update"));

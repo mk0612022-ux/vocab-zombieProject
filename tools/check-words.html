@@ -10,32 +10,35 @@
   th, td { border: 1px solid #2f6b3c; padding: 6px 12px; text-align: left; }
   .pass { color: #6bff7a; font-weight: 800; }
   .fail { color: #ff5c5c; font-weight: 800; }
-  pre { background: #10181300; }
   li { margin: 2px 0; }
 </style>
 </head>
 <body>
-<h1>Word list check (category G)</h1>
+<h1>Word list check</h1>
+<p>What the game loads from the word bank. The full content check is <code>tools/validate-words.ps1</code>.</p>
 <div id="out">Loading…</div>
 
-<script src="../js/data/words_school.js"></script>
-<script src="../js/data/words_hospital.js"></script>
-<script src="../js/data/words_bunker.js"></script>
+<script src="../js/data/bank_school.js"></script>
+<script src="../js/data/bank_hospital.js"></script>
+<script src="../js/data/bank_bunker.js"></script>
+<script src="../js/data/confusables.js"></script>
+<script src="../js/wordbank.js"></script>
 <script src="../js/data/words.js"></script>
 <script>
   const r = G.auditWordSets();
   const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+  const inRange = (s) => s.count >= G.WORDS_PER_LEVEL.min && s.count <= G.WORDS_PER_LEVEL.max && s.unique === s.count;
   const rows = r.sets.map((s) =>
     `<tr><td>${esc(s.key)}</td><td>${esc(s.file)}</td><td>${esc(s.label)}</td>
      <td>${s.count}</td><td>${s.unique}</td>
-     <td class="${s.count === 100 && s.unique === s.count ? "pass" : "fail"}">${s.count === 100 && s.unique === s.count ? "OK" : "ERROR"}</td></tr>`).join("");
+     <td class="${inRange(s) ? "pass" : "fail"}">${inRange(s) ? "OK" : "ERROR"}</td></tr>`).join("");
   const list = (arr, fmt) => arr.length ? `<ul>${arr.map((x) => `<li>${esc(fmt(x))}</li>`).join("")}</ul>` : '<span class="pass">none</span>';
   document.getElementById("out").innerHTML = `
-    <table><tr><th>Set</th><th>File</th><th>Level</th><th>Words</th><th>Unique in set</th><th>Result</th></tr>${rows}</table>
-    <p>Total: <b>${r.total}</b> words · unique across the game: <b>${r.uniqueOverall}</b></p>
-    <p>Duplicates across levels: ${list(r.crossLevelDuplicates, (d) => `${d.word} (${d.inSets.join(" + ")})`)}</p>
-    <p>Duplicates within a level: ${list(r.withinSetDuplicates, (d) => `${d.word} (${d.set})`)}</p>
-    <p>Malformed entries / missing meaning: ${list(r.malformed, (m) => `${m.set}[${m.index}] = ${m.value}`)}</p>
+    <table><tr><th>Set</th><th>File</th><th>Level</th><th>Word families</th><th>Unique ids</th><th>Result</th></tr>${rows}</table>
+    <p>Total: <b>${r.total}</b> word families · unique ids across the game: <b>${r.uniqueOverall}</b> · allowed per level: ${G.WORDS_PER_LEVEL.min}–${G.WORDS_PER_LEVEL.max}</p>
+    <p>Forms in two levels: ${list(r.crossLevelDuplicates, (d) => `${d.word} (${d.inSets.join(" + ")})`)}</p>
+    <p>Forms twice in one level: ${list(r.withinSetDuplicates, (d) => `${d.word} (${d.set})`)}</p>
+    <p>Malformed entries / missing meaning or id: ${list(r.malformed, (m) => `${m.set}[${m.index}] = ${m.value}`)}</p>
     <h2 class="${r.ok ? "pass" : "fail"}">Overall: ${r.ok ? "ALL PASS" : "FAIL"}</h2>`;
   window.__AUDIT__ = r;
 </script>

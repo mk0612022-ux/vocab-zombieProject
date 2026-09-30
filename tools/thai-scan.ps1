@@ -1,12 +1,13 @@
 # Lists every line that still contains Thai characters (U+0E00-U+0E7F) in the
-# game's code, markup and styles. Vocabulary data (js/data/words_*.js) is
+# game's code, markup and styles. Vocabulary data (the word bank
+# js/data/bank_*.js, js/data/confusables.js, js/data/words_bosses.js) is
 # skipped on purpose: the Thai meanings there are part of the game.
 #
 #   powershell -ExecutionPolicy Bypass -File tools\thai-scan.ps1
 #
 # Exit code 0 = clean, 1 = Thai text found.
 $root = Split-Path -Parent $PSScriptRoot
-$skip = @('js\data\words_school.js', 'js\data\words_hospital.js', 'js\data\words_bunker.js', 'js\data\words_bosses.js')
+$skip = @('js\data\bank_school.js', 'js\data\bank_hospital.js', 'js\data\bank_bunker.js', 'js\data\confusables.js', 'js\data\words_bosses.js')
 $files = Get-ChildItem -Path $root -Recurse -File -Include *.js, *.html, *.css, *.json, *.ps1 |
   Where-Object { $_.FullName -notmatch '\\(\.git|node_modules|screenshots)\\' }
 $hits = 0; $scanned = 0; $skipped = @()

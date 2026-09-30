@@ -438,7 +438,7 @@ G.Round7Test = (function () {
     F.interact(g, gateRef);
     ok("I the lock: a word question, 15 seconds", !!g.challenge && g.challenge.timeLimit === 15 && /word 1 of 3/.test(document.getElementById("hud-challenge-label").textContent));
     const first = g.challenge.pair[0];
-    const avg = g.wordPool.reduce((a, p) => a + p[0].length, 0) / g.wordPool.length, st = G.save.wordStats[first.toLowerCase()];
+    const avg = g.wordPool.reduce((a, p) => a + p[0].length, 0) / g.wordPool.length, st = G.wordStat(first);
     ok("I ...a hard word (a long one, or one missed before)", first.length > avg || (st && st.wrong > 0), first);
     g.answerChallenge(g.challenge.choices.indexOf(first));
     const tries0 = F.s.tries; F.interact(g, gateRef);
