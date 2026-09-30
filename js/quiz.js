@@ -165,6 +165,9 @@
     // the quiz's own clock (the rest of the game is paused)
     update(dt) {
       if (!this.active) return;
+      // (a phone turned upright: the "Rotate your device" card is over the
+      // question, so its clock waits -- js/pwa.js)
+      if (G.Modal.isOpen("rotate")) return;
       this.t += dt;
       if (this.stage === "question") {
         this.timerBar();

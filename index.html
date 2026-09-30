@@ -25,6 +25,19 @@
 <!-- The lobby (round 4) is built into this by js/lobby.js -->
 <div id="screen-mainmenu" class="screen screen-lobby"></div>
 
+<!-- a phone or tablet held upright (js/pwa.js) -->
+<div id="rotate-overlay" class="rotate-overlay hidden" role="alertdialog" aria-modal="true" aria-labelledby="rotate-title">
+  <div class="rotate-box">
+    <svg class="rotate-icon" viewBox="0 0 120 120" aria-hidden="true">
+      <g class="rotate-phone"><rect x="42" y="18" width="36" height="64" rx="7" fill="none" stroke="currentColor" stroke-width="5"/><circle cx="60" cy="73" r="3.5" fill="currentColor"/></g>
+      <path d="M22 88 A44 44 0 0 0 88 102" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"/>
+      <path d="M80 94 L90 103 L78 108" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <h3 id="rotate-title" data-i18n="rotate.title"></h3>
+    <p data-i18n="rotate.text"></p>
+  </div>
+</div>
+
 <!-- (A4) a new version of the game is ready (js/pwa.js) -->
 <div id="update-dialog" class="update-dialog hidden" role="dialog" aria-modal="true" aria-labelledby="update-title">
   <div class="update-box">

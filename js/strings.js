@@ -815,8 +815,11 @@ G.STRINGS = {
     // (A4) a new version of the game
     "update.title": "New version available",
     "update.text": "A newer version of the game has been downloaded. Reload to start playing it — your progress is saved.",
-    "update.reload": "Reload",
+    "update.reload": "Tap to reload", "update.reloadClick": "Click to reload",
     "update.later": "Later",
+    // held upright on a phone or tablet (js/pwa.js)
+    "rotate.title": "Rotate your device",
+    "rotate.text": "Vocab Zombie is played sideways. Turn your phone or tablet to landscape to keep playing.",
     "lobby.mode.endless": "Endless Mode", "lobby.mode.daily": "Daily Challenge", "lobby.mode.practice": "Practice Mode", "lobby.mode.custom": "Custom Vocabulary",
     "lobby.badge.featured": "FEATURED", "lobby.badge.campaign": "CAMPAIGN", "lobby.badge.survival": "SURVIVAL", "lobby.badge.daily": "DAILY EVENT",
     "lobby.badge.training": "TRAINING", "lobby.badge.creative": "CREATIVE", "lobby.badge.locked": "LOCKED",

@@ -70,6 +70,12 @@ G.Audio = {
     // actually opens the output
     const b = ctx.createBuffer(1, 1, 22050);
     const s = ctx.createBufferSource(); s.buffer = b; s.connect(ctx.destination); s.start(0);
+    // ...and the word pronunciations: iOS lets speech start later, from a
+    // timer, only once it has been started inside a touch -- a silent, empty
+    // line now opens it
+    try {
+      if ("speechSynthesis" in window) { const u = new SpeechSynthesisUtterance(" "); u.volume = 0; speechSynthesis.speak(u); }
+    } catch (e) { /* no speech on this browser */ }
     if (this._pendingLevel) { const t = this._pendingLevel; this._pendingLevel = null; this.startLevel(t); }
   },
 

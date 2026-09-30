@@ -36,7 +36,8 @@ powershell -ExecutionPolicy Bypass -File .\tools\check-paths.ps1
 
 เล่นแบบแอป (PWA): เปิดลิงก์ของเกมใน Safari (iPad/iPhone) → ปุ่มแชร์ → **Add to Home Screen**
 หรือใน Chrome (Android) → เมนู → **Install app** เกมจะเปิดเต็มจอเหมือนแอป และเล่นได้แม้ไม่มีเน็ต
-หลังจากเปิดครั้งแรกแล้ว เมื่อมีเวอร์ชันใหม่ ในล็อบบี้จะขึ้น "New version available - Reload"
+หลังจากเปิดครั้งแรกแล้ว เมื่อมีเวอร์ชันใหม่ ในล็อบบี้จะขึ้น "New version available - Tap to reload"
+ถ้าถือมือถือหรือแท็บเล็ตแนวตั้ง เกมจะขึ้น "Rotate your device" และหยุดเกมไว้จนกว่าจะหมุนกลับเป็นแนวนอน
 
 ### GitHub Pages (repo ต้องเป็น public ถ้าใช้บัญชีฟรี)
 
