@@ -76,6 +76,8 @@ G.Tutorial = {
   // of its own -- how to spell a zombie down, and how to move meanwhile --
   // shown in a study session even after the main tutorial is done (the
   // session's first window explains it too; Replay Tutorial shows them again)
+  // (round 4, J4: and in a campaign level played with spelling, before the
+  // main tutorial's cards)
   SPELL_STEPS: [
     {
       id: "spell",
@@ -104,8 +106,9 @@ G.Tutorial = {
   onPickup() { if (this.stats) this.stats.pickups++; },
 
   update(dt, game) {
-    const spell = game.mode === "study" && !!(G.Spell && G.Spell.active);
-    if (!this.stats || (!spell && (!this.enabled() || game.mode !== "campaign"))) { if (this.current) this.hide(); return; }
+    const spell = (game.mode === "study" || game.mode === "campaign") && !!(G.Spell && G.Spell.active);
+    const main = this.enabled() && game.mode === "campaign";
+    if (!this.stats || (!spell && !main)) { if (this.current) this.hide(); return; }
     const s = this.stats, p = game.yawObject.position;
     s.moved += Math.hypot(p.x - s.lastPos.x, p.z - s.lastPos.z);
     s.lastPos.copy(p);
@@ -114,7 +117,7 @@ G.Tutorial = {
     this._t -= dt;
     if (this._t <= 0) {
       this._t = 0.25;
-      for (const st of spell ? this.SPELL_STEPS : this.STEPS) {
+      for (const st of (spell ? this.SPELL_STEPS : []).concat(main ? this.STEPS : [])) {
         if (seen[st.id] || this.queue.includes(st) || this.current === st) continue;
         if (st.when(game, s)) this.queue.push(st);
       }
@@ -136,7 +139,7 @@ G.Tutorial = {
       this.show(this.queue.shift());
     }
     // everything seen: the tutorial is over
-    if (!spell && this.STEPS.every((st) => seen[st.id]) && seen.shop) { G.save.tutorialDone = true; G.persistSoon(); }
+    if (main && this.STEPS.every((st) => seen[st.id]) && seen.shop) { G.save.tutorialDone = true; G.persistSoon(); }
   },
 
   show(st) {

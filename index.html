@@ -128,6 +128,21 @@
   <div class="row-center"><button class="btn" id="btn-import-back" data-i18n="common.back"></button></div>
 </div>
 
+<!-- ===================== PROGRESS (vocabulary series round 4, I: js/progress.js) ===================== -->
+<div id="screen-progress" class="screen screen-progress hidden">
+  <div class="pg-head">
+    <button class="btn pg-back" id="btn-progress-back" type="button">← <span data-i18n="common.back"></span> <span class="kbd-only dlg-key">(Esc)</span></button>
+    <h2 class="pg-title" data-i18n="progress.title"></h2>
+    <div class="pg-tabs" role="tablist">
+      <span class="lobby-key kb-only">Q</span><span class="lobby-key pad-only">LB</span>
+      <button class="pg-tab on" type="button" role="tab" data-pgtab="learn" data-i18n="progress.tabLearn"></button>
+      <button class="pg-tab" type="button" role="tab" data-pgtab="game" data-i18n="progress.tabGame"></button>
+      <span class="lobby-key kb-only">E</span><span class="lobby-key pad-only">RB</span>
+    </div>
+  </div>
+  <div class="pg-body" id="progress-body"></div>
+</div>
+
 <!-- ===================== PRACTICE MODE SETUP ===================== -->
 <div id="screen-practice-setup" class="screen hidden">
   <h2 class="screen-title" data-i18n="practice.title"></h2>
@@ -137,13 +152,22 @@
 
 <!-- ===================== PRACTICE MODE PLAY ===================== -->
 <div id="screen-practice-play" class="screen hidden">
-  <div class="practice-card" id="practice-card">
-    <div class="practice-progress" id="practice-progress"></div>
-    <div class="practice-word" id="practice-word"></div>
-    <div class="practice-choices" id="practice-choices"></div>
-    <div class="practice-feedback" id="practice-feedback"></div>
+  <!-- (vocabulary series round 4: every kind of question, js/practice.js) -->
+  <div class="quiz-box practice-box" id="practice-box" role="region" aria-labelledby="practice-kicker">
+    <div class="quiz-head">
+      <div class="quiz-kicker" id="practice-kicker"></div>
+      <div class="quiz-counters"><span class="qc ok" id="practice-right"></span><span class="qc bad" id="practice-wrong"></span></div>
+    </div>
+    <div class="quiz-q" id="practice-q">
+      <div class="quiz-progress" id="practice-progress"></div>
+      <div class="quiz-ask" id="practice-ask"></div>
+      <div class="quiz-prompt" id="practice-prompt"></div>
+      <div class="quiz-choices" id="practice-choices"></div>
+      <div class="quiz-feedback" id="practice-feedback" role="status"></div>
+      <div class="quiz-hint kbd-only" id="practice-hint"></div>
+    </div>
   </div>
-  <div class="row-center"><button class="btn" id="btn-practice-quit" data-i18n="practice.quit"></button></div>
+  <div class="row-center"><button class="btn" id="btn-practice-quit" type="button"><span data-i18n="practice.quit"></span> <span class="kbd-only dlg-key">(Esc)</span></button></div>
 </div>
 
 <!-- ===================== HUD (Gameplay) ===================== -->
@@ -503,12 +527,35 @@
       <p class="learn-sub" data-i18n="learn.sub"></p>
       <div class="learn-h" data-i18n="learn.modeHead"></div>
       <div class="learn-modes" id="learn-modes"></div>
+      <!-- (round 4) a clue x an answer of the player's own -->
+      <div class="learn-custom hidden" id="learn-custom"></div>
       <div class="learn-h" data-i18n="learn.levelHead"></div>
       <div class="learn-levels" id="learn-levels"></div>
+      <div class="learn-h" data-i18n="learn.topicHead"></div>
+      <div class="learn-levels learn-topics" id="learn-topics"></div>
     </div>
     <div class="dialog-btns">
       <button class="btn btn-primary" id="btn-learn-start"><span data-i18n="learn.start"></span> <span class="dlg-key">(Enter)</span></button>
       <button class="btn" id="btn-learn-cancel" data-pad-back><span data-i18n="common.back"></span> <span class="dlg-key">(Esc)</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- (vocabulary series round 4, J2) a campaign level's Learning Style, js/campstyle.js -->
+<div id="camp-style" class="dialog-overlay hidden">
+  <div class="dialog-box learn-box" id="camp-style-box" role="dialog" aria-modal="true" aria-labelledby="camp-style-title">
+    <h3 class="dialog-title" id="camp-style-title"></h3>
+    <div class="learn-scroll">
+      <p class="learn-sub" data-i18n="camp.sub"></p>
+      <div class="learn-h" data-i18n="camp.styleHead"></div>
+      <div class="learn-modes camp-modes" id="camp-style-opts"></div>
+      <div class="learn-custom hidden" id="camp-style-custom"></div>
+      <div class="learn-h" data-i18n="camp.optHead"></div>
+      <div class="learn-row" id="camp-style-reload"></div>
+    </div>
+    <div class="dialog-btns">
+      <button class="btn btn-primary" id="btn-camp-go"><span data-i18n="camp.go"></span> <span class="dlg-key">(Enter)</span></button>
+      <button class="btn" id="btn-camp-back" data-pad-back><span data-i18n="common.back"></span> <span class="dlg-key">(Esc)</span></button>
     </div>
   </div>
 </div>
@@ -698,6 +745,9 @@ window.addEventListener("load", function () {
 <script src="js/study.js"></script>
 <script src="js/questions.js"></script>
 <script src="js/vocabcard.js"></script>
+<script src="js/practice.js"></script>
+<script src="js/campstyle.js"></script>
+<script src="js/progress.js"></script>
 <script src="js/hudcfg.js"></script>
 <script src="js/tips.js"></script>
 <script src="js/journal.js"></script>

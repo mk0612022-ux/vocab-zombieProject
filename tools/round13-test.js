@@ -128,6 +128,11 @@ G.Round13Test = (function () {
     ok("B a Context clue is a recall answer too: box 3 -> 4", G.SRS.box(ind) === 4);
     // Listening
     clear(g); g.learn = G.Learn.run("listening"); put(ben, 2, 0);
+    // (vocabulary series, round 4, J2: in the campaign every zombie carries
+    // its English word; Thai labels are the Listening mode's own -- a study session)
+    z = add(g, ben, "audio");
+    ok("B (round 4) Audio + Shoot in the campaign: the English word", z.labelText === z.word);
+    clear(g); g.mode = "study";
     spoken = [];
     z = add(g, ben, "audio"); const o2 = add(g, ach, "audio");
     aim(g, z);
@@ -151,6 +156,7 @@ G.Round13Test = (function () {
     kill(g, z);
     ok("B Listening is recognition: box 3 stays 3", G.SRS.box(ben) === 3);
     G.UI.flashPurchaseBanner = realBanner;
+    g.mode = "campaign";
     g.quitToMainMenu();
   }
 

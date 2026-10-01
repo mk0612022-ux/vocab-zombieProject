@@ -45,7 +45,11 @@ G.Learning = {
     const obj = (o) => (o && typeof o === "object" && !Array.isArray(o) ? o : null);
     const int = (v, lo, hi, d) => { v = Math.floor(Number(v)); return Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d; };
     const r = obj(raw);
-    const out = { v: 1, srs: {}, conf: {}, daily: { streak: 0, best: 0, last: null, nextDue: null, days: {} } };
+    // (round 4: skills -- right / wrong by kind of task, for the Progress
+    // page; activity -- words answered a day; spellRun -- right spellings in
+    // a row, for Spelling Bee)
+    const out = { v: 1, srs: {}, conf: {}, daily: { streak: 0, best: 0, last: null, nextDue: null, days: {} }, skills: {}, activity: {}, spellRun: 0 };
+    this.SKILLS.forEach((k) => { out.skills[k] = { r: 0, w: 0 }; });
     if (!r) {
       // C5: a player from before: every word the old statistics knew starts
       // in a box by its accuracy, due today
@@ -88,7 +92,23 @@ G.Learning = {
       const days = obj(d.days) || {};
       Object.keys(days).forEach((k) => { const n = int(days[k], 0, 1e5, 0); if (/^\d+$/.test(k) && n > 0) out.daily.days[k] = n; });
     }
+    const sk = obj(r.skills) || {};
+    this.SKILLS.forEach((k) => { const s = obj(sk[k]) || {}; out.skills[k] = { r: int(s.r, 0, 1e8, 0), w: int(s.w, 0, 1e8, 0) }; });
+    const act = obj(r.activity) || {};
+    Object.keys(act).forEach((k) => { const n = int(act[k], 0, 1e6, 0); if (/^\d+$/.test(k) && n > 0) out.activity[k] = n; });
+    out.spellRun = int(r.spellRun, 0, 1e7, 0);
     return out;
+  },
+  // (round 4, I) the kinds of task the Progress page shows accuracy for
+  SKILLS: ["recognition", "spelling", "listening", "paraphrase", "context"],
+  // the skills an answer trains: its clue and how it was given
+  skillsFor(clue, answer) {
+    const out = [];
+    if (answer === "spell") out.push("spelling");
+    if (clue === "audio") out.push("listening");
+    else if (clue === "definition") out.push("paraphrase");
+    else if (clue === "cloze") out.push("context");
+    return out.length ? out : ["recognition"];
   },
 };
 
@@ -102,10 +122,38 @@ G.Learning.answerWord = function (pair, right, opts) {
   if (!pair) return null;
   G.recordWordResult(pair, right, { srs: false });
   const r = G.SRS.answer(pair, right, opts);
+  G.Learning.track(right, opts);
+  if (r && r.to >= G.Learning.MASTERED && r.from < G.Learning.MASTERED) G.Learning.checkMastery();
   const x = !right ? (opts.picked || (opts.typed && (G.WordBank.ownerOf(opts.typed) || G.WordBank.confusable(opts.typed)) ? opts.typed : null)) : null;
   if (x && G.wordKey(x) !== G.wordKey(pair)) G.SRS.noteConfusion(pair, x);
   G.SRS.noteAnswer(pair, right, opts.inView);
   return r;
+};
+
+// (round 4) the day's activity, the skills, the run of right spellings
+//   opts.skills: ["spelling", "listening", ...] (else recognition)
+G.Learning.track = function (right, opts) {
+  const L = G.save.learn;
+  if (!L) return;
+  const day = G.Clock.today();
+  L.activity[day] = (L.activity[day] || 0) + 1;
+  Object.keys(L.activity).forEach((k) => { if (+k < day - 60) delete L.activity[k]; });
+  const skills = opts.skills && opts.skills.length ? opts.skills : ["recognition"];
+  skills.forEach((k) => { const s = L.skills[k] || (L.skills[k] = { r: 0, w: 0 }); if (right) s.r++; else s.w++; });
+  // Spelling Bee: fifty right in a row (a hinted one neither counts nor breaks it)
+  if (skills.includes("spelling") && !opts.assisted) {
+    L.spellRun = right ? (L.spellRun || 0) + 1 : 0;
+    if (L.spellRun >= G.CONFIG.achievements.spellingBee) G.unlockAchievement("spelling_bee");
+  }
+};
+// (J3) the learning achievements that come with a word Mastered
+G.Learning.checkMastery = function () {
+  const S = G.save.learn.srs;
+  const mastered = Object.keys(S).filter((k) => S[k].b >= G.Learning.MASTERED);
+  if (mastered.length >= 1) G.unlockAchievement("first_mastered");
+  if (mastered.length >= G.CONFIG.achievements.mastered) G.unlockAchievement("mastered_100");
+  const sub1 = G.WordBank.entries().filter((e) => e.source === "AWL" && e.awlSublist === 1);
+  if (sub1.length && sub1.every((e) => S[e.id] && S[e.id].b >= G.Learning.MASTERED)) G.unlockAchievement("awl_sublist1");
 };
 
 G.SRS = {
@@ -183,12 +231,13 @@ G.SRS = {
   dueOn(day) {
     return this.pool().filter((p) => { const s = this.state(p); return s && s.due <= day; }).length;
   },
-  // counts for the lobby: due today, due tomorrow (not counting today's)
+  // counts for the lobby and the Progress page: due today, due tomorrow
+  // (not counting today's), and due over the coming week (days 1-7)
   forecast() {
     const t = G.Clock.today();
-    let today = 0, tomorrow = 0;
-    this.pool().forEach((p) => { const s = this.state(p); if (!s) return; if (s.due <= t) today++; else if (s.due === t + 1) tomorrow++; });
-    return { today, tomorrow };
+    let today = 0, tomorrow = 0, week = 0;
+    this.pool().forEach((p) => { const s = this.state(p); if (!s) return; if (s.due <= t) today++; else { if (s.due === t + 1) tomorrow++; if (s.due <= t + 7) week++; } });
+    return { today, tomorrow, week };
   },
 
   // ---- confused pairs (E2) ----
@@ -247,6 +296,7 @@ G.SRS = {
       d.last = today;
     }
     d.best = Math.max(d.best, d.streak);
+    if (d.streak >= G.CONFIG.achievements.reviewStreak) G.unlockAchievement("review_streak7");
     const S = this.data().srs, dues = Object.keys(S).map((k) => S[k].due);
     d.nextDue = dues.length ? Math.min(...dues) : null;
     // keep sixty days of history

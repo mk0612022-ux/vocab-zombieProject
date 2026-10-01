@@ -89,7 +89,9 @@ G.Pad = {
       // (vocabulary series, round 2)
       spellreload: "spell-reload-box", learnpick: "learn-box", studyresult: "study-result-box", studyintro: "study-intro-box",
       // (vocabulary series, round 3)
-      vocabcard: "vocab-card-box", wordpeek: "word-peek-box", note: "screen-note" };
+      vocabcard: "vocab-card-box", wordpeek: "word-peek-box", note: "screen-note",
+      // (vocabulary series, round 4)
+      practice: "screen-practice-play", campstyle: "camp-style-box" };
     if (top && byModal[top.id]) return document.getElementById(byModal[top.id]);
     if (G.TouchCfg && G.TouchCfg.editing) return document.getElementById("touchcfg-panel");
     const cur = G.UI._currentScreen;
@@ -116,6 +118,11 @@ G.Pad = {
     const B = this.B;
     // round 4: the lobby carousel moves by cards and tabs, not by buttons
     if (!G.Modal.isOpen() && G.Lobby && G.Lobby.visible()) { this.clearFocus(); G.Lobby.pad(gp, now, edge, dt); return; }
+    // (vocabulary series, round 4) the Progress page's two tabs on LB / RB
+    if (!G.Modal.isOpen() && G.UI._currentScreen === "screen-progress" && G.Progress) {
+      if (edge(B.LB)) G.Progress.setTab("learn");
+      if (edge(B.RB)) G.Progress.setTab("game");
+    }
     const root = this.scope();
     const items = this.focusables(root);
     if (!items.length) { this.clearFocus(); return; }

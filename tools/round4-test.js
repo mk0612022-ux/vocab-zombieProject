@@ -94,7 +94,8 @@ G.Round4Test = (function () {
       ok("selected card: centred, bigger, ringed", (() => { const c = root.querySelector(".lcard.sel"); return c && c.dataset.id === "school" && /scale\(1\.12\)/.test(c.style.transform) && /translateX\(0%\)/.test(c.style.transform); })());
       L().iconI = 0;
       key("ArrowUp"); ok("↑ moves up to the icon row", L().focus === "icons" && root.querySelector(".lobby-icon.pad-focus"));
-      key("ArrowRight"); key("Enter");
+      // (vocabulary series, round 4: Progress is the first icon, then Settings, Leaderboard)
+      key("ArrowRight"); key("ArrowRight"); key("Enter");
       ok("Enter on an icon opens it (leaderboard)", G.UI._currentScreen === "screen-leaderboard");
       G.UI.goToMainMenu();
       key("ArrowDown"); ok("↓ back to the cards", L().focus === "cards");
@@ -128,7 +129,7 @@ G.Round4Test = (function () {
       padPress(B.RB); ok("RB: next tab", L().tab === "training");
       padPress(B.LB); ok("LB: previous tab", L().tab === "campaign");
       ok("controller hints", document.body.dataset.input === "pad" && getComputedStyle(root.querySelector(".lobby-hints .pad-only")).display !== "none" && getComputedStyle(root.querySelector(".lobby-hints .kb-only")).display === "none");
-      L().iconI = 0;
+      L().iconI = 1;
       padPress(B.UP); padPress(B.A);
       ok("controller: up to the icons, A opens (settings)", G.UI._currentScreen === "screen-settings");
       G.UI.goToMainMenu();
@@ -154,6 +155,11 @@ G.Round4Test = (function () {
       G.Game.quitToMainMenu();
       G.UI.goToMainMenu({ tab: "campaign", select: "school" });
       key("Space");
+      // (vocabulary series, round 4, J2: the level's Learning Style first; Enter plays)
+      await until(() => G.Modal.isOpen("campstyle"), 3000);
+      ok("Space on the school: its Learning Style first", G.Modal.isOpen("campstyle"));
+      await until(() => document.activeElement && document.activeElement.id === "btn-camp-go", 1000);
+      key("Enter");
       await until(() => G.Game.state === "GAMEPLAY", 15000);
       ok("Space on the school starts it", G.Game.state === "GAMEPLAY" && G.Game.level && G.Game.level.id === 1);
       G.Game.quitToMainMenu();

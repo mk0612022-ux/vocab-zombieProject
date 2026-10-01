@@ -2,7 +2,8 @@
 // The lobby (round 4): a console-style carousel
 // -------------------------------------------------------------------
 //   top      two tabs -- CAMPAIGN, TRAINING & CUSTOM -- with the keys that
-//            switch them, and a row of icons: Settings, Leaderboard,
+//            switch them, and a row of icons: Progress (vocabulary series,
+//            round 4), Settings, Leaderboard,
 //            Achievements, Armory, Word Log, Notes Journal, Custom, Bosses
 //            (the Boss Codex, round 2), Help
 //   upper    a large preview of the selected mode: its artwork (rendered
@@ -37,8 +38,9 @@ G.Lobby = {
     { id: "custom", tab: "training", badge: "creative", c1: "#fd79a8", c2: "#a55eea", icon: "✏️" },
   ],
   // (B) each with its short name under it and its full name as a tooltip
+  // (vocabulary series, round 4, I) Progress first: what the player has learnt
   ICONS: [
-    { id: "settings", glyph: "⚙️" }, { id: "leaderboard", glyph: "🏆" }, { id: "achievements", glyph: "🎖️" },
+    { id: "progress", glyph: "📈" }, { id: "settings", glyph: "⚙️" }, { id: "leaderboard", glyph: "🏆" }, { id: "achievements", glyph: "🎖️" },
     { id: "armory", glyph: "🔫" }, { id: "wordlog", glyph: "📖" }, { id: "journal", glyph: "📜" },
     { id: "custom", glyph: "✏️" }, { id: "bosses", glyph: "💀" }, { id: "help", glyph: "❔" },
   ],
@@ -57,7 +59,9 @@ G.Lobby = {
   title(m) { return m.level ? G.getLevel(m.level).name : G.T("lobby.mode." + m.id); },
   // the level's own word families from the word bank (the player's added ones are not counted)
   wordsFor(levelId) { return G.CustomVocab.builtin(G.getLevel(levelId).wordsKey); },
-  mastered(list) { return list.filter((p) => G.isWordMastered && G.isWordMastered(p)).length; },
+  // (vocabulary series, round 4) Mastered as the Progress page counts it:
+  // past the box-5 review (js/srs.js)
+  mastered(list) { return list.filter((p) => G.SRS.box(p) >= G.Learning.MASTERED).length; },
   // what the player has done in this mode, as rows of [label, value]
   stats(m) {
     const T = G.T, S = G.save, rows = [];
@@ -81,7 +85,7 @@ G.Lobby = {
       rows.push([T("lobby.next"), this.countdown()]);
     } else if (m.id === "practice") {
       const all = G.getAllBuiltinWords();
-      const weak = all.filter((p) => { const s = G.wordStat(p); return s && s.wrong > 0 && !G.isWordMastered(p); }).length;
+      const weak = G.SRS.pool().filter((p) => G.Practice.oftenWrong(p)).length;
       rows.push([T("lobby.words"), this.mastered(all) + " / " + all.length]);
       rows.push([T("lobby.weak"), weak]);
     } else if (m.id === "review") {
@@ -92,11 +96,12 @@ G.Lobby = {
       rows.push([T("lobby.bestStreak"), G.save.learn.daily.best]);
       rows.push([T("lobby.tomorrow"), f.tomorrow]);
     } else if (m.id === "learn") {
-      // the words met so far, by box
+      // the words met so far, by box (round 4: as the Progress page groups
+      // them -- Learning 1-3, Review 4-5, Mastered)
       const S = G.save.learn.srs, n = [0, 0, 0];
-      Object.keys(S).forEach((k) => { const b = S[k].b; n[b <= 2 ? 0 : b >= G.Learning.MASTERED ? 2 : 1]++; });
+      Object.keys(S).forEach((k) => { const b = S[k].b; n[b <= 3 ? 0 : b >= G.Learning.MASTERED ? 2 : 1]++; });
       rows.push([T("lobby.learning"), n[0]]);
-      rows.push([T("lobby.known"), n[1]]);
+      rows.push([T("lobby.reviewBox"), n[1]]);
       rows.push([T("lobby.masteredBox"), n[2]]);
     } else if (m.id === "custom") {
       const n = Object.values(S.customWords || {}).reduce((a, l) => a + l.length, 0);
@@ -196,6 +201,9 @@ G.Lobby = {
   open(opts) {
     opts = opts || {};
     if (!this.built) this.build();
+    // (vocabulary series, round 4) back from Practice Mode: the lobby's keys
+    // only work in the menu state, which Practice left behind
+    if (G.Game && /^PRACTICE/.test(G.Game.state || "")) G.Game.state = "MENU";
     if (opts.tab) this.tab = opts.tab;
     if (opts.select) { const i = this.modes().findIndex((m) => m.id === opts.select); if (i >= 0) this.sel[this.tab] = i; }
     this.root.classList.remove("lobby-launching");
@@ -338,7 +346,8 @@ G.Lobby = {
   },
   openIcon(id) {
     const UI = G.UI;
-    if (id === "settings") { UI._settingsReturn = "screen-mainmenu"; UI.renderSettings(); UI.showScreen("screen-settings"); }
+    if (id === "progress") G.Progress.open();
+    else if (id === "settings") { UI._settingsReturn = "screen-mainmenu"; UI.renderSettings(); UI.showScreen("screen-settings"); }
     else if (id === "leaderboard") { UI.renderLeaderboard("level1"); UI.showScreen("screen-leaderboard"); }
     else if (id === "achievements") { UI.renderAchievements(); UI.showScreen("screen-achievements"); }
     else if (id === "armory") { UI._logReturnScreen = "screen-mainmenu"; UI.renderWeaponLog(1); UI.showScreen("screen-weaponlog"); }
@@ -369,6 +378,11 @@ G.Lobby = {
     // (which asks before it deletes the checkpoint)
     if (m.level && !opts.cont && !opts.fresh && !opts.then && G.Checkpoint && G.Checkpoint.has(m.level)) {
       G.Checkpoint.chooseRun(m.level, (fn) => this.launch({ then: fn }));
+      return;
+    }
+    // (vocabulary series, round 4, J2) a campaign level: its Learning Style first
+    if (m.level && !opts.styled) {
+      G.CampStyle.open(m.level, () => this.launch(Object.assign({}, opts, { styled: true })), () => {});
       return;
     }
     // (vocabulary series, round 2) a window over the lobby, not a run: the

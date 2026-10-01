@@ -47,11 +47,24 @@ window.G = window.G || {};
       const cards = G.shuffle(due.slice(0, C().dailyMax));
       return this.make("review", cards, { preset: "adaptive", levelId: 1, due: due.length });
     },
-    learn(presetId, levelId) {
+    // (round 4, J1) the words of a session: a level's, or a topic's from
+    // every level. `from`: { level } or { topic } (a number is a level)
+    wordsFrom(from) {
+      if (typeof from === "number") from = { level: from };
+      if (from && from.topic) return G.getAllBuiltinWords().filter((p) => { const e = G.WordBank.info(p); return e && e.topic === from.topic; });
+      return G.WORD_SETS["level" + ((from && from.level) || 1)].words;
+    },
+    fromLabel(from) {
+      if (typeof from === "number") from = { level: from };
+      return from && from.topic ? G.topicLabel(from.topic) : G.getLevel((from && from.level) || 1).name;
+    },
+    learn(presetId, from) {
+      if (typeof from === "number") from = { level: from };
+      from = from || { level: 1 };
       // (round 3: a mode built on a definition or a sentence takes the words
       // that have one -- a player's own word may not)
       const clue = G.Learn.run(presetId).clue;
-      const all = G.WORD_SETS["level" + levelId].words;
+      const all = this.wordsFrom(from);
       const usable = clue ? all.filter((p) => G.Learn.usable(p, clue)) : all;
       const pool = usable.length >= G.CONFIG.quiz.minWordsPerWave ? usable : all;
       const n = Math.min(pool.length, C().learnCards);
@@ -60,8 +73,11 @@ window.G = window.G || {};
       G.CONFIG.waveWords.maxNew = saved * 2;
       let cards;
       try { cards = G.WavePlan.build(pool, n); } finally { G.CONFIG.waveWords.maxNew = saved; }
-      return this.make("learn", G.shuffle(cards), { preset: presetId, levelId, pool,
-        title: T("study.learnTitleMode", { mode: T("learn.preset." + presetId), level: G.getLevel(levelId).name }) });
+      // (played on the school's grounds whichever level the words are from)
+      const s = this.make("learn", G.shuffle(cards), { preset: presetId, levelId: 1, pool,
+        title: T("study.learnTitleMode", { mode: G.Learn.label(presetId), level: this.fromLabel(from) }) });
+      s.from = from;
+      return s;
     },
 
     // ---------------- from the lobby ----------------
@@ -78,20 +94,32 @@ window.G = window.G || {};
     // first time a session asks for spelling on this kind of input: how it works
     // (round 3: and the first time in each of the newer modes, what it asks)
     launch(s) {
-      const run = G.Learn.run(s.preset, s.cards);
+      this.introFor(s.preset, G.Learn.run(s.preset, s.cards), () => G.Game.startStudy(s));
+    },
+    // (round 4, J4) before any run -- a study session, a campaign level, a
+    // practice -- the first time it asks this way on this input: how it
+    // works. A pairing of the player's own shows the lines of the mode with
+    // the same clue and answer; `campaign`: Audio + Shoot there is "shoot the
+    // word you hear" (every zombie carries its English word)
+    introFor(presetId, run, go, campaign) {
       const dev = G.Input.padActive ? "pad" : G.Input.mode === "touch" ? "touch" : "keys";
       const seen = (G.save.learnSeen = G.save.learnSeen || {});
-      const spellIntro = run.spells && !seen["intro_" + dev];
-      const modeIntro = this.MODE_INTROS.includes(s.preset) && !seen["mode_" + s.preset];
-      if (spellIntro || modeIntro) {
-        this.openIntro(dev, () => {
-          if (spellIntro) seen["intro_" + dev] = true;
-          if (modeIntro) seen["mode_" + s.preset] = true;
-          G.persistSoon(); G.Game.startStudy(s);
-        }, { spell: spellIntro, preset: modeIntro ? s.preset : null });
-        return;
-      }
-      G.Game.startStudy(s);
+      const mode = this.introKey(presetId, campaign);
+      const spellIntro = !!run.spells && !seen["intro_" + dev];
+      const modeIntro = !!mode && !seen["mode_" + mode];
+      if (!spellIntro && !modeIntro) { go(); return; }
+      this.openIntro(dev, () => {
+        if (spellIntro) seen["intro_" + dev] = true;
+        if (modeIntro) seen["mode_" + mode] = true;
+        G.persistSoon(); go();
+      }, { spell: spellIntro, preset: modeIntro ? mode : null, title: G.Learn.label(presetId) });
+    },
+    introKey(presetId, campaign) {
+      const p = G.Learn.preset(presetId);
+      if (!p.custom) return this.MODE_INTROS.includes(p.id) && !(campaign && p.id === "listening") ? p.id : null;
+      if (p.clue === "audio") return p.answer === "spell" ? "dictation" : campaign ? "listenword" : "listening";
+      if (p.answer === "spell") return { definition: "defspell", cloze: "clozespell" }[p.clue] || null;
+      return { definition: "paraphrase", cloze: "context" }[p.clue] || null;
     },
     MODE_INTROS: ["paraphrase", "listening", "dictation", "context", "adaptive"],
 
@@ -185,6 +213,14 @@ window.G = window.G || {};
       const done = why === "done";
       let streak = null;
       if (done && s.kind === "review") streak = G.SRS.completeDaily(s.answered);
+      // (round 4, J3) its leaderboard -- Daily Review's, or the mode's -- and
+      // Perfect Dictation: a whole Dictation session right the first time
+      if (done) {
+        G.addLeaderboardEntry(s.kind === "review" ? "review" : G.Learn.boardOf(s.preset), game.player.score, "", { words: s.cards.length, mode: s.kind === "review" ? "review" : s.preset });
+        const pr = G.Learn.preset(s.preset);
+        const dictation = pr.id === "dictation" || (pr.custom && pr.clue === "audio" && pr.answer === "spell");
+        if (dictation && s.cards.length >= G.CONFIG.achievements.perfectDictation && s.right === s.cards.length) G.unlockAchievement("perfect_dictation");
+      }
       // the boxes the session's words are in now
       const up = s.cards.filter((p) => s.done[G.wordKey(p)] === "right").length;
       const moreDue = s.kind === "review" ? G.SRS.dueToday().length : 0;
@@ -217,7 +253,7 @@ window.G = window.G || {};
       G.UI.setTouchControlsVisible(false);
       const more = $("btn-study-more"), again = $("btn-study-again");
       if (more) more.onclick = () => this.next(game, this.daily());
-      if (again) again.onclick = () => this.next(game, this.learn(s.preset, s.levelId));
+      if (again) again.onclick = () => this.next(game, this.learn(s.preset, s.from || s.levelId));
       $("btn-study-lobby").onclick = () => this.toLobby(game);
       G.Modal.open("studyresult", { pause: true, keys: (e) => {
         if (e.code === "Enter" || e.code === "Space") { (more || again || $("btn-study-lobby")).click(); return true; }
@@ -263,19 +299,32 @@ window.G = window.G || {};
     },
 
     // ---------------- the Learning Modes window ----------------
+    // (round 4, J1) a ready-made mode, or a clue x an answer of the player's
+    // own; the words of a level, or of a topic across the levels
     openPicker() {
       const box = $("learn-pick");
-      this._pick = this._pick || { preset: "spelling", level: 1 };
+      const p = (this._pick = Object.assign({ preset: "spelling", clue: "definition", answer: "spell" }, this._pick));
+      if (!p.from) p.from = { level: p.level || 1 };
       const presets = G.Learn.availablePresets();
       const levels = G.LEVELS.filter((l) => G.save.unlockedLevels.includes(l.id));
-      if (!levels.some((l) => l.id === this._pick.level)) this._pick.level = levels[0].id;
+      if (!p.from.topic && !levels.some((l) => l.id === p.from.level)) p.from = { level: levels[0].id };
+      const topicCount = {};
+      G.WordBank.entries().forEach((e) => { topicCount[e.topic] = (topicCount[e.topic] || 0) + 1; });
+      const opt = (attr, val, on, name, sub, small) => `<button class="learn-opt${small ? " small" : ""}${on ? " on" : ""}" data-${attr}="${esc(val)}" aria-pressed="${on}"><b>${esc(name)}</b>${sub ? `<span>${esc(sub)}</span>` : ""}</button>`;
       const render = () => {
-        $("learn-modes").innerHTML = presets.map((p) => `<button class="learn-opt${p.id === this._pick.preset ? " on" : ""}" data-preset="${p.id}" aria-pressed="${p.id === this._pick.preset}">
-          <b>${esc(T("learn.preset." + p.id))}</b><span>${esc(T("learn.presetDesc." + p.id))}</span></button>`).join("");
-        $("learn-levels").innerHTML = levels.map((l) => `<button class="learn-opt small${l.id === this._pick.level ? " on" : ""}" data-level="${l.id}" aria-pressed="${l.id === this._pick.level}">
-          <b>${esc(l.name)}</b><span>${esc(T("learn.words", { n: G.WordBank.count(l.id) }))}</span></button>`).join("");
-        box.querySelectorAll("[data-preset]").forEach((b) => { b.onclick = () => { this._pick.preset = b.dataset.preset; render(); }; });
-        box.querySelectorAll("[data-level]").forEach((b) => { b.onclick = () => { this._pick.level = +b.dataset.level; render(); }; });
+        $("learn-modes").innerHTML = presets.map((x) => opt("preset", x.id, x.id === p.preset, T("learn.preset." + x.id), T("learn.presetDesc." + x.id))).join("")
+          + opt("preset", "custom", p.preset === "custom", T("learn.preset.custom"), T("learn.presetDesc.custom"));
+        const custom = $("learn-custom");
+        custom.classList.toggle("hidden", p.preset !== "custom");
+        custom.innerHTML = `<div class="learn-h">${esc(T("learn.clueHead"))}</div><div class="learn-row">${Object.keys(G.Learn.CLUES).map((c) => opt("clue", c, c === p.clue, T("learn.clue." + c), "", true)).join("")}</div>
+          <div class="learn-h">${esc(T("learn.answerHead"))}</div><div class="learn-row">${Object.keys(G.Learn.ANSWERS).map((a) => opt("answer", a, a === p.answer, T("learn.answer." + a), "", true)).join("")}</div>`;
+        $("learn-levels").innerHTML = levels.map((l) => opt("level", l.id, !p.from.topic && l.id === p.from.level, l.name, T("learn.words", { n: G.WordBank.count(l.id) }), true)).join("");
+        $("learn-topics").innerHTML = G.WORD_TOPICS.filter((t) => topicCount[t]).map((t) => opt("topic", t, p.from.topic === t, G.topicLabel(t), T("learn.words", { n: topicCount[t] }), true)).join("");
+        box.querySelectorAll("[data-preset]").forEach((b) => { b.onclick = () => { p.preset = b.dataset.preset; render(); }; });
+        box.querySelectorAll("[data-clue]").forEach((b) => { b.onclick = () => { p.clue = b.dataset.clue; render(); }; });
+        box.querySelectorAll("[data-answer]").forEach((b) => { b.onclick = () => { p.answer = b.dataset.answer; render(); }; });
+        box.querySelectorAll("[data-level]").forEach((b) => { b.onclick = () => { p.from = { level: +b.dataset.level }; render(); }; });
+        box.querySelectorAll("[data-topic]").forEach((b) => { b.onclick = () => { p.from = { topic: b.dataset.topic }; render(); }; });
       };
       render();
       $("btn-learn-start").onclick = () => this.startPicked();
@@ -289,12 +338,13 @@ window.G = window.G || {};
       setTimeout(() => { if (G.Input.mode !== "touch") $("btn-learn-start").focus({ preventScroll: true }); }, 0);
     },
     closePicker() { $("learn-pick").classList.add("hidden"); G.Modal.close("learnpick"); },
+    // the mode picked: a preset's id, or "custom:clue+answer"
+    pickedMode() { const p = this._pick; return p.preset === "custom" ? G.Learn.customId(p.clue, p.answer) : p.preset; },
     startPicked() {
-      const p = this._pick;
+      const mode = this.pickedMode(), from = this._pick.from;
       this.closePicker();
-      this.launch(this.learn(p.preset, p.level));
+      this.launch(this.learn(mode, from));
     },
-
     // ---------------- the spelling intro ----------------
     // o: { spell: the spelling lines, preset: a mode's own lines }
     openIntro(dev, go, o) {
@@ -302,7 +352,7 @@ window.G = window.G || {};
       const keys = { replay: G.keyLabel(G.save.settings.keybinds.replay), thai: G.keyLabel(G.save.settings.keybinds.thaiHint) };
       const lines = (o.preset ? ["1", "2"].map((n) => T("study.mode." + o.preset + "." + n, keys)) : [])
         .concat(o.spell ? ["1", "2", "3", "4"].map((n) => T("study.intro." + dev + "." + n)) : []);
-      $("study-intro-title").textContent = o.preset ? T("learn.preset." + o.preset) + (o.spell ? " · " + T("study.introTitle") : "") : T("study.introTitle");
+      $("study-intro-title").textContent = o.preset ? (o.title || G.Learn.label(o.preset)) + (o.spell ? " · " + T("study.introTitle") : "") : T("study.introTitle");
       $("study-intro-text").innerHTML = lines.map((l) => `<li>${esc(l)}</li>`).join("");
       $("study-intro").classList.remove("hidden");
       const start = () => { $("study-intro").classList.add("hidden"); G.Modal.close("studyintro"); go(); };

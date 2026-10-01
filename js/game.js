@@ -152,7 +152,8 @@ G.Game = {
     G.UI.goToMainMenu({ tab: "campaign", select: pick });
     this.state = "MENU";
   },
-  goToPracticeSetup() { G.UI.renderPracticeSetup(); G.UI.showScreen("screen-practice-setup"); this.state = "PRACTICE_SETUP"; },
+  // (vocabulary series, round 4: Practice Mode is js/practice.js)
+  goToPracticeSetup() { G.Practice.open("screen-mainmenu"); },
 
   quitToMainMenu() {
     this.teardownLevel();
@@ -166,41 +167,22 @@ G.Game = {
     G.UI.goToMainMenu();
   },
 
-  // ---------------- Practice mode ----------------
-  startPractice(source) {
-    let pairs;
-    if (source === "weak") {
-      const all = G.getAllBuiltinWords();
-      pairs = all.filter((p) => {
-        const s = G.wordStat(p);
-        return s && s.wrong > 0 && !G.isWordMastered(p);
-      });
-      if (pairs.length < 4) pairs = G.weightedSample(all, 15);
-    } else if (G.WORD_SETS[source]) {
-      pairs = G.WORD_SETS[source].words;
-    } else if (G.save.importedSets[source]) {
-      pairs = G.save.importedSets[source].words.filter((p) => p[1]);
-    } else {
-      pairs = G.getAllBuiltinWords();
-    }
-    if (!pairs || pairs.length < 4) { alert(G.T("practice.notEnough")); return; }
-    this.state = "PRACTICE_PLAY";
-    G.UI.showScreen("screen-practice-play");
-    G.UI.startPracticeRound(pairs);
-  },
-  endPractice() { G.persist(); this.goToPracticeSetup(); },
 
   // ---------------- Run lifecycle ----------------
   // (vocabulary series, round 2) every run has its learning rules -- the
   // clue and the answer for each word (js/learnmodes.js). The campaign,
   // Endless and the Daily Challenge are Classic: the Thai meaning, shot.
+  // (vocabulary series, round 4, J2) the campaign is played in the Learning
+  // Style picked before the level (G.save.settings.campaignStyle: Adaptive
+  // by default, Classic, or a clue x answer of the player's own)
   startLevel(id) {
     this.mode = "campaign";
     this.level = G.getLevel(id);
     this.wordPool = G.WORD_SETS[this.level.wordsKey].words;
-    this.learn = G.Learn.run("classic");
+    this.learn = this.campaignRules();
     this.beginRun();
   },
+  campaignRules() { return G.Learn.run(G.save.settings.campaignStyle || "adaptive", this.wordPool); },
   startDailyChallenge() {
     this.mode = "daily";
     this.level = Object.assign({}, G.getLevel(1), { waves: 5, name: G.T("level.daily") });
@@ -245,7 +227,7 @@ G.Game = {
     this.mode = "campaign";
     this.level = G.getLevel(id);
     this.wordPool = G.WORD_SETS[this.level.wordsKey].words;
-    this.learn = G.Learn.run("classic");
+    this.learn = this.campaignRules();
     this._restoring = JSON.parse(JSON.stringify(cp));
     this.beginRun();
   },
@@ -676,8 +658,8 @@ G.Game = {
   dressZombie(z, pair, how, decoy) {
     const clue = how.clue || "thai", ans = how.answer || "shoot";
     let form = null;
-    if (clue === "cloze" && ans === "shoot") {
-      if (decoy && decoy.form) form = decoy.form;
+    if (clue === "cloze") {
+      if (ans === "shoot" && decoy && decoy.form) form = decoy.form;
       else {
         const cz = G.Clues.cloze(pair, G.rng() < 0.5 ? 0 : 1) || G.Clues.cloze(pair);
         if (cz) { z.cloze = cz; form = cz.answer; }
@@ -685,10 +667,13 @@ G.Game = {
       // (in lower case: a gap at the start of the sentence would otherwise be
       // the one capitalised label on the field -- the answer given away)
       if (form && !/[A-Z]/.test(pair[0])) form = form.toLowerCase();
-      if (form) z.word = form;
+      // shot: it carries the form; spelt (round 4): the form is what to write
+      if (form && ans === "shoot") z.word = form;
+      if (form && ans === "spell") z.spellPair = Object.assign([form, pair[1]], { exact: true });
     }
-    const short = ans === "spell" ? (clue === "definition" ? G.Clues.synonym(pair) : clue === "audio" ? "🔊" : pair[1]) : pair[1];
-    z.setAnswer(ans, short, { kind: clue, label: G.Learn.labelFor(pair, clue, ans, form), full: clue === "definition" ? G.Clues.definition(pair) : "" });
+    const short = ans === "spell" ? (clue === "definition" ? G.Clues.synonym(pair) : clue === "audio" ? "🔊" : clue === "cloze" ? "___" : pair[1]) : pair[1];
+    const full = clue === "definition" ? G.Clues.definition(pair) : clue === "cloze" && z.cloze ? z.cloze.text : "";
+    z.setAnswer(ans, short, { kind: clue, label: G.Learn.labelFor(pair, clue, ans, form, this.mode !== "study"), full });
   },
 
   // The wave number that difficulty is read from: past a campaign level's
@@ -1202,14 +1187,14 @@ G.Game = {
     const inView = this.zombies.filter((o) => o.alive && o !== z).map((o) => o.pair);
     if (spelled) {
       if (z._spellWrong) { G.recordWordResult(z.pair, true, { srs: false }); return; }
-      G.Learning.answerWord(z.pair, true, { recall: true, assisted: (spelled.hints || 0) > 0 || !!z._thaiShown || !!z.retry, inView });
+      G.Learning.answerWord(z.pair, true, { recall: true, assisted: (spelled.hints || 0) > 0 || !!z._thaiShown || !!z.retry, inView, skills: G.Learning.skillsFor(z.clueKind, "spell") });
       return;
     }
     const att = this._attempt, key = G.wordKey(z.pair), same = att && att.key === key;
     if (same && att.wrong) { G.recordWordResult(z.pair, true, { srs: false }); return; }
     const assisted = (same && att.assisted) || this.helpersActive() || !!z.retry;
     // (round 3: a Definition or Context clue makes the shot a recall answer)
-    G.Learning.answerWord(z.pair, true, { recall: G.Learn.isRecall(z.clueKind || this.learn.clueFor(z.pair), "shoot"), assisted, inView });
+    G.Learning.answerWord(z.pair, true, { recall: G.Learn.isRecall(z.clueKind || this.learn.clueFor(z.pair), "shoot"), assisted, inView, skills: G.Learning.skillsFor(z.clueKind, "shoot") });
   },
   // A wrong zombie shot: a wrong answer on the target (once per target), and
   // the pair (target, word shot) noted (E2)
@@ -1219,7 +1204,7 @@ G.Game = {
     if (!tp) { if (!z.decoy) G.recordWordResult(z.pair, false, { srs: false }); return; }
     const att = this._attempt, key = G.wordKey(tp);
     if (att && att.key === key && (att.wrong || att.retry)) { G.SRS.noteConfusion(tp, shot); if (att) att.wrong = true; return; }
-    G.Learning.answerWord(tp, false, { picked: shot });
+    G.Learning.answerWord(tp, false, { picked: shot, skills: G.Learning.skillsFor(this.targetClue && this.targetClue.kind, "shoot") });
     if (att && att.key === key) att.wrong = true;
   },
   // (A4) a look-alike shot by mistake: what it means, beside the word wanted
@@ -1262,14 +1247,14 @@ G.Game = {
     if (z.answer === "spell") {
       if (z._spellWrong) return;
       z._spellWrong = true;
-      if (!z.retry) G.Learning.answerWord(z.pair, false, {});
+      if (!z.retry) G.Learning.answerWord(z.pair, false, { skills: G.Learning.skillsFor(z.clueKind, "spell") });
       if (this.mode === "study" && G.Study) G.Study.onMissed(this, z);
       return;
     }
     const tp = this.targetPair, att = this._attempt;
     if (!tp || z.word !== tp[0] || !att || att.key !== G.wordKey(tp) || att.wrong) return;
     att.wrong = true;
-    if (!att.retry) G.Learning.answerWord(tp, false, {});
+    if (!att.retry) G.Learning.answerWord(tp, false, { skills: G.Learning.skillsFor(this.targetClue && this.targetClue.kind, "shoot") });
     if (this.mode === "study" && G.Study) G.Study.onMissed(this, z);
   },
   // (D1) within two letters of a zombie's word: a misspelling of that word
@@ -1278,7 +1263,7 @@ G.Game = {
     this.wrongCount++;
     if (!z._spellWrong) {
       z._spellWrong = true;
-      if (!z.retry) G.Learning.answerWord(z.pair, false, { typed });
+      if (!z.retry) G.Learning.answerWord(z.pair, false, { typed, skills: G.Learning.skillsFor(z.clueKind, "spell") });
       else if (typed && (G.WordBank.ownerOf(typed) || G.WordBank.confusable(typed))) G.SRS.noteConfusion(z.pair, typed);
     } else if (typed && (G.WordBank.ownerOf(typed) || G.WordBank.confusable(typed))) G.SRS.noteConfusion(z.pair, typed);
     this.trackWrongWord(z.word, z.meaning);
@@ -1653,7 +1638,7 @@ G.Game = {
     // (vocabulary series, round 2-3) its box -- a recall answer for kinds 3-6
     // and spelling; a hint moves nothing -- and the word taken for it (E2)
     G.Learning.answerWord(c.pair, correct, { recall: q.recall, assisted: (q.hints || 0) > 0, picked: correct ? null : G.Questions.picked(q, k),
-      typed: q.spell && !correct && typeof k === "string" ? G.Spell.norm(k) : null, inView: G.Questions.inView(q) });
+      typed: q.spell && !correct && typeof k === "string" ? G.Spell.norm(k) : null, inView: G.Questions.inView(q), skills: q.skills });
     if (!correct) {
       // the wrong-word list used to be fed `this.challenge` AFTER it had been
       // cleared, so every missed challenge was recorded under the word "null"
@@ -1746,7 +1731,8 @@ G.Game = {
     G.UI.setTouchControlsVisible(false);
     const cat = this.mode === "daily" ? "daily" : this.mode === "endless" ? "endless" : "level" + this.level.id;
     // (J4: a run that came back from its checkpoint is marked on the board)
-    G.addLeaderboardEntry(cat, this.player.score, this._continues ? "continued" : "");
+    // (vocabulary series, round 4: a campaign run notes its Learning Style)
+    G.addLeaderboardEntry(cat, this.player.score, this._continues ? "continued" : "", this.mode === "campaign" ? { style: this.learn.id } : null);
     if (this.mode === "endless") {
       G.save.endlessHighScore = Math.max(G.save.endlessHighScore, this.player.score);
       G.save.endlessHighWave = Math.max(G.save.endlessHighWave, this.wave);
@@ -1765,7 +1751,7 @@ G.Game = {
     G.Input.exitPointerLock();
     G.UI.setHudVisible(false);
     G.UI.setTouchControlsVisible(false);
-    G.addLeaderboardEntry("level" + this.level.id, this.player.score, this._continues ? "continued" : "");
+    G.addLeaderboardEntry("level" + this.level.id, this.player.score, this._continues ? "continued" : "", { style: this.learn.id });
     G.save.levelHighScores[this.level.id] = Math.max(G.save.levelHighScores[this.level.id] || 0, this.player.score);
     // the level is done: its checkpoint goes (J3)
     if (G.Checkpoint) G.Checkpoint.remove(this.level.id);
@@ -1990,7 +1976,8 @@ G.Game = {
       clueKind = "cloze"; meaningLabel = G.T("hud.clue.cloze");
       meaning = (tc.cloze ? tc.cloze.text : this.targetPair[1]) + suffix;
     } else if (tc && tc.kind === "audio") {
-      clueKind = "audio"; meaningLabel = G.T("hud.clue.audio");
+      // (in the campaign the zombies carry English words: shoot the one heard)
+      clueKind = "audio"; meaningLabel = G.T(this.mode === "study" ? "hud.clue.audio" : "hud.clue.audioWord");
       meaning = "🔊" + suffix;
     } else if (!this.targetPair && sf) {
       meaningLabel = G.T("hud.spellMeaning");
@@ -2000,6 +1987,7 @@ G.Game = {
         meaning = sf.clueFull || sf.clue;
         if (G.Learn.showsThai(sf.pair) || sf._thaiShown) clueSub = sf.meaning; else thaiBtn = true;
       } else if (sf.clueKind === "audio") { clueKind = "audio"; meaningLabel = G.T("hud.clue.audioSpell"); meaning = "🔊"; }
+      else if (sf.clueKind === "cloze") { clueKind = "cloze"; meaningLabel = G.T("hud.clue.clozeSpell"); meaning = sf.clueFull || sf.clue; }
     }
     else if (!this.targetPair && G.Spell && G.Spell.active && this.learn && !this.learn.shoots) meaningLabel = G.T("hud.spellMeaning");
     const campaign = this.mode === "campaign";
@@ -3056,7 +3044,7 @@ G.Game = {
       // out of time is a word missed (C2) -- every question's now, not only
       // the boss's -- and (round 3, H3) the answer is shown before going on
       const p = c.pair;
-      G.Learning.answerWord(p, false, { inView: G.Questions.inView(c.q) });
+      G.Learning.answerWord(p, false, { inView: G.Questions.inView(c.q), skills: c.q.skills });
       this.wrongCount++; this.trackWrongWord(p[0], p[1]);
       this._challengeEnd = "timeout";
       this.revealChallenge(-1);

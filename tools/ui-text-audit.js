@@ -150,9 +150,11 @@ G.UIAudit = {
       for (const l of [1, 2, 3]) await step("armory " + l, () => { UI._logReturnScreen = "screen-mainmenu"; UI.renderWeaponLog(l); UI.showScreen("screen-weaponlog"); });
       await step("import", () => { UI.renderImportedSets(); UI.showScreen("screen-import"); UI.renderImportPreview(G.WORDS_LEVEL_1.slice(0, 60)); });
       await step("import (empty preview)", () => UI.renderImportPreview([]));
+      // (vocabulary series, round 4: Practice Mode is js/practice.js)
       await step("practice setup", () => Game.goToPracticeSetup());
-      await step("practice question", () => Game.startPractice("level2"));
-      await step("practice feedback", () => { const b = document.querySelector("#practice-choices .practice-choice-btn"); if (b) b.click(); });
+      await step("practice question", () => { G.Practice.f = { mode: "classic", clue: "thai", answer: "shoot", src: "level2", topic: "", boxes: [], wrong: false }; G.Practice.start(); });
+      await step("practice feedback", () => G.Practice.answerAs(false));
+      await step("practice closed", () => { G.Practice.active = false; clearTimeout(G.Practice._t); G.Modal.reset(); UI.goToMainMenu(); });
 
       // ---- a live run ----
       const tutorial = G.save.tutorialDone, seen = G.save.tutorialSeen;
@@ -474,6 +476,51 @@ G.UIAudit = {
       await step("story note: a word looked up", () => { const b = document.querySelector("#note-body .note-word"); if (b) b.click(); });
       await step("story note closed", () => { G.VocabCard.closePeek(); G.Notes.close(); });
       await step("settings: accent, speed, Play Once, Thai with clues", () => { UI._settingsReturn = "screen-mainmenu"; UI.renderSettings(); UI.showScreen("screen-settings"); });
+      // ---- vocabulary series, round 4: Progress, Practice, the pairings of the player's own, the campaign's Learning Style ----
+      await step("progress: nothing learnt yet", () => { G.save.learn = G.Learning.normalize({}); G.save.wordStats = {}; G.Progress.open("learn"); });
+      await step("progress: a month in", () => {
+        const all = G.getAllBuiltinWords(), t = G.Clock.today();
+        all.slice(0, 260).forEach((p, i) => { G.save.learn.srs[G.wordKey(p)] = { b: 1 + (i % 6), due: t + (i % 9) - 1, last: t - 1, n: 3, lapses: i % 3 }; });
+        all.slice(0, 120).forEach((p, i) => { G.save.wordStats[G.wordKey(p)] = { correct: 3 + (i % 5), wrong: i % 7, lastCorrect: 0 }; });
+        for (let d = 0; d < 30; d++) G.save.learn.activity[t - d] = (d * 37) % 90;
+        G.Learning.SKILLS.forEach((k, i) => { G.save.learn.skills[k] = { r: 40 + i * 9, w: 7 + i * 3 }; });
+        G.save.learn.daily.streak = 12; G.save.learn.daily.best = 21; G.save.learn.daily.last = t;
+        G.Progress.open("learn");
+      });
+      await step("progress: the game tab", () => G.Progress.setTab("game"));
+      await step("progress: a word's card", () => { G.Progress.setTab("learn"); const b = document.querySelector("#progress-body .pg-word"); if (b) b.click(); });
+      await step("practice setup: your own pairing, often wrong", () => { G.VocabCard.close(); G.Practice.f = { mode: "custom", clue: "definition", answer: "spell", src: "all", topic: "Media & Communication", boxes: ["1", "3"], wrong: true }; G.Practice.open("screen-mainmenu"); });
+      await step("practice: a definition to spell (the longest)", () => G.Practice.run([byId(longDef.id)], "custom:definition+spell", G.getAllBuiltinWords(), "setup"));
+      await step("practice: misspelt", () => G.Practice.answerAs(false));
+      await step("practice: a gap to spell", () => { G.Practice.active = false; G.Modal.reset(); G.Practice.run([byId(longEx.id)], "custom:cloze+spell", G.getAllBuiltinWords(), "setup"); });
+      await step("practice: dictation", () => { G.Practice.active = false; G.Modal.reset(); G.Practice.run([byId("indicate"), byId("analyse")], "custom:audio+spell", G.getAllBuiltinWords(), "setup"); });
+      await step("practice: the end", () => { G.Practice.answerAs(true); G.Practice.quit(); });
+      await step("learning modes: your own, a topic", () => { G.Dialog.close(); G.Modal.reset(); UI.goToMainMenu(); G.Study._pick = { preset: "custom", clue: "cloze", answer: "spell", from: { topic: "Media & Communication" } }; G.Study.openPicker(); });
+      await step("campaign: Learning Style", () => { G.Study.closePicker(); G.save.settings.campaignStyle = "adaptive"; G.CampStyle.open(3, () => {}, () => {}); });
+      await step("campaign: Learning Style, your own", () => { const b = document.querySelector('#camp-style-box [data-style="custom"]'); if (b) b.click(); const a = document.querySelector('#camp-style-box [data-clue="audio"]'); if (a) a.click(); });
+      await step("campaign: Audio + Shoot, the panel", () => {
+        G.CampStyle.close(); G.save.settings.campaignStyle = "custom:audio+shoot";
+        Game.startLevel(1); Game.update = function () {}; Game.state = "GAMEPLAY";
+        Game.zombies.forEach((z) => Game.scene.remove(z.mesh)); Game.zombies = []; Game.targetPair = null;
+        const p = byId("indicate"), z = new G.Zombie("normal", Game.yawObject.position.clone().add(new THREE.Vector3(0, -1.7, -8)), p, Game.level.theme);
+        Game.dressZombie(z, p, { clue: "audio", answer: "shoot" }); Game.scene.add(z.mesh); Game.zombies.push(z);
+        Game.ensureTargetHasMatch(); UI.updateHud(Game.buildHudState());
+      });
+      await step("campaign: Sentence gap + Spell, the panel", () => {
+        Game.zombies.forEach((z) => Game.scene.remove(z.mesh)); Game.zombies = []; Game.targetPair = null;
+        G.Spell.start(Game);
+        const p = byId(longEx.id), z = new G.Zombie("normal", Game.yawObject.position.clone().add(new THREE.Vector3(0, -1.7, -8)), p, Game.level.theme);
+        Game.dressZombie(z, p, { clue: "cloze", answer: "spell" }); Game.scene.add(z.mesh); Game.zombies.push(z);
+        Game.ensureTargetHasMatch(); G.Spell.update(Game, 0.05); UI.updateHud(Game.buildHudState());
+      });
+      for (const m of ["listenword", "defspell", "clozespell"]) await step("mode intro: " + m, () => { G.Modal.reset(); G.Study.openIntro("keys", () => {}, { spell: m !== "listenword", preset: m, title: G.Learn.label(m === "listenword" ? "custom:audio+shoot" : m === "defspell" ? "custom:definition+spell" : "custom:cloze+spell") }); });
+      await step("leaderboard: the learning boards", () => {
+        document.getElementById("study-intro").classList.add("hidden"); G.Modal.reset(); Game.quitToMainMenu();
+        G.save.leaderboards.mode_custom = [{ score: 123456, date: "2026-10-01", meta: "", words: 16, mode: "custom:definition+spell" }];
+        G.save.leaderboards.level3 = [{ score: 99999, date: "2026-10-01", meta: "continued", style: "custom:cloze+spell" }];
+        UI.renderLeaderboard("mode_custom"); UI.showScreen("screen-leaderboard");
+      });
+      await step("leaderboard: a campaign style", () => UI.renderLeaderboard("level3"));
     } finally {
       window.alert = realAlert; window.confirm = realConfirm; Game.update = realUpdate;
       G.save = JSON.parse(backup); G.persist();

@@ -139,18 +139,7 @@ html, body {
 .imported-sets-list { display:flex; flex-direction: column; gap: 6px; margin-top: 8px; }
 .imported-set-row { display:flex; justify-content: space-between; align-items:center; background:#0e1710; padding:6px 10px; border-radius:4px; }
 
-/* ---------------- Practice mode ---------------- */
-.practice-card {
-  width: 480px; max-width: 90vw; background: rgba(10,16,12,0.85); border: 2px solid #345; border-radius: 12px; padding: 30px; text-align: center;
-}
-.practice-progress { opacity: 0.6; margin-bottom: 10px; }
-.practice-word { font-size: 2.4rem; font-weight: 800; margin-bottom: 22px; color: #6bff7a; }
-.practice-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.practice-choice-btn { padding: 14px; border-radius: 6px; border: 1px solid #345; background: #10201a; cursor: pointer; font-size: 1rem; }
-.practice-choice-btn:hover { border-color: #6bff7a; }
-.practice-choice-btn.correct { background: #1e6b2d; border-color: #6bff7a; }
-.practice-choice-btn.wrong { background: #6b1e1e; border-color: #ff6b6b; }
-.practice-feedback { margin-top: 14px; min-height: 20px; font-weight: 700; }
+/* ---------------- Practice mode: see "vocabulary series, round 4" at the end ---------------- */
 
 /* ---------------- HUD ---------------- */
 .hud { position: fixed; inset: 0; z-index: 10; pointer-events: none; font-family: 'Segoe UI', 'Tahoma', 'Leelawadee UI', 'Noto Sans Thai', 'Thonburi', sans-serif; }
@@ -374,6 +363,8 @@ body.cine-on #hud, body.cine-on #touch-controls { visibility: hidden; }
   position: absolute; top: 90px; right: 20px; background: rgba(10,20,12,0.9); border: 1px solid #6bff7a; border-radius: 8px;
   padding: 10px 16px; max-width: 260px; transition: transform .3s, opacity .3s;
 }
+/* (vocabulary series, round 4) won over a menu (Practice Mode): above the screens */
+.hud-achievement-toast.toast-menu { position: fixed; z-index: 60; top: 16px; }
 
 /* ---------------- Touch controls ---------------- */
 /* Touch controls. Sizes scale with the viewport so the same layout works on a
@@ -1151,6 +1142,8 @@ body.modal-open .hud-minimap { opacity: 0.35; }
 .lobby-footer { position: absolute; right: max(10px, env(safe-area-inset-right)); bottom: max(6px, env(safe-area-inset-bottom)); font-size: 0.6rem; opacity: 0.35; z-index: 1; }
 /* which hints show follows the input used last (body[data-input]) */
 body:not([data-input="pad"]) .lobby .pad-only, body:not([data-input="kb"]) .lobby .kb-only, body:not([data-input="touch"]) .lobby .touch-only { display: none; }
+/* (vocabulary series, round 4) and the Progress page's tab keys */
+body:not([data-input="pad"]) .pg-tabs .pad-only, body:not([data-input="kb"]) .pg-tabs .kb-only { display: none; }
 body[data-input="touch"] .lobby-carousel { cursor: default; }
 
 /* ---- choosing: into the picture, then to black ---- */
@@ -1838,4 +1831,111 @@ button.hud-boss-choice.th { font-size: 0.95rem; }
   .learn-opt.on span { display: block; }
   .study-intro-text { font-size: 0.8rem; margin: 4px 0 8px; }
   .study-intro-text li + li { margin-top: 3px; }
+}
+
+/* ===================================================================
+   Vocabulary series, round 4
+   =================================================================== */
+/* ---- the pickers' small choices: Learning Modes, Practice, the campaign's Learning Style ---- */
+.learn-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.learn-opt.small { padding: 6px 11px; flex-direction: row; align-items: baseline; gap: 6px; }
+.learn-opt.small b { font-size: 0.86rem; }
+.learn-opt.small span { font-size: 0.72rem; }
+.learn-custom { margin-top: 4px; padding: 4px 10px 8px; border-left: 3px solid #ffd43b66; background: rgba(255,212,59,0.05); border-radius: 0 8px 8px 0; }
+.learn-topics .learn-opt { padding: 6px 10px; }
+.camp-note { margin: 8px 0 0; font-size: 0.78rem; opacity: 0.8; line-height: 1.4; }
+.camp-modes { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+
+/* ---- Practice Mode (js/practice.js) ---- */
+#screen-practice-setup .practice-setup-content { max-width: 760px; line-height: 1.4; }
+.pr-sub { margin: 0 0 4px; opacity: 0.85; font-size: 0.9rem; }
+.pr-filters { display: grid; grid-template-columns: minmax(180px, 1fr) 2fr; gap: 4px 16px; align-items: start; }
+.pr-field { display: flex; flex-direction: column; }
+.pr-field select { font: inherit; font-size: 0.9rem; padding: 7px 10px; border-radius: 10px; border: 1.5px solid #2e4636; background: rgba(16,26,20,0.92); color: #dff5df; }
+.pr-field select:focus-visible, .pr-field select.pad-focus { border-color: #6bff7a; outline: none; }
+.pr-count { margin-top: 12px; text-align: center; font-weight: 700; color: #9fe8b0; }
+.pr-count.none { color: #ff8a8a; }
+#screen-practice-setup .row-center { margin-top: 10px; }
+.practice-box { margin: 0 auto; }
+@media (max-width: 620px) { .pr-filters { grid-template-columns: 1fr; } }
+
+/* ---- leaderboards of the modes ---- */
+.leaderboard-content .tab-btn { font: inherit; color: inherit; }
+.leaderboard-content .tab-btn.pad-focus, .leaderboard-content .tab-btn:focus-visible { outline: 2px solid #6bff7a; outline-offset: 1px; }
+.lb-group { font-size: 0.7rem; letter-spacing: 2px; text-transform: uppercase; color: #ffd43b; font-weight: 800; margin: 4px 0 6px; }
+.lb-style, .lb-words { display: inline-block; margin-left: 6px; padding: 0 7px; border-radius: 9px; font-size: 0.72rem; background: rgba(72,168,255,0.16); color: #a9d6ff; vertical-align: 1px; }
+.lb-words { background: rgba(255,255,255,0.08); color: #ccd; }
+
+/* ---- the Progress page (js/progress.js) ---- */
+.screen.screen-progress { justify-content: flex-start; padding: 0; overflow: hidden;
+  background: radial-gradient(1200px 600px at 15% -10%, rgba(72,168,255,0.12), transparent 60%), radial-gradient(900px 500px at 100% 0%, rgba(79,227,122,0.10), transparent 55%), linear-gradient(180deg, #0a0f14, #06080b); }
+.pg-head { flex: none; width: 100%; display: flex; align-items: center; gap: 14px; padding: 12px max(16px, env(safe-area-inset-right)) 10px max(16px, env(safe-area-inset-left)); border-bottom: 1px solid rgba(255,255,255,0.07); background: rgba(8,12,16,0.7); backdrop-filter: blur(6px); }
+.pg-back { padding: 7px 14px; }
+.pg-title { margin: 0; font-size: 1.35rem; letter-spacing: 3px; text-transform: uppercase; flex: 1; }
+.pg-tabs { display: flex; align-items: center; gap: 6px; }
+.pg-tab { font: 700 0.9rem/1 'Segoe UI', Tahoma, sans-serif; padding: 8px 16px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.04); color: #cfe; cursor: pointer; }
+.pg-tab.on { background: linear-gradient(180deg, #2c7a3d, #1a4a24); border-color: #6bff7a; color: #fff; }
+.pg-tab:focus-visible, .pg-tab.pad-focus, .pg-back.pad-focus { outline: 2px solid #6bff7a; outline-offset: 2px; }
+.pg-body { flex: 1; width: 100%; overflow-y: auto; padding: 14px max(16px, env(safe-area-inset-right)) 24px max(16px, env(safe-area-inset-left)); -webkit-overflow-scrolling: touch; }
+.pg-grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; max-width: 1100px; margin: 0 auto; }
+.pg-card { min-width: 0; background: linear-gradient(180deg, rgba(22,30,38,0.92), rgba(14,19,25,0.92)); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 14px 16px 16px; box-shadow: 0 10px 28px rgba(0,0,0,0.35); }
+.pg-overview, .pg-activity, .pg-forecast { grid-column: 1 / -1; }
+.pg-fc-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; }
+.pg-fc-row .pg-tiles { flex: 1 1 260px; margin: 0; }
+.pg-fc-row .pg-fchart { flex: 0 1 340px; margin: 0 auto; }
+.pg-fchart text { font-size: 6px; }
+.pg-h { margin: 0 0 8px; font-size: 0.78rem; letter-spacing: 2.5px; text-transform: uppercase; color: #9fb3c8; font-weight: 800; }
+.pg-sub { margin: -4px 0 10px; font-size: 0.8rem; opacity: 0.7; }
+.pg-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 12px; }
+.pg-tiles.small { grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); margin: 12px 0 0; }
+.pg-tile { position: relative; display: flex; flex-direction: column; gap: 2px; padding: 10px 12px 10px 15px; border-radius: 12px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07); overflow: hidden; text-align: left; color: inherit; font: inherit; }
+.pg-tile::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--c); }
+.pg-tile b { font-size: 1.7rem; line-height: 1.1; color: var(--c); font-weight: 900; }
+.pg-tiles.small .pg-tile b { font-size: 1.3rem; }
+.pg-tile span { font-size: 0.85rem; font-weight: 700; }
+.pg-tile small { font-size: 0.72rem; opacity: 0.65; }
+button.pg-tile { cursor: pointer; }
+button.pg-tile:hover, button.pg-tile:focus-visible, button.pg-tile.pad-focus { border-color: var(--c); outline: none; background: rgba(255,107,129,0.08); }
+.pg-bar { display: block; width: 100%; height: 12px; border-radius: 6px; overflow: hidden; }
+.pg-track { fill: rgba(255,255,255,0.07); }
+.pg-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; font-size: 0.75rem; opacity: 0.85; }
+.pg-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+.pg-big { font-size: 1.05rem; font-weight: 800; margin-bottom: 8px; color: #dff; }
+.pg-big + .pg-bar { height: 14px; margin-bottom: 10px; }
+.pg-rows { display: flex; flex-direction: column; gap: 7px; }
+.pg-row { display: grid; grid-template-columns: minmax(84px, 38%) 1fr auto; align-items: center; gap: 10px; font-size: 0.85rem; }
+.pg-rows .pg-bar { height: 10px; }
+.pg-rl { overflow-wrap: anywhere; line-height: 1.25; opacity: 0.9; }
+.pg-rv { min-width: 46px; text-align: right; font-weight: 800; font-variant-numeric: tabular-nums; }
+.pg-rv small { display: block; font-weight: 400; font-size: 0.66rem; opacity: 0.6; }
+.pg-rv.big { font-size: 1.05rem; }
+.pg-scores .pg-row { grid-template-columns: 1fr auto; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+.pg-note, .pg-empty { margin: 10px 0 0; font-size: 0.74rem; opacity: 0.6; line-height: 1.45; }
+.pg-words { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 7px; }
+.pg-word { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 7px 10px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.09); background: rgba(255,255,255,0.03); color: inherit; font: inherit; text-align: left; cursor: pointer; min-width: 0; }
+.pg-word b { font-size: 0.95rem; }
+.pg-word span { font-size: 0.8rem; opacity: 0.8; max-width: 100%; overflow-wrap: anywhere; line-height: 1.35; }
+.pg-word em { font-style: normal; font-size: 0.7rem; color: #ff8a8a; }
+.pg-word:hover, .pg-word:focus-visible, .pg-word.pad-focus { border-color: #48a8ff; background: rgba(72,168,255,0.1); outline: none; }
+.pg-missed .row-center { margin-top: 12px; }
+.pg-chart { display: block; width: 100%; height: auto; max-height: 220px; }
+.pg-chart text { fill: #9fb3c8; font: 7px 'Segoe UI', Tahoma, sans-serif; }
+.pg-chart text.pg-n { fill: #dff; font-weight: 700; }
+.pg-chart .pg-max { opacity: 0.6; }
+.pg-col { fill: #48a8ff; }
+.pg-col.today { fill: #4fe37a; }
+.pg-col.fc { fill: #a29bfe; }
+.pg-axis { stroke: rgba(255,255,255,0.25); stroke-width: 0.6; }
+.pg-chart .pg-grid { stroke: rgba(255,255,255,0.08); stroke-width: 0.5; stroke-dasharray: 2 2; }
+.pg-fchart { max-width: 420px; margin: 12px auto 0; }
+.pg-foot { text-align: center; font-size: 0.75rem; opacity: 0.55; margin: 14px 0 0; }
+@media (max-width: 820px) {
+  .pg-grid2 { grid-template-columns: 1fr; }
+  .pg-head { flex-wrap: wrap; gap: 8px 12px; }
+  .pg-title { font-size: 1.1rem; }
+  .pg-tabs .lobby-key { display: none; }
+}
+@media (max-height: 440px) {
+  .pg-head { padding-top: 6px; padding-bottom: 6px; }
+  .pg-tile b { font-size: 1.3rem; }
 }

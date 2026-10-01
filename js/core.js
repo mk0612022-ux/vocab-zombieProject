@@ -73,6 +73,9 @@ G.defaultSave = function () {
       speechSpeed: "normal",      // G3: normal | slow (0.8)
       playOnce: false,            // G3: a spoken clue is heard once only, as in the IELTS test
       highlightTarget: false,     // the target's word drawn in yellow (as before round 3) -- a helper: no box moves
+      // (round 4, J2) how a campaign level asks its words: adaptive | classic |
+      // custom:<clue>+<answer> (js/campstyle.js)
+      campaignStyle: "adaptive",
     },
     importedSets: {},             // {id: {name, words:[[en,th],...]}}
     customWords: { level1: [], level2: [], level3: [] },   // words the player added to each level ([[en,th] or [en,th,{definition,...}],...])
@@ -132,6 +135,16 @@ G.normalizeSave = function (data) {
   oneOf("speechSpeed", ["normal", "slow"]);
   s.settings.playOnce = !!s.settings.playOnce;
   s.settings.highlightTarget = !!s.settings.highlightTarget;
+  // (round 4) a campaign style it does not know is Adaptive
+  if (G.Learn && !G.Learn.campaignStyleOk(s.settings.campaignStyle)) s.settings.campaignStyle = def.settings.campaignStyle;
+  // leaderboards: lists of {score, date, ...} -- the boards of the modes
+  // (review, mode_*) come and go with what was played; anything else is dropped
+  const lb = {};
+  Object.keys(s.leaderboards).forEach((k) => {
+    if (!/^[a-z0-9_]+$/.test(k) || !Array.isArray(s.leaderboards[k])) return;
+    lb[k] = s.leaderboards[k].filter((e) => e && typeof e === "object" && Number.isFinite(Number(e.score))).slice(0, 10);
+  });
+  s.leaderboards = Object.assign({}, def.leaderboards, lb);
   const seen = data.learnSeen;
   s.learnSeen = {};
   // (round 3: and the first look at each newer mode, mode_<id>)
@@ -579,6 +592,8 @@ G.Input = {
     if (this.padActive) return;
     this.padActive = true;
     if (G.save.settings.controlMode === "auto" && this.mode === "touch") { this.mode = "desktop"; G.UI && G.UI.applyControlMode && G.UI.applyControlMode(); }
+    // (vocabulary series, round 4) the hints of every page follow the controller too
+    if (G.Lobby) G.Lobby.setDevice("pad");
   },
 
   isDown(action) {

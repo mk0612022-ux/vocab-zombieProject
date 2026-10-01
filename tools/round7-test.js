@@ -437,7 +437,8 @@ G.Round7Test = (function () {
     ok("I the HUD shows it compactly", /^3F 5\/6/.test(document.getElementById("hud-floor3").textContent) && !document.getElementById("hud-floor3").classList.contains("hidden"), document.getElementById("hud-floor3").textContent);
     // the lock: three hard words, 15 s each; one wrong and it jams for 30 s
     F.interact(g, gateRef);
-    ok("I the lock: a word question, 15 seconds", !!g.challenge && g.challenge.timeLimit === 15 && /word 1 of 3/.test(document.getElementById("hud-challenge-label").textContent));
+    // (vocabulary series, round 3: some kinds of question get a few seconds more)
+    ok("I the lock: a word question, 15 seconds (and its kind's extra)", !!g.challenge && g.challenge.timeLimit === G.Questions.seconds(g.challenge.q ? g.challenge.q.type : "th2en", 15) && /word 1 of 3/.test(document.getElementById("hud-challenge-label").textContent), g.challenge && g.challenge.timeLimit + " " + (g.challenge.q && g.challenge.q.type));
     const first = g.challenge.pair[0];
     const avg = g.wordPool.reduce((a, p) => a + p[0].length, 0) / g.wordPool.length, st = G.wordStat(first);
     ok("I ...a hard word (a long one, or one missed before)", first.length > avg || (st && st.wrong > 0), first);

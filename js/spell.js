@@ -40,6 +40,9 @@ window.G = window.G || {};
     norm(s) { return String(s == null ? "" : s).trim().replace(/\s+/g, " ").toLowerCase(); },
     // the character a key press types -- the English letter of the key even
     // when the keyboard is left on the Thai layout (e.key would be Thai)
+    // what a zombie's spelling is checked against: its word -- or, asked
+    // with a gapped sentence, the form the sentence wants (round 4)
+    target(z) { return z.spellPair || z.pair; },
     keyChar(e) {
       const k = e.key;
       if (k && k.length === 1 && !/[a-z '\-]/i.test(k) && /^Key[A-Z]$/.test(e.code || "")) return e.code.slice(3).toLowerCase();
@@ -48,6 +51,8 @@ window.G = window.G || {};
     // the spelling the pad asks for (the headword) and every accepted one
     answerOf(pair) { return String(pair[0]); },
     accepted(pair) {
+      // (a form a sentence asks for -- "indication" -- is the only right spelling)
+      if (pair && pair.exact) return [this.norm(pair[0])];
       const info = G.WordBank.info(pair);
       const list = (info && info.acceptedSpellings && info.acceptedSpellings.length ? info.acceptedSpellings : [pair[0]]).map((w) => this.norm(w));
       if (!list.includes(this.norm(pair[0]))) list.push(this.norm(pair[0]));
@@ -435,7 +440,7 @@ window.G = window.G || {};
       this.focus = z;
       if (old && old.alive) old.setSpellFocus(false);
       if (z) z.setSpellFocus(true);
-      if (this.pad) this.pad.setWord(z ? z.pair : null, z ? z.clue : "", this.inputMode() === "type");
+      if (this.pad) this.pad.setWord(z ? S.target(z) : null, z ? z.clue : "", this.inputMode() === "type");
     },
     update(game, dt) {
       if (!this.active || !this.pad) return;
@@ -502,7 +507,7 @@ window.G = window.G || {};
       const list = this.spellZombies();
       // on tiles the answer is about the zombie in focus only
       const scope = this.inputMode() === "tiles" && this.focus ? [this.focus] : list;
-      const hit = scope.find((z) => S.isRight(t, z.pair));
+      const hit = scope.find((z) => S.isRight(t, S.target(z)));
       if (hit) {
         g.spellKill(hit, { hints: hit._hints || 0 });
         this.pad.clear();
@@ -511,7 +516,7 @@ window.G = window.G || {};
       }
       let near = null, best = C().nearMiss + 1;
       for (const z of scope) {
-        const d = S.distance(t, z.pair);
+        const d = S.distance(t, S.target(z));
         if (d < best || (d === best && z === this.focus)) { best = d; near = z; }
       }
       if (near && best <= C().nearMiss) {
@@ -519,7 +524,7 @@ window.G = window.G || {};
         // (round 3, G3) Dictation: its syllables, the stressed one marked, and
         // the word said again
         const heard = near.clueKind === "audio";
-        this.pad.showFeedback(t, S.answerOf(near.pair), S.tipFor(t, near.pair), heard ? G.Clues.stressHtml(near.pair) : "");
+        this.pad.showFeedback(t, S.answerOf(S.target(near)), S.tipFor(t, near.pair), heard ? G.Clues.stressHtml(near.pair) : "");
         if (heard) G.Audio.speak(near.word);
       } else {
         G.Audio && G.Audio.sfx && G.Audio.sfx("wrong");
@@ -596,7 +601,7 @@ window.G = window.G || {};
       const t = S.norm(text);
       if (!t) return;
       const pair = this.pair, right = S.isRight(t, pair), hints = this.pad.hints || 0;
-      G.Learning.answerWord(pair, right, { recall: true, assisted: hints > 0, typed: t, source: "reload" });
+      G.Learning.answerWord(pair, right, { recall: true, assisted: hints > 0, typed: t, source: "reload", skills: ["spelling"] });
       if (right) { this.result = "full"; G.Audio.sfx("correct"); this.finish(); return; }
       this.result = "half";
       G.Audio.sfx("wrong");

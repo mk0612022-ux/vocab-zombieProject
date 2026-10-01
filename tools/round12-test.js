@@ -490,7 +490,7 @@ G.Round12Test = (function () {
     G.Lobby.select(1); G.Lobby.launch();
     await wait(50);
     ok("I: Learning Modes: a G.Modal window, the controller's scope", G.Modal.isOpen("learnpick") && G.Pad.scope() === $("learn-box"));
-    ok("I: the modes on offer: all seven (round 3)", [...document.querySelectorAll("#learn-modes .learn-opt")].map((b) => b.dataset.preset).join() === "classic,spelling,paraphrase,listening,dictation,context,adaptive");
+    ok("I: the modes on offer: all seven (round 3), then Your own (round 4)", [...document.querySelectorAll("#learn-modes .learn-opt")].map((b) => b.dataset.preset).join() === "classic,spelling,paraphrase,listening,dictation,context,adaptive,custom");
     document.querySelector('#learn-modes [data-preset="adaptive"]').click();
     ok("I: picking a mode marks it", document.querySelector('#learn-modes [data-preset="adaptive"]').classList.contains("on"));
     G.onKeyDown({ key: "Escape", code: "Escape", preventDefault() {} });

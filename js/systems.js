@@ -189,6 +189,13 @@ G.ACHIEVEMENTS = [
   { id: "notes_level1", icon: "📜" },
   { id: "notes_level2", icon: "📜" },
   { id: "notes_level3", icon: "📜" },
+  // (vocabulary series, round 4, J3) learning
+  { id: "first_mastered", icon: "🌱" },
+  { id: "mastered_100", icon: "🎓" },
+  { id: "awl_sublist1", icon: "📚" },
+  { id: "review_streak7", icon: "🔥" },
+  { id: "perfect_dictation", icon: "🎧" },
+  { id: "spelling_bee", icon: "🐝" },
 ];
 
 G.unlockAchievement = function (id) {
@@ -200,9 +207,11 @@ G.unlockAchievement = function (id) {
 };
 
 // ---------------- Leaderboard ----------------
-G.addLeaderboardEntry = function (category, score, meta) {
+// extra: more fields for the entry (round 4: { style } -- the Learning Style of a campaign run)
+G.addLeaderboardEntry = function (category, score, meta, extra) {
   const list = G.save.leaderboards[category] || (G.save.leaderboards[category] = []);
-  list.push({ score, date: new Date().toISOString().slice(0, 10), meta: meta || "" });
+  // (the date by G.Clock: a simulated day in the tests is that day)
+  list.push(Object.assign({ score, date: new Date(G.Clock ? G.Clock.now() : Date.now()).toISOString().slice(0, 10), meta: meta || "" }, extra || {}));
   list.sort((a, b) => b.score - a.score);
   G.save.leaderboards[category] = list.slice(0, 10);
   G.persist();

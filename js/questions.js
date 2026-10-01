@@ -31,14 +31,28 @@ window.G = window.G || {};
 
   const Q = G.Questions = {
     TYPES: ["th2en", "en2th", "def2word", "cloze", "colloc", "paraphrase", "listen", "spell"],
-    RECALL: ["def2word", "cloze", "colloc", "paraphrase", "spell"],
+    // (round 4: three more, written answers to the English clues -- Practice
+    // and a mode of the player's own pairing ask them: G.Questions.fromClue)
+    EXTRA: ["defspell", "dictation", "clozespell"],
+    RECALL: ["def2word", "cloze", "colloc", "paraphrase", "spell", "defspell", "dictation", "clozespell"],
+    SPELLED: ["spell", "defspell", "dictation", "clozespell"],
+    // the skills each kind trains (the Progress page's accuracy by skill)
+    SKILLS: { th2en: ["recognition"], en2th: ["recognition"], def2word: ["paraphrase"], paraphrase: ["paraphrase"], cloze: ["context"], colloc: ["context"],
+      listen: ["listening"], spell: ["spelling"], defspell: ["spelling", "paraphrase"], dictation: ["spelling", "listening"], clozespell: ["spelling", "context"] },
+    // a clue x an answer (the modes' terms) as a kind of question
+    fromClue(clue, answer) {
+      const shoot = { thai: "th2en", definition: "def2word", audio: "listen", cloze: "cloze" };
+      const spell = { thai: "spell", definition: "defspell", audio: "dictation", cloze: "clozespell" };
+      return (answer === "spell" ? spell : shoot)[clue] || "th2en";
+    },
 
     can(type, pair) {
       if (!pair || !pair[0]) return false;
       if (type === "th2en" || type === "en2th" || type === "spell") return !!pair[1];
       if (type === "listen") return !!pair[1] && ("speechSynthesis" in window);
-      if (type === "def2word") return G.Clues.has(pair, "definition");
-      if (type === "cloze") return G.Clues.has(pair, "cloze");
+      if (type === "dictation") return "speechSynthesis" in window;
+      if (type === "def2word" || type === "defspell") return G.Clues.has(pair, "definition");
+      if (type === "cloze" || type === "clozespell") return G.Clues.has(pair, "cloze");
       if (type === "colloc") return G.Clues.has(pair, "colloc");
       if (type === "paraphrase") return G.Clues.has(pair, "paraphrase");
       return false;
@@ -84,8 +98,8 @@ window.G = window.G || {};
     // ---- the question ----
     build(pair, type, pool) {
       pool = pool && pool.length >= 4 ? pool : G.getAllBuiltinWords();
-      if (!this.can(type, pair)) type = "th2en";
-      const q = { type, kind: type, pair, recall: this.RECALL.includes(type), answerText: pair[0], spell: type === "spell" };
+      if (!this.can(type, pair)) type = this.SPELLED.includes(type) ? "spell" : "th2en";
+      const q = { type, kind: type, pair, recall: this.RECALL.includes(type), answerText: pair[0], spell: this.SPELLED.includes(type), skills: this.SKILLS[type] || ["recognition"] };
       const words = (list) => list.map((p) => ({ text: p[0], lang: "en", pair: p }));
       const thais = (list) => list.map((p) => ({ text: p[1], lang: "th", pair: p }));
       const shuffleIn = (right, wrong) => {
@@ -134,16 +148,29 @@ window.G = window.G || {};
         shuffleIn({ text: pair[1], lang: "th", pair }, thais(G.Distract.forChoices(pair, pool, 3)));
       } else if (type === "spell") {
         q.ask = T("q.spell"); q.prompt = { html: esc(pair[1]), lang: "th", big: true };
+      } else if (type === "defspell") {
+        q.ask = T("q.defspell"); q.prompt = { html: "≈ " + esc(G.Clues.definition(pair)), lang: "en" };
+      } else if (type === "dictation") {
+        q.ask = T("q.dictation"); q.prompt = { html: "", lang: "en", listen: true }; q.speak = pair[0];
+      } else if (type === "clozespell") {
+        // the form the sentence uses is the word to write
+        const c = G.Clues.cloze(pair, G.rng() < 0.5 ? 0 : 1) || G.Clues.cloze(pair);
+        q.answerText = c.answer.toLowerCase();
+        q.spellPair = Object.assign([q.answerText, pair[1]], { exact: true });
+        q.ask = T("q.clozespell");
+        q.prompt = { html: esc(c.before) + '<span class="q-gap">_____</span>' + esc(c.after), lang: "en" };
       }
       return q;
     },
+    // what a written answer is checked against (the form, for a gap)
+    spellTarget(q) { return q.spellPair || q.pair; },
     // is this choice / this spelling the right answer?
     isRight(q, k) {
-      if (q.spell) return G.Spell.isRight(k, q.pair);
+      if (q.spell) return G.Spell.isRight(k, this.spellTarget(q));
       return k === q.answer;
     },
     // the right answer, as the reveal shows it
-    rightText(q) { return q.spell ? q.pair[0] : q.choices[q.answer].text; },
+    rightText(q) { return q.spell ? this.spellTarget(q)[0] : q.choices[q.answer].text; },
     // the wrong word picked, as a word of the bank (E2), if it was one
     picked(q, k) {
       if (q.spell || k == null || k < 0) return null;
@@ -180,7 +207,7 @@ window.G = window.G || {};
           onHint: () => { if (pad.hint()) h.hint && h.hint(); },
           showCursor: () => G.Input.padActive,
         });
-        pad.setWord(q.pair, "");
+        pad.setWord(Q.spellTarget(q), "");
       } else {
         const cls = h.choiceClass || "quiz-choice";
         box.innerHTML = q.choices.map((c, k) => `<button class="${cls}${c.lang === "th" ? " th" : ""}" data-k="${k}" lang="${c.lang}" type="button"><b>${k + 1}</b><span>${esc(c.text)}</span></button>`).join("");

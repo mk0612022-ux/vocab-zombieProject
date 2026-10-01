@@ -384,18 +384,35 @@ G.UI = {
 
   // ---------------- Leaderboard ----------------
   bindLeaderboard() { this.el("btn-leaderboard-back").onclick = () => this.goToMainMenu(); },
+  // (vocabulary series, round 4, J3) the game's boards, then the learning
+  // ones: Daily Review and one a mode (a pairing of the player's own all go
+  // on "Custom"); a campaign entry shows the Learning Style it was played in,
+  // a Custom one its pairing
   renderLeaderboard(cat) {
-    const content = this.el("leaderboard-content");
-    const cats = [
-      { id: "level1", label: G.T("common.level", { n: 1 }) }, { id: "level2", label: G.T("common.level", { n: 2 }) }, { id: "level3", label: G.T("common.level", { n: 3 }) },
-      { id: "daily", label: G.T("leaderboard.daily") }, { id: "endless", label: G.T("leaderboard.endless") },
+    const content = this.el("leaderboard-content"), T = G.T, esc = G.escapeHtml;
+    const game = [
+      { id: "level1", label: T("common.level", { n: 1 }) }, { id: "level2", label: T("common.level", { n: 2 }) }, { id: "level3", label: T("common.level", { n: 3 }) },
+      { id: "daily", label: T("leaderboard.daily") }, { id: "endless", label: T("leaderboard.endless") },
     ];
-    const tabs = cats.map((c) => `<div class="tab-btn ${c.id === cat ? "active" : ""}" data-cat="${c.id}">${c.label}</div>`).join("");
+    const learn = [{ id: "review", label: T("lobby.mode.review") }].concat(G.Learn.PRESETS.map((p) => ({ id: "mode_" + p.id, label: T("learn.preset." + p.id) })), [{ id: "mode_custom", label: T("learn.preset.custom") }]);
+    const tabs = (list) => list.map((c) => `<button type="button" class="tab-btn ${c.id === cat ? "active" : ""}" data-cat="${c.id}">${esc(c.label)}</button>`).join("");
     const list = (G.save.leaderboards[cat] || []);
-    content.innerHTML = `<div class="leaderboard-tabs">${tabs}</div>
-      <ul class="leaderboard-list">${list.length ? list.map((e, i) => `<li><span>#${i + 1} ${e.date}</span><span>${e.meta === "continued" ? `<span class="lb-cont" title="${G.escapeHtml(G.T("leaderboard.continued"))}" aria-label="${G.escapeHtml(G.T("leaderboard.continued"))}">💾</span> ` : ""}${e.score}</span></li>`).join("") : `<li>${G.T("leaderboard.empty")}</li>`}</ul>
-      ${list.some((e) => e.meta === "continued") ? `<div class="lb-legend">💾 ${G.escapeHtml(G.T("leaderboard.continued"))}</div>` : ""}`;
-    content.querySelectorAll(".tab-btn").forEach((t) => t.onclick = () => this.renderLeaderboard(t.dataset.cat));
+    const badge = (e) => {
+      const b = [];
+      if (e.style) b.push(`<span class="lb-style">${esc(G.Learn.label(e.style))}</span>`);
+      else if (cat === "mode_custom" && e.mode) b.push(`<span class="lb-style">${esc(G.Learn.label(e.mode))}</span>`);
+      if (e.words) b.push(`<span class="lb-words">${esc(T("leaderboard.words", { n: e.words }))}</span>`);
+      return b.join(" ");
+    };
+    content.innerHTML = `<div class="lb-group">${esc(T("leaderboard.gameHead"))}</div><div class="leaderboard-tabs">${tabs(game)}</div>
+      <div class="lb-group">${esc(T("leaderboard.learnHead"))}</div><div class="leaderboard-tabs">${tabs(learn)}</div>
+      <ul class="leaderboard-list">${list.length ? list.map((e, i) => `<li><span>#${i + 1} ${esc(e.date)} ${badge(e)}</span><span>${e.meta === "continued" ? `<span class="lb-cont" title="${esc(T("leaderboard.continued"))}" aria-label="${esc(T("leaderboard.continued"))}">💾</span> ` : ""}${Number(e.score).toLocaleString("en-GB")}</span></li>`).join("") : `<li>${T("leaderboard.empty")}</li>`}</ul>
+      ${list.some((e) => e.meta === "continued") ? `<div class="lb-legend">💾 ${esc(T("leaderboard.continued"))}</div>` : ""}`;
+    content.querySelectorAll(".tab-btn").forEach((t) => t.onclick = () => {
+      this.renderLeaderboard(t.dataset.cat);
+      const b = content.querySelector(`.tab-btn[data-cat="${t.dataset.cat}"]`);
+      if (b && G.Input.mode !== "touch") { b.focus({ preventScroll: true }); if (G.Pad.focused) G.Pad.setFocus(b); }
+    });
   },
 
   // ---------------- Achievements ----------------
@@ -414,6 +431,11 @@ G.UI = {
     const a = G.ACHIEVEMENTS.find((x) => x.id === id);
     if (!a) return;
     const toast = this.el("hud-achievement-toast");
+    // (vocabulary series, round 4) one won outside a run -- in Practice Mode --
+    // shows over the menus: the HUD it lives in is hidden there
+    const hud = this.el("hud"), menu = hud.classList.contains("hidden");
+    if (toast.parentNode !== (menu ? document.body : hud)) (menu ? document.body : hud).appendChild(toast);
+    toast.classList.toggle("toast-menu", menu);
     toast.innerHTML = `<b>${G.T("achievements.unlocked")}</b><br>${a.icon} ${a.name}`;
     toast.classList.remove("hidden");
     toast.style.opacity = "1"; toast.style.transform = "translateX(0)";
@@ -665,69 +687,8 @@ G.UI = {
     wrap.querySelectorAll("button[data-id]").forEach((b) => b.onclick = () => { delete G.save.importedSets[b.dataset.id]; G.persist(); this.renderImportedSets(); });
   },
 
-  // ---------------- Practice mode ----------------
-  bindPractice() {
-    this.el("btn-practice-back").onclick = () => this.goToMainMenu();
-    this.el("btn-practice-quit").onclick = () => G.Game.endPractice();
-  },
-  renderPracticeSetup() {
-    const wrap = this.el("practice-setup-content");
-    const importedIds = Object.keys(G.save.importedSets);
-    wrap.innerHTML = `
-      <p>${G.T("practice.choose")}</p>
-      <div class="tabs">
-        ${[1, 2, 3].map((n) => `<div class="tab-btn" data-src="level${n}">${G.T("common.levelNamed", { n, name: G.getLevel(n).name })}</div>`).join("")}
-        <div class="tab-btn" data-src="weak">${G.T("practice.weak")}</div>
-        ${importedIds.map((id) => `<div class="tab-btn" data-src="${id}">${G.save.importedSets[id].name}</div>`).join("")}
-      </div>
-      <div class="row-center"><button class="btn btn-primary" id="btn-practice-start" disabled>${G.T("practice.start")}</button></div>
-    `;
-    let selected = null;
-    wrap.querySelectorAll(".tab-btn").forEach((t) => t.onclick = () => {
-      wrap.querySelectorAll(".tab-btn").forEach((x) => x.classList.remove("active"));
-      t.classList.add("active"); selected = t.dataset.src;
-      wrap.querySelector("#btn-practice-start").disabled = false;
-    });
-    wrap.querySelector("#btn-practice-start").onclick = () => G.Game.startPractice(selected);
-  },
-  startPracticeRound(pairs) {
-    this.practicePairs = G.shuffle(pairs);
-    this.practiceIdx = 0;
-    this.practiceCorrect = 0;
-    this.showPracticeCard();
-  },
-  showPracticeCard() {
-    if (this.practiceIdx >= this.practicePairs.length) {
-      alert(G.T("practice.done", { c: this.practiceCorrect, n: this.practicePairs.length }));
-      G.Game.endPractice();
-      return;
-    }
-    const [word, meaning] = this.practicePairs[this.practiceIdx];
-    this.el("practice-progress").textContent = `${this.practiceIdx + 1} / ${this.practicePairs.length}`;
-    this.el("practice-word").textContent = word;
-    // J3: Practice Mode reads every card aloud, on its own speech setting
-    if ((G.save.settings.speechMode || "after") !== "off") G.Audio.speak(word);
-    this.el("practice-feedback").textContent = "";
-    const allMeanings = G.getAllBuiltinWords().map((p) => p[1]).filter((m) => m !== meaning);
-    const distractors = G.shuffle(allMeanings).slice(0, 3);
-    const choices = G.shuffle([meaning, ...distractors]);
-    const cWrap = this.el("practice-choices");
-    cWrap.innerHTML = "";
-    choices.forEach((c) => {
-      const btn = document.createElement("button");
-      btn.className = "practice-choice-btn"; btn.textContent = c;
-      btn.onclick = () => {
-        const correct = c === meaning;
-        G.recordWordResult(word, correct);
-        btn.classList.add(correct ? "correct" : "wrong");
-        if (correct) this.practiceCorrect++;
-        this.el("practice-feedback").textContent = correct ? G.T("practice.correct") : G.T("practice.wrong", { a: meaning });
-        Array.from(cWrap.children).forEach((b) => (b.onclick = null));
-        setTimeout(() => { this.practiceIdx++; G.persist(); this.showPracticeCard(); }, 700);
-      };
-      cWrap.appendChild(btn);
-    });
-  },
+  // ---------------- Practice mode (vocabulary series round 4: js/practice.js) ----------------
+  bindPractice() {},
 
   // ---------------- Pause ----------------
   bindPause() {
@@ -1309,7 +1270,7 @@ G.UI = {
     const T = G.T, esc = G.escapeHtml;
     const box = this.el("hud-challenge-box");
     box.classList.add("revealed");
-    if (q.spell) { if (view && view.pad) view.pad.showFeedback(typeof k === "string" ? k : "", q.pair[0], typeof k === "string" ? G.Spell.tipFor(k, q.pair) : ""); }
+    if (q.spell) { if (view && view.pad) view.pad.showFeedback(typeof k === "string" ? k : "", G.Questions.rightText(q), typeof k === "string" ? G.Spell.tipFor(k, q.pair) : ""); }
     else this.el("hud-challenge-choices").querySelectorAll("[data-k]").forEach((b, i) => { b.disabled = true; b.classList.toggle("is-right", i === q.answer); b.classList.toggle("is-wrong", i === k); });
     const r = this.el("hud-challenge-reveal");
     const ans = G.Questions.rightText(q);

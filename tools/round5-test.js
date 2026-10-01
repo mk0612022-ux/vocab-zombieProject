@@ -63,7 +63,8 @@ G.Round5Test = (function () {
     ok("B lobby icons: short name under each", Object.keys(want).every((k) => { const b = icons.find((x) => x.dataset.icon === k); return b && b.querySelector(".li-label").textContent === want[k]; }), icons.map((b) => b.querySelector(".li-label").textContent).join(","));
     ok("B lobby icons: full name as the tooltip", icons.find((b) => b.dataset.icon === "wordlog").dataset.tip === "Vocabulary Log" && icons.find((b) => b.dataset.icon === "leaderboard").dataset.tip === "Leaderboard");
     // a controller or the keys on an icon: its tooltip shows
-    G.Lobby.setDevice("pad"); G.Lobby.iconI = 4; G.Lobby.focusIcons(true);
+    // (vocabulary series, round 4: Progress first, so the Word Log is the sixth)
+    G.Lobby.setDevice("pad"); G.Lobby.iconI = 5; G.Lobby.focusIcons(true);
     const tip = document.getElementById("tip");
     ok("B controller on an icon: the full name shows", !tip.classList.contains("hidden") && tip.textContent === "Vocabulary Log", tip.textContent);
     G.Lobby.focusIcons(false);

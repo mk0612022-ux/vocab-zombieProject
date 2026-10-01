@@ -47,7 +47,23 @@ G.Learn = {
     { id: "context", clue: "cloze", answer: "shoot" },
     { id: "adaptive", adaptive: true },
   ],
-  preset(id) { return this.PRESETS.find((p) => p.id === id) || this.PRESETS[0]; },
+  // (round 4: "custom:clue+answer" -- a pairing of the player's own, J1, J2)
+  preset(id) {
+    const m = /^custom:([a-z]+)\+([a-z]+)$/.exec(id || "");
+    if (m && this.CLUES[m[1]] && this.ANSWERS[m[2]]) return { id, custom: true, clue: m[1], answer: m[2] };
+    return this.PRESETS.find((p) => p.id === id) || this.PRESETS[0];
+  },
+  customId(clue, answer) { return "custom:" + clue + "+" + answer; },
+  // the campaign's Learning Styles (J2): Adaptive, Classic, or a pairing of the player's own
+  CAMPAIGN_STYLES: ["adaptive", "classic"],
+  campaignStyleOk(id) { return this.CAMPAIGN_STYLES.includes(id) || (typeof id === "string" && !!this.preset(id).custom); },
+  // the name a mode goes by: a preset's, or "Definition + Spell"
+  label(id) {
+    const p = this.preset(id);
+    return p.custom ? G.T("learn.customName", { clue: G.T("learn.clue." + p.clue), answer: G.T("learn.answer." + p.answer) }) : G.T("learn.preset." + p.id);
+  },
+  // the leaderboard a mode's sessions go on
+  boardOf(id) { const p = this.preset(id); return "mode_" + (p.custom ? "custom" : p.id); },
   available(p) {
     if (typeof p === "string") p = this.preset(p);
     if (p.adaptive) return true;
@@ -104,13 +120,17 @@ G.Learn = {
   //   shoot: the English word -- the form a Cloze sentence wants -- or, for
   //   Listening, its Thai meaning (G1); spell: the Thai meaning, a one-word
   //   synonym (F), or nothing at all for Dictation (G2)
-  labelFor(pair, clue, answer, form) {
+  //   (round 4, J2) in the campaign every shot zombie carries its English
+  //   word: Audio + Shoot there is "shoot the word you hear"; a gap to spell
+  //   shows the gap ("___"), its sentence on the panel
+  labelFor(pair, clue, answer, form, campaign) {
     if (answer === "spell") {
       if (clue === "audio") return "";
       if (clue === "definition") return G.Clues.synonym(pair) || "≈";
+      if (clue === "cloze") return "___";
       return pair[1] || "";
     }
-    if (clue === "audio") return pair[1] || "";
+    if (clue === "audio" && !campaign) return pair[1] || "";
     return form || pair[0];
   },
   // (round 2's name for the Thai clue)

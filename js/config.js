@@ -205,6 +205,21 @@ G.CONFIG = {
     clozeFamily: 2,                 // Context: look-alikes from the word's own family (other forms) on the field
     synonymMaxLength: 14,           // the one-word synonym over a zombie's head in Definition + Spell
   },
+  // (vocabulary series, round 4, J3) the learning achievements
+  achievements: {
+    mastered: 100,                  // "100 Words Mastered"
+    reviewStreak: 7,                // "7-Day Streak" (Daily Review)
+    spellingBee: 50,                // "Spelling Bee": right spellings in a row
+    perfectDictation: 6,            // "Perfect Dictation Wave": at least this many words, none missed
+  },
+  // (round 4, J1) Practice Mode: words a session, and what "often wrong" means
+  practice: {
+    words: 15,                      // questions a session at most
+    wrongMin: 2,                    // missed at least this many times...
+    wrongShare: 0.25,               // ...and at least this share of its answers
+  },
+  // (round 4) the Progress page: the most-missed list, the activity chart
+  progress: { topMissed: 10, days: 30 },
   speech: {
     rate: 1,                        // "Normal"
     slowRate: 0.8,                  // "Slow" (x the normal rate)
@@ -229,11 +244,15 @@ G.CONFIG = {
     // Daily Review and the learning modes (js/study.js): short sessions
     dailyMax: 30,                   // words per Daily Review session (a Continue button if more are due)
     learnCards: 16,                 // words per learning-mode session
-    alive: 5,                       // zombies on the field at once
+    // (round 4, K: tuned on a 30-word review played by a model player -- one
+    // who needs 5 s a word was bitten 15 times at 5 / 2.4 s / 0.9, so half
+    // its review counted wrong for being slow; now 3 times, and a 30-word
+    // review takes 1.7-2.2 minutes)
+    alive: 4,                       // zombies on the field at once
     aliveSpell: 3,                  // ...in a session answered only by spelling (typing takes longer)
-    every: 2.4,                     // seconds between arrivals
+    every: 3.2,                     // seconds between arrivals
     everySpell: 4,                  // ...in a session answered only by spelling
-    speed: 0.9,                     // walking speed (x the zombie's own)
+    speed: 0.55,                    // walking speed (x the zombie's own)
     retryWrong: true,               // a word missed comes back once at the end (it does not count again)
     score: { right: 30, perBox: 10, spell: 20 },
   },
