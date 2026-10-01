@@ -24,8 +24,21 @@
       this.el("note-cefr").setAttribute("aria-label", G.T("notes.cefrAria", { level: note.cefr }));
       this.el("note-title").textContent = note.title;
       this.el("note-author").textContent = note.author;
-      this.el("note-body").innerHTML = bodyHtml(note.text);
-      this.el("note-body").scrollTop = 0;
+      // (vocabulary series, round 3, H4) the words of the level's bank, any
+      // form, marked: a tap or a click shows the word's mini card (reading it
+      // is not a review)
+      const levelKey = Object.keys(G.NOTES || {}).find((k) => (G.NOTES[k] || []).some((n) => n.id === note.id)) || "level1";
+      const body = this.el("note-body");
+      body.innerHTML = G.VocabCard ? G.VocabCard.markNote(bodyHtml(note.text), levelKey) : bodyHtml(note.text);
+      body.scrollTop = 0;
+      body.onclick = (e) => {
+        const b = e.target.closest(".note-word");
+        if (!b) return;
+        const en = G.WordBank.byId(b.dataset.id);
+        if (!en) return;
+        const p = [en.headword, en.thai]; p.id = en.id;
+        G.VocabCard.peek(p, b.dataset.form);
+      };
       this.el("btn-note-keep").textContent = G.T(fromJournal ? "notes.close" : "notes.keep");
       this.setNoteSpeaking(false);
       // a slightly different tilt and stain for every note

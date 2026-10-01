@@ -873,24 +873,43 @@ G.Audio = {
     }
   },
 
-  // ---------------- speech (J3) ----------------
-  pickVoice() {
-    if (!("speechSynthesis" in window)) return null;
-    const vs = speechSynthesis.getVoices() || [];
-    return vs.find((v) => /en-GB/i.test(v.lang)) || vs.find((v) => /en-US/i.test(v.lang)) || vs.find((v) => /^en/i.test(v.lang)) || null;
+  // ---------------- speech (J3; vocabulary series round 3, G3) ----------------
+  // The device's own voices. The accent setting (Mixed, British, American,
+  // Australian) picks among the English ones it really has; an accent it
+  // does not have falls back to any English voice (British first). Speed:
+  // Normal, or Slow (0.8 of it) -- G.CONFIG.speech.
+  ACCENTS: { british: /^en[-_]GB/i, american: /^en[-_]US/i, australian: /^en[-_]AU/i },
+  voices() {
+    if (!("speechSynthesis" in window)) return [];
+    return (speechSynthesis.getVoices() || []).filter((v) => /^en/i.test(v.lang));
   },
-  speak(word) {
+  accent() { return (G.save && G.save.settings && G.save.settings.accent) || "british"; },
+  // does the device have a voice for this accent? (Settings says when not)
+  hasAccent(a) { const re = this.ACCENTS[a]; return !re || this.voices().some((v) => re.test(v.lang)); },
+  pickVoice() {
+    const vs = this.voices();
+    if (!vs.length) return null;
+    const a = this.accent(), re = this.ACCENTS[a];
+    if (a === "mixed") return vs[Math.floor(Math.random() * vs.length)];
+    const own = re ? vs.filter((v) => re.test(v.lang)) : [];
+    return own[0] || vs.find((v) => this.ACCENTS.british.test(v.lang)) || vs.find((v) => this.ACCENTS.american.test(v.lang)) || vs[0];
+  },
+  speechRate() { const C = G.CONFIG.speech; return G.save && G.save.settings.speechSpeed === "slow" ? C.rate * C.slowRate : C.rate; },
+  // a word (kept for "hear it again"), or with { text: true } a sentence
+  speak(word, opts) {
     if (!word || !("speechSynthesis" in window)) return;
     const vol = this.vol("speech");
     if (vol <= 0.001) return;
-    this._lastSpoken = word;
+    if (!(opts && opts.text)) this._lastSpoken = word;
     try {
       speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(word);
-      u.lang = (this._voice && this._voice.lang) || "en-GB";
-      if (this._voice) u.voice = this._voice;
-      u.rate = 0.85; u.pitch = 1; u.volume = Math.min(1, vol);
+      const v = this.pickVoice();
+      u.lang = (v && v.lang) || "en-GB";
+      if (v) u.voice = v;
+      u.rate = this.speechRate() * (opts && opts.text ? 0.95 : 0.9); u.pitch = 1; u.volume = Math.min(1, vol);
       speechSynthesis.speak(u);
+      this._spokenAt = performance.now();
     } catch (e) { /* speech is a nicety; never let it break the game */ }
   },
   replay() { if (this._lastSpoken) this.speak(this._lastSpoken); },

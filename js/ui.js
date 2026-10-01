@@ -171,7 +171,7 @@ G.UI = {
     const kb = s.keybinds;
     const T = G.T;
     const actions = ["forward", "back", "left", "right", "sprint", "jump", "reload", "interact", "melee", "slot2", "slot3", "slot4", "slot5", "slot6", "slot7",
-      "ability1", "ability2", "ability3", "ability4", "pause"];
+      "ability1", "ability2", "ability3", "ability4", "replay", "thaiHint", "pause"];
     const pct = (v, d) => Math.round((v == null ? d : v) * 100);
     this._hudSlotSig = null;              // the HUD slot row shows these keys
     wrap.innerHTML = `
@@ -210,6 +210,13 @@ G.UI = {
           <option value="before">${T("settings.speechBefore")}</option>
           <option value="off">${T("settings.speechOff")}</option>
         </select></div>
+      <div class="settings-row"><label for="set-accent">${T("settings.accent")}</label>
+        <select id="set-accent">${["mixed", "british", "american", "australian"].map((a) => `<option value="${a}">${T("settings.accent." + a)}</option>`).join("")}</select></div>
+      <div class="settings-note" id="set-accent-note"></div>
+      <div class="settings-row"><label for="set-speechspeed">${T("settings.speechSpeed")}</label>
+        <select id="set-speechspeed"><option value="normal">${T("settings.speedNormal")}</option><option value="slow">${T("settings.speedSlow")}</option></select></div>
+      <div class="settings-row"><label for="set-playonce">${T("settings.playOnce")}</label>
+        <input type="checkbox" id="set-playonce"></div>
       <div class="row-center"><button class="btn" id="btn-speech-test">${T("settings.speechTest")}</button></div>
 
       <div class="settings-section-title">${T("settings.performance")}</div>
@@ -240,6 +247,10 @@ G.UI = {
         </select></div>
       <div class="settings-row"><label for="set-spellreload">${T("settings.spellReload")}</label>
         <input type="checkbox" id="set-spellreload"></div>
+      <div class="settings-row"><label for="set-highlight">${T("settings.highlightTarget")}</label>
+        <input type="checkbox" id="set-highlight"></div>
+      <div class="settings-row"><label for="set-cluethai">${T("settings.clueThai")}</label>
+        <select id="set-cluethai"><option value="auto">${T("settings.clueThaiAuto")}</option><option value="always">${T("settings.clueThaiAlways")}</option><option value="never">${T("settings.clueThaiNever")}</option></select></div>
 
       <div class="settings-section-title">${T("settings.accessibility")}</div>
       <div class="settings-row"><label>${T("settings.fontSize")}</label>
@@ -312,6 +323,31 @@ G.UI = {
     // (vocabulary series, round 2, D2) from the next reload on
     wrap.querySelector("#set-spellreload").checked = !!s.spellReload;
     wrap.querySelector("#set-spellreload").onchange = (e) => { s.spellReload = e.target.checked; G.persist(); };
+    // (vocabulary series, round 3, F and G3) the Thai beside English clues;
+    // the accent (from the voices this device has), the speed, Play Once
+    wrap.querySelector("#set-highlight").checked = !!s.highlightTarget;
+    wrap.querySelector("#set-highlight").onchange = (e) => {
+      s.highlightTarget = e.target.checked; G.persist();
+      // (redrawn at once in a run)
+      if (G.Game.zombies) G.Game.zombies.forEach((z) => { if (z.alive) { z._label = null; z.setTarget(z.isTarget); } });
+    };
+    wrap.querySelector("#set-cluethai").value = s.clueThai || "auto";
+    wrap.querySelector("#set-cluethai").onchange = (e) => { s.clueThai = e.target.value; G.persist(); };
+    const accentNote = () => {
+      const a = s.accent || "british", A = G.Audio;
+      const names = A.voices().map((v) => v.name.replace(/^Microsoft |^Google /, "").split(/ [-(]/)[0] + " (" + v.lang + ")");
+      // (the voices load a moment after the page: say so when they come)
+      if (!names.length && "speechSynthesis" in window && speechSynthesis.addEventListener) speechSynthesis.addEventListener("voiceschanged", accentNote, { once: true });
+      wrap.querySelector("#set-accent-note").textContent = !names.length ? T("settings.accentNone")
+        : (a !== "mixed" && !A.hasAccent(a) ? T("settings.accentMissing", { a: T("settings.accent." + a) }) + " " : "") + T("settings.accentVoices", { list: names.join(", ") });
+    };
+    wrap.querySelector("#set-accent").value = s.accent || "british";
+    wrap.querySelector("#set-accent").onchange = (e) => { s.accent = e.target.value; G.persist(); accentNote(); G.Audio.unlock(); G.Audio.speak("vocabulary"); };
+    accentNote();
+    wrap.querySelector("#set-speechspeed").value = s.speechSpeed || "normal";
+    wrap.querySelector("#set-speechspeed").onchange = (e) => { s.speechSpeed = e.target.value; G.persist(); G.Audio.unlock(); G.Audio.speak("vocabulary"); };
+    wrap.querySelector("#set-playonce").checked = !!s.playOnce;
+    wrap.querySelector("#set-playonce").onchange = (e) => { s.playOnce = e.target.checked; G.persist(); };
     wrap.querySelector("#set-speechmode").value = s.speechMode || "after";
     wrap.querySelector("#set-speechmode").onchange = (e) => { s.speechMode = e.target.value; G.persist(); };
     wrap.querySelector("#btn-speech-test").onclick = () => G.Audio.speak("vocabulary");
@@ -391,12 +427,20 @@ G.UI = {
     // J3: every word in the log can be heard
     this.el("vocablog-content").addEventListener("click", (e) => {
       const b = e.target.closest(".speak-btn");
-      if (b) { G.Audio.unlock(); G.Audio.speak(b.dataset.word); }
+      if (b) { G.Audio.unlock(); G.Audio.speak(b.dataset.word); return; }
+      // (vocabulary series, round 3, H2) a word: its vocabulary card
+      const o = e.target.closest("[data-card]");
+      if (o && this._vocabLogWords) G.VocabCard.open(this._vocabLogWords[+o.dataset.card]);
     });
     const hs = this.el("hud-speak");
     const replay = (e) => { e.preventDefault(); e.stopPropagation(); G.Audio.unlock(); G.Game.speakCurrentWord(); };
     hs.addEventListener("click", replay);
     hs.addEventListener("touchstart", replay, { passive: false });
+    // (round 3, F) the Thai of an English clue
+    const th = this.el("hud-thai");
+    const showThai = (e) => { e.preventDefault(); e.stopPropagation(); G.Game.showThai(); };
+    th.addEventListener("click", showThai);
+    th.addEventListener("touchstart", showThai, { passive: false });
   },
   renderVocabLog(levelId) {
     this._vocabLogLevel = levelId;
@@ -429,8 +473,9 @@ G.UI = {
       }
       const conf = G.SRS.confusedWith(pair).slice(0, 2).map((x) => G.Distract.resolve(x)).filter(Boolean);
       const confLine = conf.length ? `<div class="vw-conf">${esc(G.T("learn.confusedWith")).replace("{x}", conf.map((p) => `<b lang="en">${esc(p[0])}</b> <span lang="th">(${esc(p[1])})</span>`).join(", "))}</div>` : "";
-      return `<div class="vocab-item"><div><div class="vw-en">${esc(en)} <button class="speak-btn" data-word="${esc(en)}" aria-label="${G.T("vocablog.hear", { word: esc(en) })}">🔊</button>${mine}</div><div class="vw-th">${esc(th)}</div>${box}${confLine}</div>${badge}</div>`;
+      return `<div class="vocab-item"><div><div class="vw-en"><button class="vw-open" type="button" data-card="${i}" aria-label="${esc(G.T("card.open", { word: en }))}" lang="en">${esc(en)}</button> <button class="speak-btn" data-word="${esc(en)}" aria-label="${G.T("vocablog.hear", { word: esc(en) })}">🔊</button>${mine}</div><div class="vw-th">${esc(th)}</div>${box}${confLine}</div>${badge}</div>`;
     }).join("");
+    this._vocabLogWords = words;
     this.el("vocablog-content").innerHTML = `<div class="vocab-grid">${items}</div>`;
   },
 
@@ -932,6 +977,40 @@ G.UI = {
       (p.weightLabel ? ` <span style="color:${p.weightColor};font-size:0.78em">[${p.weightLabel}]</span>` : "");
     this.el("hud-ammo").textContent = p.isMelee ? G.T("hud.ammoMelee") : `${p.ammoInMag} / ${p.ammoReserve}`;
     this.el("hud-meaning").textContent = p.currentMeaning || "-";
+    // (vocabulary series, round 3) which clue: its look, the Thai line under
+    // a definition, or the button for it (a helper)
+    const kind = p.clueKind || "thai";
+    if (kind !== this._clueKind) {
+      this._clueKind = kind;
+      const box = document.querySelector(".hud-meaning-box");
+      if (box) { box.classList.remove("clue-thai", "clue-definition", "clue-cloze", "clue-audio"); box.classList.add("clue-" + kind); }
+      this.el("hud-meaning").lang = kind === "thai" ? "th" : "en";
+    }
+    const sub = this.el("hud-meaning-sub");
+    if (sub.textContent !== (p.clueSub || "")) sub.textContent = p.clueSub || "";
+    sub.classList.toggle("hidden", !p.clueSub);
+    // (touch mode puts the stat and weapon panels at the top: a definition or
+    // a sentence is fitted into the gap between them, wrapping, rather than
+    // running under them)
+    const fitSig = innerWidth + "|" + kind + "|" + document.body.classList.contains("touch-mode");
+    if (fitSig !== this._clueFitSig) {
+      this._clueFitSig = fitSig;
+      const box = document.querySelector(".hud-meaning-box");
+      let w = "";
+      if (box && kind !== "thai" && document.body.classList.contains("touch-mode")) {
+        const l = document.querySelector(".hud-left").getBoundingClientRect();
+        const rights = [document.querySelector(".hud-right"), this.el("hud-minimap")].map((e) => e && e.getBoundingClientRect()).filter((r) => r && r.width);
+        const rLeft = rights.length ? Math.min(...rights.map((r) => r.left)) : innerWidth;
+        const half = Math.min(innerWidth / 2 - l.right, rLeft - innerWidth / 2) - 10;
+        if (half > 90) w = Math.floor(half * 2) + "px";
+      }
+      if (box) box.style.maxWidth = w;
+    }
+    const tb = this.el("hud-thai");
+    if (tb.classList.contains("hidden") === !!p.thaiBtn) {
+      tb.classList.toggle("hidden", !p.thaiBtn);
+      this.el("hud-thai-key").textContent = "(" + G.keyLabel(G.save.settings.keybinds.thaiHint) + ")";
+    }
     // (vocabulary series, round 2) "Shoot the word for" or "Spell the word for"
     if (p.meaningLabel && p.meaningLabel !== this._meaningLabel) {
       this._meaningLabel = p.meaningLabel;
@@ -1212,6 +1291,35 @@ G.UI = {
     });
   },
   setChallengeTimer(pct) { this.el("hud-challenge-timer-fill").style.width = Math.max(0, pct * 100) + "%"; },
+  // (vocabulary series, round 3, H5) the question, of whichever kind
+  setChallengeQuestion(q, h) {
+    const box = this.el("hud-challenge-box");
+    box.dataset.type = q.type;
+    box.classList.remove("revealed");
+    this.el("hud-challenge-reveal").classList.add("hidden");
+    this.el("hud-challenge-reveal").innerHTML = "";
+    this.setChallengeTimer(1);
+    const view = G.QuestionView.fill({ ask: this.el("hud-challenge-ask"), prompt: this.el("hud-challenge-meaning"), choices: this.el("hud-challenge-choices") }, q, Object.assign({ choiceClass: "hud-boss-choice" }, h));
+    if (G.Input.mode !== "touch" && !q.spell) setTimeout(() => { const b = this.el("hud-challenge-choices").querySelector("button"); if (b && !box.classList.contains("hidden")) b.focus({ preventScroll: true }); }, 0);
+    return view;
+  },
+  // (H3) wrong or out of time: the right one lit, the wrong one red (or the
+  // spelling marked), and the word in context, until Continue
+  showChallengeReveal(q, k, view, onContinue) {
+    const T = G.T, esc = G.escapeHtml;
+    const box = this.el("hud-challenge-box");
+    box.classList.add("revealed");
+    if (q.spell) { if (view && view.pad) view.pad.showFeedback(typeof k === "string" ? k : "", q.pair[0], typeof k === "string" ? G.Spell.tipFor(k, q.pair) : ""); }
+    else this.el("hud-challenge-choices").querySelectorAll("[data-k]").forEach((b, i) => { b.disabled = true; b.classList.toggle("is-right", i === q.answer); b.classList.toggle("is-wrong", i === k); });
+    const r = this.el("hud-challenge-reveal");
+    const ans = G.Questions.rightText(q);
+    r.innerHTML = `<div class="qf-line">${esc(k === -1 ? T("quiz.timeUp", { a: ans }) : T("quiz.wrong", { a: ans }))}</div>` + G.VocabCard.miniHtml(q.pair, { form: q.answerText }) +
+      `<button class="btn btn-primary qf-next" type="button" data-pad-back>${esc(T("challenge.continue"))} <span class="kbd-only dlg-key">(Enter)</span></button>`;
+    r.classList.remove("hidden");
+    G.VocabCard.bind(r);
+    r.querySelector(".qf-next").onclick = () => onContinue();
+    if (G.Input.mode !== "touch") setTimeout(() => { const b = r.querySelector(".qf-next"); if (b) b.focus({ preventScroll: true }); }, 0);
+  },
   // Category K: FPS and draw calls, each toggleable in Settings
   updateFpsCounter(fps) {
     const el = this.el("hud-fps-counter");

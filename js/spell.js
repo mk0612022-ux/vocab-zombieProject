@@ -38,6 +38,13 @@ window.G = window.G || {};
   // ---------------- words: what counts as right ----------------
   const S = G.Spell = {
     norm(s) { return String(s == null ? "" : s).trim().replace(/\s+/g, " ").toLowerCase(); },
+    // the character a key press types -- the English letter of the key even
+    // when the keyboard is left on the Thai layout (e.key would be Thai)
+    keyChar(e) {
+      const k = e.key;
+      if (k && k.length === 1 && !/[a-z '\-]/i.test(k) && /^Key[A-Z]$/.test(e.code || "")) return e.code.slice(3).toLowerCase();
+      return k;
+    },
     // the spelling the pad asks for (the headword) and every accepted one
     answerOf(pair) { return String(pair[0]); },
     accepted(pair) {
@@ -262,8 +269,8 @@ window.G = window.G || {};
     else { const a = (this.opts.actions || []).find((x) => x.id === id); if (a) a.fn(); }
   };
   // a wrong answer, marked up; `tip` a note under it
-  P.showFeedback = function (typed, answer, tip) {
-    this.feedback = { parts: S.markup(typed, answer), answer, tip: tip || "", until: performance.now() + C().feedbackSeconds * 1000 };
+  P.showFeedback = function (typed, answer, tip, extraHtml) {
+    this.feedback = { parts: S.markup(typed, answer), answer, tip: tip || "", extra: extraHtml || "", until: performance.now() + C().feedbackSeconds * 1000 };
     this.render();
   };
   P.clearFeedback = function () { this.feedback = null; this.typed = ""; this.placed.forEach((t) => { this.tiles[t].used = false; }); this.placed = []; this.render(); };
@@ -324,7 +331,7 @@ window.G = window.G || {};
     // the buttons
     const acts = [{ id: "back", label: "⌫", aria: T("spell.back") }, { id: "hint", label: "💡 " + T("spell.hint"), aria: T("spell.hint") }]
       .concat(this.mode === "type" && this.opts.enterButton ? [{ id: "enter", label: T("spell.enter"), aria: T("spell.enter") }] : [])
-      .concat(this.opts.actions || []);
+      .concat((typeof this.opts.actions === "function" ? this.opts.actions() : this.opts.actions) || []);
     const sig = acts.map((a) => a.id + a.label).join("|");
     if (sig !== this._actSig) {
       this._actSig = sig;
@@ -332,7 +339,7 @@ window.G = window.G || {};
     }
     const msg = this.el("msg");
     if (this.feedback) {
-      msg.innerHTML = `<span class="sp-right">${esc(T("spell.correctIs"))} <b lang="en">${esc(this.feedback.answer)}</b></span>` + (this.feedback.tip ? `<span class="sp-tip">${esc(this.feedback.tip)}</span>` : "");
+      msg.innerHTML = `<span class="sp-right">${esc(T("spell.correctIs"))} <b lang="en">${esc(this.feedback.answer)}</b></span>` + (this.feedback.extra ? `<span class="sp-stress">${this.feedback.extra}</span>` : "") + (this.feedback.tip ? `<span class="sp-tip">${esc(this.feedback.tip)}</span>` : "");
       msg.className = "spad-msg bad";
     } else if (this.note) { msg.textContent = this.note; msg.className = "spad-msg"; }
     else { msg.textContent = ""; msg.className = "spad-msg"; }
@@ -358,7 +365,12 @@ window.G = window.G || {};
           onSubmit: (text) => this.submit(text),
           onHint: () => this.hint(),
           showCursor: () => G.Input.padActive,
-          actions: [{ id: "next", label: "⟳", aria: T("spell.next"), fn: () => this.cycleFocus(1) }],
+          actions: () => {
+            const z = this.focus, out = [{ id: "next", label: "⟳", aria: T("spell.next"), fn: () => this.cycleFocus(1) }];
+            if (z && z.clueKind === "audio") out.push({ id: "say", label: "🔊", aria: T("spell.hearAgain"), fn: () => this.sayFocus(true) });
+            if (z && z.clueKind === "definition" && !z._thaiShown && !G.Learn.showsThai(z.pair)) out.push({ id: "thai", label: T("spell.thaiShort"), aria: T("hud.showThai"), fn: () => this.showThai() });
+            return out;
+          },
         });
       }
       this.pad.setMode(this.inputMode());
@@ -371,9 +383,11 @@ window.G = window.G || {};
     device() { return G.Input.padActive ? "pad" : G.Input.mode === "touch" ? "touch" : "keys"; },
     showKeys() {
       const el = document.getElementById("hud-spell-keys"), dev = this.device();
-      if (!el || this._keysFor === dev) return;
-      this._keysFor = dev;
-      el.textContent = T("spell.keys." + dev);
+      // (Dictation: and how to hear the word again)
+      const audio = !!(this.focus && this.focus.clueKind === "audio");
+      if (!el || this._keysFor === dev + audio) return;
+      this._keysFor = dev + audio;
+      el.textContent = T("spell.keys." + dev) + (audio ? " · " + T("spell.keys.hear." + dev, { key: G.keyLabel(G.save.settings.keybinds.replay) }) : "");
     },
     stop() {
       this.active = false; this.focus = null;
@@ -401,8 +415,10 @@ window.G = window.G || {};
           const dt = v.dot(dir);
           if (dt > bestDot) { bestDot = dt; best = z; }
         }
+        this._aimed = !!best;
         if (best) return best;
-      } else if (this.focus && list.includes(this.focus)) return this.focus;
+      } else if (this.focus && list.includes(this.focus)) { this._aimed = true; return this.focus; }
+      this._aimed = this.inputMode() !== "type";
       return list.slice().sort((a, b) => dist(a) - dist(b))[0];
     },
     cycleFocus(d) {
@@ -429,6 +445,10 @@ window.G = window.G || {};
       if (this.pad.mode === "tiles" && this.pad._w !== this.pad.el("tiles").clientWidth) this.pad.render();
       this.showKeys();
       this.setFocus(this.pickFocus());
+      // (round 3, G2) Dictation: a zombie's word is said as it comes into the
+      // sights (on touch or a pad: as the bar comes onto it)
+      const aimed = this.focus && this._aimed ? this.focus : null;
+      if (aimed !== this._aimZ) { this._aimZ = aimed; if (aimed && aimed.clueKind === "audio") this.sayFocus(false); }
       this.pad.tick();
       const none = !this.focus;
       this.pad.note = none ? T("spell.waiting") : "";
@@ -438,13 +458,34 @@ window.G = window.G || {};
     // keyboard: true when the key was the bar's
     onKey(e) {
       if (!this.typing()) return false;
-      const k = e.key;
+      const k = S.keyChar(e);
       if (e.ctrlKey || e.metaKey || e.altKey) return false;
       if (k === "Enter") { this.submit(this.pad.text()); return true; }
       if (k === "Backspace") { this.pad.back(); if (e.preventDefault) e.preventDefault(); return true; }
       if (k === "Tab") { this.hint(); if (e.preventDefault) e.preventDefault(); return true; }
       if (k && k.length === 1 && /[a-z '\-]/i.test(k)) { if (k === " " && e.preventDefault) e.preventDefault(); this.pad.type(k.toLowerCase()); return true; }
       return false;
+    },
+    // (round 3, G2) the focus zombie's word, said: as it is aimed at (not
+    // twice within a moment), or again on request -- Play Once: once only
+    sayFocus(force) {
+      const z = this.focus;
+      if (!z || z.clueKind !== "audio") return false;
+      const now = performance.now();
+      if (z._said && G.save.settings.playOnce) { if (force) G.UI.flashAbilityNote && G.UI.flashAbilityNote(T("hud.playedOnce")); return false; }
+      if (!force && z._saidAt && now - z._saidAt < G.CONFIG.speech.sameZombieGap * 1000) return false;
+      z._said = (z._said || 0) + 1; z._saidAt = now;
+      G.Audio.speak(z.word);
+      return true;
+    },
+    // (F) the Thai of the focus zombie's English clue: a helper (no box move)
+    showThai() {
+      const z = this.focus;
+      if (!z || z.clueKind !== "definition" || z._thaiShown || G.Learn.showsThai(z.pair)) return false;
+      z._thaiShown = true;
+      G.Audio && G.Audio.sfx && G.Audio.sfx("switch");
+      if (this.pad) { this.pad.clue = z.clue + " · " + z.meaning; this.pad.render(); }
+      return true;
     },
     hint() {
       const z = this.focus;
@@ -475,7 +516,11 @@ window.G = window.G || {};
       }
       if (near && best <= C().nearMiss) {
         g.spellMiss(near, t);
-        this.pad.showFeedback(t, S.answerOf(near.pair), S.tipFor(t, near.pair));
+        // (round 3, G3) Dictation: its syllables, the stressed one marked, and
+        // the word said again
+        const heard = near.clueKind === "audio";
+        this.pad.showFeedback(t, S.answerOf(near.pair), S.tipFor(t, near.pair), heard ? G.Clues.stressHtml(near.pair) : "");
+        if (heard) G.Audio.speak(near.word);
       } else {
         G.Audio && G.Audio.sfx && G.Audio.sfx("wrong");
         this.pad.note = T("spell.noMatch", { w: t });
@@ -542,7 +587,8 @@ window.G = window.G || {};
       if (e.code === "Enter" || e.code === "NumpadEnter") { this.submit(this.pad.text()); return true; }
       if (e.code === "Backspace") { this.pad.back(); return true; }
       if (e.code === "Tab") { this.pad.hint(); if (e.preventDefault) e.preventDefault(); return true; }
-      if (e.key && e.key.length === 1 && /[a-z '\-]/i.test(e.key)) { this.pad.type(e.key.toLowerCase()); return true; }
+      const ch = S.keyChar(e);
+      if (ch && ch.length === 1 && /[a-z '\-]/i.test(ch)) { this.pad.type(ch.toLowerCase()); return true; }
       return true;
     },
     submit(text) {

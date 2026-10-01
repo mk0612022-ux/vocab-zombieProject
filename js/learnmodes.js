@@ -3,35 +3,41 @@
 // -------------------------------------------------------------------
 // Every mode is two parts that combine freely, rather than a mode written
 // on its own:
-//   clue    what the player is given   thai (the Thai meaning); round 3:
-//                                      definition, audio, cloze
+//   clue    what the player is given   thai (the Thai meaning), definition
+//                                      (English, "≈ similar meaning"), audio
+//                                      (the word spoken), cloze (a sentence
+//                                      with it taken out) -- js/clues.js
 //   answer  how they answer            shoot (the zombie carrying the right
 //                                      English word) or spell (type it, or
 //                                      put its letters in order)
 // The ready-made modes are pairs of those; Adaptive picks a pair for each
-// word from its box (js/srs.js): new words and boxes 1-2 are shot, from
-// box 3 (G.CONFIG.adaptive.spellFromBox) they are spelt. A mode whose clue
-// or answer is not built yet is not offered (`available`).
+// word from its box (js/srs.js, G.CONFIG.adaptive.byBox): new words and box
+// 1 Thai and shot, then English clues, then spelling and dictation. A mode
+// whose clue or answer is not built is not offered (`available`).
 //
 //   G.Learn.run(presetId)  the rules for one run: clueFor(pair), answerFor(pair)
-//   recall answers         spell (and in round 3 the dictation, paraphrase
-//                          and context clues) -- what boxes 4-5 need
+//   recall answers         spell, dictation, paraphrase (definition) and
+//                          context (cloze) -- what boxes 4-5 need
 // ===================================================================
 window.G = window.G || {};
 
 G.Learn = {
+  // (round 3: the English clues -- js/clues.js; a word without the data for
+  // a clue gets the Thai one instead)
   CLUES: {
     thai: { available: true },
-    definition: { available: false },      // round 3
-    audio: { available: false },           // round 3
-    cloze: { available: false },           // round 3
+    definition: { available: true },       // F: its English definition, "≈ similar meaning"
+    audio: { available: true },            // G: the word spoken
+    cloze: { available: true },            // H1: a sentence with it taken out
   },
   ANSWERS: {
     shoot: { available: true, recall: false },
     spell: { available: true, recall: true },
   },
-  // clues that make any answer a recall task (round 3)
-  RECALL_CLUES: ["audio", "definition", "cloze"],
+  // clues that make even a shot a recall task (C1: Paraphrase and Context
+  // count for boxes 4-5; Listening -- hearing it and shooting its meaning --
+  // does not, Dictation does through its spelling)
+  RECALL_CLUES: ["definition", "cloze"],
   PRESETS: [
     { id: "classic", clue: "thai", answer: "shoot" },
     { id: "spelling", clue: "thai", answer: "spell" },
@@ -50,10 +56,22 @@ G.Learn = {
   availablePresets() { return this.PRESETS.filter((p) => this.available(p)); },
   isRecall(clue, answer) { return !!(this.ANSWERS[answer] && this.ANSWERS[answer].recall) || this.RECALL_CLUES.includes(clue); },
 
-  // Adaptive: the pair for a word, from its box
+  // can this word be asked with this clue? (a player's own word may have no
+  // definition or example sentence)
+  usable(pair, clue) { return G.Clues.has(pair, clue); },
+
+  // Adaptive: the clue and answer for a word, from its box
+  // (G.CONFIG.adaptive.byBox) -- one of those its data allows, the same all
+  // day for that word, so a word is not asked one way and then another
   adaptiveFor(pair) {
-    const b = G.SRS.box(pair);
-    return { clue: "thai", answer: b >= G.CONFIG.adaptive.spellFromBox ? "spell" : "shoot" };
+    const b = Math.min(6, Math.max(0, G.SRS.box(pair)));
+    const opts = (G.CONFIG.adaptive.byBox[b] || ["thai+shoot"]).map((s) => { const [clue, answer] = s.split("+"); return { clue, answer }; })
+      .filter((o) => this.usable(pair, o.clue));
+    if (!opts.length) return { clue: "thai", answer: "shoot" };
+    const k = String(G.wordKey(pair)) + ":" + G.Clock.today();
+    let h = 0;
+    for (let i = 0; i < k.length; i++) h = (h * 31 + k.charCodeAt(i)) >>> 0;
+    return opts[h % opts.length];
   },
 
   // the rules of one run; `words`, when the run's words are known ahead (a
@@ -65,7 +83,11 @@ G.Learn = {
     return {
       id: p.id,
       adaptive: !!p.adaptive,
-      pick(pair) { return p.adaptive ? L.adaptiveFor(pair) : { clue: p.clue, answer: p.answer }; },
+      pick(pair) {
+        if (p.adaptive) return L.adaptiveFor(pair);
+        // (a word without the data for this clue: the Thai one)
+        return { clue: L.usable(pair, p.clue) ? p.clue : "thai", answer: p.answer };
+      },
       clueFor(pair) { return this.pick(pair).clue; },
       answerFor(pair) { return this.pick(pair).answer; },
       // might this run ask anything by spelling? (the typing controls are set up for it)
@@ -73,12 +95,33 @@ G.Learn = {
       // does it ask anything by shooting? (Adaptive always may: a word
       // missed goes back to box 1, and box 1 is shot)
       shoots: p.adaptive || p.answer === "shoot",
+      // the clue a preset is built on (for filtering a level's words)
+      clue: p.adaptive ? null : p.clue,
     };
   },
-  // the text a clue shows for a word (round 2: the Thai meaning)
-  clueText(pair, clue) {
-    if (!pair) return "";
-    return pair[1] || "";
+
+  // What a zombie shows over its head for a clue and an answer (round 3):
+  //   shoot: the English word -- the form a Cloze sentence wants -- or, for
+  //   Listening, its Thai meaning (G1); spell: the Thai meaning, a one-word
+  //   synonym (F), or nothing at all for Dictation (G2)
+  labelFor(pair, clue, answer, form) {
+    if (answer === "spell") {
+      if (clue === "audio") return "";
+      if (clue === "definition") return G.Clues.synonym(pair) || "≈";
+      return pair[1] || "";
+    }
+    if (clue === "audio") return pair[1] || "";
+    return form || pair[0];
+  },
+  // (round 2's name for the Thai clue)
+  clueText(pair) { return pair ? pair[1] || "" : ""; },
+  // Definition clues show the Thai as well while a word is new to the
+  // player (box 1-2) -- or always, or never (Settings)
+  showsThai(pair) {
+    const s = G.save.settings.clueThai || "auto";
+    if (s === "always") return true;
+    if (s === "never") return false;
+    return G.SRS.box(pair) <= G.CONFIG.clues.thaiUpToBox;
   },
 };
 

@@ -411,7 +411,10 @@ G.ZombieFX = {
     z._faceYaw = M.yaw;
     z._lastX = z.mesh.position.x; z._lastZ = z.mesh.position.z;
     z.emerge = null;
-    z.sprite.visible = true;
+    // its label back -- the way its clue wants it (vocabulary series, round
+    // 3: a Dictation zombie has none; this used to show the English word)
+    z._label = null;
+    if (z.setTarget) z.setTarget(z.isTarget); else z.sprite.visible = true;
   },
   // hits on a part still below the floor or above the ceiling don't count
   hitBlocked(z, point) {

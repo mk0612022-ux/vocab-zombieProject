@@ -1171,6 +1171,8 @@ G.Zombie = function (type, position, wordPair, theme) {
   // the English word) or spelt (its label is its clue) -- set by the game
   this.answer = "shoot";
   this.clue = "";
+  this.clueKind = "thai";
+  this.clueFull = "";
   this.labelText = this.word;
 
   this.look = G.randomZombieLook(type, theme);
@@ -1186,23 +1188,42 @@ G.Zombie = function (type, position, wordPair, theme) {
 // (Round 3: a word crossed out by the Fifty-Fifty ability is drawn grey with
 // a cross. The label is only redrawn when it changes -- this is called for
 // every zombie each time the target is checked.)
+// (vocabulary series, round 3) The word being asked is NOT marked out: its
+// label used to be drawn yellow, which gave the answer away -- every right
+// shot was a helped one. Only the zombie the spelling bar is on is lit (that
+// is where the typing goes, not an answer); Dictation's unlabelled zombies
+// show a speaker over that one.
 G.Zombie.prototype.setTarget = function (isTarget) {
   this.isTarget = isTarget;
   const out = !!this.ruledOut && !isTarget;
   const spell = this.answer === "spell";
-  const hot = isTarget || (spell && this.spellFocus);
-  const key = (hot ? "t" : out ? "x" : "n") + (spell ? "s" : "") + this.labelText;
+  // (Settings "Highlight the target word" brings the old yellow back -- a
+  // helper: those answers move no box, js/game.js helpersActive)
+  const hot = (spell && this.spellFocus) || (!spell && isTarget && !!(G.save && G.save.settings.highlightTarget));
+  const text = this.labelText || (hot ? "🔊" : "");
+  const key = (hot ? "t" : out ? "x" : "n") + (spell ? "s" : "") + text;
   if (this._label === key) return;
   this._label = key;
-  G.updateWordSprite(this.sprite, out ? "✗ " + this.labelText : this.labelText, hot ? "#ffe36b" : out ? "#6c7078" : spell ? "#9ae8ff" : "#ffffff");
+  this.sprite.visible = !!text;
+  if (!text) return;
+  G.updateWordSprite(this.sprite, out ? "✗ " + text : text, hot ? "#ffe36b" : out ? "#6c7078" : spell ? "#9ae8ff" : "#ffffff");
 };
-// (vocabulary series, round 2) answered by spelling: the clue on its label
-G.Zombie.prototype.setAnswer = function (answer, clue) {
+// (vocabulary series, round 2-3) how it is answered, its clue, and what its
+// label says: setAnswer(answer, clue, { kind, label, full })
+//   clue   the short clue for the spelling bar (the Thai meaning, a synonym)
+//   kind   thai | definition | audio | cloze
+//   label  over its head ("" for none: Dictation); by default the clue when
+//          it is spelt, the word when it is shot
+//   full   the long clue for the panel at the top (a definition)
+G.Zombie.prototype.setAnswer = function (answer, clue, o) {
+  o = o || {};
   this.answer = answer || "shoot";
   this.clue = clue || "";
-  this.labelText = this.answer === "spell" ? this.clue : this.word;
-  // (a Thai clue is read, not recognised at a glance: a larger label)
-  const k = this.answer === "spell" ? 1.3 : 1;
+  this.clueKind = o.kind || "thai";
+  this.clueFull = o.full || "";
+  this.labelText = o.label != null ? o.label : this.answer === "spell" ? this.clue : this.word;
+  // (Thai is read, not recognised at a glance: a larger label)
+  const k = THAI_CHAR.test(this.labelText) ? 1.3 : 1;
   this.sprite.scale.set(2.2 * k, 0.55 * k, 1);
   this._label = null;
   this.setTarget(this.isTarget);

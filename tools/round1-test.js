@@ -232,9 +232,10 @@ G.Round1Test = (function () {
     ok("perk Bloodthirst: a right kill heals 30", pl.hp === 130, pl.hp);
     // Extra Time
     P.apply("extra_time", g2);
-    g2.startWordChallenge("t", () => {}, () => {});
+    // (vocabulary series, round 3: a Thai -> English question, which has no extra time of its own)
+    g2.startWordChallenge("t", () => {}, () => {}, { type: "th2en" });
     ok("perk Extra Time: word questions get 12 s", g2.challenge.timeLimit === 12);
-    g2.answerChallenge(0);
+    g2.answerChallengeAs(true);
     // Second Life
     P.apply("second_life", g2);
     pl.hp = -5; g2.checkPlayerDeath();

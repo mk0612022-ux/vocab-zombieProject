@@ -43,22 +43,23 @@
     usedThisWave(game, word) { return !!game.waveWords && game.waveWords.some((p) => same(p[0], word)); },
 
     // ---- the questions ----
-    // six of the wave's words (the missed ones first), each with three wrong
-    // choices from the level's words
+    // six of the wave's words (the missed ones first); (vocabulary series,
+    // round 3, H5) each asked one of the eight kinds, chosen by its box --
+    // js/questions.js
     build(game) {
       const words = (game.waveWords || []).slice();
       const missed = G.shuffle(words.filter((p) => game.waveMissed && game.waveMissed.has(p[0].toLowerCase())));
       const rest = G.shuffle(words.filter((p) => !(game.waveMissed && game.waveMissed.has(p[0].toLowerCase()))));
       const chosen = missed.concat(rest).slice(0, C().questions);
       const pool = (game.wordPool && game.wordPool.length ? game.wordPool : G.getAllBuiltinWords());
-      return chosen.map((pair, i) => {
-        const kind = i % 2 === 0 ? "th2en" : "en2th";
-        // (vocabulary series, round 2, E1) the wrong choices: look-alikes
-        // for a word the player is getting to know, clearly different
-        // words for a new one (js/distract.js)
-        const picks = G.Distract.forChoices(pair, pool, 3);
-        const opts = G.shuffle([pair].concat(picks));
-        return { pair, kind, opts, choices: opts.map((p) => (kind === "th2en" ? p[0] : p[1])), answer: opts.indexOf(pair) };
+      let prev = null;
+      G.Questions._fi = 0;
+      return chosen.map((w) => {
+        // (the wave's words are kept as [english, thai]: the bank's own pair, with its id)
+        const pair = pool.find((p) => G.wordKey(p) === G.wordKey(w)) || w;
+        const type = G.Questions.pickType(pair, prev);
+        prev = type;
+        return G.Questions.build(pair, type, pool);
       });
     },
 
@@ -70,8 +71,7 @@
       this.game = game; this.done = done;
       this.qs = qs; this.i = -1; this.correct = 0; this.mistakes = 0; this.missed = [];
       this.stage = "question"; this.t = 0; this.active = true;
-      this.limit = C().seconds + (G.Perks.val("extra_time") || 0);   // (Extra Time adds to every word question)
-      this.log = { wave: game.wave, words: (game.waveWords || []).map((p) => p[0]), asked: qs.map((q) => q.pair[0]), missedFirst: Array.from(game.waveMissed || []) };
+      this.log = { wave: game.wave, words: (game.waveWords || []).map((p) => p[0]), asked: qs.map((q) => q.pair[0]), types: qs.map((q) => q.type), missedFirst: Array.from(game.waveMissed || []) };
       (G.Quiz.history = G.Quiz.history || []).push(this.log);
       if (G.Quiz.history.length > 30) G.Quiz.history.shift();
       G.Modal.open("quiz", { pause: true, keys: (e) => this.key(e) });
@@ -87,20 +87,41 @@
       if (this.i >= this.qs.length) { this.finish(); return; }
       this.stage = "question"; this.t = 0;
       const q = this.qs[this.i], el = (id) => document.getElementById(id);
+      // (Extra Time adds to every word question; some kinds take longer)
+      this.limit = G.Questions.seconds(q.type, C().seconds) + (G.Perks.val("extra_time") || 0);
       el("quiz-progress").textContent = T("quiz.progress", { i: this.i + 1, n: this.qs.length });
-      el("quiz-ask").textContent = T(q.kind === "th2en" ? "quiz.askEnglish" : "quiz.askThai");
-      const pr = el("quiz-prompt");
-      pr.textContent = q.kind === "th2en" ? q.pair[1] : q.pair[0];
-      pr.lang = q.kind === "th2en" ? "th" : "en";
-      pr.classList.toggle("en", q.kind !== "th2en");
-      const box = el("quiz-choices");
-      box.innerHTML = q.choices.map((c, k) => `<button class="quiz-choice${q.kind === "en2th" ? " th" : ""}" data-k="${k}" lang="${q.kind === "en2th" ? "th" : "en"}"><b>${k + 1}</b><span>${esc(c)}</span></button>`).join("");
-      box.querySelectorAll(".quiz-choice").forEach((b) => { b.onclick = () => this.answer(parseInt(b.dataset.k, 10)); });
-      el("quiz-feedback").textContent = "";
+      el("quiz-q").dataset.type = q.type;
+      this.view = G.QuestionView.fill({ ask: el("quiz-ask"), prompt: el("quiz-prompt"), choices: el("quiz-choices") }, q, this.handlers());
+      el("quiz-feedback").innerHTML = "";
       el("quiz-feedback").className = "quiz-feedback";
+      el("quiz-hint").textContent = T(q.spell ? "quiz.hintSpell" : "quiz.hint");
       this.counters();
       this.timerBar();
-      if (G.Input.mode !== "touch") setTimeout(() => { const b = box.querySelector(".quiz-choice"); if (b && this.active && this.stage === "question") b.focus({ preventScroll: true }); }, 0);
+      if (q.speak) this.say();
+      if (G.Input.mode !== "touch" && !q.spell) setTimeout(() => { const b = el("quiz-choices").querySelector(".quiz-choice"); if (b && this.active && this.stage === "question") b.focus({ preventScroll: true }); }, 0);
+    },
+    handlers() {
+      return {
+        pick: (k) => this.answer(k),
+        spell: (text) => this.answer(text),
+        hint: () => { const q = this.qs[this.i]; q.hints = (q.hints || 0) + 1; },
+        speak: () => this.say(true),
+      };
+    },
+    // the spoken word of a Listening question -- Play Once: the first time only
+    say(again) {
+      const q = this.qs[this.i];
+      if (!q || !q.speak) return;
+      if (again && q.played && G.save.settings.playOnce) { G.UI.flashAbilityNote && G.UI.flashAbilityNote(T("hud.playedOnce")); return; }
+      q.played = (q.played || 0) + 1;
+      G.Audio.speak(q.speak);
+    },
+    // (tests and the playtest bot) the question answered right or wrong, whatever its kind
+    answerAs(right) {
+      const q = this.qs && this.qs[this.i];
+      if (!q || this.stage !== "question") return;
+      if (q.spell) this.answer(right ? q.pair[0] : "qqqqq");
+      else this.answer(right ? q.answer : (q.answer + 1) % q.choices.length);
     },
     counters() {
       const el = (id) => document.getElementById(id);
@@ -115,29 +136,41 @@
       f.style.transform = "scaleX(" + left.toFixed(3) + ")";
       f.classList.toggle("warn", this.limit - this.t <= 5);
     },
-    // k: the choice picked, or -1 (out of time)
+    // k: the choice picked, the word spelt, or -1 (out of time)
     answer(k) {
       if (!this.active || this.stage !== "question") return;
-      const q = this.qs[this.i], right = k === q.answer, game = this.game;
+      const q = this.qs[this.i], game = this.game;
+      if (q.spell && typeof k === "string" && !G.Spell.norm(k)) return;
+      const right = k !== -1 && G.Questions.isRight(q, k);
       this.stage = "feedback"; this.t = 0;
       if (right) this.correct++;
       else { this.mistakes++; this.missed.push(q.pair); game.trackWrongWord(q.pair[0], q.pair[1]); }
-      // its box (a recognition answer: box 3 at most), and a wrong pick is a
-      // pair the player confuses (E2); the others shown count towards
-      // letting such a pair go
-      G.Learning.answerWord(q.pair, right, { picked: !right && k >= 0 ? q.opts[k] : null, inView: q.opts.filter((p) => p !== q.pair) });
+      // its box -- 3-6 and spelling are recall answers, a hint moves nothing --
+      // and a wrong word picked or typed is a pair the player confuses (E2)
+      G.Learning.answerWord(q.pair, right, { recall: q.recall, assisted: (q.hints || 0) > 0, picked: right ? null : G.Questions.picked(q, k), typed: q.spell && !right && typeof k === "string" ? G.Spell.norm(k) : null, inView: G.Questions.inView(q) });
       q.picked = k; q.right = right;
-      const btns = document.querySelectorAll("#quiz-choices .quiz-choice");
-      btns.forEach((b, i) => { b.disabled = true; b.classList.toggle("is-right", i === q.answer); b.classList.toggle("is-wrong", i === k && !right); });
+      if (q.spell) {
+        if (!right && this.view.pad) this.view.pad.showFeedback(typeof k === "string" ? k : "", q.pair[0], typeof k === "string" ? G.Spell.tipFor(k, q.pair) : "");
+      } else {
+        const btns = document.querySelectorAll("#quiz-choices .quiz-choice");
+        btns.forEach((b, i) => { b.disabled = true; b.classList.toggle("is-right", i === q.answer); b.classList.toggle("is-wrong", i === k && !right); });
+      }
       const fb = document.getElementById("quiz-feedback");
-      const ans = q.kind === "th2en" ? q.pair[0] : q.pair[1];
-      fb.textContent = right ? T("quiz.right") : k < 0 ? T("quiz.timeUp", { a: ans }) : T("quiz.wrong", { a: ans });
-      fb.className = "quiz-feedback " + (right ? "ok" : "bad");
+      const ans = G.Questions.rightText(q);
+      if (right) { fb.textContent = T("quiz.right"); fb.className = "quiz-feedback ok"; }
+      else {
+        // (H3) the right word in context: a sentence, a collocation, its sound
+        fb.innerHTML = `<div class="qf-line">${esc(k === -1 ? T("quiz.timeUp", { a: ans }) : T("quiz.wrong", { a: ans }))}</div>` + G.VocabCard.miniHtml(q.pair, { form: q.answerText }) +
+          `<button class="btn btn-primary qf-next" type="button">${esc(T("quiz.next"))} <span class="kbd-only dlg-key">(Enter)</span></button>`;
+        fb.className = "quiz-feedback bad";
+        G.VocabCard.bind(fb);
+        fb.querySelector(".qf-next").onclick = () => this.next();
+        if (G.Input.mode !== "touch") setTimeout(() => { const b = fb.querySelector(".qf-next"); if (b && this.stage === "feedback") b.focus({ preventScroll: true }); }, 0);
+      }
       G.Audio.sfx(right ? "correct" : "wrong");
-      if ((G.save.settings.speechMode || "after") !== "off") G.Audio.speak(q.pair[0]);
+      if ((G.save.settings.speechMode || "after") !== "off" || q.speak) G.Audio.speak(q.answerText || q.pair[0]);
       this.counters();
-    },
-    finish() {
+    },    finish() {
       this.stage = "result";
       const passed = this.mistakes <= C().maxMistakes;
       this.passed = passed;
@@ -175,11 +208,10 @@
       if (this.stage === "question") {
         this.timerBar();
         if (this.t >= this.limit) this.answer(-1);
-      } else if (this.stage === "feedback" && this.t >= C().feedback) this.next();
+      } else if (this.stage === "feedback" && this.t >= (this.qs[this.i] && this.qs[this.i].right ? C().feedback : C().wrongFeedback)) this.next();
     },
     key(e) {
-      const n = /^(?:Digit|Numpad)([1-4])$/.exec(e.code);
-      if (this.stage === "question") { if (n) this.answer(+n[1] - 1); return true; }
+      if (this.stage === "question") { G.QuestionView.key(e, this.qs[this.i], this.view && this.view.pad, this.handlers()); return true; }
       if (this.stage === "feedback") { if (e.code === "Enter" || e.code === "Space") this.next(); return true; }
       if (this.stage === "result" && (e.code === "Enter" || e.code === "Space" || e.code === "KeyE")) this.close();
       return true;

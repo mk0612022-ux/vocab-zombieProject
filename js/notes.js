@@ -179,6 +179,9 @@ G.Notes = {
     const fromJournal = !!opts.fromJournal;
     G.UI.renderNoteReader(note, fromJournal);
     G.Modal.open("note", { pause: true, keys: (e) => {
+      // (vocabulary series, round 3, H4) a marked word in focus: its mini card
+      const f = document.activeElement;
+      if ((e.code === "Enter" || e.code === "Space") && f && f.classList && f.classList.contains("note-word")) { f.click(); return true; }
       if (e.code === "Enter" || e.code === "Space" || e.code === "KeyE" || e.code === "Escape" || e.code === G.save.settings.keybinds.pause) { this.close(); return true; }
       if (e.code === "KeyT" || e.code === "KeyV") { this.toggleSpeech(); return true; }
       return false;
@@ -204,7 +207,7 @@ G.Notes = {
       const v = G.Audio.pickVoice ? G.Audio.pickVoice() : null;
       u.lang = (v && v.lang) || "en-GB";
       if (v) u.voice = v;
-      u.rate = 0.92; u.volume = Math.min(1, G.Audio.vol ? G.Audio.vol("speech") : 1);
+      u.rate = 0.92 * (G.Audio.speechRate ? G.Audio.speechRate() : 1); u.volume = Math.min(1, G.Audio.vol ? G.Audio.vol("speech") : 1);
       u.onend = () => G.UI.setNoteSpeaking && G.UI.setNoteSpeaking(false);
       speechSynthesis.speak(u);
       G.UI.setNoteSpeaking && G.UI.setNoteSpeaking(true);

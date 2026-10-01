@@ -1721,3 +1721,121 @@ body.spell-run .hud-tip-skip .kbd-only { display: none; }
 .vw-box.b6 { color: #6bff7a; opacity: 1; font-weight: 700; }
 .vw-conf { font-size: 0.74rem; color: #ffd43b; margin-top: 3px; line-height: 1.4; }
 .vw-conf b { color: #fff; }
+
+/* =====================================================================
+   Vocabulary series, round 3: the English clues, the questions, the
+   vocabulary card, the words marked in story notes
+   ===================================================================== */
+/* the clue panel at the top: a definition or a sentence reads smaller
+   than a Thai meaning; Listening is a big speaker */
+.hud-meaning-box.clue-definition .hud-meaning, .hud-meaning-box.clue-cloze .hud-meaning { font-size: clamp(0.92rem, 2.3vmin, 1.15rem); font-weight: 700; line-height: 1.35; max-width: min(620px, calc(100vw - 96px)); color: #e8f6ff; text-shadow: 0 1px 4px #000; }
+.hud-meaning-box.clue-definition, .hud-meaning-box.clue-cloze { border-color: #9ae8ff66; }
+.hud-meaning-box.clue-audio .hud-meaning { font-size: 2rem; line-height: 1.1; }
+.hud-meaning-box.clue-audio { border-color: #ffd43b88; }
+.hud-meaning-sub { font-size: 1rem; font-weight: 700; color: #fff29b; margin-top: 2px; }
+.hud-thai { pointer-events: auto; margin-top: 4px; padding: 3px 12px; border-radius: 12px; border: 1px solid #ffd43b99; background: rgba(40,32,6,0.85); color: #ffe9a0; font: 700 0.78rem/1.2 'Segoe UI', Tahoma, sans-serif; cursor: pointer; }
+.hud-thai:hover { border-color: #ffd43b; }
+.hud-thai-key { opacity: 0.7; font-weight: 400; }
+body.modal-open .hud-thai { pointer-events: none; opacity: 0.4; }
+@media (max-height: 520px) { .hud-meaning-box.clue-definition .hud-meaning, .hud-meaning-box.clue-cloze .hud-meaning { font-size: 0.82rem; } }
+
+/* the spelling bar: a misspelt dictation's syllables */
+.spad-msg .sp-stress { display: block; margin-top: 2px; color: #cfe8ff; letter-spacing: 0.5px; }
+.stress { color: #ffd43b; }
+.syl { opacity: 0.55; margin: 0 1px; }
+
+/* the questions (quiz, boss, locks) */
+.q-gap { display: inline-block; min-width: 3.2em; border-bottom: 2px solid #ffd43b; color: transparent; margin: 0 2px; }
+.quiz-prompt u, .hud-challenge-meaning u { text-decoration-color: #ffd43b; text-decoration-thickness: 2px; text-underline-offset: 3px; }
+.quiz-prompt:not(.q-big) { font-size: clamp(1rem, 2.6vmin, 1.25rem); font-weight: 700; line-height: 1.45; }
+.q-say { font: 800 1.05rem/1.2 'Segoe UI', Tahoma, sans-serif; padding: 10px 20px; border-radius: 24px; border: 1px solid #ffd43b; background: rgba(60,48,8,0.85); color: #fff2b0; cursor: pointer; }
+.q-say:hover, .q-say.pad-focus, .q-say:focus-visible { filter: brightness(1.2); }
+.q-key { opacity: 0.7; font-weight: 400; font-size: 0.85em; }
+.quiz-choices.q-spelling, .hud-boss-choices.q-spelling { display: block; }
+.q-pad { width: 100%; }
+.hud-challenge-ask { font-size: 0.78rem; opacity: 0.85; margin-top: 2px; }
+.hud-challenge-meaning:not(.q-big) { font-size: 1rem; line-height: 1.4; }
+.hud-challenge-meaning.q-big { font-size: 1.3rem; }
+.hud-challenge-box { width: min(460px, 94vw); max-height: calc(100vh - 24px); overflow-y: auto; }
+button.hud-boss-choice { display: block; width: 100%; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+button.hud-boss-choice.th { font-size: 0.95rem; }
+.hud-boss-choice.is-right { background: rgba(40,140,60,0.55); border-color: #6bff7a; }
+.hud-boss-choice.is-wrong { background: rgba(160,40,40,0.55); border-color: #ff6b6b; }
+.hud-challenge-reveal { margin-top: 8px; text-align: left; }
+.hud-challenge-box.revealed .hud-boss-timer-track { visibility: hidden; }
+.qf-line { font-weight: 700; margin-bottom: 4px; }
+.qf-next { margin-top: 8px; padding: 7px 16px; }
+.hud-challenge-reveal .qf-next { display: block; margin: 8px auto 0; }
+.quiz-feedback.bad { text-align: left; }
+.quiz-feedback .qf-next { display: block; margin: 8px auto 0; }
+
+/* the mini card (H3, H4) */
+.vc-mini { margin: 6px 0; padding: 8px 10px; border-radius: 10px; background: rgba(255,255,255,0.05); border: 1px solid #2e4636; text-align: left; }
+.vc-mini-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.vc-mini-word { font-size: 1.1rem; color: #fff; }
+.vc-mini-th { color: #fff29b; font-weight: 700; }
+.vc-mini-ex, .vc-mini-col { font-size: 0.85rem; line-height: 1.45; margin-top: 4px; color: #d8e8e0; }
+.vc-mini-col { opacity: 0.85; font-style: italic; }
+.vc-mini mark, .vocab-card-body mark { background: none; color: #6bff7a; font-weight: 800; }
+.vc-say { border: 1px solid rgba(255,255,255,0.3); background: rgba(10,18,14,0.8); color: #fff; border-radius: 14px; padding: 1px 8px; cursor: pointer; font-size: 0.85rem; line-height: 1.4; }
+.vc-say:hover, .vc-say.pad-focus, .vc-say:focus-visible { border-color: #6bff7a; }
+.vc-stress { font-size: 0.9rem; color: #cfe8ff; letter-spacing: 0.3px; }
+
+/* the vocabulary card (H2) */
+.vocab-card-box { max-width: 600px; text-align: left; }
+.vc-kicker { font-size: 0.72rem; letter-spacing: 2px; text-transform: uppercase; color: #ffd43b; font-weight: 800; }
+.vocab-card-body { max-height: min(70vh, 640px); overflow-y: auto; padding-right: 4px; }
+.vc-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin-top: 4px; }
+.vc-word { font-size: 1.7rem; font-weight: 900; color: #fff; }
+.vc-pos { font-size: 0.85rem; font-style: italic; opacity: 0.75; }
+.vc-thai { font-size: 1.2rem; font-weight: 800; color: #fff29b; margin: 4px 0; }
+.vc-def { margin: 4px 0; line-height: 1.45; }
+.vc-syn { margin: 2px 0 6px; font-size: 0.9rem; }
+.vc-syn span { opacity: 0.7; }
+.vc-sec { margin-top: 10px; }
+.vc-h { font-size: 0.72rem; letter-spacing: 2px; text-transform: uppercase; color: #9ae8ff; font-weight: 800; margin-bottom: 3px; }
+.vc-list { margin: 0; padding-left: 18px; line-height: 1.5; font-size: 0.92rem; }
+.vc-list li + li { margin-top: 3px; }
+.vc-family { border-collapse: collapse; font-size: 0.9rem; }
+.vc-family td { padding: 2px 14px 2px 0; border-bottom: 1px solid #1e2a20; }
+.vc-family td + td { font-style: italic; opacity: 0.75; }
+.vc-mine { color: #ffd43b; }
+.vc-tag { font-size: 0.72rem; padding: 0 6px; border-radius: 8px; background: rgba(255,212,59,0.18); margin-left: 4px; }
+.vc-warn { margin: 10px 0 0; padding: 6px 10px; border-radius: 8px; background: rgba(255,120,80,0.12); border: 1px solid #ff8a5c88; font-size: 0.88rem; }
+.vc-meta { margin-top: 10px; font-size: 0.78rem; opacity: 0.75; }
+.word-peek-box { max-width: 460px; text-align: left; }
+.vw-open { background: none; border: none; color: inherit; font: inherit; font-weight: 700; padding: 0; cursor: pointer; text-decoration: underline dotted rgba(255,255,255,0.4); text-underline-offset: 3px; }
+.vw-open:hover, .vw-open.pad-focus, .vw-open:focus-visible { color: #6bff7a; }
+
+/* H4: the level's words in a story note */
+.note-word { background: none; border: none; padding: 0; font: inherit; color: inherit; cursor: pointer; text-decoration: underline; text-decoration-color: rgba(60,90,160,0.75); text-decoration-thickness: 2px; text-underline-offset: 2px; }
+.note-word:hover, .note-word.pad-focus, .note-word:focus-visible { background: rgba(60,90,160,0.18); outline: none; }
+
+/* settings: the voices this device has */
+.settings-note { font-size: 0.75rem; opacity: 0.7; margin: -4px 0 8px; line-height: 1.4; }
+.vc-mini-from { font-size: 0.82rem; opacity: 0.8; }
+/* (round 3) windows that grew: on a short screen their content scrolls and
+   their buttons stay in view; the question box keeps inside the screen */
+.learn-box, .study-intro-box, .study-result-box { display: flex; flex-direction: column; max-height: calc(100vh - 24px); }
+.learn-scroll, .study-intro-text, .study-result-box .quiz-missed { overflow-y: auto; min-height: 0; flex: 0 1 auto; }
+.learn-box > .dialog-btns, .study-intro-box > .dialog-btns, .study-result-box > .dialog-btns { flex: none; }
+.hud-challenge-box { max-height: 82vh; }
+@media (max-height: 520px) {
+  .hud-challenge-box { top: 50%; transform: translate(-50%, -50%); max-height: calc(100vh - 12px); padding: 6px 12px; }
+  .hud-challenge-label { font-size: 0.7rem; }
+  .hud-challenge-ask { font-size: 0.7rem; margin-top: 0; }
+  .hud-challenge-meaning { margin: 2px 0; }
+  .hud-challenge-meaning.q-big { font-size: 1.05rem; }
+  .hud-challenge-meaning:not(.q-big) { font-size: 0.85rem; line-height: 1.3; }
+  .hud-boss-choices { gap: 4px; margin-top: 4px; }
+  .hud-boss-choice { padding: 3px 6px; font-size: 0.82rem; }
+  .hud-challenge-reveal { margin-top: 4px; }
+  .hud-challenge-reveal .vc-mini { padding: 4px 8px; margin: 3px 0; }
+  .vc-mini-ex, .vc-mini-col { font-size: 0.74rem; margin-top: 2px; }
+  .qf-line { font-size: 0.8rem; margin-bottom: 2px; }
+  .hud-challenge-reveal .qf-next { margin-top: 4px; padding: 4px 14px; }
+  .learn-opt span { display: none; }
+  .learn-opt.on span { display: block; }
+  .study-intro-text { font-size: 0.8rem; margin: 4px 0 8px; }
+  .study-intro-text li + li { margin-top: 3px; }
+}

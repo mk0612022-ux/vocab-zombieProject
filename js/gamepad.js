@@ -5,6 +5,7 @@
 //   in play    left stick move, right stick look (read in game.js)
 //              RT fire, LT aim, A jump, L3 sprint, X reload, Y use,
 //              B knife, LB / RB previous / next weapon, View hear the word,
+//              R3 the Thai of an English clue (a helper),
 //              Menu pause, D-pad up / right / down / left the four abilities
 //   in windows D-pad or left stick moves between buttons, A presses the one
 //              highlighted, B backs out (keeps the loadout, resumes, "Back"),
@@ -46,6 +47,7 @@ G.Pad = {
       if (Math.hypot(gp.axes[0] || 0, gp.axes[1] || 0) < 0.2) I.padSprint = false;
       if (edge(B.Y)) g.doInteract();
       if (edge(B.VIEW)) g.speakCurrentWord();
+      if (edge(B.R3)) g.showThai();
       if (edge(B.RT) && g.learn && g.learn.shoots) G.onFirePress && G.onFirePress();
       if (g.learn && g.learn.shoots) I.padFire = now[B.RT];
       this.prev = now;
@@ -65,6 +67,7 @@ G.Pad = {
       if (edge(B.LB)) G.Loadout.cycle(g, -1);
       if (edge(B.RB)) G.Loadout.cycle(g, 1);
       if (edge(B.VIEW)) g.speakCurrentWord();
+      if (edge(B.R3)) g.showThai();             // (vocabulary series, round 3, F) the Thai of an English clue
       // round 3: the four abilities on the D-pad -- up, right, down, left
       [B.UP, B.RIGHT, B.DOWN, B.LEFT].forEach((b, i) => { if (edge(b) && G.onAbilityPress) G.onAbilityPress(i); });
     } else {
@@ -84,7 +87,9 @@ G.Pad = {
     const byModal = { challenge: "hud-challenge-box", crate: "screen-crate", mystery: "screen-mystery", shop: "screen-shop", inventory: "screen-inventory", update: "update-dialog", codex: "codex-detail",
       abilities: "screen-abilities", dialog: "dialog-box", quiz: "screen-quiz", hudcfg: "hudcfg-panel",
       // (vocabulary series, round 2)
-      spellreload: "spell-reload-box", learnpick: "learn-box", studyresult: "study-result-box", studyintro: "study-intro-box" };
+      spellreload: "spell-reload-box", learnpick: "learn-box", studyresult: "study-result-box", studyintro: "study-intro-box",
+      // (vocabulary series, round 3)
+      vocabcard: "vocab-card-box", wordpeek: "word-peek-box", note: "screen-note" };
     if (top && byModal[top.id]) return document.getElementById(byModal[top.id]);
     if (G.TouchCfg && G.TouchCfg.editing) return document.getElementById("touchcfg-panel");
     const cur = G.UI._currentScreen;

@@ -62,7 +62,8 @@ G.UIAudit = {
       if (r.width < 1 || r.height < 1) return;
       const cs = getComputedStyle(el);
       // inside a scrolling panel, being below the fold is fine; sideways is not
-      const scroller = el.parentElement && el.parentElement.closest(".screen, .overlay-panel, [class*='panel'], .shop-grid");
+      // (or any box that scrolls and is itself on the screen: what is below its fold can be scrolled to)
+      const scroller = el.parentElement && (el.parentElement.closest(".screen, .overlay-panel, [class*='panel'], .shop-grid") || this.scrollParent(el));
       if (r.right > W + 1 || r.left < -1) out.push({ kind: "off-screen-x", text: (el.textContent || "").trim().slice(0, 50), where: this.path(el), r: [Math.round(r.left), Math.round(r.right)] });
       else if (!scroller && (r.bottom > H + 1 || r.top < -1)) out.push({ kind: "off-screen-y", text: (el.textContent || "").trim().slice(0, 50), where: this.path(el), r: [Math.round(r.top), Math.round(r.bottom)] });
       const clipsX = cs.overflowX !== "visible" || cs.textOverflow === "ellipsis";
@@ -74,6 +75,15 @@ G.UIAudit = {
       if (clipsY && el.scrollHeight > el.clientHeight + 2 && hasText) out.push({ kind: "clipped-y", text: (el.textContent || "").trim().slice(0, 50), where: this.path(el), sh: el.scrollHeight, ch: el.clientHeight });
     });
     return out;
+  },
+  scrollParent(el) {
+    for (let e = el.parentElement; e && e !== document.body; e = e.parentElement) {
+      const cs = getComputedStyle(e);
+      if (!/(auto|scroll)/.test(cs.overflowY) || e.scrollHeight <= e.clientHeight + 1) continue;
+      const r = e.getBoundingClientRect();
+      if (r.top >= -1 && r.bottom <= window.innerHeight + 1) return e;
+    }
+    return null;
   },
   path(el) {
     const bits = [];
@@ -176,6 +186,8 @@ G.UIAudit = {
       await step("hud overtime", () => { Game.wave = Game.level.waves + 1; UI.updateHud(Game.buildHudState()); Game.wave = 1; });
       await step("challenge door", () => Game.startWordChallenge(T("challenge.door"), () => {}, () => {}));
       await step("challenge (answered)", () => Game.answerChallenge(0));
+      // (vocabulary series, round 3: a wrong answer shows the word until Continue)
+      await step("challenge (reveal closed)", () => Game.closeChallengeReveal());
       // round 2: the boss bar with the longest name and title, the boss's
       // question, the title card of every cutscene
       const longBoss = G.BOSS_DEFS.slice().sort((a, b) => G.Bosses.label(b).length - G.Bosses.label(a).length)[0];
@@ -191,6 +203,7 @@ G.UIAudit = {
       UI.setBossBar(false);
       await step("boss question", () => Game.startWordChallenge(T("challenge.boss"), () => {}, () => {}, { pair: G.WORDS_LEVEL_3.slice().sort((a, b) => b[1].length - a[1].length)[0], time: 10, boss: true }));
       await step("boss question (answered)", () => Game.answerChallenge(0));
+      await step("boss question (reveal closed)", () => Game.closeChallengeReveal());
       for (const d of G.BOSS_DEFS) {
         await step("cutscene card " + d.id, () => {
           G.Cutscene.ensure();
@@ -309,6 +322,7 @@ G.UIAudit = {
       for (const b of f3banners) await step("banner " + b[1].slice(0, 20), () => UI.flashPurchaseBanner(b[0], b[1]));
       await step("lock question", () => Game.startWordChallenge(T("challenge.lock", { i: 2, n: 3 }), () => {}, () => {}, { pair: G.WORDS_LEVEL_1.slice().sort((a, b) => b[1].length - a[1].length)[0], time: 15 }));
       await step("lock question (answered)", () => Game.answerChallenge(0));
+      await step("lock question (reveal closed)", () => Game.closeChallengeReveal());
       await step("checkpoint saved", () => { Game.wave = 10; CP.save(Game); Game.wave = 11; });
       await step("pause: abilities, 3rd floor, checkpoint", () => {
         Game.wave = 12; F3.s.spawned = true; F3.s.taken = false; F3.s.lockLeft = 0; Game.state = "GAMEPLAY"; Game.paused = false; G.Modal.reset(); Game.pause();
@@ -413,6 +427,53 @@ G.UIAudit = {
         UI._logReturnScreen = "screen-mainmenu"; UI.renderVocabLog(1); UI.showScreen("screen-vocablog");
       });
       await step("settings: Spell to Reload", () => { UI._settingsReturn = "screen-mainmenu"; UI.renderSettings(); UI.showScreen("screen-settings"); });
+      // ---- vocabulary series, round 3: the English clues, the eight kinds of question, the card ----
+      const longDef = G.WordBank.entries().slice().sort((a, b) => b.definition.length - a.definition.length)[0];
+      const longEx = G.WordBank.entries().slice().sort((a, b) => b.examples[0].length - a.examples[0].length)[0];
+      const seenAll = { intro_keys: true, intro_touch: true, intro_pad: true, mode_paraphrase: true, mode_listening: true, mode_dictation: true, mode_context: true, mode_adaptive: true };
+      for (const preset of ["paraphrase", "listening", "dictation", "context"]) {
+        await step("mode intro: " + preset, () => { G.Modal.reset(); G.save.learnSeen = {}; G.Study.openIntro("keys", () => {}, { spell: preset === "dictation", preset }); });
+      }
+      const modeRun = (preset, word, clue, answer) => {
+        document.getElementById("study-intro").classList.add("hidden"); G.Modal.reset();
+        if (Game.state !== "MENU") Game.quitToMainMenu();
+        G.save.learnSeen = seenAll;
+        G.Study.launch(G.Study.learn(preset, 1));
+        Game.update = function () {};
+        Game.zombies.forEach((z) => Game.scene.remove(z.mesh)); Game.zombies = []; Game.targetPair = null; Game.targetClue = null;
+        const p = byId(word.id || word);
+        const z = new G.Zombie("normal", Game.yawObject.position.clone().add(new THREE.Vector3(0, -1.7, -8)), p, Game.level.theme);
+        Game.dressZombie(z, p, { clue, answer }); Game.scene.add(z.mesh); Game.zombies.push(z);
+        Game.ensureTargetHasMatch(); G.Spell.update(Game, 0.05); UI.updateHud(Game.buildHudState());
+      };
+      await step("hud: Paraphrase, the longest definition, Thai under it", () => modeRun("paraphrase", longDef, "definition", "shoot"));
+      await step("hud: Paraphrase, English only, the Thai button", () => { G.save.learn.srs[G.wordKey(byId(longDef.id))] = { b: 4, due: G.Clock.today(), last: 0, n: 1, lapses: 0 }; UI.updateHud(Game.buildHudState()); });
+      await step("hud: Context, the longest sentence", () => modeRun("context", longEx, "cloze", "shoot"));
+      await step("hud: Listening", () => modeRun("listening", "indicate", "audio", "shoot"));
+      await step("hud: Dictation", () => modeRun("dictation", "indicate", "audio", "spell"));
+      await step("hud: Definition + Spell", () => modeRun("adaptive", longDef, "definition", "spell"));
+      await step("banner: you heard", () => UI.flashPurchaseBanner(T("learn.heardTitle"), T("learn.heardText", { w: longEn.headword, s: G.Clues.stressText(byId(longEn.id)), m: longThai[1] })));
+      await step("banner: wrong form", () => UI.flashPurchaseBanner(T("learn.formTitle", { x: "indicative" }), T("learn.formText", { x: "indicative", y: "indicates" })));
+      Game.update = function () {};
+      for (const type of G.Questions.TYPES) {
+        const pair = type === "paraphrase" ? byId("indicate") : type === "cloze" ? byId(longEx.id) : byId(longDef.id);
+        await step("question box: " + type, () => { if (Game.challenge) { Game.challenge = null; UI.setChallengeVisible(false); G.Modal.reset(); } Game.state = "GAMEPLAY"; Game.startWordChallenge(T("challenge.boss"), () => {}, () => {}, { pair, time: 10, boss: true, type }); });
+        await step("question box: " + type + " (wrong: the reveal)", () => Game.answerChallenge(type === "spell" ? "qqqqqqqq" : (Game.challenge.q.answer + 1) % 4));
+      }
+      await step("question box closed", () => Game.closeChallengeReveal());
+      G.Questions.forceTypes(G.Questions.TYPES);
+      await step("quiz: the eight kinds (1)", () => { Game.waveWords = [byId(longDef.id), byId("indicate"), byId(longEx.id), byId("analyse"), byId("benefit"), byId("assess")]; Game.waveMissed = new Set(); G.Quiz.open(Game, () => {}); });
+      for (let i = 2; i <= 6; i++) await step("quiz: the eight kinds (" + i + ")", () => { G.Quiz.answerAs(false); G.Quiz.next(); });
+      await step("quiz: a wrong answer's mini card", () => G.Quiz.answerAs(false));
+      await step("quiz closed (r3)", () => { G.Quiz.reset(); UI.showScreen(null); G.Modal.reset(); });
+      G.Questions.forceTypes(null);
+      await step("vocabulary card", () => { Game.quitToMainMenu(); G.SRS.noteConfusion(byId("affect"), byId("effect")); G.VocabCard.open(byId("affect")); });
+      await step("vocabulary card: the longest", () => { G.VocabCard.close(); G.VocabCard.open(byId(longEx.id)); });
+      await step("vocabulary card: a player's own word", () => { G.VocabCard.close(); G.VocabCard.open(["Serendipity", longThai[1], { definition: "finding good things by chance", example: "It was pure serendipity." }]); });
+      await step("story note: words marked", () => { G.VocabCard.close(); G.Notes.open(G.NOTES.level1[19], { fromJournal: true, back: "screen-mainmenu" }); });
+      await step("story note: a word looked up", () => { const b = document.querySelector("#note-body .note-word"); if (b) b.click(); });
+      await step("story note closed", () => { G.VocabCard.closePeek(); G.Notes.close(); });
+      await step("settings: accent, speed, Play Once, Thai with clues", () => { UI._settingsReturn = "screen-mainmenu"; UI.renderSettings(); UI.showScreen("screen-settings"); });
     } finally {
       window.alert = realAlert; window.confirm = realConfirm; Game.update = realUpdate;
       G.save = JSON.parse(backup); G.persist();

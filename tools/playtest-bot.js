@@ -209,14 +209,6 @@ G.Bot = {
       // word is not known on one zombie and forgotten on the next
       const vocab = new Map();
       const knowsWord = (w) => { if (!vocab.has(w)) vocab.set(w, Math.random() < opt.know); return vocab.get(w); };
-      // a four-choice popup: known -> right; unknown -> rule out the choices it
-      // knows are something else (sometimes), then guess
-      const pickChoice = (right, choices) => {
-        if (knowsWord(right)) return right;
-        let pool = choices;
-        if (Math.random() < opt.elim) { const un = choices.filter((c) => c === right || !knowsWord(c)); if (un.length) pool = un; }
-        return pool[Math.floor(Math.random() * pool.length)];
-      };
       let aimOff = { y: 0, p: 0, t: 0 }, clickT = 0, losCache = new Map(), losT = 0;
       let path = null, pathI = 0, goal = null, replanT = 0, lastProg = { x: 0, z: 0, t: 0 }, nudge = null;
       const tail = [];
@@ -454,13 +446,18 @@ G.Bot = {
           if (Q.stage === "question" && quizT > 2.5) {
             quizT = 0;
             const q = Q.qs[Q.i];
-            let k = q.answer;
-            if (!knowsWord(q.pair[0])) {
-              let pool = q.choices.map((_, i) => i);
-              if (q.kind === "th2en" && Math.random() < opt.elim) { const un = pool.filter((i) => i === q.answer || !knowsWord(q.choices[i])); if (un.length) pool = un; }
-              k = pool[Math.floor(Math.random() * pool.length)];
+            // (vocabulary series, round 3: eight kinds of question -- a choice is
+            // {text, pair}; a spelling one is written, right if the word is known)
+            if (q.spell) Q.answerAs(knowsWord(q.pair[0]));
+            else {
+              let k = q.answer;
+              if (!knowsWord(q.pair[0])) {
+                let pool = q.choices.map((_, i) => i);
+                if (q.type === "th2en" && Math.random() < opt.elim) { const un = pool.filter((i) => i === q.answer || !knowsWord(q.choices[i].text)); if (un.length) pool = un; }
+                k = pool[Math.floor(Math.random() * pool.length)];
+              }
+              Q.answer(k);
             }
-            Q.answer(k);
           } else if (Q.stage === "result") {
             (R.quizzes = R.quizzes || []).push({ wave: g.wave, right: Q.correct, of: Q.qs.length, passed: Q.passed, words: Q.log.words.length, asked: Q.log.asked.slice() });
             ev(t, "quiz wave " + g.wave + ": " + Q.correct + "/" + Q.qs.length + (Q.passed ? " passed" : " FAILED"));
@@ -500,11 +497,12 @@ G.Bot = {
           if (challengeT > (g.challenge.boss ? 4.0 : 2.4)) {
             challengeT = 0;
             const ch = g.challenge;
-            const idx = ch.choices.indexOf(pickChoice(ch.pair[0], ch.choices));
-            const ok = ch.choices[idx] === ch.pair[0];
+            // (round 3: whatever the kind of question, right if the word is known,
+            // else a guess among the choices -- one in four)
+            const ok = knowsWord(ch.pair[0]) || (!ch.q.spell && Math.random() < 0.25);
             if (!ok) R.wrongBy[ch.boss ? "boss" : "popup"]++;
             if (ch.boss) { R.bossWords = R.bossWords || { right: 0, wrong: 0 }; R.bossWords[ok ? "right" : "wrong"]++; }
-            g.answerChallenge(idx);
+            g.answerChallengeAs(ok);
           }
           step(dt);
           continue;

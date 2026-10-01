@@ -513,7 +513,7 @@ G.Game = {
       this.retireDecoys();
       return;
     }
-    if (shootable.length === 0) { this.targetPair = null; this._attempt = null; alive.forEach((z) => z.setTarget(false)); this.retireDecoys(); return; }
+    if (shootable.length === 0) { this.targetPair = null; this.targetClue = null; this._attempt = null; alive.forEach((z) => z.setTarget(false)); this.retireDecoys(); return; }
     // one whose word can already be read, if there is one (a zombie still
     // coming in has its label hidden)
     const ready = shootable.filter((z) => !z.emerge);
@@ -523,12 +523,19 @@ G.Game = {
     if (clear.length) pickFrom = clear;
     const chosen = G.pick(pickFrom);
     this.targetPair = [chosen.word, chosen.meaning];
-    this.targetPair.id = chosen.pair && chosen.pair.id;
+    // (the word's own key: a Context target carries the form its sentence
+    // wants, "indicates", and its box is the family's)
+    this.targetPair.id = G.wordKey(chosen.pair);
+    // (round 3) what the panel at the top shows for it: the Thai, its
+    // definition, a sentence with it taken out, or nothing but its sound
+    this.targetClue = { kind: chosen.clueKind || "thai", pair: chosen.pair, cloze: chosen.cloze || null, full: chosen.clueFull || "", played: 0, thaiShown: false };
     // (C2) this answer: right only if it is right the first time and no
     // hint, perk or ability gave it away
     this._attempt = { key: G.wordKey(chosen.pair), wrong: false, assisted: this.helpersActive(), retry: !!chosen.retry };
-    // J3 "before" mode: read the new target aloud the moment it appears
-    if (G.save.settings.speechMode === "before") G.Audio.speak(chosen.word);
+    // the clue is the sound itself (G1): say it now; J3 "before" mode: read
+    // the new target aloud the moment it appears
+    if (this.targetClue.kind === "audio") this.playClue();
+    else if (G.save.settings.speechMode === "before") G.Audio.speak(chosen.word);
     // (round 3: Fifty-Fifty crosses out wrong words for the new one instead)
     if (G.Abilities) G.Abilities.onNewTarget(this);
     if (this.helpersActive()) this._attempt.assisted = true;
@@ -539,7 +546,29 @@ G.Game = {
   // Whisper, Fifty-Fifty and Lens abilities
   helpersActive() {
     const A = G.Abilities, fx = A && A.fx || {};
-    return G.Perks.level("perk_hint") > 0 || (A && A.whisper && A.whisper()) || !!fx.fiftyOn || fx.lens > 0;
+    // (round 3: Word Radar too -- it lights the zombie with the word -- and
+    // the Settings option that draws the target's word in yellow)
+    return G.Perks.level("perk_hint") > 0 || (A && A.whisper && A.whisper()) || !!fx.fiftyOn || fx.lens > 0 || fx.radar > 0 || !!G.save.settings.highlightTarget;
+  },
+  // (round 3, G) the spoken clue: the word asked, once more -- or, with
+  // Play Once on, only the first time (like the IELTS Listening test)
+  playClue(force) {
+    const c = this.targetClue;
+    if (!c || c.kind !== "audio" || !this.targetPair) return false;
+    if (c.played && G.save.settings.playOnce && !force) { G.UI.flashAbilityNote && G.UI.flashAbilityNote(G.T("hud.playedOnce")); return false; }
+    c.played++;
+    G.Audio.speak(this.targetPair[0]);
+    return true;
+  },
+  // (F) a Definition clue in English only: the Thai on request -- a helper,
+  // so this answer moves no box
+  showClueThai() {
+    const c = this.targetClue;
+    if (!c || c.kind !== "definition" || c.thaiShown || G.Learn.showsThai(c.pair)) return false;
+    c.thaiShown = true;
+    if (this._attempt) this._attempt.assisted = true;
+    G.Audio.sfx && G.Audio.sfx("switch");
+    return true;
   },
   // (E1) a decoy is there for one target; once that word is no longer asked
   // it crumbles away -- no reward, no penalty
@@ -575,10 +604,22 @@ G.Game = {
     // look-alike on the field -- one of the run's words if it can, else a
     // decoy from the bank or the confusables lexicon
     const tp = this.targetPair;
+    // (round 3, H1) a Context target: the other forms of its family come
+    // first -- the sentence wants "indicates", not "indication" -- one at a
+    // time, carrying their form (decoys: never a target, never counted)
+    const tc = this.targetClue;
+    if (tp && tc && tc.kind === "cloze" && !(this.study && this.study.kind === "review")) {
+      const key = G.wordKey(tp);
+      if (alive.filter((z) => z.lookAlikeFor === key).length < G.CONFIG.clues.clozeFamily) {
+        const onField = new Set(alive.map((z) => z.word.toLowerCase()));
+        const f = G.Clues.familyDecoys(tc.pair, tp[0]).find((m) => !onField.has(m.word.toLowerCase()));
+        if (f) { pair = [f.word, tp[1]]; decoy = { forKey: key, source: "family", form: f.word, pos: f.pos, clue: "cloze" }; }
+      }
+    }
     // (a study session: a look-alike is always a decoy -- it must not take the
     // place of one of the session's own words -- and Daily Review has none:
     // its zombies are the words due, and nothing else, C4)
-    if (tp && !(this.study && this.study.kind === "review")) {
+    if (!pair && tp && !(this.study && this.study.kind === "review")) {
       const want = G.CONFIG.distractors.field;
       const have = alive.filter((z) => z.lookAlikeFor === G.wordKey(tp)).length;
       if (have < want && G.Distract.lookAlikesWanted(tp)) {
@@ -602,9 +643,11 @@ G.Game = {
       pair = G.weightedSample(candidates, 1)[0] || G.pick(this.wordPool);
     }
     const z = new G.Zombie(type, pos, pair, this.level.theme);
-    // how it is answered: shot, or spelt (its clue on its label)
-    const how = decoy ? { clue: "thai", answer: "shoot" } : this.learn.pick(pair);
-    if (how.answer === "spell") z.setAnswer("spell", G.Learn.clueText(pair, how.clue));
+    // how it is answered (shot, or spelt) and with which clue; a decoy is
+    // shot, with its target's kind of clue (round 3: a Context look-alike
+    // carries its form, a Listening one its Thai meaning)
+    const how = decoy ? { clue: decoy.clue || (tc && tc.kind) || "thai", answer: "shoot" } : this.learn.pick(pair);
+    this.dressZombie(z, pair, how, decoy);
     if (tp && !decoy && G.Distract.lookAlikesWanted(tp) && G.Distract.isSimilar(tp, pair)) z.lookAlikeFor = G.wordKey(tp);
     if (decoy) { z.decoy = decoy; z.lookAlikeFor = decoy.forKey; }
     else G.Quiz.noteWord(this, pair);                         // (the quiz asks this wave's words, A2)
@@ -619,6 +662,33 @@ G.Game = {
     if (sp) G.ZombieFX.begin(this, z, sp);
     this.ensureTargetHasMatch();
     return z;
+  },
+
+  // (round 3) A zombie's clue and label, from how it is answered
+  // (js/learnmodes.js labelFor):
+  //   thai, definition + shoot   its English word
+  //   cloze + shoot              the form its example sentence uses -- the
+  //                              zombie's word becomes that form; a family
+  //                              look-alike carries its own form
+  //   audio + shoot (Listening)  its Thai meaning: the player hears the word
+  //   spell                      the Thai, a one-word synonym (Definition), or
+  //                              no label at all (Dictation)
+  dressZombie(z, pair, how, decoy) {
+    const clue = how.clue || "thai", ans = how.answer || "shoot";
+    let form = null;
+    if (clue === "cloze" && ans === "shoot") {
+      if (decoy && decoy.form) form = decoy.form;
+      else {
+        const cz = G.Clues.cloze(pair, G.rng() < 0.5 ? 0 : 1) || G.Clues.cloze(pair);
+        if (cz) { z.cloze = cz; form = cz.answer; }
+      }
+      // (in lower case: a gap at the start of the sentence would otherwise be
+      // the one capitalised label on the field -- the answer given away)
+      if (form && !/[A-Z]/.test(pair[0])) form = form.toLowerCase();
+      if (form) z.word = form;
+    }
+    const short = ans === "spell" ? (clue === "definition" ? G.Clues.synonym(pair) : clue === "audio" ? "🔊" : pair[1]) : pair[1];
+    z.setAnswer(ans, short, { kind: clue, label: G.Learn.labelFor(pair, clue, ans, form), full: clue === "definition" ? G.Clues.definition(pair) : "" });
   },
 
   // The wave number that difficulty is read from: past a campaign level's
@@ -1132,13 +1202,14 @@ G.Game = {
     const inView = this.zombies.filter((o) => o.alive && o !== z).map((o) => o.pair);
     if (spelled) {
       if (z._spellWrong) { G.recordWordResult(z.pair, true, { srs: false }); return; }
-      G.Learning.answerWord(z.pair, true, { recall: true, assisted: (spelled.hints || 0) > 0 || !!z.retry, inView });
+      G.Learning.answerWord(z.pair, true, { recall: true, assisted: (spelled.hints || 0) > 0 || !!z._thaiShown || !!z.retry, inView });
       return;
     }
     const att = this._attempt, key = G.wordKey(z.pair), same = att && att.key === key;
     if (same && att.wrong) { G.recordWordResult(z.pair, true, { srs: false }); return; }
     const assisted = (same && att.assisted) || this.helpersActive() || !!z.retry;
-    G.Learning.answerWord(z.pair, true, { recall: G.Learn.isRecall(this.learn.clueFor(z.pair), "shoot"), assisted, inView });
+    // (round 3: a Definition or Context clue makes the shot a recall answer)
+    G.Learning.answerWord(z.pair, true, { recall: G.Learn.isRecall(z.clueKind || this.learn.clueFor(z.pair), "shoot"), assisted, inView });
   },
   // A wrong zombie shot: a wrong answer on the target (once per target), and
   // the pair (target, word shot) noted (E2)
@@ -1153,7 +1224,21 @@ G.Game = {
   },
   // (A4) a look-alike shot by mistake: what it means, beside the word wanted
   showConfusion(z, tp) {
-    if (!tp || !(z.decoy || z.lookAlikeFor)) return;
+    if (!tp) return;
+    const tc = this.targetClue;
+    // (round 3, G3) Listening: the word that was said -- its syllables, the
+    // stressed one in capitals, and what it means -- and it is said again
+    if (tc && tc.kind === "audio") {
+      G.UI.flashPurchaseBanner(G.T("learn.heardTitle"), G.T("learn.heardText", { w: tp[0], s: G.Clues.stressText(tc.pair) || tp[0], m: tp[1] }));
+      G.Audio.speak(tp[0]);
+      return;
+    }
+    // (H1) Context: the wrong form of the right word
+    if (z.decoy && z.decoy.source === "family") {
+      G.UI.flashPurchaseBanner(G.T("learn.formTitle", { x: z.word }), G.T("learn.formText", { x: z.word, y: tp[0] }));
+      return;
+    }
+    if (!(z.decoy || z.lookAlikeFor)) return;
     G.UI.flashPurchaseBanner(G.T("learn.lookAlikeTitle", { x: z.word }), G.T("learn.lookAlikeText", { x: z.word, xm: z.meaning, y: tp[0], ym: tp[1] }));
   },
   // (D1) the spelling was right: the gun fires at it -- the shot, the flash,
@@ -1515,41 +1600,102 @@ G.Game = {
   // ---------------- Generic word challenge (doors/crates/traps) ----------------
   // opts: { pair (the word to ask, else one at random), time (seconds, before
   // Extra Time), boss (the question after a boss: its own look) }
+  // opts.type: one of the eight kinds of question (else one by the word's
+  // box -- vocabulary series, round 3, H5: js/questions.js)
   startWordChallenge(label, onSuccess, onFail, opts) {
     if (this.challenge) return;
     opts = opts || {};
     const pair = opts.pair || G.pick(this.wordPool);
     // the wrong answers are other words -- never one that means the same
-    // thing; (vocabulary series, round 2, E1) look-alikes for a word the
-    // player is getting to know, clearly different ones for a new word
-    const wrong = G.Distract.forChoices(pair, this.wordPool && this.wordPool.length >= 4 ? this.wordPool : G.getAllBuiltinWords(), 3);
-    const choicePairs = G.shuffle([pair].concat(wrong));
-    const choices = choicePairs.map((p) => p[0]);
-    const limit = (opts.time || 8) + (G.Perks.val("extra_time") || 0);   // Extra Time
-    this.challenge = { pair, choices, choicePairs, timeLeft: limit, timeLimit: limit, onSuccess, onFail, boss: !!opts.boss };
+    // thing; (round 2, E1) look-alikes for a word the player is getting to
+    // know, clearly different ones for a new word
+    const pool = this.wordPool && this.wordPool.length >= 4 ? this.wordPool : G.getAllBuiltinWords();
+    const q = G.Questions.build(pair, opts.type || G.Questions.pickType(pair), pool);
+    const limit = G.Questions.seconds(q.type, opts.time || 8) + (G.Perks.val("extra_time") || 0);   // Extra Time
+    this.challenge = { pair, q, choices: q.spell ? [] : q.choices.map((c) => c.text), timeLeft: limit, timeLimit: limit, onSuccess, onFail, boss: !!opts.boss, stage: "question" };
     this._challengeEnd = null;
-    G.Modal.open("challenge", { freeze: true, keys: G.Modal.digitKeys(4, (i) => this.answerChallenge(i)) });
+    G.Modal.open("challenge", { freeze: true, keys: (e) => this.challengeKey(e) });
     G.UI.setChallengeVisible(true, label, !!opts.boss);
-    G.UI.setChallengeMeaning(pair[1]);
-    G.UI.setChallengeChoices(choices);
+    this.challengeView = G.UI.setChallengeQuestion(q, this.challengeHandlers());
+    if (q.speak) this.sayChallenge();
   },
-  answerChallenge(idx) {
-    if (!this.challenge) return;
+  challengeHandlers() {
+    return {
+      pick: (i) => this.answerChallenge(i),
+      spell: (t) => this.answerChallenge(t),
+      hint: () => { const c = this.challenge; if (c) c.q.hints = (c.q.hints || 0) + 1; },
+      speak: () => this.sayChallenge(true),
+    };
+  },
+  challengeKey(e) {
+    const c = this.challenge;
+    if (!c) return false;
+    if (c.stage === "reveal") { if (e.code === "Enter" || e.code === "Space" || e.code === "Escape" || e.code === "KeyE") this.closeChallengeReveal(); return true; }
+    G.QuestionView.key(e, c.q, this.challengeView && this.challengeView.pad, this.challengeHandlers());
+    return true;
+  },
+  // a Listening question's word -- Play Once: the first time only
+  sayChallenge(again) {
+    const c = this.challenge;
+    if (!c || !c.q.speak) return;
+    if (again && c.q.played && G.save.settings.playOnce) { G.UI.flashAbilityNote && G.UI.flashAbilityNote(G.T("hud.playedOnce")); return; }
+    c.q.played = (c.q.played || 0) + 1;
+    G.Audio.speak(c.q.speak);
+  },
+  // k: the choice, or the word spelt
+  answerChallenge(k) {
+    const c = this.challenge;
+    if (!c || c.stage !== "question") return;
+    const q = c.q;
+    if (q.spell && typeof k === "string" && !G.Spell.norm(k)) return;
     this._challengeEnd = "answer";
-    const chosen = this.challenge.choices[idx];
-    const correct = chosen === this.challenge.pair[0];
-    // (vocabulary series, round 2) its box, and the word taken for it (E2)
-    const cp = this.challenge.choicePairs || [];
-    G.Learning.answerWord(this.challenge.pair, correct, { picked: correct ? null : cp[idx], inView: cp.filter((p) => p !== this.challenge.pair) });
-    const cb = correct ? this.challenge.onSuccess : this.challenge.onFail;
-    const pair = this.challenge.pair;
+    const correct = G.Questions.isRight(q, k);
+    // (vocabulary series, round 2-3) its box -- a recall answer for kinds 3-6
+    // and spelling; a hint moves nothing -- and the word taken for it (E2)
+    G.Learning.answerWord(c.pair, correct, { recall: q.recall, assisted: (q.hints || 0) > 0, picked: correct ? null : G.Questions.picked(q, k),
+      typed: q.spell && !correct && typeof k === "string" ? G.Spell.norm(k) : null, inView: G.Questions.inView(q) });
+    if (!correct) {
+      // the wrong-word list used to be fed `this.challenge` AFTER it had been
+      // cleared, so every missed challenge was recorded under the word "null"
+      this.wrongCount++; this.trackWrongWord(c.pair[0], c.pair[1]);
+      this.revealChallenge(k);
+      return;
+    }
+    const cb = c.onSuccess;
     G.UI.setChallengeVisible(false);
     this.challenge = null;
-    // the wrong-word list used to be fed `this.challenge` AFTER it had been
-    // cleared, so every missed challenge was recorded under the word "null"
-    if (correct) { this.correctCount++; cb && cb(); } else { this.wrongCount++; this.trackWrongWord(pair[0], pair[1]); cb && cb(); }
+    this.correctCount++;
+    cb && cb();
     // closed after the callback: a crate it opens keeps the cursor free
     G.Modal.close("challenge");
+  },
+  // (round 3, H3) wrong, or out of time: the right answer and the word in
+  // context -- a sentence, a collocation, its sound -- until Continue
+  revealChallenge(k) {
+    const c = this.challenge;
+    c.stage = "reveal";
+    G.UI.showChallengeReveal(c.q, k, this.challengeView, () => this.closeChallengeReveal());
+    G.Audio.sfx("wrong");
+    G.Audio.speak(c.q.answerText || c.pair[0]);
+  },
+  closeChallengeReveal() {
+    const c = this.challenge;
+    if (!c || c.stage !== "reveal") return;
+    const cb = c.onFail;
+    G.UI.setChallengeVisible(false);
+    this.challenge = null;
+    cb && cb();
+    G.Modal.close("challenge");
+  },
+  // (tests and the playtest bot) the open question answered right or wrong,
+  // whatever its kind; a wrong one goes on past its reveal
+  answerChallengeAs(right) {
+    const c = this.challenge;
+    if (!c) return;
+    const q = c.q;
+    if (q.spell) this.answerChallenge(right ? q.pair[0] : "qqqqq");
+    else this.answerChallenge(right ? q.answer : (q.answer + 1) % q.choices.length);
+    if (!right) this.closeChallengeReveal();
   },
 
   // Shove a zombie `dist` along (dx, dz) in short steps, stopping at the
@@ -1829,8 +1975,32 @@ G.Game = {
     // (vocabulary series, round 2) what kind of clue this is: the word to
     // shoot, or -- nothing to shoot -- the one the spelling pad is on
     let meaningLabel = G.T("hud.shootMeaning");
+    // (round 3) and which clue: the Thai, a definition (with the Thai under
+    // it while the word is new, or a button for it), a sentence with a gap,
+    // or only its sound
+    let clueKind = "thai", clueSub = "", thaiBtn = false;
     const sf = G.Spell && G.Spell.active ? G.Spell.focus : null;
-    if (!this.targetPair && sf) { meaning = sf.clue; meaningLabel = G.T("hud.spellMeaning"); }
+    const tc = this.targetPair ? this.targetClue : null;
+    const suffix = this.targetPair ? meaning.slice(this.targetPair[1].length) : "";
+    if (tc && tc.kind === "definition") {
+      clueKind = "definition"; meaningLabel = G.T("hud.clue.definition");
+      meaning = (tc.full || G.Clues.definition(tc.pair)) + suffix;
+      if (G.Learn.showsThai(tc.pair) || tc.thaiShown) clueSub = this.targetPair[1]; else thaiBtn = true;
+    } else if (tc && tc.kind === "cloze") {
+      clueKind = "cloze"; meaningLabel = G.T("hud.clue.cloze");
+      meaning = (tc.cloze ? tc.cloze.text : this.targetPair[1]) + suffix;
+    } else if (tc && tc.kind === "audio") {
+      clueKind = "audio"; meaningLabel = G.T("hud.clue.audio");
+      meaning = "🔊" + suffix;
+    } else if (!this.targetPair && sf) {
+      meaningLabel = G.T("hud.spellMeaning");
+      meaning = sf.clue;
+      if (sf.clueKind === "definition") {
+        clueKind = "definition"; meaningLabel = G.T("hud.clue.definitionSpell");
+        meaning = sf.clueFull || sf.clue;
+        if (G.Learn.showsThai(sf.pair) || sf._thaiShown) clueSub = sf.meaning; else thaiBtn = true;
+      } else if (sf.clueKind === "audio") { clueKind = "audio"; meaningLabel = G.T("hud.clue.audioSpell"); meaning = "🔊"; }
+    }
     else if (!this.targetPair && G.Spell && G.Spell.active && this.learn && !this.learn.shoots) meaningLabel = G.T("hud.spellMeaning");
     const campaign = this.mode === "campaign";
     return {
@@ -1842,7 +2012,7 @@ G.Game = {
       // what is still between the player and the end of the wave: the ones
       // alive plus the rest of the quota still to come (a decoy is not one)
       zombiesLeft: this.zombies.filter((z) => !z.decoy).length + (G.Bosses.phase ? 0 : Math.max(0, this.requiredKills - this.spawnedCount)), weaponName: def.name,
-      meaningLabel,
+      meaningLabel, clueKind, clueSub, thaiBtn,
       isMelee: id === "melee",
       weightLabel: def.id === "melee" ? null : G.weightClass(def).label,
       weightColor: def.id === "melee" ? null : G.weightClass(def).color,
@@ -2633,8 +2803,17 @@ G.Game = {
   // current target; otherwise it repeats the last word that was earned, so it
   // never gives the answer away.
   speakCurrentWord() {
+    // (round 3, G) a spoken clue: said again (Play Once: not again)
+    if (this.targetClue && this.targetClue.kind === "audio") { this.playClue(); return; }
+    if (!this.targetPair && G.Spell && G.Spell.focus && G.Spell.focus.clueKind === "audio") { G.Spell.sayFocus(true); return; }
     if (G.save.settings.speechMode === "before" && this.targetPair) G.Audio.speak(this.targetPair[0]);
     else G.Audio.replay();
+  },
+  // (F) the Thai of an English-only Definition clue: the target's, else the
+  // spelling bar's zombie's -- a helper either way
+  showThai() {
+    if (this.showClueThai()) return true;
+    return !!(G.Spell && G.Spell.showThai && G.Spell.showThai());
   },
 
   // ---------------- Per-frame audio (category J) ----------------
@@ -2869,23 +3048,18 @@ G.Game = {
   },
 
   updateChallengeTimer(dt) {
-    if (!this.challenge) return;
-    this.challenge.timeLeft -= dt;
-    G.UI.setChallengeTimer(this.challenge.timeLeft / this.challenge.timeLimit);
-    if (this.challenge.timeLeft <= 0) {
-      const cb = this.challenge.onFail;
-      // the boss's word, run out of time on, is a word missed
-      if (this.challenge.boss) {
-        const p = this.challenge.pair;
-        G.recordWordResult(p[0], false); this.wrongCount++; this.trackWrongWord(p[0], p[1]);
-      }
+    const c = this.challenge;
+    if (!c || c.stage !== "question") return;
+    c.timeLeft -= dt;
+    G.UI.setChallengeTimer(c.timeLeft / c.timeLimit);
+    if (c.timeLeft <= 0) {
+      // out of time is a word missed (C2) -- every question's now, not only
+      // the boss's -- and (round 3, H3) the answer is shown before going on
+      const p = c.pair;
+      G.Learning.answerWord(p, false, { inView: G.Questions.inView(c.q) });
+      this.wrongCount++; this.trackWrongWord(p[0], p[1]);
       this._challengeEnd = "timeout";
-      G.UI.setChallengeVisible(false);
-      this.challenge = null;
-      cb && cb();
-      // no click or key behind this one, so the browser may refuse the
-      // pointer lock: the "click to continue" hint covers that case
-      G.Modal.close("challenge");
+      this.revealChallenge(-1);
     }
   },
 
@@ -2934,7 +3108,11 @@ G.onKeyDown = function (e) {
   // hyphen, Backspace, Tab (a hint) and Enter belong to the bar -- before
   // any gameplay key that happens to be a letter
   if (Game.state === "GAMEPLAY" && !(G.Cutscene && G.Cutscene.active) && G.Spell && G.Spell.onKey(e)) return;
-  if (Game.state === "GAMEPLAY" && e.code === "KeyV") { Game.speakCurrentWord(); return; }
+  // (round 3, G3) hear it again -- its own key, which is not a letter, so it
+  // works while typing too (V as well, when not typing); F: show the Thai
+  const kbs = G.save.settings.keybinds;
+  if (Game.state === "GAMEPLAY" && (e.code === kbs.replay || e.code === "KeyV")) { Game.speakCurrentWord(); return; }
+  if (Game.state === "GAMEPLAY" && e.code === kbs.thaiHint) { Game.showThai(); return; }
   if (Game.state === "GAMEPLAY" && e.code === "KeyT" && G.Tutorial.current) { G.Tutorial.skip(); return; }
   if (Game.state === "GAMEPLAY") {
     const kb = G.save.settings.keybinds;

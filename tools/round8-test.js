@@ -54,7 +54,7 @@ G.Round8Test = (function () {
     while (Q.active && Q.stage !== "result" && n++ < 60) {
       if (Q.stage === "question") {
         const q = Q.qs[Q.i], a = pattern[i++] || "r";
-        if (a === "r") Q.answer(q.answer); else if (a === "w") Q.answer((q.answer + 1) % q.choices.length); else Q.update(Q.limit + 0.01);
+        if (a === "r") Q.answerAs(true); else if (a === "w") Q.answerAs(false); else Q.update(Q.limit + 0.01);
       }
       Q.update(5);
     }
@@ -97,7 +97,9 @@ G.Round8Test = (function () {
     ok("A2 the words shot wrong come first", missed.every((w) => asked.slice(0, missed.length).map((x) => x.toLowerCase()).includes(w)));
     ok("A2 no word asked twice", new Set(asked).size === asked.length);
     ok("A3 four choices, the two kinds in turn", Q.qs.every((q, i) => q.choices.length === 4 && q.kind === (i % 2 ? "en2th" : "th2en")));
+    // (vocabulary series, round 3: a choice is {text, pair})
     const clean = Q.qs.every((q) => {
+      q = Object.assign({}, q, { choices: q.choices.map((c) => c.text) });
       const answerText = q.choices[q.answer];
       const pool = g.wordPool;
       const meaningOf = (c) => (q.kind === "th2en" ? (pool.find((p) => p[0] === c) || [])[1] : c);
@@ -122,7 +124,7 @@ G.Round8Test = (function () {
     ok("A3 ...and onto the run's words to review", !!g.wrongWordsThisRun[Q.qs[0].pair[0]]);
     Q.update(0.5);
     ok("A3 the answer stays up a moment", Q.stage === "feedback");
-    Q.update(1.2);
+    Q.update(G.CONFIG.quiz.wrongFeedback);
     ok("A3 then the next question (English word -> Thai meaning)", Q.stage === "question" && Q.i === 1 && el("quiz-prompt").textContent === Q.qs[1].pair[0]);
     // out of time
     Q.update(14.9);
@@ -196,7 +198,7 @@ G.Round8Test = (function () {
       n = 0; while (G.Cutscene.active && n++ < 500) up(1);
       steps.push("word");
       const c = g.challenge;
-      g.answerChallenge(c.choices.indexOf(c.pair[0]));
+      g.answerChallengeAs(true);
       if (G.Modal.isOpen("abilities")) { G.UI.hivePick(0); G.UI.hiveFinishReveal(); G.UI.hiveClose(); }
       const asked = Q.active ? Q.qs.map((q) => q.pair[0]) : [];
       ok("A2 the boss wave's quiz: its own words only", asked.length === 6 && asked.every((w) => G.Quiz.usedThisWave(g, w)));
@@ -410,6 +412,9 @@ G.Round8Test = (function () {
     G._missingKeys = {};
     const rpl = G.Input.requestPointerLock;
     G.Input.requestPointerLock = function () {};
+    // (vocabulary series, round 3: the quiz asks eight kinds of question; this
+    // checks its workings on the two first ones, Thai -> English and back, in turn)
+    G.Questions.forceTypes(["th2en", "en2th"]);
     try {
       await config(); await tick();
       await quiz(); await tick();
@@ -424,6 +429,7 @@ G.Round8Test = (function () {
       ok("no exception", false, String(e && e.stack || e));
     } finally {
       G.Input.requestPointerLock = rpl;
+      G.Questions.forceTypes(null);
       if (G.Quiz.active) G.Quiz.reset();
       if (G.HudCfg.editing) G.HudCfg.closeEditor();
       if (G.TouchCfg.editing) G.TouchCfg.closeEditor();

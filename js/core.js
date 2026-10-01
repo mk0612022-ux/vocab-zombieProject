@@ -67,6 +67,12 @@ G.defaultSave = function () {
       shopTime: 45,               // seconds in the shop between waves: 30 | 45 | 60 | 0 (no limit, wait for Ready)
       hudScale: {},               // {all, hp, stamina, ...}: HUD sizes, 1 when absent (js/hudcfg.js)
       spellReload: false,         // (vocabulary series, round 2, D2) reloading asks for a word first
+      // (vocabulary series, round 3)
+      clueThai: "auto",           // F: the Thai beside an English definition: auto (boxes 1-2) | always | never
+      accent: "british",          // G3: mixed | british | american | australian (from the device's voices)
+      speechSpeed: "normal",      // G3: normal | slow (0.8)
+      playOnce: false,            // G3: a spoken clue is heard once only, as in the IELTS test
+      highlightTarget: false,     // the target's word drawn in yellow (as before round 3) -- a helper: no box moves
     },
     importedSets: {},             // {id: {name, words:[[en,th],...]}}
     customWords: { level1: [], level2: [], level3: [] },   // words the player added to each level ([[en,th] or [en,th,{definition,...}],...])
@@ -119,9 +125,17 @@ G.normalizeSave = function (data) {
   // met in a box by its accuracy, due today)
   if (G.Learning) s.learn = G.Learning.normalize(data.learn, s.wordStats);
   s.settings.spellReload = !!s.settings.spellReload;
+  // (round 3) the listening and clue settings: a value it does not know is the default
+  const oneOf = (k, list) => { if (!list.includes(s.settings[k])) s.settings[k] = def.settings[k]; };
+  oneOf("clueThai", ["auto", "always", "never"]);
+  oneOf("accent", ["mixed", "british", "american", "australian"]);
+  oneOf("speechSpeed", ["normal", "slow"]);
+  s.settings.playOnce = !!s.settings.playOnce;
+  s.settings.highlightTarget = !!s.settings.highlightTarget;
   const seen = data.learnSeen;
   s.learnSeen = {};
-  if (seen && typeof seen === "object" && !Array.isArray(seen)) Object.keys(seen).forEach((k) => { if (/^intro_(keys|touch|pad)$/.test(k) && seen[k] === true) s.learnSeen[k] = true; });
+  // (round 3: and the first look at each newer mode, mode_<id>)
+  if (seen && typeof seen === "object" && !Array.isArray(seen)) Object.keys(seen).forEach((k) => { if (/^(intro_(keys|touch|pad)|mode_[a-z]+)$/.test(k) && seen[k] === true) s.learnSeen[k] = true; });
   // custom words: three lists of [English, Thai] string pairs, each with an
   // optional third item of extra fields (definition, synonyms, example,
   // collocations, topic -- G.cleanCustomExtra); nothing else
@@ -374,6 +388,8 @@ G.defaultKeybinds = function () {
     melee: "Digit1", slot2: "Digit2", slot3: "Digit3", slot4: "Digit4", slot5: "Digit5",
     slot6: "Digit6", slot7: "Digit7",          // the slots the Extra Weapon Slot perk adds
     ability1: "KeyQ", ability2: "KeyF", ability3: "KeyC", ability4: "KeyX",   // round 3: the bosses' rewards
+    // (vocabulary series, round 3) not letters: they work while typing words
+    replay: "Digit9", thaiHint: "Digit0",
     pause: "Escape",
   };
 };

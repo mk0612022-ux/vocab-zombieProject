@@ -78,7 +78,7 @@ G.Round7Test = (function () {
     let n = 0; while (G.Cutscene.active && n < 500) { up(1); n++; }
     const c = g.challenge;
     if (!c) return false;
-    g.answerChallenge(right ? c.choices.indexOf(c.pair[0]) : c.choices.findIndex((x) => x !== c.pair[0]));
+    g.answerChallengeAs(right);
     if (G.Modal.isOpen("abilities")) {
       G.UI.hivePick(pick || 0); G.UI.hiveFinishReveal();
       G.UI.hiveClose(null, A.slots.length >= A.MAX && G.UI._hive && G.UI._hive.stage === "replace");
@@ -91,7 +91,7 @@ G.Round7Test = (function () {
     const Q = G.Quiz;
     if (!Q.active) return false;
     let n = 0;
-    while (Q.stage !== "result" && n++ < 40) { if (Q.stage === "question") { const q = Q.qs[Q.i]; Q.answer(pass === false ? (q.answer + 1) % q.choices.length : q.answer); } Q.update(5); }
+    while (Q.stage !== "result" && n++ < 40) { if (Q.stage === "question") { const q = Q.qs[Q.i]; Q.answerAs(pass !== false); } Q.update(5); }
     Q.close();
     return true;
   }
@@ -441,12 +441,12 @@ G.Round7Test = (function () {
     const first = g.challenge.pair[0];
     const avg = g.wordPool.reduce((a, p) => a + p[0].length, 0) / g.wordPool.length, st = G.wordStat(first);
     ok("I ...a hard word (a long one, or one missed before)", first.length > avg || (st && st.wrong > 0), first);
-    g.answerChallenge(g.challenge.choices.indexOf(first));
+    g.answerChallengeAs(true);
     const tries0 = F.s.tries; F.interact(g, gateRef);
     ok("I a press between two words does not restart the lock", F.s.tries === tries0 && F.s.round && F.s.round.i === 1);
     await tick();
     ok("I right: the second word at once", !!g.challenge && /word 2 of 3/.test(document.getElementById("hud-challenge-label").textContent) && G.Modal.isOpen("challenge"));
-    const c2 = g.challenge; g.answerChallenge(c2.choices.findIndex((x) => x !== c2.pair[0])); await tick();
+    const c2 = g.challenge; g.answerChallengeAs(false); await tick();
     ok("I wrong: the lock jams for 30 s", !g.challenge && F.s.lockLeft === 30 && !tf.unlocked);
     F.interact(g, gateRef);
     ok("I ...and cannot be tried while jammed", !g.challenge);
@@ -458,7 +458,7 @@ G.Round7Test = (function () {
     F.interact(g, gateRef);
     const second = g.challenge.pair[0];
     ok("I ...then three new words", second !== first && second !== c2.pair[0]);
-    for (let i = 0; i < 3; i++) { const c = g.challenge; g.answerChallenge(c.choices.indexOf(c.pair[0])); await tick(); }
+    for (let i = 0; i < 3; i++) { g.answerChallengeAs(true); await tick(); }
     ok("I all three right: the grille lifts", tf.unlocked && !W.colliders.includes(tf.barrierCollider) && !g.challenge);
     ok("I ...with its effect (sparks and a ring of light)", G.BossFX.decals.some((d) => d.on && d.o.shock));
     // the checklist

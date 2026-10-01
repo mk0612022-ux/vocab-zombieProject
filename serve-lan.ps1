@@ -21,7 +21,13 @@ $ips = Get-NetIPAddress -AddressFamily IPv4 |
   Select-Object -ExpandProperty IPAddress
 
 $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Any, $Port)
-$listener.Start()
+# The port already taken (another copy of this server still running): stop
+# here. Carrying on used to spin -- every AcceptTcpClient on a listener that
+# never started throws at once -- and kept a CPU core busy for good.
+try { $listener.Start() } catch {
+  Write-Host "Port $Port is already in use. Is another serve-lan.ps1 or serve.ps1 still running? Stop it, or use -Port <number>."
+  exit 1
+}
 Write-Host "Serving $root"
 Write-Host "  local:   http://localhost:$Port/"
 foreach ($ip in $ips) { Write-Host "  network: http://${ip}:$Port/" }
@@ -104,7 +110,7 @@ $pool = [RunspaceFactory]::CreateRunspacePool(1, 16)
 $pool.Open()
 $busy = New-Object System.Collections.ArrayList
 while ($true) {
-  $client = $listener.AcceptTcpClient()
+  try { $client = $listener.AcceptTcpClient() } catch { [System.Threading.Thread]::Sleep(200); continue }
   $ps = [PowerShell]::Create()
   $ps.RunspacePool = $pool
   [void]$ps.AddScript($handler).AddArgument($client).AddArgument($root).AddArgument($mime)

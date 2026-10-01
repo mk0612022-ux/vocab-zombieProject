@@ -193,10 +193,11 @@ G.Round11Test = (function () {
     // boss / lock / crate questions
     G.save.wordStats = {};
     const pair = G.WordBank.pairs(3).find((p) => p.id === "minimize");
-    g.startWordChallenge(G.T("challenge.boss"), () => {}, () => {}, { pair, time: 10, boss: true });
+    g.startWordChallenge(G.T("challenge.boss"), () => {}, () => {}, { pair, time: 10, boss: true, type: "th2en" });
     const ch = g.challenge;
     ok("F: a boss question: four different words, the right one among them", ch && ch.choices.length === 4 && new Set(ch.choices).size === 4 && ch.choices.includes("minimise"));
     g.answerChallenge(ch.choices.indexOf("minimise"));
+    if (g.challenge) g.closeChallengeReveal();
     ok("F: ...answered, it is saved under the entry id", G.save.wordStats.minimize && G.save.wordStats.minimize.correct === 1 && !G.save.wordStats.minimise);
     const hard = G.pickHardWords(g.wordPool, 3);
     ok("F: the vocabulary lock's hard words come from the bank", hard.length === 3 && hard.every((p) => G.WordBank.lookup(p[0])));
@@ -204,7 +205,7 @@ G.Round11Test = (function () {
     G.Quiz.resetWave(g);
     g.wordPool.slice(0, 8).forEach((p) => G.Quiz.noteWord(g, p));
     const qs = G.Quiz.build(g);
-    ok("F: the end-of-wave quiz builds six questions from the wave's bank words", qs.length === G.CONFIG.quiz.questions && qs.every((q) => G.WordBank.lookup(q.pair[0]) && q.choices.length === 4));
+    ok("F: the end-of-wave quiz builds six questions from the wave's bank words", qs.length === G.CONFIG.quiz.questions && qs.every((q) => G.WordBank.lookup(q.pair[0]) && (q.spell || q.choices.length === 4)));
     ok("F: story notes still load (20 for the School)", (G.NOTES.level1 || []).length === 20);
     g.quitToMainMenu();
     // the lobby counts the level's real size

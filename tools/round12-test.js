@@ -31,6 +31,8 @@ G.Round12Test = (function () {
   // a word straight into a box, due on day `due` (relative to base)
   const put = (p, b, due) => { G.save.learn.srs[key(p)] = { b, due: base + due, last: base, n: 1, lapses: 0 }; };
   const out = { log: [], examples: [] };
+  // every first-time window seen (round 3 added one per newer mode)
+  const SEEN = () => ({ intro_keys: true, intro_touch: true, intro_pad: true, mode_paraphrase: true, mode_listening: true, mode_dictation: true, mode_context: true, mode_adaptive: true });
 
   // ---------------- a run with the loop stopped ----------------
   function freshRun(level) {
@@ -216,7 +218,7 @@ G.Round12Test = (function () {
     const cards = all.slice(0, 6);
     cards.forEach((p) => put(p, 1, 0));
     all.slice(6, 10).forEach((p) => put(p, 2, 0));          // 10 due: one session
-    G.save.learnSeen = { intro_keys: true, intro_touch: true, intro_pad: true };
+    G.save.learnSeen = SEEN();
     G.Study.openDaily();
     await wait(50);
     const g = G.Game, sess = g.study;
@@ -373,7 +375,7 @@ G.Round12Test = (function () {
 
     // in play, on a keyboard
     fresh(); day(0); base = G.Clock.today();
-    G.save.learnSeen = { intro_keys: true, intro_touch: true, intro_pad: true };
+    G.save.learnSeen = SEEN();
     G.Input.mode = "desktop"; G.Input.padActive = false;
     G.Study.launch(G.Study.learn("spelling", 1));
     const g = G.Game;
@@ -488,7 +490,7 @@ G.Round12Test = (function () {
     G.Lobby.select(1); G.Lobby.launch();
     await wait(50);
     ok("I: Learning Modes: a G.Modal window, the controller's scope", G.Modal.isOpen("learnpick") && G.Pad.scope() === $("learn-box"));
-    ok("I: the modes on offer: Classic, Spelling, Adaptive (the rest come in round 3)", [...document.querySelectorAll("#learn-modes .learn-opt")].map((b) => b.dataset.preset).join() === "classic,spelling,adaptive");
+    ok("I: the modes on offer: all seven (round 3)", [...document.querySelectorAll("#learn-modes .learn-opt")].map((b) => b.dataset.preset).join() === "classic,spelling,paraphrase,listening,dictation,context,adaptive");
     document.querySelector('#learn-modes [data-preset="adaptive"]').click();
     ok("I: picking a mode marks it", document.querySelector('#learn-modes [data-preset="adaptive"]').classList.contains("on"));
     G.onKeyDown({ key: "Escape", code: "Escape", preventDefault() {} });

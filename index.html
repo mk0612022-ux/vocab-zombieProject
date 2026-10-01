@@ -152,6 +152,9 @@
     <div class="hud-meaning-box">
       <div class="hud-meaning-label" data-i18n="hud.shootMeaning"></div>
       <div class="hud-meaning" id="hud-meaning">-</div>
+      <!-- (vocabulary series, round 3, F) the Thai under an English definition, or a button for it -->
+      <div class="hud-meaning-sub hidden" id="hud-meaning-sub" lang="th"></div>
+      <button class="hud-thai hidden" id="hud-thai" type="button" data-i18n-aria="hud.showThai"><span data-i18n="hud.showThaiShort"></span> <span class="kbd-only hud-thai-key" id="hud-thai-key"></span></button>
       <button class="hud-speak icon-btn" id="hud-speak" data-i18n-aria="hud.hearAgain" data-label-key="hud.hearShort" data-tip-key="hud.hearAgain">🔊</button>
     </div>
     <!-- (round 2) the boss's health: name and title over a big red bar -->
@@ -181,8 +184,11 @@
   <div class="hud-interact-prompt hidden" id="hud-interact-prompt"></div>
   <div class="hud-challenge-box hidden" id="hud-challenge-box">
     <div class="hud-challenge-label" id="hud-challenge-label" data-i18n="hud.answerToUnlock"></div>
+    <div class="hud-challenge-ask" id="hud-challenge-ask"></div>
     <div class="hud-challenge-meaning" id="hud-challenge-meaning"></div>
     <div class="hud-boss-choices" id="hud-challenge-choices"></div>
+    <!-- (vocabulary series, round 3, H3) wrong: the right word in context -->
+    <div class="hud-challenge-reveal hidden" id="hud-challenge-reveal"></div>
     <div class="hud-boss-timer-track"><div class="hud-boss-timer-fill" id="hud-challenge-timer-fill"></div></div>
   </div>
   <div class="hud-hitmarker hidden" id="hud-hitmarker"></div>
@@ -468,7 +474,7 @@
       <div class="quiz-choices" id="quiz-choices"></div>
       <div class="quiz-timer"><div class="quiz-timer-fill" id="quiz-timer-fill"></div></div>
       <div class="quiz-feedback" id="quiz-feedback" role="status"></div>
-      <div class="quiz-hint kbd-only" data-i18n="quiz.hint"></div>
+      <div class="quiz-hint kbd-only" id="quiz-hint" data-i18n="quiz.hint"></div>
     </div>
     <div class="quiz-result hidden" id="quiz-result">
       <div class="quiz-verdict" id="quiz-verdict"></div>
@@ -492,11 +498,14 @@
 <div id="learn-pick" class="dialog-overlay hidden">
   <div class="dialog-box learn-box" id="learn-box" role="dialog" aria-modal="true" aria-labelledby="learn-title">
     <h3 class="dialog-title" id="learn-title" data-i18n="learn.title"></h3>
-    <p class="learn-sub" data-i18n="learn.sub"></p>
-    <div class="learn-h" data-i18n="learn.modeHead"></div>
-    <div class="learn-modes" id="learn-modes"></div>
-    <div class="learn-h" data-i18n="learn.levelHead"></div>
-    <div class="learn-levels" id="learn-levels"></div>
+    <!-- (the choices scroll on a short screen; Start and Back stay in view) -->
+    <div class="learn-scroll">
+      <p class="learn-sub" data-i18n="learn.sub"></p>
+      <div class="learn-h" data-i18n="learn.modeHead"></div>
+      <div class="learn-modes" id="learn-modes"></div>
+      <div class="learn-h" data-i18n="learn.levelHead"></div>
+      <div class="learn-levels" id="learn-levels"></div>
+    </div>
     <div class="dialog-btns">
       <button class="btn btn-primary" id="btn-learn-start"><span data-i18n="learn.start"></span> <span class="dlg-key">(Enter)</span></button>
       <button class="btn" id="btn-learn-cancel" data-pad-back><span data-i18n="common.back"></span> <span class="dlg-key">(Esc)</span></button>
@@ -522,6 +531,27 @@
     <div class="sr-note" id="study-result-note"></div>
     <div class="quiz-missed" id="study-result-missed"></div>
     <div class="dialog-btns" id="study-result-btns"></div>
+  </div>
+</div>
+
+<!-- ===================== VOCABULARY CARD (vocabulary series round 3, H2, js/vocabcard.js) ===================== -->
+<div id="vocab-card" class="dialog-overlay hidden">
+  <div class="dialog-box vocab-card-box" id="vocab-card-box" role="dialog" aria-modal="true" aria-labelledby="vocab-card-title">
+    <div class="vc-kicker" id="vocab-card-title" data-i18n="card.title"></div>
+    <div class="vocab-card-body" id="vocab-card-body"></div>
+    <div class="dialog-btns"><button class="btn btn-primary" id="btn-card-close" data-pad-back><span data-i18n="common.close"></span> <span class="dlg-key">(Esc)</span></button></div>
+  </div>
+</div>
+
+<!-- a word marked in a story note (H4): its mini card -->
+<div id="word-peek" class="dialog-overlay hidden">
+  <div class="dialog-box word-peek-box" id="word-peek-box" role="dialog" aria-modal="true" aria-labelledby="word-peek-title">
+    <div class="vc-kicker" id="word-peek-title" data-i18n="card.peekTitle"></div>
+    <div id="word-peek-body"></div>
+    <div class="dialog-btns">
+      <button class="btn" id="btn-peek-card" data-i18n="card.full"></button>
+      <button class="btn btn-primary" id="btn-peek-close" data-pad-back><span data-i18n="common.close"></span> <span class="dlg-key">(Esc)</span></button>
+    </div>
   </div>
 </div>
 
@@ -619,6 +649,7 @@ window.addEventListener("load", function () {
 <script src="js/srs.js"></script>
 <script src="js/learnmodes.js"></script>
 <script src="js/distract.js"></script>
+<script src="js/clues.js"></script>
 <script src="js/data/notes_school.js"></script>
 <script src="js/data/words_bosses.js"></script>
 <script src="js/core.js"></script>
@@ -665,6 +696,8 @@ window.addEventListener("load", function () {
 <script src="js/quiz.js"></script>
 <script src="js/spell.js"></script>
 <script src="js/study.js"></script>
+<script src="js/questions.js"></script>
+<script src="js/vocabcard.js"></script>
 <script src="js/hudcfg.js"></script>
 <script src="js/tips.js"></script>
 <script src="js/journal.js"></script>

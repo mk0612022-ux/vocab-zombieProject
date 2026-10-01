@@ -43,6 +43,17 @@ G.CONFIG = {
     seconds: 15,             // per question; running out counts as a mistake
     feedback: 1.4,           // seconds the right answer stays lit before the next
     minWordsPerWave: 6,      // every wave spawns at least this many different words
+    // (vocabulary series, round 3, H5) the eight kinds of question: extra
+    // seconds for the ones with more to read or to write (quiz, boss, locks)
+    extraSeconds: { def2word: 4, cloze: 6, colloc: 3, paraphrase: 6, listen: 2, spell: 12 },
+    wrongFeedback: 8,        // a wrong answer stays up longer (or until Next): the right word, a sentence, a collocation
+    // how often each kind is asked, by the word's box: 1-2 mostly the first
+    // three of H5 (Thai -> English, English -> Thai, Listening), from box 3
+    // more of Definition, Cloze, Collocation, Paraphrase and Spelling
+    weights: {
+      low:  { th2en: 3, en2th: 3, listen: 2, def2word: 0.6, cloze: 0.6, colloc: 0.3, paraphrase: 0.3, spell: 0.4 },
+      high: { th2en: 0.8, en2th: 0.8, listen: 0.8, def2word: 2, cloze: 2, colloc: 1.5, paraphrase: 1.5, spell: 2 },
+    },
   },
 
   // ---------------- bosses (new series, round 1, C) ----------------
@@ -175,7 +186,30 @@ G.CONFIG = {
     max: 14,                        // ...at most this many (and never fewer than quiz.minWordsPerWave)
     learningShare: 0.35,            // of those, words still being learnt (boxes 1-2), after the due ones
   },
-  adaptive: { spellFromBox: 3 },    // Adaptive: a word from this box up is answered by spelling it
+  // Adaptive: the clue and answer a word gets, by its box (one of the list,
+  // the same all day for that word; js/learnmodes.js). "clue+answer".
+  adaptive: {
+    byBox: [
+      ["thai+shoot"],                                                    // New
+      ["thai+shoot"],                                                    // box 1
+      ["thai+shoot", "definition+shoot"],                                // box 2
+      ["definition+shoot", "cloze+shoot", "thai+spell"],                 // box 3
+      ["thai+spell", "audio+spell", "definition+shoot", "cloze+shoot"],  // box 4
+      ["thai+spell", "audio+spell", "definition+spell", "cloze+shoot"],  // box 5
+      ["audio+spell", "definition+spell", "thai+spell", "cloze+shoot"],  // Mastered
+    ],
+  },
+  // (vocabulary series, round 3) the English clues and the spoken word
+  clues: {
+    thaiUpToBox: 2,                 // a Definition clue shows the Thai too while the word is in box 1-2 (Settings can force it on or off)
+    clozeFamily: 2,                 // Context: look-alikes from the word's own family (other forms) on the field
+    synonymMaxLength: 14,           // the one-word synonym over a zombie's head in Definition + Spell
+  },
+  speech: {
+    rate: 1,                        // "Normal"
+    slowRate: 0.8,                  // "Slow" (x the normal rate)
+    sameZombieGap: 2.5,             // Dictation: seconds before aiming at the same zombie again says its word again
+  },
   distractors: {
     field: 1,                       // look-alike zombies on the field for a target in box 2 or higher
     choices: 2,                     // look-alike wrong answers in a question (the rest are random)

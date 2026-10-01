@@ -48,7 +48,12 @@ window.G = window.G || {};
       return this.make("review", cards, { preset: "adaptive", levelId: 1, due: due.length });
     },
     learn(presetId, levelId) {
-      const pool = G.WORD_SETS["level" + levelId].words;
+      // (round 3: a mode built on a definition or a sentence takes the words
+      // that have one -- a player's own word may not)
+      const clue = G.Learn.run(presetId).clue;
+      const all = G.WORD_SETS["level" + levelId].words;
+      const usable = clue ? all.filter((p) => G.Learn.usable(p, clue)) : all;
+      const pool = usable.length >= G.CONFIG.quiz.minWordsPerWave ? usable : all;
       const n = Math.min(pool.length, C().learnCards);
       // a learning session is two waves' worth: twice the new words a wave may bring
       const saved = G.CONFIG.waveWords.maxNew;
@@ -71,16 +76,24 @@ window.G = window.G || {};
       return true;
     },
     // first time a session asks for spelling on this kind of input: how it works
+    // (round 3: and the first time in each of the newer modes, what it asks)
     launch(s) {
       const run = G.Learn.run(s.preset, s.cards);
       const dev = G.Input.padActive ? "pad" : G.Input.mode === "touch" ? "touch" : "keys";
       const seen = (G.save.learnSeen = G.save.learnSeen || {});
-      if (run.spells && !seen["intro_" + dev]) {
-        this.openIntro(dev, () => { seen["intro_" + dev] = true; G.persistSoon(); G.Game.startStudy(s); });
+      const spellIntro = run.spells && !seen["intro_" + dev];
+      const modeIntro = this.MODE_INTROS.includes(s.preset) && !seen["mode_" + s.preset];
+      if (spellIntro || modeIntro) {
+        this.openIntro(dev, () => {
+          if (spellIntro) seen["intro_" + dev] = true;
+          if (modeIntro) seen["mode_" + s.preset] = true;
+          G.persistSoon(); G.Game.startStudy(s);
+        }, { spell: spellIntro, preset: modeIntro ? s.preset : null });
         return;
       }
       G.Game.startStudy(s);
     },
+    MODE_INTROS: ["paraphrase", "listening", "dictation", "context", "adaptive"],
 
     // ---------------- the run ----------------
     beginRun(game) {
@@ -186,9 +199,11 @@ window.G = window.G || {};
       if (streak != null) rows.push([T("study.statStreak"), T(streak === 1 ? "study.day" : "study.days", { n: streak })]);
       $("study-result-stats").innerHTML = rows.map(([k, v]) => `<div class="sr-stat"><b>${esc(v)}</b><span>${esc(k)}</span></div>`).join("");
       const missed = s.cards.filter((p) => s.done[G.wordKey(p)] === "wrong");
+      // (round 3, H3) each word missed in context: a sentence, a collocation, its sound
       $("study-result-missed").innerHTML = missed.length
-        ? `<div class="qm-title">${esc(T("quiz.review"))}</div>` + missed.map((p) => `<div class="qm-row"><b lang="en">${esc(p[0])}</b><span lang="th">${esc(p[1])}</span></div>`).join("")
+        ? `<div class="qm-title">${esc(T("quiz.review"))}</div>` + missed.map((p) => G.VocabCard.miniHtml(p)).join("")
         : "";
+      G.VocabCard.bind($("study-result-missed"));
       const btns = [];
       if (s.kind === "review" && moreDue > 0) btns.push(`<button class="btn btn-primary" id="btn-study-more">${esc(T("study.continueMore", { n: Math.min(moreDue, C().dailyMax) }))}</button>`);
       if (s.kind === "learn") btns.push(`<button class="btn btn-primary" id="btn-study-again">${esc(T("study.again"))}</button>`);
@@ -281,9 +296,14 @@ window.G = window.G || {};
     },
 
     // ---------------- the spelling intro ----------------
-    openIntro(dev, go) {
-      $("study-intro-title").textContent = T("study.introTitle");
-      $("study-intro-text").innerHTML = ["1", "2", "3", "4"].map((n) => `<li>${esc(T("study.intro." + dev + "." + n))}</li>`).join("");
+    // o: { spell: the spelling lines, preset: a mode's own lines }
+    openIntro(dev, go, o) {
+      o = o || { spell: true };
+      const keys = { replay: G.keyLabel(G.save.settings.keybinds.replay), thai: G.keyLabel(G.save.settings.keybinds.thaiHint) };
+      const lines = (o.preset ? ["1", "2"].map((n) => T("study.mode." + o.preset + "." + n, keys)) : [])
+        .concat(o.spell ? ["1", "2", "3", "4"].map((n) => T("study.intro." + dev + "." + n)) : []);
+      $("study-intro-title").textContent = o.preset ? T("learn.preset." + o.preset) + (o.spell ? " · " + T("study.introTitle") : "") : T("study.introTitle");
+      $("study-intro-text").innerHTML = lines.map((l) => `<li>${esc(l)}</li>`).join("");
       $("study-intro").classList.remove("hidden");
       const start = () => { $("study-intro").classList.add("hidden"); G.Modal.close("studyintro"); go(); };
       $("btn-intro-start").onclick = start;

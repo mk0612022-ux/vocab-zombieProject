@@ -73,7 +73,13 @@ G.STRINGS = {
       + "<li>Boxes 4 and 5 need you to <b>produce</b> the word (spell it): shooting the right zombie takes a word to box 3 at most. An answer found with a hint, or with a perk or ability that shows it, moves nothing</li>"
       + "<li><b>Daily Review</b> (Training tab) brings back every word due today. One session a day keeps your streak; a day with nothing due does not break it</li>"
       + "<li><b>Spelling</b>: each zombie shows a Thai meaning over its head. On a keyboard, type its English word in the bar at the bottom and press <b>Enter</b>: letters all go into the bar, so walk with the <b>arrow keys</b>, and <b>Tab</b> gives a hint. On a touch screen, tap the letters in order; on a controller, the <b>D-pad</b> and <b>A</b></li>"
-      + "<li><b>Spell to Reload</b> (Settings, Gameplay): a reload asks for one of the wave's words first. Right: a full magazine; wrong: half</li></ul>",
+      + "<li><b>Spell to Reload</b> (Settings, Gameplay): a reload asks for one of the wave's words first. Right: a full magazine; wrong: half</li></ul>"
+      + "<h3>English clues, listening and context</h3>"
+      + "<ul><li><b>Paraphrase</b>: the box at the top gives an English definition (≈ similar meaning). New words show the Thai under it; later, <b>0</b> (or the Thai button) shows it, but then the answer does not move the word's box</li>"
+      + "<li><b>Listening</b>: the zombies carry Thai meanings; listen and shoot the right one. <b>Dictation</b>: the zombies have no labels; aim at one to hear its word, then spell it. Hear it again: <b>9</b>, 🔊 or the controller's <b>View</b>. Settings: accent, speed, Play Once</li>"
+      + "<li><b>Context</b>: a sentence with a gap; shoot the zombie with the word that fills it, in the right form (indicate, indication, indicative...)</li>"
+      + "<li>The end-of-wave quiz, the boss's question and the vocabulary locks ask eight kinds of question: meanings both ways, definitions, gaps, collocations, paraphrases, listening and spelling. A wrong answer shows the word in a sentence</li>"
+      + "<li>The <b>Word Log</b>: click a word for its vocabulary card. In story notes, the level's words are underlined: tap one to look it up</li></ul>",
 
     // ---- settings ----
     "settings.title": "Settings",
@@ -294,7 +300,7 @@ G.STRINGS = {
     "challenge.door": "Answer to open the door",
     "challenge.trap": "Answer to disarm the trap",
     "challenge.hatch": "Answer to open the hatch",
-    "challenge.boss": "The boss's last word: which English word means this?",
+    "challenge.boss": "The boss's last word",
 
     // ---- banners and messages during play ----
     "banner.unlocked": "Unlocked",
@@ -1191,11 +1197,94 @@ G.STRINGS = {
     "lobby.desc.learn": "Choose how you answer — shoot, spell, or let the game choose for each word — and whose words to learn.",
     "lobby.meta.review": "{n} due today",
     "lobby.meta.reviewNone": "All reviewed",
-    "lobby.meta.learn": "Classic · Spelling · Adaptive",
+    "lobby.meta.learn": "Shoot · Spell · Listen · Context",
     "lobby.due": "Due today", "lobby.streak": "Streak", "lobby.bestStreak": "Best streak", "lobby.tomorrow": "Tomorrow",
     "lobby.learning": "Learning", "lobby.known": "Known", "lobby.masteredBox": "Mastered",
     // settings
     "settings.spellReload": "Spell to Reload: spell a word of the wave to reload (right: a full magazine, wrong: half)",
+
+    // ---- vocabulary series, round 3: English clues, listening, context, the vocabulary card ----
+    // the clue panel at the top
+    "hud.clue.definition": "≈ similar meaning: shoot the word",
+    "hud.clue.definitionSpell": "≈ similar meaning: spell the word",
+    "hud.clue.cloze": "Fill the gap: shoot the word",
+    "hud.clue.audio": "Listen: shoot its meaning",
+    "hud.clue.audioSpell": "Listen: spell what you hear",
+    "hud.showThai": "Show the Thai meaning (a helper: the word's box will not move)",
+    "hud.showThaiShort": "Thai",
+    "hud.playedOnce": "Play Once: you have heard this word",
+    "spell.hearAgain": "Hear it again",
+    "spell.keys.hear.keys": "{key}: hear it again",
+    "spell.keys.hear.touch": "🔊 hear it again",
+    "spell.keys.hear.pad": "View: hear it again",
+    "spell.thaiShort": "Thai",
+    "key.replay": "Hear the word again",
+    "key.thaiHint": "Show the Thai of an English clue",
+    // after a wrong answer
+    "learn.heardTitle": "You heard:",
+    "learn.heardText": "{w} · {s} = {m}",
+    "learn.formTitle": "Not {x}!",
+    "learn.formText": "Wrong form: the sentence needs {y}, not {x}",
+    // settings (F, G3)
+    "settings.highlightTarget": "Highlight the word to shoot in yellow (a helper: answers will not move a word's memory box)",
+    "settings.clueThai": "Thai meaning with English clues",
+    "settings.clueThaiAuto": "While a word is new (box 1-2)",
+    "settings.clueThaiAlways": "Always show",
+    "settings.clueThaiNever": "Never show",
+    "settings.accent": "Accent of the spoken words",
+    "settings.accent.mixed": "Mixed",
+    "settings.accent.british": "British",
+    "settings.accent.american": "American",
+    "settings.accent.australian": "Australian",
+    "settings.accentVoices": "English voices on this device: {list}",
+    "settings.accentMissing": "This device has no {a} voice, so another English voice is used.",
+    "settings.accentNone": "No English voice found on this device yet.",
+    "settings.speechSpeed": "Speed of the spoken words",
+    "settings.speedNormal": "Normal",
+    "settings.speedSlow": "Slow (0.8x)",
+    "settings.playOnce": "Play Once: hear a spoken clue only once, as in the IELTS Listening test",
+    // the eight kinds of question (H5)
+    "q.th2en": "Which English word means",
+    "q.en2th": "What does this word mean?",
+    "q.def2word": "Which word matches this definition?",
+    "q.cloze": "Which word fills the gap?",
+    "q.colloc": "Which word completes the phrase?",
+    "q.paraphrase": "Which word can replace the underlined words?",
+    "q.listen": "Listen: what does the word mean?",
+    "q.spell": "Spell the English word for",
+    "q.hearAgain": "Hear again",
+    "quiz.hintSpell": "Type the word, Enter to answer · Backspace deletes · Tab: hint",
+    "quiz.next": "Next",
+    "challenge.continue": "Continue",
+    // the vocabulary card (H2) and the mini card (H3, H4)
+    "card.title": "Vocabulary Card",
+    "card.peekTitle": "From the word bank",
+    "card.full": "Full Card",
+    "card.open": "Open the vocabulary card for {word}",
+    "card.hear": "Hear the word",
+    "card.hearSentence": "Hear the sentence",
+    "card.synonyms": "Similar:",
+    "card.examples": "Examples",
+    "card.collocations": "Collocations",
+    "card.family": "Word family",
+    "card.dontConfuse": "Don't confuse with",
+    "card.youConfused": "you mixed these up",
+    "card.spelling": "Watch the spelling: {w} (not {x})",
+    "card.awl": "AWL sublist {n}",
+    "card.topicWord": "IELTS topic word",
+    "card.from": "from {w}",
+    "pos.n": "noun", "pos.v": "verb", "pos.adj": "adjective", "pos.adv": "adverb", "pos.prep": "preposition", "pos.conj": "conjunction",
+    // the first time in each newer mode ({replay}, {thai}: their keys)
+    "study.mode.paraphrase.1": "The box at the top gives an English definition (≈ similar meaning) instead of the Thai. Shoot the zombie with the word it describes.",
+    "study.mode.paraphrase.2": "New words show the Thai under it. From box 3 it is English only: Thai ({thai}) shows it, but then the answer does not move the word's box.",
+    "study.mode.listening.1": "No English on the zombies: they carry Thai meanings. Listen to the word, then shoot the zombie with its meaning.",
+    "study.mode.listening.2": "Hear it again with {replay} or 🔊. Settings: accent, speed, and Play Once to hear each word only once.",
+    "study.mode.dictation.1": "The zombies have no labels. Aim at one to hear its word (on touch or a controller, the bar picks one).",
+    "study.mode.dictation.2": "Spell what you hear. Hear it again with {replay} or 🔊. A wrong spelling shows the word in syllables and says it again.",
+    "study.mode.context.1": "The box at the top shows a sentence with a gap. Shoot the zombie with the word that fills it.",
+    "study.mode.context.2": "Watch the form: indicate, indication, indicative... only one of them fits the sentence.",
+    "study.mode.adaptive.1": "Each word is asked its own way, by how well you know it: new words in Thai, then English definitions and sentences, then spelling and dictation.",
+    "study.mode.adaptive.2": "The box at the top always says which: the Thai meaning, ≈ a definition, a sentence with a gap, or a word to listen to.",
   },
 };
 
