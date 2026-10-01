@@ -77,7 +77,9 @@ G.Spawner = {
     const feet = playerPos.y - 1.7;
     const region = G.getRegionAt(world, playerPos.x, playerPos.z, feet) || "";
     const outdoors = /^YARD/.test(region);
-    if (outdoors && world.campus && (G.rng() < 0.65)) {
+    // (a study session -- vocabulary series, round 2 -- is played on the
+    // grounds: always up through the ground there)
+    if (outdoors && world.campus && (G.rng() < 0.65 || (G.Game && G.Game.mode === "study"))) {
       const g = this.groundPoint(world, playerPos, fwd);
       if (g) return g;
     }

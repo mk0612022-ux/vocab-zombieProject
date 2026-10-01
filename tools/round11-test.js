@@ -185,7 +185,8 @@ G.Round11Test = (function () {
     for (let i = 0; i < 4; i++) g.spawnZombieAt("normal", g.yawObject.position.clone().add(new THREE.Vector3(4 + i, -1.7, 0)));
     ok("F: zombies carry bank words", g.zombies.length === 4 && g.zombies.every((z) => G.WordBank.lookup(z.word) && z.meaning === G.WordBank.lookup(z.word).thai));
     // a two-word headword works on a zombie
-    g.wordPool = [G.WordBank.pairs(1).find((p) => p.id === "percent")];
+    // (vocabulary series round 2: a wave's zombies take its planned words first)
+    g.wordPool = [G.WordBank.pairs(1).find((p) => p.id === "percent")]; g.wavePlan = null;
     g.spawnZombieAt("normal", g.yawObject.position.clone().add(new THREE.Vector3(9, -1.7, 0)));
     ok("F: a two-word headword (per cent) spawns on a zombie", g.zombies.some((z) => z.word === "per cent"));
     g.wordPool = G.WORD_SETS.level1.words;

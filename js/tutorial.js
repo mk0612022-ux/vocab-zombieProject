@@ -72,6 +72,25 @@ G.Tutorial = {
     },
   ],
 
+  // (vocabulary series, round 2, D1) a run answered by spelling has two cards
+  // of its own -- how to spell a zombie down, and how to move meanwhile --
+  // shown in a study session even after the main tutorial is done (the
+  // session's first window explains it too; Replay Tutorial shows them again)
+  SPELL_STEPS: [
+    {
+      id: "spell",
+      when: () => !!(G.Spell && G.Spell.focus),
+      done: (g) => g.correctCount >= 1,
+      hold: 14,
+    },
+    {
+      id: "spellMove",
+      when: (g, s) => !!G.save.tutorialSeen && !!G.save.tutorialSeen.spell,
+      done: (g, s) => s.moved > 4,
+      hold: 10,
+    },
+  ],
+
   enabled() { return G.save && !G.save.tutorialDone; },
   seen() { G.save.tutorialSeen = G.save.tutorialSeen || {}; return G.save.tutorialSeen; },
 
@@ -85,7 +104,8 @@ G.Tutorial = {
   onPickup() { if (this.stats) this.stats.pickups++; },
 
   update(dt, game) {
-    if (!this.enabled() || !this.stats || game.mode !== "campaign") { if (this.current) this.hide(); return; }
+    const spell = game.mode === "study" && !!(G.Spell && G.Spell.active);
+    if (!this.stats || (!spell && (!this.enabled() || game.mode !== "campaign"))) { if (this.current) this.hide(); return; }
     const s = this.stats, p = game.yawObject.position;
     s.moved += Math.hypot(p.x - s.lastPos.x, p.z - s.lastPos.z);
     s.lastPos.copy(p);
@@ -94,7 +114,7 @@ G.Tutorial = {
     this._t -= dt;
     if (this._t <= 0) {
       this._t = 0.25;
-      for (const st of this.STEPS) {
+      for (const st of spell ? this.SPELL_STEPS : this.STEPS) {
         if (seen[st.id] || this.queue.includes(st) || this.current === st) continue;
         if (st.when(game, s)) this.queue.push(st);
       }
@@ -116,7 +136,7 @@ G.Tutorial = {
       this.show(this.queue.shift());
     }
     // everything seen: the tutorial is over
-    if (this.STEPS.every((st) => seen[st.id]) && seen.shop) { G.save.tutorialDone = true; G.persistSoon(); }
+    if (!spell && this.STEPS.every((st) => seen[st.id]) && seen.shop) { G.save.tutorialDone = true; G.persistSoon(); }
   },
 
   show(st) {
@@ -124,8 +144,11 @@ G.Tutorial = {
     this._age = 0;
     const touch = G.Input.mode === "touch";
     const el = document.getElementById("hud-tip");
+    // (a card may have its own controller wording: "tut.<id>.pad")
+    const padKey = "tut." + st.id + ".pad";
+    const key = G.Input.padActive && G.STRINGS.en[padKey] ? padKey : "tut." + st.id + (touch ? ".touch" : ".desk");
     document.getElementById("hud-tip-title").textContent = "💡 " + G.T("tut." + st.id + ".title");
-    document.getElementById("hud-tip-text").textContent = G.T("tut." + st.id + (touch ? ".touch" : ".desk"));
+    document.getElementById("hud-tip-text").textContent = G.T(key);
     el.classList.remove("hidden");
     el.classList.remove("tip-in"); void el.offsetWidth; el.classList.add("tip-in");
   },
@@ -150,6 +173,7 @@ G.Tutorial = {
 
   skip() {
     G.save.tutorialDone = true;
+    this.SPELL_STEPS.forEach((st) => { this.seen()[st.id] = true; });
     G.persist();
     this.queue = [];
     this.hide();

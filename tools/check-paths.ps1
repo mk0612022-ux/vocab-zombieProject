@@ -48,9 +48,12 @@ Get-ChildItem js -Recurse -Filter *.js | ForEach-Object {
 }
 # built at run time: the lobby's artwork, one picture and one card per mode
 $lobby = Get-Content -Raw -Encoding UTF8 'js/lobby.js'
-[regex]::Matches($lobby, '\{ id: "(\w+)", tab:') | ForEach-Object {
-  Add-Ref ('assets/lobby/' + $_.Groups[1].Value + '.jpg') 'js/lobby.js (art)'
-  Add-Ref ('assets/lobby/' + $_.Groups[1].Value + '-card.jpg') 'js/lobby.js (art)'
+# (a mode with `art: "x"` borrows another's pictures)
+[regex]::Matches($lobby, '\{ id: "(\w+)", tab:[^\r\n]*') | ForEach-Object {
+  $art = [regex]::Match($_.Value, 'art: "(\w+)"')
+  $name = if ($art.Success) { $art.Groups[1].Value } else { $_.Groups[1].Value }
+  Add-Ref ('assets/lobby/' + $name + '.jpg') 'js/lobby.js (art)'
+  Add-Ref ('assets/lobby/' + $name + '-card.jpg') 'js/lobby.js (art)'
 }
 # the service worker's own list, and the manifest's icons
 $sw = Get-Content -Raw -Encoding UTF8 'sw.js'

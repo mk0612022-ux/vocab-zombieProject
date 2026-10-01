@@ -35,6 +35,22 @@ G.Pad = {
     const I = G.Input;
 
     if (edge(B.MENU)) G.onPausePress && G.onPausePress();
+    // (vocabulary series, round 2, D3) spelling in play: the D-pad moves over
+    // the letters, A places one, B takes one back, X a hint, LB / RB the
+    // next zombie; the sticks still walk and look, Y still uses, Menu pauses
+    if (playing && G.Spell && G.Spell.padInput(gp, now, edge, dt)) {
+      this.clearFocus();
+      I.padFire = false; I.padJump = false;
+      I.padAim = now[B.LT];
+      if (edge(B.L3)) I.padSprint = !I.padSprint;
+      if (Math.hypot(gp.axes[0] || 0, gp.axes[1] || 0) < 0.2) I.padSprint = false;
+      if (edge(B.Y)) g.doInteract();
+      if (edge(B.VIEW)) g.speakCurrentWord();
+      if (edge(B.RT) && g.learn && g.learn.shoots) G.onFirePress && G.onFirePress();
+      if (g.learn && g.learn.shoots) I.padFire = now[B.RT];
+      this.prev = now;
+      return;
+    }
     if (playing) {
       this.clearFocus();
       I.padFire = now[B.RT];
@@ -66,7 +82,9 @@ G.Pad = {
   scope() {
     const top = G.Modal.top();
     const byModal = { challenge: "hud-challenge-box", crate: "screen-crate", mystery: "screen-mystery", shop: "screen-shop", inventory: "screen-inventory", update: "update-dialog", codex: "codex-detail",
-      abilities: "screen-abilities", dialog: "dialog-box", quiz: "screen-quiz", hudcfg: "hudcfg-panel" };
+      abilities: "screen-abilities", dialog: "dialog-box", quiz: "screen-quiz", hudcfg: "hudcfg-panel",
+      // (vocabulary series, round 2)
+      spellreload: "spell-reload-box", learnpick: "learn-box", studyresult: "study-result-box", studyintro: "study-intro-box" };
     if (top && byModal[top.id]) return document.getElementById(byModal[top.id]);
     if (G.TouchCfg && G.TouchCfg.editing) return document.getElementById("touchcfg-panel");
     const cur = G.UI._currentScreen;

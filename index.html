@@ -220,6 +220,15 @@
   <div class="mystery-flash" id="mystery-flash"></div>
 </div>
 
+<!-- ===================== SPELLING BAR (vocabulary series round 2, js/spell.js) ===================== -->
+<!-- The Spell answer: the clue of the zombie in focus, a box per letter and,
+     on touch or a controller, the letters to put in order. It sits above the
+     touch controls, and goes with the HUD. -->
+<div id="hud-spell" class="hud-spell hidden" role="group" data-i18n-aria="spell.aria">
+  <div id="hud-spell-pad"></div>
+  <div class="hud-spell-keys" id="hud-spell-keys"></div>
+</div>
+
 <!-- (round 2) a boss's cutscene: black bars, the title card, the red pen -->
 <div id="cine" class="cine" aria-hidden="true">
   <div class="cine-bar cine-top"></div>
@@ -470,6 +479,52 @@
   </div>
 </div>
 
+<!-- ===================== SPELL TO RELOAD (vocabulary series round 2, D2, js/spell.js) ===================== -->
+<div id="spell-reload" class="dialog-overlay spell-reload hidden">
+  <div class="dialog-box spell-reload-box" id="spell-reload-box" role="dialog" aria-modal="true" aria-labelledby="spell-reload-title">
+    <div class="spell-reload-kicker" id="spell-reload-title" data-i18n="spell.reloadTitle"></div>
+    <div id="spell-reload-pad"></div>
+    <div class="spell-reload-keys" id="spell-reload-keys"></div>
+  </div>
+</div>
+
+<!-- ===================== LEARNING MODES (vocabulary series round 2, js/study.js) ===================== -->
+<div id="learn-pick" class="dialog-overlay hidden">
+  <div class="dialog-box learn-box" id="learn-box" role="dialog" aria-modal="true" aria-labelledby="learn-title">
+    <h3 class="dialog-title" id="learn-title" data-i18n="learn.title"></h3>
+    <p class="learn-sub" data-i18n="learn.sub"></p>
+    <div class="learn-h" data-i18n="learn.modeHead"></div>
+    <div class="learn-modes" id="learn-modes"></div>
+    <div class="learn-h" data-i18n="learn.levelHead"></div>
+    <div class="learn-levels" id="learn-levels"></div>
+    <div class="dialog-btns">
+      <button class="btn btn-primary" id="btn-learn-start"><span data-i18n="learn.start"></span> <span class="dlg-key">(Enter)</span></button>
+      <button class="btn" id="btn-learn-cancel" data-pad-back><span data-i18n="common.back"></span> <span class="dlg-key">(Esc)</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- the first time a session asks for spelling on this kind of input -->
+<div id="study-intro" class="dialog-overlay hidden">
+  <div class="dialog-box study-intro-box" id="study-intro-box" role="dialog" aria-modal="true" aria-labelledby="study-intro-title">
+    <div class="dialog-icon" aria-hidden="true">✍️</div>
+    <h3 class="dialog-title" id="study-intro-title"></h3>
+    <ul class="study-intro-text" id="study-intro-text"></ul>
+    <div class="dialog-btns"><button class="btn btn-primary" id="btn-intro-start"><span data-i18n="study.introGo"></span> <span class="dlg-key">(Enter)</span></button></div>
+  </div>
+</div>
+
+<!-- the end of a Daily Review or learning session -->
+<div id="study-result" class="dialog-overlay hidden">
+  <div class="dialog-box study-result-box" id="study-result-box" role="dialog" aria-modal="true" aria-labelledby="study-result-title">
+    <h3 class="dialog-title" id="study-result-title"></h3>
+    <div class="sr-stats" id="study-result-stats"></div>
+    <div class="sr-note" id="study-result-note"></div>
+    <div class="quiz-missed" id="study-result-missed"></div>
+    <div class="dialog-btns" id="study-result-btns"></div>
+  </div>
+</div>
+
 <!-- ===================== QUESTION WINDOW (round 3, js/dialog.js) ===================== -->
 <div id="dialog" class="dialog-overlay hidden">
   <div class="dialog-box" id="dialog-box" role="alertdialog" aria-modal="true" aria-labelledby="dialog-title" aria-describedby="dialog-text">
@@ -561,6 +616,9 @@ window.addEventListener("load", function () {
 <script src="js/data/confusables.js"></script>
 <script src="js/wordbank.js"></script>
 <script src="js/data/words.js"></script>
+<script src="js/srs.js"></script>
+<script src="js/learnmodes.js"></script>
+<script src="js/distract.js"></script>
 <script src="js/data/notes_school.js"></script>
 <script src="js/data/words_bosses.js"></script>
 <script src="js/core.js"></script>
@@ -605,6 +663,8 @@ window.addEventListener("load", function () {
 <script src="js/ui.js"></script>
 <script src="js/abilityui.js"></script>
 <script src="js/quiz.js"></script>
+<script src="js/spell.js"></script>
+<script src="js/study.js"></script>
 <script src="js/hudcfg.js"></script>
 <script src="js/tips.js"></script>
 <script src="js/journal.js"></script>

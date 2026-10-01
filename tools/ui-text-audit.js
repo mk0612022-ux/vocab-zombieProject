@@ -17,7 +17,8 @@ G.UIAudit = {
   meanings() {
     if (!this._meanings) {
       // (round 2: the bosses' epithets are vocabulary too, with their Thai)
-      const all = G.getAllBuiltinWords().map((p) => p[1]).concat(Object.values(G.BOSS_WORDS || {}).map((w) => w.th)).filter(Boolean);
+      // (vocabulary series round 2: and the confusables lexicon's, shown on look-alike zombies and banners)
+      const all = G.getAllBuiltinWords().map((p) => p[1]).concat(Object.values(G.BOSS_WORDS || {}).map((w) => w.th), (G.CONFUSABLES || []).map((c) => c.thai)).filter(Boolean);
       this._meanings = Array.from(new Set(all)).sort((a, b) => b.length - a.length);
     }
     return this._meanings;
@@ -357,6 +358,61 @@ G.UIAudit = {
         UI.el("btn-import-save").disabled = false;
         UI.saveImportedSet();
       });
+      // ---- vocabulary series, round 2: Daily Review, Learning Modes, the spelling bar, Spell to Reload ----
+      const mode0 = G.Input.mode;
+      const byId = (id) => { const e = G.WordBank.byId(id); const p = [e.headword, e.thai]; p.id = e.id; return p; };
+      const longThai = G.WORDS_LEVEL_1.slice().sort((a, b) => b[1].length - a[1].length)[0];
+      const longEn = G.WordBank.entries().slice().sort((a, b) => b.headword.length - a.headword.length)[0];
+      const longPair = [longEn.headword, longThai[1]];
+      await step("lobby: Daily Review (words due)", () => {
+        G.save.learn = G.Learning.normalize({});
+        G.WORDS_LEVEL_1.slice(0, 12).forEach((p) => { G.save.learn.srs[G.wordKey(p)] = { b: 2, due: G.Clock.today(), last: 0, n: 1, lapses: 0 }; });
+        UI.goToMainMenu({ tab: "training", select: "review" });
+      });
+      await step("lobby: Learning Modes", () => UI.goToMainMenu({ tab: "training", select: "learn" }));
+      await step("daily review: all reviewed", () => { G.save.learn = G.Learning.normalize({}); G.Study.openDaily(); });
+      await step("learning modes window", () => { G.Dialog.close(); G.Study.openPicker(); });
+      await step("spelling intro (keyboard)", () => { G.Study.closePicker(); G.Study.openIntro("keys", () => {}); });
+      await step("spelling intro (touch)", () => G.Study.openIntro("touch", () => {}));
+      await step("spelling intro (controller)", () => G.Study.openIntro("pad", () => {}));
+      await step("spelling run: the bar", () => {
+        document.getElementById("study-intro").classList.add("hidden"); G.Modal.reset();
+        G.save.learnSeen = { intro_keys: true, intro_touch: true, intro_pad: true };
+        G.Study.launch(G.Study.learn("spelling", 1));
+        Game.update = function () {};
+        Game.spawnZombieAt("normal", Game.yawObject.position.clone().add(new THREE.Vector3(0, -1.7, -8)));
+        G.Spell.update(Game, 0.05); UI.updateHud(Game.buildHudState());
+      });
+      await step("spelling run: the longest word, the longest clue", () => G.Spell.pad.setWord(longPair, longPair[1], true));
+      await step("spelling run: a misspelling marked, with its note", () => { const a = byId("accommodate"); G.Spell.pad.setWord(a, a[1]); G.Spell.pad.showFeedback("accomodate", a[0], G.Spell.tipFor("accomodate", a)); });
+      await step("spelling run: no zombie carries it", () => { G.Spell.pad.clearFeedback(); G.Spell.pad.note = T("spell.noMatch", { w: "qqqqqqqqqqqqqqq" }); G.Spell.pad.render(); });
+      await step("spelling run: letter tiles (touch)", () => { G.Spell.pad.note = ""; G.Input.mode = "touch"; UI.applyControlMode(); G.Spell.update(Game, 0.05); G.Spell.pad.setWord(longPair, longPair[1]); });
+      await step("spelling run: tiles marked wrong", () => G.Spell.pad.showFeedback(longPair[0].slice(0, -2) + "qq", longPair[0], ""));
+      await step("banner: too slow", () => UI.flashPurchaseBanner(T("study.bitten"), T("study.bittenBack", { w: longPair[0], m: longPair[1] })));
+      await step("banner: a look-alike shot", () => { const y = byId("considerable"), c = G.WordBank.confusable("considerate"), x = [c.headword, c.thai]; UI.flashPurchaseBanner(T("learn.lookAlikeTitle", { x: x[0] }), T("learn.lookAlikeText", { x: x[0], xm: x[1], y: y[0], ym: y[1] })); });
+      await step("study results", () => {
+        G.Input.mode = mode0; UI.applyControlMode();
+        const s = Game.study;
+        s.cards.slice(0, 3).forEach((p, i) => { s.done[G.wordKey(p)] = i === 0 ? "right" : "wrong"; });
+        s.answered = 3; s.right = 1; Game.player.score = 1234;
+        G.Study.finish(Game, "done");
+      });
+      await step("spell to reload", () => {
+        G.Study.closeResult(); Game.quitToMainMenu();
+        G.save.settings.spellReload = true;
+        Game.startLevel(1); Game.update = function () {}; Game.state = "GAMEPLAY";
+        Game.player.ammo.pistol.mag = 1; Game.reload();
+      });
+      await step("spell to reload: wrong", () => G.SpellReload.submit("qqqqqqqq"));
+      await step("spell to reload (touch)", () => { G.SpellReload.finish(); G.Input.mode = "touch"; Game.player.ammo.pistol.mag = 1; Game.reload(); });
+      await step("word log: memory boxes, confused pairs", () => {
+        G.SpellReload.finish(); G.Input.mode = mode0; G.save.settings.spellReload = false; Game.quitToMainMenu();
+        const y = byId("affect");
+        G.save.learn.srs[G.wordKey(y)] = { b: 6, due: G.Clock.today() + 45, last: 0, n: 9, lapses: 1 };
+        G.SRS.noteConfusion(y, byId("effect")); G.SRS.noteConfusion(y, longPair);
+        UI._logReturnScreen = "screen-mainmenu"; UI.renderVocabLog(1); UI.showScreen("screen-vocablog");
+      });
+      await step("settings: Spell to Reload", () => { UI._settingsReturn = "screen-mainmenu"; UI.renderSettings(); UI.showScreen("screen-settings"); });
     } finally {
       window.alert = realAlert; window.confirm = realConfirm; Game.update = realUpdate;
       G.save = JSON.parse(backup); G.persist();

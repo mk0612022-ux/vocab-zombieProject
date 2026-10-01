@@ -232,9 +232,10 @@ G.Round7Test = (function () {
     use("fifty");
     const out = g.zombies.filter((z) => z.ruledOut);
     ok("H2 Fifty-Fifty: half the wrong words crossed out, never the right one", out.length === 2 && !target.ruledOut, out.length);
-    ok("H2 Fifty-Fifty: drawn grey with a cross", out.every((z) => z._label === "x"));
+    // (the label's key: t / x / n, then -- vocabulary series round 2 -- what it says)
+    ok("H2 Fifty-Fifty: drawn grey with a cross", out.every((z) => z._label[0] === "x"));
     sim(10.1);
-    ok("H2 Fifty-Fifty: back to normal after 10 s", !g.zombies.some((z) => z.ruledOut) && g.zombies.every((z) => z._label !== "x"));
+    ok("H2 Fifty-Fifty: back to normal after 10 s", !g.zombies.some((z) => z.ruledOut) && g.zombies.every((z) => z._label[0] !== "x"));
     // (the others, crowding round by now, off the field: the lens looks past nobody)
     g.zombies.filter((z) => z !== target).forEach((z) => { g.scene.remove(z.mesh); z.alive = false; });
     g.zombies = [target]; target.mesh.position.set(P.x, 0, P.z - 8);

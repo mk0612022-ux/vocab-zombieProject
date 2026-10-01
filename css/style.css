@@ -1605,3 +1605,119 @@ body.hudcfg-open .hud-perks { display: flex; }
 .codex-d-how { font-size: 0.86rem; margin: 2px 0 4px; color: #d8f0d8; }
 .codex-how-k { color: #6bff7a; font-weight: 800; }
 @media (max-height: 520px) { .codex-d-how { font-size: 0.76rem; } .codex-move { padding: 4px 8px 2px; margin-top: 5px; } }
+/* =====================================================================
+   Vocabulary series, round 2 (D): the spelling pad -- in play (the bar at
+   the bottom), in Spell to Reload -- and the study sessions' windows
+   ===================================================================== */
+/* the pad: the clue, a box per letter, the letter tiles, its buttons */
+.spad { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "clue clue" "slots acts" "tiles acts" "msg msg"; gap: 6px 10px; align-items: center; }
+.spad-clue { grid-area: clue; text-align: center; font-size: 1.15rem; font-weight: 800; color: #9ae8ff; line-height: 1.7; padding: 0 4px; overflow-wrap: anywhere; text-shadow: 0 1px 4px #000; }
+.spad-slots { grid-area: slots; display: flex; justify-content: center; gap: 3px; min-width: 0; }
+.sp-slot { flex: 0 1 30px; min-width: 10px; height: 38px; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 4px; border-bottom: 3px solid rgba(255,255,255,0.5); font: 800 1.3rem/1 Consolas, Menlo, 'Courier New', monospace; color: #fff; text-transform: lowercase; }
+.sp-slot.filled { border-bottom-color: #6bff7a; }
+.sp-slot.fixed { border-bottom-color: transparent; opacity: 0.85; flex-basis: 14px; }
+.sp-slot.cur { animation: spCur 1s steps(2) infinite; }
+.sp-slot[data-s].filled { cursor: pointer; }
+.sp-slot.ok, .sp-slot.bad, .sp-slot.miss { border-radius: 4px; align-items: center; padding-bottom: 0; }
+.sp-slot.ok { color: #06170b; background: #6bff7a; border-bottom-color: #2f8f45; }
+.sp-slot.bad { color: #fff; background: #d8343a; border-bottom-color: #7a1418; }
+.sp-slot.miss { background: rgba(170,170,170,0.35); border: 1px dashed rgba(255,255,255,0.7); }
+.spad-slots.marked { animation: spShake .3s linear; }
+.spad-slots.long { gap: 2px; }
+.spad-slots.long .sp-slot { min-width: 7px; font-size: 1.05rem; }
+.spad-tiles { grid-area: tiles; display: grid; grid-template-columns: repeat(var(--cols, 8), minmax(0, 46px)); justify-content: center; gap: 6px; }
+.sp-tile { aspect-ratio: 1; min-height: 34px; border-radius: 8px; border: 1.5px solid rgba(255,255,255,0.45); background: linear-gradient(180deg, rgba(44,78,58,0.95), rgba(16,30,22,0.95)); color: #fff; font: 800 1.25rem/1 'Segoe UI', Tahoma, sans-serif; text-transform: lowercase; cursor: pointer; padding: 0; touch-action: manipulation; }
+.sp-tile:hover { border-color: #6bff7a; }
+.sp-tile.used { opacity: 0.18; cursor: default; }
+.sp-tile.cursor, .sp-tile.pad-focus { outline: 3px solid #ffd43b; outline-offset: 2px; }
+.spad-actions { grid-area: acts; display: flex; flex-direction: column; gap: 6px; justify-content: center; }
+.spad[data-mode="type"] .spad-actions { flex-direction: row; }
+.sp-act { min-width: 44px; min-height: 36px; padding: 4px 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.35); background: rgba(10,18,14,0.85); color: #fff; font: 700 0.88rem/1.1 'Segoe UI', Tahoma, sans-serif; cursor: pointer; white-space: nowrap; touch-action: manipulation; }
+.sp-act:hover, .sp-act.pad-focus, .sp-act:focus-visible { border-color: #6bff7a; }
+.spad-msg { grid-area: msg; text-align: center; font-size: 0.85rem; min-height: 1.25em; line-height: 1.4; }
+.spad-msg.bad { color: #ffd0d0; }
+.spad-msg .sp-right b { color: #6bff7a; font-size: 1.1rem; letter-spacing: 0.5px; }
+.spad-msg .sp-tip { display: block; margin-top: 2px; color: #ffd43b; font-weight: 700; }
+@keyframes spCur { 50% { border-bottom-color: #ffd43b; } }
+@keyframes spShake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+
+/* in play: bottom centre, over the abilities row (keyboard) or between the
+   thumbs (touch), above the touch controls; it goes when the HUD does */
+.hud-spell { position: fixed; z-index: 16; left: 50%; transform: translateX(-50%); bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+  width: min(480px, calc(100vw - 560px)); min-width: 340px; padding: 8px 12px 6px; border-radius: 12px; background: rgba(5,10,7,0.8);
+  border: 1px solid #6bff7a55; box-shadow: 0 8px 26px rgba(0,0,0,0.5); pointer-events: auto; font-family: 'Segoe UI', 'Tahoma', 'Leelawadee UI', 'Noto Sans Thai', 'Thonburi', sans-serif; }
+#hud.hidden ~ .hud-spell, body.cine-on .hud-spell { display: none; }
+body.modal-open .hud-spell { opacity: 0.25; pointer-events: none; }
+.hud-spell.idle .spad-slots, .hud-spell.idle .spad-tiles { opacity: 0.3; }
+.hud-spell-keys { text-align: center; font-size: 0.7rem; opacity: 0.62; margin-top: 2px; line-height: 1.3; }
+/* touch: the space between the joystick side and the fire side */
+body.touch-mode .hud-spell { --tj: clamp(104px, 22vmin, 158px); --tb: clamp(42px, 10.5vmin, 76px); --tf: clamp(62px, 17vmin, 112px);
+  bottom: calc(8px + env(safe-area-inset-bottom, 0px)); min-width: 0; padding: 6px 8px 4px;
+  width: calc(100vw - 2 * (16px + var(--tj) + var(--tb) + 22px) - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)); }
+body.spell-run .touch-slots, body.spell-run .touch-abilities { display: none; }
+body.spell-only #touch-fire, body.spell-only #touch-ads, body.spell-only #touch-reload { display: none; }
+/* held upright there is no room between the thumbs: over them instead */
+@media (orientation: portrait) {
+  body.touch-mode .hud-spell { width: calc(100vw - 24px); bottom: calc(14px + env(safe-area-inset-bottom, 0px) + var(--tf) + var(--tb) * 1.75 + 12px); }
+}
+@media (max-height: 520px) {
+  .spad-clue { font-size: 1rem; line-height: 1.55; }
+  .sp-slot { height: 30px; font-size: 1.1rem; }
+  .sp-tile { min-height: 30px; font-size: 1.05rem; border-radius: 7px; }
+  .spad-tiles { gap: 4px; grid-template-columns: repeat(var(--cols, 8), minmax(0, 42px)); }
+  body.touch-mode .hud-spell { background: rgba(5,10,7,0.62); }
+  .sp-act { min-height: 30px; padding: 3px 8px; }
+  .spad { gap: 4px 8px; }
+  body.touch-mode .hud-spell-keys { display: none; }
+  /* the clue is in the box at the top of the screen and over the zombie */
+  body.touch-mode .hud-spell .spad-clue { display: none; }
+}
+/* a study session has no money */
+body.study-run .hud-money-stat { display: none; }
+
+/* Spell to Reload (D2): low on the screen, so the zombies stay in view */
+.spell-reload { background: rgba(0,0,0,0.28); align-items: flex-end; padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
+.spell-reload-box { max-width: 520px; background: rgba(8,14,20,0.94); border-color: #5aa8ff99; padding: 12px 16px; }
+.spell-reload-kicker { font-size: 0.72rem; letter-spacing: 2px; text-transform: uppercase; color: #9ac8ff; font-weight: 800; margin-bottom: 2px; }
+.spell-reload-keys { margin-top: 6px; font-size: 0.72rem; opacity: 0.65; }
+body.touch-mode .spell-reload { align-items: center; padding-bottom: 16px; }
+
+/* the Learning Modes window */
+.learn-box { max-width: 640px; text-align: left; }
+.learn-box .dialog-title { text-align: center; }
+.learn-sub { font-size: 0.85rem; opacity: 0.8; margin: 0 0 6px; text-align: center; line-height: 1.4; }
+.learn-h { font-size: 0.72rem; letter-spacing: 2px; text-transform: uppercase; color: #ffd43b; font-weight: 800; margin: 10px 0 5px; }
+.learn-modes, .learn-levels { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; }
+.learn-opt { display: flex; flex-direction: column; gap: 3px; text-align: left; padding: 9px 12px; border-radius: 10px; border: 1.5px solid #2e4636; background: rgba(16,26,20,0.92); color: #dff5df; cursor: pointer; font: inherit; }
+.learn-opt b { font-size: 0.95rem; }
+.learn-opt span { font-size: 0.76rem; opacity: 0.78; line-height: 1.35; }
+.learn-opt:hover, .learn-opt.pad-focus, .learn-opt:focus-visible { border-color: #6bff7a99; }
+.learn-opt.on { border-color: #6bff7a; background: rgba(28,70,40,0.92); box-shadow: 0 0 12px rgba(107,255,122,0.3); }
+.learn-opt.on b::before { content: "✓ "; color: #6bff7a; }
+.learn-levels .learn-opt { padding: 7px 10px; }
+.learn-box .dialog-btns { margin-top: 14px; }
+@media (max-height: 520px) {
+  .learn-box { padding: 12px 16px; }
+  .learn-opt { padding: 6px 10px; }
+  .learn-opt span { font-size: 0.7rem; }
+  .learn-h { margin: 6px 0 4px; }
+}
+
+/* the spelling intro and a session's results */
+.study-intro-box, .study-result-box { max-width: 520px; }
+.study-intro-text { text-align: left; margin: 6px 0 16px; padding-left: 22px; font-size: 0.9rem; line-height: 1.5; }
+.study-intro-text li + li { margin-top: 6px; }
+.sr-stats { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin: 8px 0; }
+.sr-stat { min-width: 96px; padding: 8px 10px; border-radius: 10px; background: rgba(255,255,255,0.05); border: 1px solid #2e4636; display: flex; flex-direction: column; gap: 2px; }
+.sr-stat b { font-size: 1.35rem; color: #6bff7a; }
+.sr-stat span { font-size: 0.72rem; opacity: 0.75; }
+.sr-note { font-size: 0.85rem; color: #bfffcf; margin: 4px 0; }
+.study-result-box .dialog-btns { margin-top: 14px; }
+/* typing the words: T is a letter, so the card's (T) key does not apply */
+body.spell-run .hud-tip-skip .kbd-only { display: none; }
+/* the Word Log: a word's memory box and the words it is confused with */
+.vw-box { font-size: 0.72rem; opacity: 0.75; margin-top: 2px; }
+.vw-box.b4, .vw-box.b5 { color: #9ae8ff; opacity: 0.9; }
+.vw-box.b6 { color: #6bff7a; opacity: 1; font-weight: 700; }
+.vw-conf { font-size: 0.74rem; color: #ffd43b; margin-top: 3px; line-height: 1.4; }
+.vw-conf b { color: #fff; }

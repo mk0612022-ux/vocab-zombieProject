@@ -66,12 +66,17 @@ G.defaultSave = function () {
       speechMode: "after",        // off | after (read the word once answered) | before (read the new target aloud)
       shopTime: 45,               // seconds in the shop between waves: 30 | 45 | 60 | 0 (no limit, wait for Ready)
       hudScale: {},               // {all, hp, stamina, ...}: HUD sizes, 1 when absent (js/hudcfg.js)
+      spellReload: false,         // (vocabulary series, round 2, D2) reloading asks for a word first
     },
     importedSets: {},             // {id: {name, words:[[en,th],...]}}
     customWords: { level1: [], level2: [], level3: [] },   // words the player added to each level ([[en,th] or [en,th,{definition,...}],...])
     notes: { level1: [], level2: [], level3: [] },          // story notes kept in the journal (ids), round 3
     bosses: { seen: {}, defeated: {} },                      // the Boss Codex: {bossId: times met / beaten}, round 2
     checkpoints: {},                                         // {level1: the run kept after wave 10}, round 3 (js/checkpoint.js)
+    // (vocabulary series, round 2) boxes, confused pairs, the Daily Review
+    // streak -- js/srs.js (G.Learning.normalize)
+    learn: G.Learning ? G.Learning.normalize({}) : null,
+    learnSeen: {},          // the spelling intros seen, per input: intro_keys, intro_touch, intro_pad (js/study.js)
   };
 };
 
@@ -109,6 +114,14 @@ G.normalizeSave = function (data) {
   // word stats: by word-bank entry id, old keys moved over (see below)
   s.wordStats = G.migrateWordStats(s.wordStats);
   s.wordStatsVersion = 2;
+  // (vocabulary series, round 2) the boxes: kept as they were, or -- a save
+  // from before them -- started from the word stats (C5: every word already
+  // met in a box by its accuracy, due today)
+  if (G.Learning) s.learn = G.Learning.normalize(data.learn, s.wordStats);
+  s.settings.spellReload = !!s.settings.spellReload;
+  const seen = data.learnSeen;
+  s.learnSeen = {};
+  if (seen && typeof seen === "object" && !Array.isArray(seen)) Object.keys(seen).forEach((k) => { if (/^intro_(keys|touch|pad)$/.test(k) && seen[k] === true) s.learnSeen[k] = true; });
   // custom words: three lists of [English, Thai] string pairs, each with an
   // optional third item of extra fields (definition, synonyms, example,
   // collocations, topic -- G.cleanCustomExtra); nothing else
@@ -301,12 +314,16 @@ G.importSaveFromFile = function (file, cb) {
 // stats are found by G.wordKey either way
 G.wordStat = function (word) { return G.save.wordStats[G.wordKey(word)] || null; };
 
-G.recordWordResult = function (word, correct) {
+// (vocabulary series, round 2) and the word's box (js/srs.js) -- as a
+// recognition answer, unless `info` says otherwise ({srs: false} when the
+// caller moves the box itself through G.Learning.answerWord)
+G.recordWordResult = function (word, correct, info) {
   const w = G.wordKey(word);
   const stats = G.save.wordStats[w] || { correct: 0, wrong: 0, lastCorrect: 0 };
   if (correct) { stats.correct++; stats.lastCorrect = Date.now(); }
   else { stats.wrong++; }
   G.save.wordStats[w] = stats;
+  if (G.SRS && G.save.learn && !(info && info.srs === false)) G.SRS.answer(word, correct, info || {});
   // Category L: this never saved on its own -- a run.s word history only
   // reached storage at victory or game over, so closing the tab mid-run
   // (routine on a phone) threw all of it away.

@@ -44,7 +44,8 @@ G.Round4Test = (function () {
       const ids = L().MODES.map((m) => m.id);
       ok("seven modes", ["school", "hospital", "bunker", "endless", "daily", "practice", "custom"].every((k) => ids.includes(k)), ids.join(","));
       ok("campaign tab: school, hospital, bunker, endless, daily", L().modes("campaign").map((m) => m.id).join() === "school,hospital,bunker,endless,daily");
-      ok("training tab: practice, custom", L().modes("training").map((m) => m.id).join() === "practice,custom");
+      // (vocabulary series, round 2: Daily Review and Learning Modes first)
+      ok("training tab: review, learn, practice, custom", L().modes("training").map((m) => m.id).join() === "review,learn,practice,custom");
       ok("every mode its own colours", new Set(L().MODES.map((m) => m.c1)).size === L().MODES.length);
       ok("school is FEATURED, daily a DAILY EVENT, practice TRAINING, custom CREATIVE",
         L().MODES.find((m) => m.id === "school").badge === "featured" && L().MODES.find((m) => m.id === "daily").badge === "daily" && L().MODES.find((m) => m.id === "practice").badge === "training" && L().MODES.find((m) => m.id === "custom").badge === "creative");
@@ -88,7 +89,7 @@ G.Round4Test = (function () {
       key("KeyD"); ok("D moves right", cur() === "bunker");
       key("ArrowLeft"); key("KeyA"); ok("← and A move left", cur() === "school");
       key("ArrowLeft"); ok("the row ends: stays on the first card", cur() === "school");
-      key("KeyE"); ok("E: next tab", L().tab === "training" && cur() === "practice");
+      key("KeyE"); ok("E: next tab", L().tab === "training" && cur() === "review");
       key("KeyQ"); ok("Q: previous tab, the selection remembered", L().tab === "campaign" && cur() === "school");
       ok("selected card: centred, bigger, ringed", (() => { const c = root.querySelector(".lcard.sel"); return c && c.dataset.id === "school" && /scale\(1\.12\)/.test(c.style.transform) && /translateX\(0%\)/.test(c.style.transform); })());
       L().iconI = 0;

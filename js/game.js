@@ -191,22 +191,38 @@ G.Game = {
   endPractice() { G.persist(); this.goToPracticeSetup(); },
 
   // ---------------- Run lifecycle ----------------
+  // (vocabulary series, round 2) every run has its learning rules -- the
+  // clue and the answer for each word (js/learnmodes.js). The campaign,
+  // Endless and the Daily Challenge are Classic: the Thai meaning, shot.
   startLevel(id) {
     this.mode = "campaign";
     this.level = G.getLevel(id);
     this.wordPool = G.WORD_SETS[this.level.wordsKey].words;
+    this.learn = G.Learn.run("classic");
     this.beginRun();
   },
   startDailyChallenge() {
     this.mode = "daily";
     this.level = Object.assign({}, G.getLevel(1), { waves: 5, name: G.T("level.daily") });
     this.wordPool = G.getDailyWordSet();
+    this.learn = G.Learn.run("classic");
     this.beginRun();
   },
   startEndless() {
     this.mode = "endless";
     this.level = Object.assign({}, G.getLevel(3), { waves: 999999, name: G.T("level.endless") });
     this.wordPool = G.getAllBuiltinWords();
+    this.learn = G.Learn.run("classic");
+    this.beginRun();
+  },
+  // Daily Review and the learning modes (js/study.js): a short session on
+  // the school's grounds with a fixed list of words
+  startStudy(session) {
+    this.mode = "study";
+    this.study = session;
+    this.level = Object.assign({}, G.getLevel(session.levelId || 1), { waves: 1, name: session.title });
+    this.wordPool = session.pool || session.cards.slice();
+    this.learn = G.Learn.run(session.preset, session.cards);
     this.beginRun();
   },
   retry() {
@@ -229,6 +245,7 @@ G.Game = {
     this.mode = "campaign";
     this.level = G.getLevel(id);
     this.wordPool = G.WORD_SETS[this.level.wordsKey].words;
+    this.learn = G.Learn.run("classic");
     this._restoring = JSON.parse(JSON.stringify(cp));
     this.beginRun();
   },
@@ -250,8 +267,11 @@ G.Game = {
     // shafts) -- before the merge, which leaves them alone
     this.notesReadRun = new Set();
     this._notesRevealed = false;
-    // (a continued run does not lay out again the notes it has already read)
-    if (G.Notes) G.Notes.place(this, restoring ? restoring.notesRead : null);
+    if (!this.learn) this.learn = G.Learn.run("classic");
+    if (this.mode !== "study") this.study = null;
+    // (a continued run does not lay out again the notes it has already read;
+    // a study session has none)
+    if (G.Notes && this.mode !== "study") G.Notes.place(this, restoring ? restoring.notesRead : null);
     if (G.Details) G.Details.build(this);
     if (G.Sky) G.Sky.build(this);                 // the moon, its light and its beams
     if (G.Glass) G.Glass.build(this);             // the panes in the real windows
@@ -324,8 +344,10 @@ G.Game = {
 
     G.UI.showScreen(null);
     G.UI.setHudVisible(true);
-    G.UI.applyControlMode();
+    // (the state first: the touch controls only show in GAMEPLAY, and were
+    // left hidden at the start of every run until the screen was touched again)
     this.state = "GAMEPLAY";
+    G.UI.applyControlMode();
     // category I: campaign levels are cleared by their objectives, not just
     // by outlasting the last wave
     this._finalWaveCleared = false;
@@ -335,6 +357,13 @@ G.Game = {
     G.Audio.startLevel(this.level.theme);
     this._stepT = 0; this._hbT = 0; this._behindT = 0; this._wasExhausted = false;
     G.Tutorial.startRun(this);
+    // (vocabulary series, round 2) the answer being given for the current
+    // target, the typing controls, the money-free HUD of a study session
+    this._attempt = null;
+    if (G.SpellReload) G.SpellReload.reset();
+    if (G.Spell) G.Spell.start(this);
+    document.body.classList.toggle("study-run", this.mode === "study");
+    if (this.mode === "study" && G.Study) G.Study.beginRun(this);
     if (restoring) G.Checkpoint.apply(this, restoring);   // wave 10's state: the next wave is 11
     this.startWave();
     if (G.Input.mode === "desktop") G.Input.requestPointerLock();
@@ -412,6 +441,10 @@ G.Game = {
     if (G.Abilities) G.Abilities.clearWorld();
     if (G.Floor3) G.Floor3.clearWorld();
     if (G.Quiz) G.Quiz.reset();
+    if (G.Spell) G.Spell.stop();
+    if (G.SpellReload) G.SpellReload.reset();
+    if (G.Study) G.Study.reset();
+    document.body.classList.remove("study-run");
     // a boss, its cutscene, its arena walls and its effects
     if (G.Cutscene) G.Cutscene.stop();
     if (G.Bosses) G.Bosses.reset(this.world ? this : null);
@@ -455,6 +488,11 @@ G.Game = {
     G.Quiz.resetWave(this);
     this.zombies.forEach((z) => (z.speedMultiplier = 1));
     this.currentDiff = this.level.difficulty + (Math.min(this.overtimeWave(), 20) - 1) * 0.18;
+    // (vocabulary series, round 2, C3) the wave's words: due, being learnt,
+    // at most four new (js/learnmodes.js G.WavePlan). A study session has
+    // its own list (js/study.js).
+    if (this.mode === "study" && G.Study) G.Study.startWave(this);
+    else this.wavePlan = G.WavePlan.build(this.wordPool, G.WavePlan.size(this.wordPool, this.requiredKills));
   },
 
   // Waves 5, 10, 15 and 20 end with a boss (js/bosses.js); overtime has none.
@@ -465,22 +503,60 @@ G.Game = {
 
   // ---------------- Word/target management ----------------
   ensureTargetHasMatch() {
+    // (vocabulary series, round 2) only a zombie answered by shooting can be
+    // the target; one answered by spelling carries its own clue, and a
+    // look-alike brought in from outside the run's words (a decoy) never is
     const alive = this.zombies.filter((z) => z.alive);
-    if (alive.length === 0) { this.targetPair = null; return; }
-    if (this.targetPair && alive.some((z) => z.word === this.targetPair[0])) {
-      alive.forEach((z) => z.setTarget(z.word === this.targetPair[0]));
+    const shootable = alive.filter((z) => z.answer !== "spell" && !z.decoy);
+    if (this.targetPair && shootable.some((z) => z.word === this.targetPair[0])) {
+      alive.forEach((z) => z.setTarget(z.word === this.targetPair[0] && z.answer !== "spell" && !z.decoy));
+      this.retireDecoys();
       return;
     }
+    if (shootable.length === 0) { this.targetPair = null; this._attempt = null; alive.forEach((z) => z.setTarget(false)); this.retireDecoys(); return; }
     // one whose word can already be read, if there is one (a zombie still
     // coming in has its label hidden)
-    const ready = alive.filter((z) => !z.emerge);
-    const chosen = G.pick(ready.length ? ready : alive);
+    const ready = shootable.filter((z) => !z.emerge);
+    let pickFrom = ready.length ? ready : shootable;
+    // (E1) a new word, or one in box 1, is not asked beside a look-alike
+    const clear = pickFrom.filter((z) => G.Distract.lookAlikesWanted(z.pair) || !alive.some((o) => o !== z && G.Distract.isSimilar(z.pair, o.pair)));
+    if (clear.length) pickFrom = clear;
+    const chosen = G.pick(pickFrom);
     this.targetPair = [chosen.word, chosen.meaning];
+    this.targetPair.id = chosen.pair && chosen.pair.id;
+    // (C2) this answer: right only if it is right the first time and no
+    // hint, perk or ability gave it away
+    this._attempt = { key: G.wordKey(chosen.pair), wrong: false, assisted: this.helpersActive(), retry: !!chosen.retry };
     // J3 "before" mode: read the new target aloud the moment it appears
     if (G.save.settings.speechMode === "before") G.Audio.speak(chosen.word);
     // (round 3: Fifty-Fifty crosses out wrong words for the new one instead)
     if (G.Abilities) G.Abilities.onNewTarget(this);
+    if (this.helpersActive()) this._attempt.assisted = true;
     alive.forEach((z) => z.setTarget(z === chosen));
+    this.retireDecoys();
+  },
+  // (C2) something is giving the answer away: the Hint Reader perk, the
+  // Whisper, Fifty-Fifty and Lens abilities
+  helpersActive() {
+    const A = G.Abilities, fx = A && A.fx || {};
+    return G.Perks.level("perk_hint") > 0 || (A && A.whisper && A.whisper()) || !!fx.fiftyOn || fx.lens > 0;
+  },
+  // (E1) a decoy is there for one target; once that word is no longer asked
+  // it crumbles away -- no reward, no penalty
+  retireDecoys() {
+    const key = this.targetPair ? G.wordKey(this.targetPair) : null;
+    this.zombies.slice().forEach((z) => {
+      if (!z.alive || !z.decoy || z.decoy.forKey === key) return;
+      this.retireZombie(z);
+    });
+  },
+  // a zombie that goes without being answered: it crumbles, no reward and
+  // no penalty (a decoy no longer wanted; in a study session, one that bit)
+  retireZombie(z) {
+    z.alive = false;
+    z._lastHit = { dir: null, head: false };
+    this.startDeathAnimation(z);
+    this.zombies = this.zombies.filter((zz) => zz !== z);
   },
 
   // `sp`: the spawn point, whose way in (ground, locker, vent, window, desk)
@@ -493,20 +569,53 @@ G.Game = {
     const alive = this.zombies.filter((z) => z.alive);
     const usedWords = alive.map((z) => z.word);
     const usedMeanings = alive.map((z) => (z.meaning || "").trim());
-    // (new series, round 1, A2) a word this wave has not had yet, while there
-    // is one: every wave brings as many different words as it has zombies, so
-    // the end-of-wave quiz always has at least six of its own to ask
-    let candidates = this.wordPool.filter((p) => !usedWords.includes(p[0]) && !usedMeanings.includes(p[1].trim()) && !G.Quiz.usedThisWave(this, p[0]));
-    if (candidates.length === 0) candidates = this.wordPool.filter((p) => !usedWords.includes(p[0]) && !usedMeanings.includes(p[1].trim()));
-    if (candidates.length === 0) candidates = this.wordPool.filter((p) => !usedMeanings.includes(p[1].trim()));
-    if (candidates.length === 0) candidates = this.wordPool;
-    const pair = G.weightedSample(candidates, 1)[0] || G.pick(this.wordPool);
+    const free = (p) => !usedWords.includes(p[0]) && !usedMeanings.includes(p[1].trim());
+    let pair = null, decoy = null;
+    // (vocabulary series, round 2, E1) a target in box 2 or higher gets a
+    // look-alike on the field -- one of the run's words if it can, else a
+    // decoy from the bank or the confusables lexicon
+    const tp = this.targetPair;
+    // (a study session: a look-alike is always a decoy -- it must not take the
+    // place of one of the session's own words -- and Daily Review has none:
+    // its zombies are the words due, and nothing else, C4)
+    if (tp && !(this.study && this.study.kind === "review")) {
+      const want = G.CONFIG.distractors.field;
+      const have = alive.filter((z) => z.lookAlikeFor === G.wordKey(tp)).length;
+      if (have < want && G.Distract.lookAlikesWanted(tp)) {
+        const f = G.Distract.forField(tp, this);
+        if (f) { pair = f.pair; if (f.decoy || this.study) decoy = { forKey: G.wordKey(tp), source: f.source }; }
+      }
+    }
+    if (!pair && this.mode === "study" && G.Study) pair = G.Study.nextCard(this);
+    if (!pair) {
+      // (C3) the wave's own words first, one each before any comes round again;
+      // (E1) nothing that looks like a target still new to the player
+      const avoid = tp && !G.Distract.lookAlikesWanted(tp) ? (p) => G.Distract.isSimilar(tp, p) : () => false;
+      const plan = (this.wavePlan || []).filter((p) => free(p) && !avoid(p));
+      let candidates = plan.filter((p) => !G.Quiz.usedThisWave(this, p[0]));
+      if (candidates.length === 0) candidates = plan;
+      // (new series, round 1, A2) otherwise a word this wave has not had yet, while there is one
+      if (candidates.length === 0) candidates = this.wordPool.filter((p) => free(p) && !avoid(p) && !G.Quiz.usedThisWave(this, p[0]));
+      if (candidates.length === 0) candidates = this.wordPool.filter((p) => free(p));
+      if (candidates.length === 0) candidates = this.wordPool.filter((p) => !usedMeanings.includes(p[1].trim()));
+      if (candidates.length === 0) candidates = this.wordPool;
+      pair = G.weightedSample(candidates, 1)[0] || G.pick(this.wordPool);
+    }
     const z = new G.Zombie(type, pos, pair, this.level.theme);
-    G.Quiz.noteWord(this, pair);                             // (the quiz asks this wave's words, A2)
+    // how it is answered: shot, or spelt (its clue on its label)
+    const how = decoy ? { clue: "thai", answer: "shoot" } : this.learn.pick(pair);
+    if (how.answer === "spell") z.setAnswer("spell", G.Learn.clueText(pair, how.clue));
+    if (tp && !decoy && G.Distract.lookAlikesWanted(tp) && G.Distract.isSimilar(tp, pair)) z.lookAlikeFor = G.wordKey(tp);
+    if (decoy) { z.decoy = decoy; z.lookAlikeFor = decoy.forKey; }
+    else G.Quiz.noteWord(this, pair);                         // (the quiz asks this wave's words, A2)
+    // (a study session's second go at a word already missed: it moves no box)
+    if (this.study && !decoy && this.study.done[G.wordKey(pair)]) z.retry = true;
     z.speed *= G.Spawner.spec ? G.Spawner.spec.speed : 1;   // the wave's pace (G.WAVE_TABLE): gentle early on
+    if (z.answer === "spell") z.speed *= G.CONFIG.spell.zombieSpeed;   // (D5) typing takes longer than a shot
+    if (this.mode === "study") z.speed *= G.CONFIG.study.speed;
     this.scene.add(z.mesh);
     this.zombies.push(z);
-    this.spawnedCount++;
+    if (!decoy) this.spawnedCount++;
     if (sp) G.ZombieFX.begin(this, z, sp);
     this.ensureTargetHasMatch();
     return z;
@@ -601,6 +710,14 @@ G.Game = {
     const magSize = Math.round(def.magSize * lvl.mag);
     if (this.player.reloading || ammo.mag >= magSize || ammo.reserve <= 0) return;
     if (this.weaponAnim.switchT > 0) return;               // not in the middle of a swap
+    // (vocabulary series, round 2, D2) Spell to Reload: a word first -- the
+    // whole magazine for the right spelling, half for a wrong one
+    if (G.SpellReload && G.SpellReload.enabled(this)) {
+      if (G.SpellReload.busy) return;
+      this._burst = null;
+      G.SpellReload.open(this, (result) => this.finishSpellReload(id, result));
+      return;
+    }
     // Animation pass A3: a reload is a routine with steps, planned per weapon
     // type by G.ViewModel. Its events drive the gameplay: ammo goes in when
     // the fresh magazine seats (or shell by shell for a tube-fed shotgun),
@@ -612,6 +729,16 @@ G.Game = {
     // is released, and pressing it again abandons the reload.
     this._sprintLatch = true;
     G.Audio.reloadEvent("start", def);
+  },
+  finishSpellReload(id, result) {
+    const ammo = this.player.ammo[id], def = G.WEAPON_DEFS[id];
+    if (!ammo || !def || this.state !== "GAMEPLAY") return;
+    const magSize = Math.round(def.magSize * this.player.weaponLevels[id].mag);
+    const goal = result === "full" ? magSize : Math.max(ammo.mag, Math.ceil(magSize * G.CONFIG.spell.reloadWrongShare));
+    const add = Math.max(0, Math.min(goal - ammo.mag, ammo.reserve));
+    ammo.mag += add; ammo.reserve -= add;
+    G.Audio.reloadEvent("in", def);
+    G.Audio.reloadEvent("slap", def);
   },
   cancelReload() {
     if (!this.player.reloading) return;
@@ -741,6 +868,9 @@ G.Game = {
       if (hitZombieUids.has(z.uid) || !z.alive) continue;
       // the part still under the floor (or above the ceiling) can't be hit
       if (G.ZombieFX.hitBlocked(z, hit.point)) continue;
+      // (vocabulary series, round 2) a zombie answered by spelling shrugs
+      // bullets off: it goes down to its word, typed
+      if (z.answer === "spell") { this.spellGlance(z, hit.point); stopAt = hit.distance; break; }
       hitZombieUids.add(z.uid);
       hitAny = true;
       // Round 2: the head is its own hitbox -- the neck group and everything
@@ -811,7 +941,7 @@ G.Game = {
     if (G.Glass) G.Glass.splash(point, r);
     // snapshot: damageZombie can remove entries from this.zombies mid-loop
     this.zombies.slice().forEach((z) => {
-      if (!z.alive) return;
+      if (!z.alive || z.answer === "spell") return;
       const d = z.mesh.position.distanceTo(point);
       if (d > r) return;
       this.damageZombie(z, baseDmg * 0.6 * (1 - 0.7 * (d / r)), z.mesh.position,
@@ -830,7 +960,7 @@ G.Game = {
     const origin = new THREE.Vector3(); this.camera.getWorldPosition(origin);
     let best = null, bestDist = def.range;
     for (const z of this.zombies) {
-      if (!z.alive) continue;
+      if (!z.alive || z.answer === "spell") continue;
       const toZ = new THREE.Vector3().subVectors(z.mesh.position, origin);
       const dist = toZ.length();
       if (dist > def.range) continue;
@@ -881,6 +1011,16 @@ G.Game = {
     return a.switchT > 0 ? 1 - a.switchT / a.switchDur : null;
   },
 
+  // a round off a zombie that has to be spelt: sparks, and now and then the reminder
+  spellGlance(z, point) {
+    G.spawnHitParticles(this.scene, point, 0x9ae8ff, G.save.settings.graphicsQuality);
+    const now = performance.now();
+    if (now - (this._glanceNoteAt || 0) > 4000) {
+      this._glanceNoteAt = now;
+      G.UI.flashPurchaseBanner(G.T("spell.glanceTitle"), G.T(G.Input.mode === "touch" || G.Input.padActive ? "spell.glanceTiles" : "spell.glanceType"));
+    }
+  },
+
   // `info`: { dir, head } -- where the hit came from and whether it was the
   // head, which decides how a killed zombie goes (js/zombiefx.js)
   damageZombie(z, dmg, hitPoint, info) {
@@ -899,7 +1039,10 @@ G.Game = {
     // Now it bursts apart, or loses its head and drops (startDeathAnimation).
     this.startDeathAnimation(z);
     this.totalZombiesKilled++;
-    const wasCorrect = this.targetPair && z.word === this.targetPair[0];
+    // (vocabulary series, round 2) a zombie spelt down is its own right
+    // answer; a decoy is never the target
+    const spelled = z._spelled || null;
+    const wasCorrect = !!spelled || (!!this.targetPair && z.word === this.targetPair[0] && !z.decoy && z.answer !== "spell");
     const P = G.Perks, pl = this.player;
     if (P.has("adrenaline")) this._adrenalineT = 3;
     if (P.has("bloodthirst")) pl.hp = Math.min(pl.maxHp, pl.hp + P.val("bloodthirst")[wasCorrect ? 1 : 0]);
@@ -914,7 +1057,7 @@ G.Game = {
       // audio reinforces the answer instead of giving it away
       if ((G.save.settings.speechMode || "after") === "after") G.Audio.speak(z.word);
       const prevStat = G.wordStat(z.word), prevWrong = !!prevStat && prevStat.wrong > 0;
-      G.recordWordResult(z.word, true);
+      this.learnRight(z, spelled);
       this.player.combo++;
       if (this.player.combo >= 50) G.unlockAchievement("streak50");
       let reward = 10 + z.word.length * 3 + Math.min(this.player.combo, 20) * 2;
@@ -923,17 +1066,28 @@ G.Game = {
       if (P.has("word_bounty") && (z.word.replace(/[^A-Za-z]/g, "").length >= 8 || prevWrong)) {
         reward = Math.round(reward * (1 + P.val("word_bounty") / 100));
       }
-      this.player.money += reward;
-      this.player.score += 15 + z.word.length * 2 + this.player.combo * 3;
+      // (D4) each letter a hint put in takes its share off
+      const hintCut = spelled ? Math.max(0, 1 - (spelled.hints || 0) * G.CONFIG.spell.hintPenalty) : 1;
+      let score = 15 + z.word.length * 2 + this.player.combo * 3;
+      if (this.mode === "study" && G.Study) score = G.Study.scoreFor(this, z, spelled);
+      else this.player.money += Math.round(reward * hintCut);
+      this.player.score += Math.round(score * hintCut);
+      if (this.mode === "study" && G.Study) G.Study.onAnswer(this, z, true);
       this.rollLootDrop(z, true);
     } else {
       this.wrongCount++;
       G.Audio.sfx("wrong");
-      G.recordWordResult(z.word, false);
-      this.trackWrongWord(z.word, z.meaning);
+      // (C2, E2) a wrong zombie shot is a wrong answer on the TARGET, and
+      // the pair (target, the word shot) is one the player confuses
+      const tp = this.targetPair;
+      this.learnWrongShot(z);
+      if (tp) this.trackWrongWord(tp[0], tp[1]); else if (!z.decoy) this.trackWrongWord(z.word, z.meaning);
+      this.showConfusion(z, tp);
+      // (a study session: the target's word was missed; the one shot comes again)
+      if (this.mode === "study" && G.Study) G.Study.onWrongShot(this, z, tp);
       // (the end-of-wave quiz asks these first: the word shot by mistake, and
       // the one that should have been)
-      G.Quiz.noteMissed(this, z.word);
+      if (!z.decoy) G.Quiz.noteMissed(this, z.word);
       if (this.targetPair) G.Quiz.noteMissed(this, this.targetPair[0]);
       // Combo Shield: one wrong answer does not cost the combo; it recharges
       // after a run of right ones
@@ -970,8 +1124,89 @@ G.Game = {
     this.wrongWordsThisRun[key].count++;
   },
 
+  // ---------------- learning (vocabulary series, round 2) ----------------
+  // A right answer on zombie z: its box moves (js/srs.js) -- unless the
+  // player already got this one wrong (C2) or had help. Spelt: a recall
+  // answer (boxes 4-5 need those).
+  learnRight(z, spelled) {
+    const inView = this.zombies.filter((o) => o.alive && o !== z).map((o) => o.pair);
+    if (spelled) {
+      if (z._spellWrong) { G.recordWordResult(z.pair, true, { srs: false }); return; }
+      G.Learning.answerWord(z.pair, true, { recall: true, assisted: (spelled.hints || 0) > 0 || !!z.retry, inView });
+      return;
+    }
+    const att = this._attempt, key = G.wordKey(z.pair), same = att && att.key === key;
+    if (same && att.wrong) { G.recordWordResult(z.pair, true, { srs: false }); return; }
+    const assisted = (same && att.assisted) || this.helpersActive() || !!z.retry;
+    G.Learning.answerWord(z.pair, true, { recall: G.Learn.isRecall(this.learn.clueFor(z.pair), "shoot"), assisted, inView });
+  },
+  // A wrong zombie shot: a wrong answer on the target (once per target), and
+  // the pair (target, word shot) noted (E2)
+  learnWrongShot(z) {
+    const tp = this.targetPair;
+    const shot = z.decoy ? z.word : z.pair;
+    if (!tp) { if (!z.decoy) G.recordWordResult(z.pair, false, { srs: false }); return; }
+    const att = this._attempt, key = G.wordKey(tp);
+    if (att && att.key === key && (att.wrong || att.retry)) { G.SRS.noteConfusion(tp, shot); if (att) att.wrong = true; return; }
+    G.Learning.answerWord(tp, false, { picked: shot });
+    if (att && att.key === key) att.wrong = true;
+  },
+  // (A4) a look-alike shot by mistake: what it means, beside the word wanted
+  showConfusion(z, tp) {
+    if (!tp || !(z.decoy || z.lookAlikeFor)) return;
+    G.UI.flashPurchaseBanner(G.T("learn.lookAlikeTitle", { x: z.word }), G.T("learn.lookAlikeText", { x: z.word, xm: z.meaning, y: tp[0], ym: tp[1] }));
+  },
+  // (D1) the spelling was right: the gun fires at it -- the shot, the flash,
+  // the kick -- and it goes down. Spelling uses no ammunition.
+  spellKill(z, opts) {
+    if (!z || !z.alive) return;
+    z._spelled = { hints: (opts && opts.hints) || 0 };
+    const def = this.currentWeaponDef();
+    const gun = def.id === "melee" ? G.WEAPON_DEFS.pistol : def;
+    const origin = new THREE.Vector3(); this.camera.getWorldPosition(origin);
+    const at = z.mesh.position.clone().setY(z.mesh.position.y + 1.3);
+    const dir = at.clone().sub(origin).normalize();
+    G.Audio.gunshot(gun, 0);
+    G.spawnMuzzleFlash(this.scene, origin.clone().addScaledVector(dir, 0.6), G.save.settings.graphicsQuality);
+    this.recoilKick(gun);
+    G.UI.showHitmarker(true);
+    this.damageZombie(z, z.hp + 1e6, at, { dir, head: true });
+  },
+  learnBitten(z) {
+    if (z.decoy) return;
+    if (z.answer === "spell") {
+      if (z._spellWrong) return;
+      z._spellWrong = true;
+      if (!z.retry) G.Learning.answerWord(z.pair, false, {});
+      if (this.mode === "study" && G.Study) G.Study.onMissed(this, z);
+      return;
+    }
+    const tp = this.targetPair, att = this._attempt;
+    if (!tp || z.word !== tp[0] || !att || att.key !== G.wordKey(tp) || att.wrong) return;
+    att.wrong = true;
+    if (!att.retry) G.Learning.answerWord(tp, false, {});
+    if (this.mode === "study" && G.Study) G.Study.onMissed(this, z);
+  },
+  // (D1) within two letters of a zombie's word: a misspelling of that word
+  spellMiss(z, typed) {
+    G.Audio.sfx("wrong");
+    this.wrongCount++;
+    if (!z._spellWrong) {
+      z._spellWrong = true;
+      if (!z.retry) G.Learning.answerWord(z.pair, false, { typed });
+      else if (typed && (G.WordBank.ownerOf(typed) || G.WordBank.confusable(typed))) G.SRS.noteConfusion(z.pair, typed);
+    } else if (typed && (G.WordBank.ownerOf(typed) || G.WordBank.confusable(typed))) G.SRS.noteConfusion(z.pair, typed);
+    this.trackWrongWord(z.word, z.meaning);
+    G.Quiz.noteMissed(this, z.word);
+    const pl = this.player;
+    if (pl.comboShield && pl.comboShield.charged && pl.combo > 0) { pl.comboShield.charged = false; pl.comboShield.streak = 0; }
+    else pl.combo = 0;
+    if (this.mode === "study" && G.Study) G.Study.onMissed(this, z);
+  },
+
   // ---------------- Loot ----------------
   rollLootDrop(z, correct) {
+    if (this.mode === "study") return;             // (a study session has no money, ammo or crates to find)
     const baseChance = z.type === "fast" ? 0.22 : 0.13;
     const chance = correct ? baseChance * 1.4 : baseChance;
     if (G.rng() > chance) return;
@@ -1157,6 +1392,8 @@ G.Game = {
     this.afterWaveCleared();
   },
   afterWaveCleared() {
+    // (vocabulary series, round 2) a study session is one wave: its results
+    if (this.mode === "study" && G.Study) { G.Study.finish(this, "done"); return; }
     if (this.mode === "campaign" && this.wave >= this.level.waves) {
       this._finalWaveCleared = true;
       // Category I: the level only ends once every objective is met. Until
@@ -1282,11 +1519,14 @@ G.Game = {
     if (this.challenge) return;
     opts = opts || {};
     const pair = opts.pair || G.pick(this.wordPool);
-    // the wrong answers are other words -- never one that means the same thing
-    const others = G.getAllBuiltinWords().filter((p) => p[0] !== pair[0] && p[1].trim() !== pair[1].trim()).map((p) => p[0]);
-    const choices = G.shuffle([pair[0], ...G.shuffle(others).slice(0, 3)]);
+    // the wrong answers are other words -- never one that means the same
+    // thing; (vocabulary series, round 2, E1) look-alikes for a word the
+    // player is getting to know, clearly different ones for a new word
+    const wrong = G.Distract.forChoices(pair, this.wordPool && this.wordPool.length >= 4 ? this.wordPool : G.getAllBuiltinWords(), 3);
+    const choicePairs = G.shuffle([pair].concat(wrong));
+    const choices = choicePairs.map((p) => p[0]);
     const limit = (opts.time || 8) + (G.Perks.val("extra_time") || 0);   // Extra Time
-    this.challenge = { pair, choices, timeLeft: limit, timeLimit: limit, onSuccess, onFail, boss: !!opts.boss };
+    this.challenge = { pair, choices, choicePairs, timeLeft: limit, timeLimit: limit, onSuccess, onFail, boss: !!opts.boss };
     this._challengeEnd = null;
     G.Modal.open("challenge", { freeze: true, keys: G.Modal.digitKeys(4, (i) => this.answerChallenge(i)) });
     G.UI.setChallengeVisible(true, label, !!opts.boss);
@@ -1298,7 +1538,9 @@ G.Game = {
     this._challengeEnd = "answer";
     const chosen = this.challenge.choices[idx];
     const correct = chosen === this.challenge.pair[0];
-    G.recordWordResult(this.challenge.pair[0], correct);
+    // (vocabulary series, round 2) its box, and the word taken for it (E2)
+    const cp = this.challenge.choicePairs || [];
+    G.Learning.answerWord(this.challenge.pair, correct, { picked: correct ? null : cp[idx], inView: cp.filter((p) => p !== this.challenge.pair) });
     const cb = correct ? this.challenge.onSuccess : this.challenge.onFail;
     const pair = this.challenge.pair;
     G.UI.setChallengeVisible(false);
@@ -1346,6 +1588,8 @@ G.Game = {
     this.onGameOver();
   },
   onGameOver() {
+    // (a study session ends with its own results, not the game-over screen)
+    if (this.mode === "study" && G.Study) { G.Study.finish(this, "died"); return; }
     this.state = "GAME_OVER";
     if (G.Cutscene) G.Cutscene.stop();
     G.Audio.bossMusic(false);
@@ -1465,6 +1709,8 @@ G.Game = {
     G.Abilities.update(this, dt);                      // round 3 (H): cooldowns and what is running
     this.updateRegen(dt);
     this.updateShooting(dt);
+    if (G.Spell) G.Spell.update(this, dt);             // (vocabulary series, round 2) the spelling pad
+    if (this.mode === "study" && G.Study) G.Study.update(this, dt);
     this.updateZombies(worldDt);
     G.Bosses.update(this, worldDt);
     if (this.state !== "GAMEPLAY") return;             // a boss's blow can end the run
@@ -1580,16 +1826,23 @@ G.Game = {
       meaning += hint >= 2 ? G.T("hud.hintLen", { c: w[0].toUpperCase(), n: w.replace(/[^A-Za-z]/g, "").length })
         : G.T("hud.hintFirst", { c: w[0].toUpperCase() });
     }
+    // (vocabulary series, round 2) what kind of clue this is: the word to
+    // shoot, or -- nothing to shoot -- the one the spelling pad is on
+    let meaningLabel = G.T("hud.shootMeaning");
+    const sf = G.Spell && G.Spell.active ? G.Spell.focus : null;
+    if (!this.targetPair && sf) { meaning = sf.clue; meaningLabel = G.T("hud.spellMeaning"); }
+    else if (!this.targetPair && G.Spell && G.Spell.active && this.learn && !this.learn.shoots) meaningLabel = G.T("hud.spellMeaning");
     const campaign = this.mode === "campaign";
     return {
       hp: (this.player.hp / this.player.maxHp) * 100, stamina: (this.stamina / this.maxStamina) * 100,
       staminaExhausted: this.staminaExhausted, money: this.player.money, score: this.player.score,
-      levelLabel: G.T("hud.levelWave", { level: this.level.name, wave: this.wave + (campaign ? "/" + this.level.waves : "") }) +
+      levelLabel: this.mode === "study" && G.Study ? G.Study.hudLabel(this) : G.T("hud.levelWave", { level: this.level.name, wave: this.wave + (campaign ? "/" + this.level.waves : "") }) +
         (campaign && this.wave > this.level.waves ? G.T("hud.overtime") : ""),
       objectives: G.Objectives.state ? G.T("hud.objectives", { d: G.Objectives.doneCount(this), n: G.Objectives.list(this).length }) : null,
       // what is still between the player and the end of the wave: the ones
-      // alive plus the rest of the quota still to come
-      zombiesLeft: this.zombies.length + (G.Bosses.phase ? 0 : Math.max(0, this.requiredKills - this.spawnedCount)), weaponName: def.name,
+      // alive plus the rest of the quota still to come (a decoy is not one)
+      zombiesLeft: this.zombies.filter((z) => !z.decoy).length + (G.Bosses.phase ? 0 : Math.max(0, this.requiredKills - this.spawnedCount)), weaponName: def.name,
+      meaningLabel,
       isMelee: id === "melee",
       weightLabel: def.id === "melee" ? null : G.weightClass(def).label,
       weightColor: def.id === "melee" ? null : G.weightClass(def).color,
@@ -1624,15 +1877,29 @@ G.Game = {
 
     // Move
     let mx = 0, mz = 0;
-    if (G.Input.mode === "desktop") {
-      if (G.Input.isDown("forward")) mz -= 1;
-      if (G.Input.isDown("back")) mz += 1;
-      if (G.Input.isDown("left")) mx -= 1;
-      if (G.Input.isDown("right")) mx += 1;
+    // (vocabulary series, round 2) typing the words: every letter goes into
+    // the bar, so the arrow keys walk (D1); spelling to reload: the player
+    // stands still until it is answered (D2)
+    const typing = G.Spell && G.Spell.typing();
+    const feetHeld = G.Modal.isOpen("spellreload");
+    if (feetHeld) { /* standing still */ }
+    else if (G.Input.mode === "desktop") {
+      if (typing) {
+        const K = G.Input.keys;
+        if (K.ArrowUp) mz -= 1;
+        if (K.ArrowDown) mz += 1;
+        if (K.ArrowLeft) mx -= 1;
+        if (K.ArrowRight) mx += 1;
+      } else {
+        if (G.Input.isDown("forward")) mz -= 1;
+        if (G.Input.isDown("back")) mz += 1;
+        if (G.Input.isDown("left")) mx -= 1;
+        if (G.Input.isDown("right")) mx += 1;
+      }
     } else {
       mx = G.Input.touchMove.x; mz = G.Input.touchMove.y;
     }
-    if (gp) {
+    if (gp && !feetHeld) {
       const lx = gp.axes[0] || 0, ly = gp.axes[1] || 0;
       if (Math.abs(lx) > 0.15) mx += lx;
       if (Math.abs(ly) > 0.15) mz += ly;
@@ -1698,7 +1965,7 @@ G.Game = {
     // no real "standing on geometry" physics, so the player's eye height just
     // tracks whatever height zone they're currently over, on top of jump gravity.
     const baseEyeY = 1.7 + G.getFloorHeightAt(this.world, this.yawObject.position.x, this.yawObject.position.z, this.yawObject.position.y - 1.7);
-    const jumpPressed = (G.Input.mode === "desktop" && G.Input.isDown("jump")) || G.Input.touchJump || G.Input.padJump;
+    const jumpPressed = !feetHeld && ((G.Input.mode === "desktop" && !typing && G.Input.isDown("jump")) || G.Input.touchJump || (G.Input.padJump && !(G.Spell && G.Spell.active)));
     if (jumpPressed && this.yawObject.position.y <= baseEyeY + 0.01 && this.velocityY === 0) this.velocityY = PC.jumpSpeed;
     this.velocityY -= 9.8 * dt;
     this.yawObject.position.y += this.velocityY * dt;
@@ -1740,7 +2007,8 @@ G.Game = {
     const lookYaw = dYaw / dt, lookPitch = this._prevPitch === undefined ? 0 : (pitchNow - this._prevPitch) / dt;
     this._prevYaw = yawNow; this._prevPitch = pitchNow;
     const airborne = this.velocityY !== 0;
-    const rawFire = !this.challenge && ((G.Input.mode === "desktop" && G.Input.mouseDown) || G.Input.touchFire || G.Input.padFire);
+    // (a run answered only by spelling has no trigger: the words are the shots)
+    const rawFire = !this.challenge && !feetHeld && !(this.learn && !this.learn.shoots) && ((G.Input.mode === "desktop" && G.Input.mouseDown) || G.Input.touchFire || G.Input.padFire);
 
     G.PlayerBody.stepGait(dt, vel, yawNow, airborne);
     // the camera rides the same gait (animation pass B), before the gun so
@@ -1988,6 +2256,9 @@ G.Game = {
         z.attackCooldown = 1.0;
         if (z.lunge) z.lunge();
         // (Dash: nothing lands while it lasts; Barrier: a quarter does)
+        // (vocabulary series, round 2, C2) the zombie carrying the word asked
+        // got to the player first: a wrong answer on that word (once)
+        this.learnBitten(z);
         const dmg = z.damage * (1 - this.player.armorPct) * G.Abilities.damageTakenMult();
         if (dmg <= 0) continue;
         this.player.hp -= dmg;
@@ -2003,6 +2274,14 @@ G.Game = {
           this.pushZombie(z, z.mesh.position.x - playerPos.x, z.mesh.position.z - playerPos.z, 1.8);
         }
         this.checkPlayerDeath();
+        // (vocabulary series, round 2) a study session: one bite and it goes,
+        // its word shown and brought back later -- a slow speller is taught,
+        // not overrun
+        if (this.mode === "study" && G.Study && this.state === "GAMEPLAY" && z.alive) {
+          G.Study.onBite(this, z);
+          this.ensureTargetHasMatch();
+          this.checkWaveClear();
+        }
       }
     }
   },
@@ -2625,7 +2904,10 @@ G.Game = {
     G.Pad.poll(delta);
 
     this.clock.getDelta();
-    this.update(delta);
+    // (the first frame -- or the first after the page was hidden since it
+    // loaded -- has no time behind it: a step of 0 divides into NaN in the
+    // camera rig, which then never recovers)
+    if (delta > 0) this.update(delta);
 
     if (this.scene && this.camera) this.renderFrame();
   },
@@ -2648,6 +2930,10 @@ G.onKeyDown = function (e) {
   }
   // round 4: the lobby takes its own keys (move, select, switch tab)
   if (Game.state === "MENU" && G.Lobby && G.Lobby.onKey(e)) return;
+  // (vocabulary series, round 2, D1) typing the words: letters, space,
+  // hyphen, Backspace, Tab (a hint) and Enter belong to the bar -- before
+  // any gameplay key that happens to be a letter
+  if (Game.state === "GAMEPLAY" && !(G.Cutscene && G.Cutscene.active) && G.Spell && G.Spell.onKey(e)) return;
   if (Game.state === "GAMEPLAY" && e.code === "KeyV") { Game.speakCurrentWord(); return; }
   if (Game.state === "GAMEPLAY" && e.code === "KeyT" && G.Tutorial.current) { G.Tutorial.skip(); return; }
   if (Game.state === "GAMEPLAY") {
@@ -2673,6 +2959,8 @@ G.onKeyUp = function () {};
 // A single trigger-pull edge, shared by the mouse and the touch FIRE button.
 G.onFirePress = function () {
   const Game = G.Game;
+  // (a run answered only by spelling: the trigger does nothing but remind)
+  if (G.Game.playing() && Game.learn && !Game.learn.shoots) { Game.spellGlance && G.Spell.focus && Game.spellGlance(G.Spell.focus, G.Spell.focus.mesh.position.clone().setY(G.Spell.focus.mesh.position.y + 1.2)); return; }
   if (G.Game.playing() && !Game.challenge) Game._fireEdge = true;
 };
 G.onMouseDown = function (e) {

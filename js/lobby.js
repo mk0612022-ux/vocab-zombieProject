@@ -29,6 +29,10 @@ G.Lobby = {
     { id: "bunker", tab: "campaign", level: 3, badge: "campaign", c1: "#ff6b81", c2: "#a3203c", icon: "🛡️", needs: 3 },
     { id: "endless", tab: "campaign", badge: "survival", c1: "#a55eea", c2: "#5f27cd", icon: "♾️" },
     { id: "daily", tab: "campaign", badge: "daily", c1: "#feca57", c2: "#ff9f1a", icon: "📅" },
+    // (vocabulary series, round 2) the day's review and the learning modes;
+    // `art`: whose pictures they borrow
+    { id: "review", tab: "training", badge: "review", c1: "#48dbfb", c2: "#0a79df", icon: "🧠", art: "school" },
+    { id: "learn", tab: "training", badge: "learn", c1: "#ffd43b", c2: "#e67e22", icon: "✍️", art: "practice" },
     { id: "practice", tab: "training", badge: "training", c1: "#55efc4", c2: "#00a86b", icon: "🎯" },
     { id: "custom", tab: "training", badge: "creative", c1: "#fd79a8", c2: "#a55eea", icon: "✏️" },
   ],
@@ -49,7 +53,7 @@ G.Lobby = {
   modes(tab) { return this.MODES.filter((m) => m.tab === (tab || this.tab)); },
   current() { return this.modes()[this.sel[this.tab]] || this.modes()[0]; },
   locked(m) { return !!m.needs && !G.save.unlockedLevels.includes(m.needs); },
-  art(m, card) { return "assets/lobby/" + m.id + (card ? "-card" : "") + ".jpg"; },
+  art(m, card) { return "assets/lobby/" + (m.art || m.id) + (card ? "-card" : "") + ".jpg"; },
   title(m) { return m.level ? G.getLevel(m.level).name : G.T("lobby.mode." + m.id); },
   // the level's own word families from the word bank (the player's added ones are not counted)
   wordsFor(levelId) { return G.CustomVocab.builtin(G.getLevel(levelId).wordsKey); },
@@ -80,6 +84,20 @@ G.Lobby = {
       const weak = all.filter((p) => { const s = G.wordStat(p); return s && s.wrong > 0 && !G.isWordMastered(p); }).length;
       rows.push([T("lobby.words"), this.mastered(all) + " / " + all.length]);
       rows.push([T("lobby.weak"), weak]);
+    } else if (m.id === "review") {
+      // (vocabulary series, round 2, C4) due today, the streak, tomorrow
+      const f = G.SRS.forecast();
+      rows.push([T("lobby.due"), f.today]);
+      rows.push([T("lobby.streak"), G.SRS.streakNow()]);
+      rows.push([T("lobby.bestStreak"), G.save.learn.daily.best]);
+      rows.push([T("lobby.tomorrow"), f.tomorrow]);
+    } else if (m.id === "learn") {
+      // the words met so far, by box
+      const S = G.save.learn.srs, n = [0, 0, 0];
+      Object.keys(S).forEach((k) => { const b = S[k].b; n[b <= 2 ? 0 : b >= G.Learning.MASTERED ? 2 : 1]++; });
+      rows.push([T("lobby.learning"), n[0]]);
+      rows.push([T("lobby.known"), n[1]]);
+      rows.push([T("lobby.masteredBox"), n[2]]);
     } else if (m.id === "custom") {
       const n = Object.values(S.customWords || {}).reduce((a, l) => a + l.length, 0);
       rows.push([T("lobby.yourWords"), n]);
@@ -98,6 +116,7 @@ G.Lobby = {
     const T = G.T;
     if (m.level) { const l = G.getLevel(m.level); return T("lobby.waves", { n: l.waves }) + " · " + "★".repeat(Math.round(l.difficulty * 2)); }
     if (m.id === "daily") return "⏱ " + this.countdown();
+    if (m.id === "review") { const n = G.SRS.forecast().today; return n ? T("lobby.meta.review", { n }) : T("lobby.meta.reviewNone"); }
     return T("lobby.meta." + m.id);
   },
 
@@ -238,7 +257,7 @@ G.Lobby = {
         `<span class="lc-or"><span class="kb-only"><kbd>Enter</kbd></span><span class="pad-only"><kbd class="pad-a">A</kbd></span><span class="touch-only">${G.escapeHtml(T("lobby.tapAgain"))}</span> ${G.escapeHtml(T("lobby.moreChoices"))}</span>`;
       this.el("lobby-cp-btn").onclick = (e) => { e.stopPropagation(); this.launch({ cont: true }); };
     }
-    else el.innerHTML = `<span class="kb-only"><kbd>Enter</kbd></span><span class="pad-only"><kbd class="pad-a">A</kbd></span><span class="touch-only">${G.escapeHtml(T("lobby.tapAgain"))}</span> ${G.escapeHtml(T(m.level || m.id === "endless" || m.id === "daily" ? "lobby.play" : "lobby.open"))}`;
+    else el.innerHTML = `<span class="kb-only"><kbd>Enter</kbd></span><span class="pad-only"><kbd class="pad-a">A</kbd></span><span class="touch-only">${G.escapeHtml(T("lobby.tapAgain"))}</span> ${G.escapeHtml(T(m.level || m.id === "endless" || m.id === "daily" || m.id === "review" ? "lobby.play" : "lobby.open"))}`;
   },
   // the big picture and the text: cross-faded, the new title rising in
   showPreview(instant) {
@@ -352,6 +371,10 @@ G.Lobby = {
       G.Checkpoint.chooseRun(m.level, (fn) => this.launch({ then: fn }));
       return;
     }
+    // (vocabulary series, round 2) a window over the lobby, not a run: the
+    // Learning Modes picker, or Daily Review with nothing due ("All reviewed")
+    if (m.id === "learn") { G.Study.openPicker(); return; }
+    if (m.id === "review" && !G.SRS.dueToday().length) { G.Study.openDaily(); return; }
     // into the picture, then to black, then the game
     this._launching = true;
     this.el("lobby").classList.add("launching");
@@ -362,6 +385,7 @@ G.Lobby = {
       else if (m.level) G.Game.startLevel(m.level);
       else if (m.id === "endless") G.Game.startEndless();
       else if (m.id === "daily") G.Game.startDailyChallenge();
+      else if (m.id === "review") G.Study.openDaily();
       else if (m.id === "practice") G.Game.goToPracticeSetup();
       else if (m.id === "custom") G.CustomVocabUI.open("screen-mainmenu");
       this.el("lobby").classList.remove("launching");

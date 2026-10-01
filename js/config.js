@@ -159,6 +159,50 @@ G.CONFIG = {
   // ---------------- touch and HUD settings (their limits) ----------------
   touch: { lookDrag: 2.2 },                  // pixels of drag -> turn (x the player's sensitivity)
   hud: { minScale: 0.5, maxScale: 1.5 },
+
+  // ---------------- learning (vocabulary series, round 2: js/srs.js, js/learnmodes.js) ----------------
+  srs: {
+    intervals: [1, 3, 7, 14, 30],   // days until the next review once a word is in box 1..5
+    masteredEvery: 60,              // a mastered word comes back every 60 days
+    recognitionMaxBox: 3,           // right answers that only need recognising (Classic) go no higher
+    // (vocabulary series C5) the first box of a word the old statistics knew:
+    // accuracy at or above `high` -> box 3, at or above `mid` -> box 2, else 1
+    fromStats: { high: 0.85, mid: 0.6 },
+  },
+  waveWords: {
+    maxNew: 4,                      // new words a wave may bring (more only while a wave would have fewer than quiz.minWordsPerWave)
+    share: 0.6,                     // different words in a wave: this share of its zombies...
+    max: 14,                        // ...at most this many (and never fewer than quiz.minWordsPerWave)
+    learningShare: 0.35,            // of those, words still being learnt (boxes 1-2), after the due ones
+  },
+  adaptive: { spellFromBox: 3 },    // Adaptive: a word from this box up is answered by spelling it
+  distractors: {
+    field: 1,                       // look-alike zombies on the field for a target in box 2 or higher
+    choices: 2,                     // look-alike wrong answers in a question (the rest are random)
+    fromBox: 2,                     // below this box (new words, box 1) only clearly different words are used
+    nearSpelling: 2,                // "spelt nearly the same": at most this many letters apart
+    clearAfter: 3,                  // right answers in a row with the look-alike there, and the pair is let go
+  },
+  spell: {
+    zombieSpeed: 0.62,              // zombies answered by spelling walk at this share of their speed
+    nearMiss: 2,                    // letters apart from a word on the field that still count as a misspelling of it
+    decoyLetters: [2, 3],           // extra letters mixed into the tiles (touch and controller)
+    hintPenalty: 0.3,               // each letter revealed takes this share off the kill's money and score
+    feedbackSeconds: 2.6,           // how long a wrong spelling stays marked up
+    reloadWrongShare: 0.5,          // Spell to Reload: a wrong answer loads half a magazine
+  },
+  study: {
+    // Daily Review and the learning modes (js/study.js): short sessions
+    dailyMax: 30,                   // words per Daily Review session (a Continue button if more are due)
+    learnCards: 16,                 // words per learning-mode session
+    alive: 5,                       // zombies on the field at once
+    aliveSpell: 3,                  // ...in a session answered only by spelling (typing takes longer)
+    every: 2.4,                     // seconds between arrivals
+    everySpell: 4,                  // ...in a session answered only by spelling
+    speed: 0.9,                     // walking speed (x the zombie's own)
+    retryWrong: true,               // a word missed comes back once at the end (it does not count again)
+    score: { right: 30, perBox: 10, spell: 20 },
+  },
 };
 
 // ---------------- Level definitions ----------------

@@ -11,15 +11,17 @@
 //                six, the ones the player shot wrong this wave go first.
 //   a question   four choices; Thai meaning -> English word and English word
 //                -> Thai meaning in turn; the wrong choices are other words of
-//                the level, never one meaning the same. Fifteen seconds; out
+//                the level, never one meaning the same (vocabulary series
+//                round 2: look-alikes for a word being learnt, clearly
+//                different words for a new one -- js/distract.js). Fifteen seconds; out
 //                of time is a mistake. The answer shows at once -- the right
 //                one lit green, a wrong pick red -- then the next.
 //   the window   a G.Modal window that pauses everything; "Correct: X/6" and
 //                "Mistakes: X/2" all the while; at the end, passed or not and
 //                the words missed. Keys 1-4 (weapon keys do nothing while it
 //                is open), a tap or a click, or a controller's D-pad and A.
-// Every answer goes into the long-term word statistics (G.recordWordResult),
-// so a word missed here comes up more often, and onto the run's list of
+// Every answer goes into the long-term word statistics and the word's memory
+// box (G.Learning.answerWord), so a word missed here comes up more often, and onto the run's list of
 // words to review. The numbers are G.CONFIG.quiz (js/config.js).
 // ===================================================================
 (function () {
@@ -51,14 +53,12 @@
       const pool = (game.wordPool && game.wordPool.length ? game.wordPool : G.getAllBuiltinWords());
       return chosen.map((pair, i) => {
         const kind = i % 2 === 0 ? "th2en" : "en2th";
-        const picks = [], seenEn = [pair[0]], seenTh = [pair[1]];
-        for (const p of G.shuffle(pool.slice())) {
-          if (picks.length >= 3) break;
-          if (seenEn.some((w) => same(w, p[0])) || seenTh.some((m) => same(m, p[1]))) continue;
-          picks.push(p); seenEn.push(p[0]); seenTh.push(p[1]);
-        }
+        // (vocabulary series, round 2, E1) the wrong choices: look-alikes
+        // for a word the player is getting to know, clearly different
+        // words for a new one (js/distract.js)
+        const picks = G.Distract.forChoices(pair, pool, 3);
         const opts = G.shuffle([pair].concat(picks));
-        return { pair, kind, choices: opts.map((p) => (kind === "th2en" ? p[0] : p[1])), answer: opts.indexOf(pair) };
+        return { pair, kind, opts, choices: opts.map((p) => (kind === "th2en" ? p[0] : p[1])), answer: opts.indexOf(pair) };
       });
     },
 
@@ -122,7 +122,10 @@
       this.stage = "feedback"; this.t = 0;
       if (right) this.correct++;
       else { this.mistakes++; this.missed.push(q.pair); game.trackWrongWord(q.pair[0], q.pair[1]); }
-      G.recordWordResult(q.pair[0], right);
+      // its box (a recognition answer: box 3 at most), and a wrong pick is a
+      // pair the player confuses (E2); the others shown count towards
+      // letting such a pair go
+      G.Learning.answerWord(q.pair, right, { picked: !right && k >= 0 ? q.opts[k] : null, inView: q.opts.filter((p) => p !== q.pair) });
       q.picked = k; q.right = right;
       const btns = document.querySelectorAll("#quiz-choices .quiz-choice");
       btns.forEach((b, i) => { b.disabled = true; b.classList.toggle("is-right", i === q.answer); b.classList.toggle("is-wrong", i === k && !right); });

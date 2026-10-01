@@ -609,18 +609,32 @@ G.buildMeleeMesh = function () {
 };
 
 // ---------------- Word billboard sprite ----------------
+// (vocabulary series, round 2, D1) A label is drawn as large as fits: a long
+// word or a long Thai meaning shrinks instead of running off the edge. Thai
+// sits a little lower and smaller than English so the vowels and tone marks
+// stacked above the line (and the vowels below it) stay on the canvas.
+const THAI_CHAR = new RegExp("[" + String.fromCharCode(0x0E00) + "-" + String.fromCharCode(0x0E7F) + "]");
+G.drawWordLabel = function (ctx, canvas, text, color) {
+  const thai = THAI_CHAR.test(text);
+  const family = thai ? "Tahoma, Leelawadee UI, Noto Sans Thai, Segoe UI, sans-serif" : "Segoe UI, sans-serif";
+  let size = thai ? 52 : 64;
+  const room = canvas.width - 28;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.font = "bold " + size + "px " + family;
+  while (size > 20 && ctx.measureText(text).width > room) { size -= 3; ctx.font = "bold " + size + "px " + family; }
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  const y = canvas.height / 2 + (thai ? size * 0.08 : 0);
+  ctx.lineWidth = thai ? 7 : 8; ctx.strokeStyle = "rgba(0,0,0,0.85)"; ctx.lineJoin = "round";
+  ctx.strokeText(text, canvas.width / 2, y);
+  ctx.fillStyle = color || "#ffffff";
+  ctx.fillText(text, canvas.width / 2, y);
+};
 G.makeWordSprite = function (text, opts) {
   opts = opts || {};
   const canvas = document.createElement("canvas");
   canvas.width = 512; canvas.height = 128;
   const ctx = canvas.getContext("2d");
-  ctx.clearRect(0, 0, 512, 128);
-  ctx.font = "bold 64px Segoe UI, sans-serif";
-  ctx.textAlign = "center"; ctx.textBaseline = "middle";
-  ctx.lineWidth = 8; ctx.strokeStyle = "rgba(0,0,0,0.85)";
-  ctx.strokeText(text, 256, 64);
-  ctx.fillStyle = opts.color || "#ffffff";
-  ctx.fillText(text, 256, 64);
+  G.drawWordLabel(ctx, canvas, text, opts.color || "#ffffff");
   const tex = new THREE.CanvasTexture(canvas);
   const mat = new THREE.SpriteMaterial({ map: tex, depthTest: true, transparent: true });
   const sprite = new THREE.Sprite(mat);
@@ -631,14 +645,7 @@ G.makeWordSprite = function (text, opts) {
   return sprite;
 };
 G.updateWordSprite = function (sprite, text, color) {
-  const ctx = sprite.userData.ctx, canvas = sprite.userData.canvas;
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.font = "bold 64px Segoe UI, sans-serif";
-  ctx.textAlign = "center"; ctx.textBaseline = "middle";
-  ctx.lineWidth = 8; ctx.strokeStyle = "rgba(0,0,0,0.85)";
-  ctx.strokeText(text, 256, 64);
-  ctx.fillStyle = color || "#ffffff";
-  ctx.fillText(text, 256, 64);
+  G.drawWordLabel(sprite.userData.ctx, sprite.userData.canvas, text, color || "#ffffff");
   sprite.userData.tex.needsUpdate = true;
 };
 
@@ -1158,7 +1165,13 @@ G.Zombie = function (type, position, wordPair, theme) {
   this.speedMultiplier = 1;
   this.word = wordPair[0];
   this.meaning = wordPair[1];
+  this.pair = wordPair;
   this.isTarget = false;
+  // (vocabulary series, round 2) how it is answered -- shot (its label is
+  // the English word) or spelt (its label is its clue) -- set by the game
+  this.answer = "shoot";
+  this.clue = "";
+  this.labelText = this.word;
 
   this.look = G.randomZombieLook(type, theme);
   this.mesh = G.buildZombieMesh(type, null, this.look);
@@ -1176,10 +1189,28 @@ G.Zombie = function (type, position, wordPair, theme) {
 G.Zombie.prototype.setTarget = function (isTarget) {
   this.isTarget = isTarget;
   const out = !!this.ruledOut && !isTarget;
-  const key = (isTarget ? "t" : out ? "x" : "n");
+  const spell = this.answer === "spell";
+  const hot = isTarget || (spell && this.spellFocus);
+  const key = (hot ? "t" : out ? "x" : "n") + (spell ? "s" : "") + this.labelText;
   if (this._label === key) return;
   this._label = key;
-  G.updateWordSprite(this.sprite, out ? "✗ " + this.word : this.word, isTarget ? "#ffe36b" : out ? "#6c7078" : "#ffffff");
+  G.updateWordSprite(this.sprite, out ? "✗ " + this.labelText : this.labelText, hot ? "#ffe36b" : out ? "#6c7078" : spell ? "#9ae8ff" : "#ffffff");
+};
+// (vocabulary series, round 2) answered by spelling: the clue on its label
+G.Zombie.prototype.setAnswer = function (answer, clue) {
+  this.answer = answer || "shoot";
+  this.clue = clue || "";
+  this.labelText = this.answer === "spell" ? this.clue : this.word;
+  // (a Thai clue is read, not recognised at a glance: a larger label)
+  const k = this.answer === "spell" ? 1.3 : 1;
+  this.sprite.scale.set(2.2 * k, 0.55 * k, 1);
+  this._label = null;
+  this.setTarget(this.isTarget);
+};
+// the zombie the spelling pad is about (js/spell.js)
+G.Zombie.prototype.setSpellFocus = function (on) {
+  this.spellFocus = !!on;
+  this.setTarget(this.isTarget);
 };
 G.Zombie.prototype.takeDamage = function (dmg) {
   this.hp -= dmg;

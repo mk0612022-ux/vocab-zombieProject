@@ -238,6 +238,8 @@ G.UI = {
           <option value="30">${T("settings.seconds", { n: 30 })}</option><option value="45">${T("settings.seconds", { n: 45 })}</option>
           <option value="60">${T("settings.seconds", { n: 60 })}</option><option value="0">${T("settings.shopNoLimit")}</option>
         </select></div>
+      <div class="settings-row"><label for="set-spellreload">${T("settings.spellReload")}</label>
+        <input type="checkbox" id="set-spellreload"></div>
 
       <div class="settings-section-title">${T("settings.accessibility")}</div>
       <div class="settings-row"><label>${T("settings.fontSize")}</label>
@@ -307,6 +309,9 @@ G.UI = {
     wrap.querySelector("#set-shoptime").value = String(s.shopTime);
     // (a shop already open keeps its clock; the new time applies from the next one)
     wrap.querySelector("#set-shoptime").onchange = (e) => { s.shopTime = parseInt(e.target.value, 10); G.persist(); };
+    // (vocabulary series, round 2, D2) from the next reload on
+    wrap.querySelector("#set-spellreload").checked = !!s.spellReload;
+    wrap.querySelector("#set-spellreload").onchange = (e) => { s.spellReload = e.target.checked; G.persist(); };
     wrap.querySelector("#set-speechmode").value = s.speechMode || "after";
     wrap.querySelector("#set-speechmode").onchange = (e) => { s.speechMode = e.target.value; G.persist(); };
     wrap.querySelector("#btn-speech-test").onclick = () => G.Audio.speak("vocabulary");
@@ -413,7 +418,18 @@ G.UI = {
           ? `<span class="vocab-badge correct">${R}${stat.wrong ? ` / ${W}` : ""}</span>`
           : `<span class="vocab-badge wrong">${W}${stat.correct ? ` / ${R}` : ""}</span>`;
       }
-      return `<div class="vocab-item"><div><div class="vw-en">${esc(en)} <button class="speak-btn" data-word="${esc(en)}" aria-label="${G.T("vocablog.hear", { word: esc(en) })}">🔊</button>${mine}</div><div class="vw-th">${esc(th)}</div></div>${badge}</div>`;
+      // (vocabulary series, round 2) its memory box and next review, and the
+      // words it is mixed up with (E2), each with what it means
+      const st = G.SRS.state(pair);
+      let box = "";
+      if (st) {
+        const d = st.due - G.Clock.today();
+        const when = G.T(d <= 0 ? "learn.dueToday" : d === 1 ? "learn.dueTomorrow" : "learn.dueIn", { n: d });
+        box = `<div class="vw-box b${st.b}">${esc(st.b >= G.Learning.MASTERED ? G.T("learn.boxMastered") : G.T("learn.box", { n: st.b }))} · ${esc(G.T("learn.due", { when }))}</div>`;
+      }
+      const conf = G.SRS.confusedWith(pair).slice(0, 2).map((x) => G.Distract.resolve(x)).filter(Boolean);
+      const confLine = conf.length ? `<div class="vw-conf">${esc(G.T("learn.confusedWith")).replace("{x}", conf.map((p) => `<b lang="en">${esc(p[0])}</b> <span lang="th">(${esc(p[1])})</span>`).join(", "))}</div>` : "";
+      return `<div class="vocab-item"><div><div class="vw-en">${esc(en)} <button class="speak-btn" data-word="${esc(en)}" aria-label="${G.T("vocablog.hear", { word: esc(en) })}">🔊</button>${mine}</div><div class="vw-th">${esc(th)}</div>${box}${confLine}</div>${badge}</div>`;
     }).join("");
     this.el("vocablog-content").innerHTML = `<div class="vocab-grid">${items}</div>`;
   },
@@ -916,6 +932,12 @@ G.UI = {
       (p.weightLabel ? ` <span style="color:${p.weightColor};font-size:0.78em">[${p.weightLabel}]</span>` : "");
     this.el("hud-ammo").textContent = p.isMelee ? G.T("hud.ammoMelee") : `${p.ammoInMag} / ${p.ammoReserve}`;
     this.el("hud-meaning").textContent = p.currentMeaning || "-";
+    // (vocabulary series, round 2) "Shoot the word for" or "Spell the word for"
+    if (p.meaningLabel && p.meaningLabel !== this._meaningLabel) {
+      this._meaningLabel = p.meaningLabel;
+      const lab = document.querySelector(".hud-meaning-label");
+      if (lab) lab.textContent = p.meaningLabel;
+    }
     const obj = this.el("hud-objectives");
     if (p.objectives) {
       obj.classList.remove("hidden");
