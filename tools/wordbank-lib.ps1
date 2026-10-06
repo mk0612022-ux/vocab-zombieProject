@@ -1,7 +1,7 @@
 # ===================================================================
 # Shared by tools/words-export.ps1 and tools/words-import.ps1: reading
-# and writing the word bank's data files (js/data/bank_*.js,
-# js/data/confusables.js). The game loads them with plain <script> tags,
+# and writing the word bank's data files (public/js/data/bank_*.js,
+# public/js/data/confusables.js). The game loads them with plain <script> tags,
 # so it runs from a folder on disk as well as from a web host; the JSON
 # inside sits between /*BANK*/ (or /*CONFUSABLES*/) and /*END*/ for these
 # scripts to find.
@@ -108,7 +108,7 @@ G.BANK_$level =
 $body
 /*END*/;
 "@
-  [IO.File]::WriteAllText((Join-Path $root "js/data/$file"), ($text -replace "`r`n", "`n"), $script:utf8NoBom)
+  [IO.File]::WriteAllText((Join-Path $root "public/js/data/$file"), ($text -replace "`r`n", "`n"), $script:utf8NoBom)
 }
 
 # ---------------- CSV (tools/words-export.ps1, tools/words-import.ps1) ----------------
@@ -235,5 +235,5 @@ G.CONFUSABLES =
 $body
 /*END*/;
 "@
-  [IO.File]::WriteAllText((Join-Path $root 'js/data/confusables.js'), ($text -replace "`r`n", "`n"), $script:utf8NoBom)
+  [IO.File]::WriteAllText((Join-Path $root 'public/js/data/confusables.js'), ($text -replace "`r`n", "`n"), $script:utf8NoBom)
 }

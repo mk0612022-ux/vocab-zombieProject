@@ -1,4 +1,9 @@
-$root = $PSScriptRoot
+# (new series, round 1, A3) the site is public/, as on Cloudflare; /tools/ is
+# mapped to the repo's tools folder on this dev server only; captures go to
+# ..\vocab-zombieProject-files\_review (outside the repo)
+$root = Join-Path $PSScriptRoot "public"
+$tools = Join-Path $PSScriptRoot "tools"
+$captures = Join-Path (Split-Path -Parent $PSScriptRoot) "vocab-zombieProject-files\_review"
 $listener = New-Object System.Net.HttpListener
 $listener.Prefixes.Add("http://localhost:8080/")
 $listener.Start()
@@ -7,7 +12,7 @@ Write-Host "Serving $root at http://localhost:8080/"
 $mime = @{
   ".html" = "text/html"; ".css" = "text/css"; ".js" = "application/javascript";
   ".json" = "application/json"; ".png" = "image/png"; ".jpg" = "image/jpeg";
-  ".svg" = "image/svg+xml"; ".ico" = "image/x-icon";
+  ".svg" = "image/svg+xml"; ".ico" = "image/x-icon"; ".webp" = "image/webp";
 }
 
 while ($listener.IsListening) {
@@ -26,7 +31,7 @@ while ($listener.IsListening) {
       $data = $body | ConvertFrom-Json
       $b64 = $data.dataUrl -replace '^data:image/png;base64,', ''
       $bytes = [Convert]::FromBase64String($b64)
-      $outDir = Join-Path $root "_review"
+      $outDir = $captures
       if (-not (Test-Path $outDir)) { New-Item -ItemType Directory -Path $outDir | Out-Null }
       $safeName = $data.name -replace '[^a-zA-Z0-9_-]', '_'
       $outFile = Join-Path $outDir "$safeName.png"
@@ -38,7 +43,8 @@ while ($listener.IsListening) {
       continue
     }
     if ($path -eq "/") { $path = "/index.html" }
-    $filePath = Join-Path $root ($path.TrimStart("/"))
+    $rel = $path.TrimStart("/")
+    $filePath = if ($rel -like "tools/*") { Join-Path $tools $rel.Substring(6) } else { Join-Path $root $rel }
     if (Test-Path $filePath -PathType Leaf) {
       $ext = [System.IO.Path]::GetExtension($filePath)
       $contentType = $mime[$ext]

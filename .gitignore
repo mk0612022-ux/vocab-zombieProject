@@ -1,5 +1,12 @@
-# screenshots captured by the local dev server during design review
+# Kept on this computer only -- never in the repo, never deployed (new series,
+# round 1, A2). Screenshots and design-review captures live outside the repo,
+# in ..\vocab-zombieProject-files\ (tools write there).
+screenshots/
 _review/
 
 # exported save file, not part of the game
 vocab-zombie-save.json
+
+# local state of npx wrangler dev / deploy
+.wrangler/
+node_modules/

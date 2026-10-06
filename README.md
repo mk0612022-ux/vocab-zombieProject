@@ -16,14 +16,16 @@
 
 ## เล่นบนเครื่องตัวเอง
 
+ไฟล์ของเกมทั้งหมดอยู่ในโฟลเดอร์ `public/` (ส่วนอื่นของ repo คือเครื่องมือ ชุดทดสอบ เอกสาร และไฟล์ CSV ซึ่งไม่ถูกส่งขึ้นเว็บ)
 เปิดเซิร์ฟเวอร์ในเครื่อง แล้วเปิดลิงก์ที่ขึ้นมา:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\serve-lan.ps1
 ```
 
-- เครื่องตัวเอง: `http://localhost:8080/`
+- เครื่องตัวเอง: `http://localhost:8080/` (เสิร์ฟ `public/` เหมือนบนเว็บ และ `/tools/` สำหรับชุดทดสอบเท่านั้น)
 - มือถือ/iPad ใน Wi-Fi วงเดียวกัน: ใช้ที่อยู่ `http://<IP ของเครื่อง>:8080/` ที่สคริปต์พิมพ์ออกมา
+- บนเซิร์ฟเวอร์นี้ไม่มี service worker (เห็นไฟล์ที่แก้ทันที) ถ้าจะทดสอบระบบอัปเดต/ออฟไลน์ให้เปิด `http://localhost:8080/?sw=1`
 
 ถ้าอุปกรณ์อื่นเข้าไม่ได้ ให้เปิดพอร์ตใน Windows Firewall หนึ่งครั้ง (รัน PowerShell **แบบ Run as administrator**):
 
@@ -31,51 +33,29 @@ powershell -ExecutionPolicy Bypass -File .\serve-lan.ps1
 New-NetFirewallRule -DisplayName "Vocab Zombie 8080" -Direction Inbound -Protocol TCP -LocalPort 8080 -Action Allow -Profile Private
 ```
 
-## นำขึ้นเว็บ
+## นำขึ้นเว็บ (Cloudflare Workers)
 
-ไม่มีขั้นตอน build — อัปโหลดทั้งโฟลเดอร์ได้เลย ใช้ได้ทั้ง GitHub Pages, Netlify และ Cloudflare Pages
-ทุก path ในเกมเป็น relative path ทั้งหมด จึงวางไว้ที่ root หรือในโฟลเดอร์ย่อยก็ทำงานได้เหมือนกัน
-ไฟล์ `.nojekyll` มีไว้กัน GitHub ข้ามไฟล์ที่ขึ้นต้นด้วย `_` ส่วน `_headers` ใช้กับ Netlify/Cloudflare
+`wrangler.jsonc` ที่ root บอก Cloudflare ให้อัปโหลดเฉพาะ `public/` (ไฟล์ละไม่เกิน 25 MiB) Worker ชื่อ `vocab-zombieproject`
+เชื่อมกับ branch `main` แล้ว จึง deploy ใหม่เองทุกครั้งที่ push
 
-ก่อน push ตรวจว่าชื่อไฟล์ตัวพิมพ์เล็ก-ใหญ่ตรงกับโค้ด (Windows ไม่สน แต่เว็บโฮสต์สนใจ) และไม่มีไฟล์ตกหล่น:
+ตั้งค่าครั้งเดียวในหน้า Cloudflare เพื่อให้เลขเวอร์ชันสร้างใหม่ทุก deploy:
+Workers & Pages → `vocab-zombieproject` → Settings → Build → Build configuration → Edit →
+**Build command** = `node tools/make-version.mjs` → Save (Deploy command คง `npx wrangler deploy` ไว้)
+
+ก่อน push ตรวจ path ตัวพิมพ์เล็ก-ใหญ่, ไฟล์ตกหล่น, ไฟล์ใหญ่เกิน, ไฟล์ส่วนตัวใน `public/` และ `version.json`:
 
 ```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\make-version.ps1 -Message "อธิบายสิ่งที่แก้"
 powershell -ExecutionPolicy Bypass -File .\tools\check-paths.ps1
 ```
 
 เล่นแบบแอป (PWA): เปิดลิงก์ของเกมใน Safari (iPad/iPhone) → ปุ่มแชร์ → **Add to Home Screen**
-หรือใน Chrome (Android) → เมนู → **Install app** เกมจะเปิดเต็มจอเหมือนแอป และเล่นได้แม้ไม่มีเน็ต
-หลังจากเปิดครั้งแรกแล้ว เมื่อมีเวอร์ชันใหม่ ในล็อบบี้จะขึ้น "New version available - Tap to reload"
+หรือใน Chrome (Android) → เมนู → **Install app** เกมจะเปิดเต็มจอเหมือนแอป และเล่นได้แม้ไม่มีเน็ตหลังเปิดครั้งแรก
 ถ้าถือมือถือหรือแท็บเล็ตแนวตั้ง เกมจะขึ้น "Rotate your device" และหยุดเกมไว้จนกว่าจะหมุนกลับเป็นแนวนอน
-
-### GitHub Pages (repo ต้องเป็น public ถ้าใช้บัญชีฟรี)
-
-ครั้งแรก:
-
-```bash
-git init
-git add .
-git commit -m "Vocab Zombie"
-git branch -M main
-git remote add origin https://github.com/<ชื่อผู้ใช้>/<ชื่อ repo>.git
-git push -u origin main
-```
-
-จากนั้นใน GitHub: **Settings → Pages → Source = Deploy from a branch → Branch = main / (root) → Save**
-รอสัก 1-2 นาที จะได้ลิงก์ `https://<ชื่อผู้ใช้>.github.io/<ชื่อ repo>/`
-
-### Netlify หรือ Cloudflare Pages (ใช้กับ private repo ได้ฟรี)
-
-- Netlify: Add new site → Import an existing project → GitHub → เลือก repo →
-  Build command เว้นว่าง, Publish directory = `.` → Deploy
-- Cloudflare Pages: Workers & Pages → Create → Pages → Connect to Git → เลือก repo →
-  Framework preset = None, Build command เว้นว่าง, Build output directory = `/` → Save and Deploy
-
-ทั้งสองแบบจะ deploy ใหม่เองทุกครั้งที่ push
 
 ## อัปเดตเกมเวอร์ชันใหม่
 
-แก้ไฟล์ในเครื่อง แล้วสั่งสามบรรทัดนี้ เว็บจะอัปเดตเองใน 1-2 นาที:
+แก้ไฟล์ในเครื่อง แล้วสั่งบรรทัดเหล่านี้ เว็บจะอัปเดตเองใน 1-2 นาที:
 
 ```bash
 git add .
@@ -83,6 +63,10 @@ git commit -m "อธิบายสิ่งที่แก้"
 git push
 ```
 
+ทุกเครื่องที่เปิดเกม (คอม, iPad ทั้งใน Safari และจากไอคอนหน้าจอโฮม) จะตรวจ `version.json` ตอนเปิดเกม ถ้ามีเวอร์ชันใหม่จะขึ้น
+หน้า **Update Available** (เวอร์ชันเดิม → ใหม่, สิ่งที่เปลี่ยน, ขนาดดาวน์โหลด) ต้องกด Update ก่อนเล่น ดาวน์โหลดเฉพาะไฟล์ที่เปลี่ยน
+แล้วรีสตาร์ทเกมเอง เซฟและการตั้งค่าอยู่ครบ ในล็อบบี้ตรวจซ้ำทุก 5 นาที (ไม่ขัดจังหวะระหว่างเล่นด่าน)
+ไม่มีเน็ต: เล่นเวอร์ชันที่มีอยู่ได้ พร้อมป้าย Offline เลขเวอร์ชันอยู่มุมล่างของล็อบบี้และในหน้า Settings
 ## การควบคุม
 
 | | คอมพิวเตอร์ | มือถือ / แท็บเล็ต |
@@ -136,7 +120,8 @@ AWL ที่ Mastered แยก 10 sublist, ความแม่นยำต�
 ## โครงสร้างไฟล์
 
 ```
-index.html         หน้าเกมและ HUD ทั้งหมด
+public/            ทุกไฟล์ที่ขึ้นเว็บ (ทุก path ด้านล่างที่ขึ้นต้นด้วย js/, css/, assets/, icons/ อยู่ในนี้)
+public/index.html  หน้าเกมและ HUD ทั้งหมด
 css/style.css      สไตล์ เมนู HUD และ layout สำหรับจอมือถือ
 js/core.js         การบันทึกเกม อินพุต (คีย์บอร์ด/เมาส์/สัมผัส/เกมแพด)
 js/entities.js     ซอมบี้ อาวุธ และเอฟเฟกต์อนุภาค
@@ -161,9 +146,13 @@ js/vocabcard.js    การ์ดคำศัพท์ การ์ดย่อ
 js/practice.js     Practice Mode: ตัวกรองคำ และคำถามทุกแบบตามคำใบ้ × วิธีตอบ
 js/progress.js     หน้า Progress (กราฟ SVG วาดเอง)
 js/campstyle.js    หน้าต่าง Learning Style ก่อนเริ่มด่าน
-manifest.json      ข้อมูลแอป (ชื่อ ไอคอน เปิดเต็มจอแนวนอน) สำหรับ Add to Home Screen
-sw.js              service worker: เก็บไฟล์เกมไว้เล่นแบบออฟไลน์ และหาเวอร์ชันใหม่
-icons/             ไอคอนแอป 192 / 512 / 180 (iOS) — สร้างใหม่ได้ด้วย tools/make-icons.ps1
+public/manifest.json  ข้อมูลแอป (ชื่อ ไอคอน เปิดเต็มจอแนวนอน) สำหรับ Add to Home Screen
+public/sw.js       service worker: เก็บไฟล์ของเวอร์ชันที่ติดตั้งไว้เล่นแบบออฟไลน์ (ทีละเวอร์ชันทั้งชุด)
+public/version.json  เลขเวอร์ชัน วันเวลา build commit สิ่งที่เปลี่ยน และรายการไฟล์พร้อมขนาด/hash (สร้างด้วย tools/make-version.*)
+js/updater.js      ตรวจหาเวอร์ชันใหม่ หน้า Update Available ดาวน์โหลดพร้อมแถบความคืบหน้า ป้าย Offline
+js/aim.js          การยิงโดนซอมบี้ตัวที่เล็ง: ส่วนของร่างกาย, ป้ายคำไม่ทับกัน, ขอบเรืองแสง, aim assist, ซอมบี้กระจายตัว
+wrangler.jsonc     ตั้งค่า Cloudflare Worker (อัปโหลดเฉพาะ public/)
+public/icons/      ไอคอนแอป 192 / 512 / 180 (iOS) — สร้างใหม่ได้ด้วย tools/make-icons.ps1
 serve-lan.ps1      เซิร์ฟเวอร์ทดสอบในเครื่อง (เปิดให้อุปกรณ์อื่นในวง Wi-Fi เข้าได้)
 serve.ps1          เซิร์ฟเวอร์ทดสอบเฉพาะเครื่องตัวเอง (มี endpoint จับภาพหน้าจอ)
 ```

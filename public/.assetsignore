@@ -1,0 +1,7 @@
+# Files Cloudflare must not upload from public/ (new series, round 1, A3).
+.DS_Store
+Thumbs.db
+desktop.ini
+*.psd
+*.bak
+*.tmp

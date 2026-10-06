@@ -4,7 +4,7 @@
 #   powershell -ExecutionPolicy Bypass -File tools\words-import.ps1
 #
 # Reads word-bank.csv and word-bank-confusables.csv from the project
-# folder, rewrites js/data/bank_school.js, bank_hospital.js,
+# folder, rewrites public/js/data/bank_school.js, bank_hospital.js,
 # bank_bunker.js and confusables.js (the files the game loads), then
 # runs tools\validate-words.ps1. The "level" column (1 School,
 # 2 Hospital, 3 Bunker) decides which file a row goes to. Never change

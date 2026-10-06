@@ -1,0 +1,11 @@
+// Cloudflare Worker for the game (new series, round 1, A4). Only public/ is
+// uploaded: the game itself. Tools, tests, the word-bank CSV and the docs stay
+// in the repo but are never served. Each file there must be under 25 MiB.
+// (public/version.json is rewritten at every deploy by the Build command
+// "node tools/make-version.mjs" set in the Cloudflare dashboard -- Workers
+// Builds does not run a build step from this file.)
+{
+  "name": "vocab-zombieproject",
+  "compatibility_date": "2026-09-30",
+  "assets": { "directory": "./public" }
+}

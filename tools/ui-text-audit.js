@@ -142,6 +142,17 @@ G.UIAudit = {
       G.Lobby.focusIcons(false);
       await step("update window", () => { G.PWA.offer(); });
       G.PWA.later();
+      // (new series, round 1, C) the boot screen and its update panels, the corner badge
+      const U = G.Updater, keepU = { pending: U.pending, stage: U.stage, offline: U.offline, mismatch: U.mismatch };
+      const fake = { version: "2099.12.31-2359", build: 1, files: { "index.html": { size: 2400000, hash: "x" } }, changes: [{ c: "", s: "A very long change note that goes on and on to see that the list wraps and scrolls inside its box without spilling out of the panel" }, { c: "", s: "Second change" }, { c: "", s: "Third change" }, { c: "", s: "Fourth change" }, { c: "", s: "Fifth change" }] };
+      await step("boot: checking for updates", () => { document.getElementById("loading-overlay").classList.remove("hidden"); U.panel("boot-main"); U.setStatus(T("boot.checking"), null); });
+      await step("boot: Update Available", () => { U.pending = fake; U.showUpdate(); });
+      await step("boot: downloading", () => { U.panel("boot-update"); document.getElementById("btn-update-go").classList.add("hidden"); document.getElementById("upd-progress").classList.remove("hidden"); document.getElementById("upd-fill").style.transform = "scaleX(0.45)"; document.getElementById("upd-pct").textContent = T("update.downloading", { p: 45 }); });
+      await step("boot: update complete", () => { document.getElementById("upd-pct").textContent = T("update.done"); });
+      await step("boot: update failed", () => { U.panel("boot-failed"); document.getElementById("upd-error").textContent = T("update.failedText"); });
+      await step("badge: old version", () => { U.panel("boot-main"); document.getElementById("loading-overlay").classList.add("hidden"); G.Modal.reset(); U.mismatch = true; U.badge(); });
+      await step("badge: offline", () => { U.mismatch = false; U.offline = true; U.badge(); });
+      Object.assign(U, keepU); U.badge(); document.getElementById("btn-update-go").classList.remove("hidden"); document.getElementById("upd-progress").classList.add("hidden");
       await step("how to play", () => UI.showScreen("screen-howtoplay"));
       await step("settings", () => { UI._settingsReturn = "screen-mainmenu"; UI.renderSettings(); UI.showScreen("screen-settings"); });
       for (const c of ["level1", "daily", "endless"]) await step("leaderboard " + c, () => { UI.renderLeaderboard(c); UI.showScreen("screen-leaderboard"); });

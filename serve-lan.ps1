@@ -4,16 +4,23 @@
 # Uses a raw TcpListener rather than HttpListener on purpose: binding
 # HttpListener to all interfaces ("http://+:8080/") needs an admin-registered
 # urlacl, while a TcpListener on 0.0.0.0 needs no special rights at all.
-param([int]$Port = 8080)
+#
+# (new series, round 1, A3) The site is public/ -- exactly what Cloudflare
+# serves. /tools/ is mapped to the repo's tools folder as well, on this dev
+# server only, so the test suites can be loaded into the page. -Root serves
+# another folder as the site (the update tests serve copies of it).
+param([int]$Port = 8080, [string]$Root = "")
 
-$root = $PSScriptRoot
+$root = if ($Root) { (Resolve-Path $Root).Path } else { Join-Path $PSScriptRoot "public" }
+$tools = Join-Path $PSScriptRoot "tools"
 $mime = @{
   ".html" = "text/html; charset=utf-8"; ".css" = "text/css; charset=utf-8"
   ".js" = "application/javascript; charset=utf-8"; ".json" = "application/json; charset=utf-8"
   ".png" = "image/png"; ".jpg" = "image/jpeg"; ".jpeg" = "image/jpeg"
   ".gif" = "image/gif"; ".svg" = "image/svg+xml"; ".ico" = "image/x-icon"
   ".txt" = "text/plain; charset=utf-8"; ".csv" = "text/csv; charset=utf-8"
-  ".woff" = "font/woff"; ".woff2" = "font/woff2"
+  ".woff" = "font/woff"; ".woff2" = "font/woff2"; ".webp" = "image/webp"; ".mjs" = "application/javascript; charset=utf-8"
+  ".mp3" = "audio/mpeg"; ".ogg" = "audio/ogg"; ".wav" = "audio/wav"; ".webmanifest" = "application/manifest+json"
 }
 
 $ips = Get-NetIPAddress -AddressFamily IPv4 |
@@ -28,7 +35,7 @@ try { $listener.Start() } catch {
   Write-Host "Port $Port is already in use. Is another serve-lan.ps1 or serve.ps1 still running? Stop it, or use -Port <number>."
   exit 1
 }
-Write-Host "Serving $root"
+Write-Host "Serving $root (and /tools/ from $tools)"
 Write-Host "  local:   http://localhost:$Port/"
 foreach ($ip in $ips) { Write-Host "  network: http://${ip}:$Port/" }
 
@@ -37,7 +44,7 @@ foreach ($ip in $ips) { Write-Host "  network: http://${ip}:$Port/" }
 # time let a single idle one hold up every other request for seconds -- the
 # service worker's parallel downloads stalled on it, and so did the game.
 $handler = {
-  param($client, $root, $mime)
+  param($client, $root, $mime, $tools)
 function Send-Response {
   param($stream, [int]$status, [string]$statusText, [string]$contentType, [byte[]]$body, [bool]$headOnly)
   $head = "HTTP/1.1 $status $statusText`r`n" +
@@ -78,9 +85,12 @@ function Send-Response {
 
     # decode %XX and refuse anything trying to climb out of the site root
     $decoded = [System.Uri]::UnescapeDataString($target).TrimStart('/')
+    $base = $root
+    # (dev only) the test suites and dev pages, next to the site
+    if ($decoded -match '^tools/') { $base = $tools; $decoded = $decoded.Substring(6) }
     $decoded = $decoded -replace '/', '\'
-    $full = [System.IO.Path]::GetFullPath((Join-Path $root $decoded))
-    $rootFull = [System.IO.Path]::GetFullPath($root)
+    $full = [System.IO.Path]::GetFullPath((Join-Path $base $decoded))
+    $rootFull = [System.IO.Path]::GetFullPath($base)
     $headOnly = ($method -eq "HEAD")
 
     if (-not $full.StartsWith($rootFull, [StringComparison]::OrdinalIgnoreCase)) {
@@ -113,7 +123,7 @@ while ($true) {
   try { $client = $listener.AcceptTcpClient() } catch { [System.Threading.Thread]::Sleep(200); continue }
   $ps = [PowerShell]::Create()
   $ps.RunspacePool = $pool
-  [void]$ps.AddScript($handler).AddArgument($client).AddArgument($root).AddArgument($mime)
+  [void]$ps.AddScript($handler).AddArgument($client).AddArgument($root).AddArgument($mime).AddArgument($tools)
   [void]$busy.Add(@{ ps = $ps; h = $ps.BeginInvoke() })
   # tidy up the ones that have finished
   for ($i = $busy.Count - 1; $i -ge 0; $i--) {

@@ -1,8 +1,8 @@
 # ===================================================================
 # validate-words (newer series 3, round 1, A6): checks the word bank
 # -------------------------------------------------------------------
-# Reads js/data/bank_school.js, bank_hospital.js, bank_bunker.js (the
-# entries between /*BANK*/ and /*END*/) and js/data/confusables.js, and
+# Reads public/js/data/bank_school.js, bank_hospital.js, bank_bunker.js (the
+# entries between /*BANK*/ and /*END*/) and public/js/data/confusables.js, and
 # reports every problem it finds:
 #   - required fields present and well formed; ids unique
 #   - a word family in one place only: no form (headword, accepted
@@ -101,17 +101,17 @@ $THAI = '[\u0E00-\u0E7F]'
 # ---------------- read ----------------
 $entries = New-Object System.Collections.Generic.List[object]
 foreach ($lv in 1, 2, 3) {
-  $path = Join-Path $root ('js/data/' + $LEVELS[$lv])
-  if (-not (Test-Path $path)) { if (-not $Partial) { Err "missing file js/data/$($LEVELS[$lv])" }; continue }
+  $path = Join-Path $root ('public/js/data/' + $LEVELS[$lv])
+  if (-not (Test-Path $path)) { if (-not $Partial) { Err "missing file public/js/data/$($LEVELS[$lv])" }; continue }
   foreach ($e in (Read-Block $path 'BANK')) {
     $e | Add-Member -NotePropertyName '__file' -NotePropertyValue $LEVELS[$lv] -Force
     $e | Add-Member -NotePropertyName '__lv' -NotePropertyValue $lv -Force
     $entries.Add($e)
   }
 }
-$confPath = Join-Path $root 'js/data/confusables.js'
+$confPath = Join-Path $root 'public/js/data/confusables.js'
 $lexicon = @()
-if (Test-Path $confPath) { $lexicon = @(Read-Block $confPath 'CONFUSABLES') } elseif (-not $Partial) { Err 'missing file js/data/confusables.js' }
+if (Test-Path $confPath) { $lexicon = @(Read-Block $confPath 'CONFUSABLES') } elseif (-not $Partial) { Err 'missing file public/js/data/confusables.js' }
 
 # ---------------- each entry ----------------
 $ids = @{}

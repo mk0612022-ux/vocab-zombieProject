@@ -34,7 +34,8 @@ G.Round5Test = (function () {
     ok("A4 icon files load at their sizes (192, 512, 180)", sizes[0] === 192 && sizes[1] === 512 && sizes[2] === 180, sizes.join(","));
     ok("A4 page links the manifest and the iOS tags", !!document.querySelector('link[rel=manifest]') && !!document.querySelector('meta[name=apple-mobile-web-app-capable]') && !!document.querySelector('link[rel=apple-touch-icon]'));
     const sw = await fetch("sw.js?t=" + Date.now()).then((r) => r.text()).catch(() => "");
-    ok("A4 service worker: a cache version, offline fetch, update check", /CACHE_VERSION/.test(sw) && /addEventListener\("fetch"/.test(sw) && /checkUpdates/.test(sw));
+    // (new series, round 1, C: one whole version a cache, switched by the page)
+    ok("A4 service worker: a cache a version, offline fetch, switching versions", /vz-files-/.test(sw) && /addEventListener\("fetch"/.test(sw) && /type === "use"/.test(sw));
     if ("serviceWorker" in navigator) {
       const regs = await navigator.serviceWorker.getRegistrations();
       ok("A4 no service worker on the local dev server (nothing served stale)", !/[?&]sw=1/.test(location.search) ? regs.length === 0 : true, regs.length);
@@ -42,17 +43,18 @@ G.Round5Test = (function () {
     // the update window: a modal, keys and a controller reach it, Later closes it
     G.Game.quitToMainMenu();
     G.PWA.offer();
-    ok("A4 'New version available' opens in the lobby, as a modal", !document.getElementById("update-dialog").classList.contains("hidden") && G.Modal.isOpen("update"));
-    ok("A4 its text", /New version available/.test(document.getElementById("update-dialog").textContent) && /reload/i.test(document.getElementById("btn-update-reload").textContent), document.getElementById("btn-update-reload").textContent);
-    ok("A4 a controller's navigation stays in it", G.Pad.scope() === document.getElementById("update-dialog"));
+    const dlg = () => !document.getElementById("dialog").classList.contains("hidden") && G.Modal.isOpen("dialog");
+    ok("A4 a new version opens in the lobby, as a modal (G.Dialog)", dlg() && /Update Available/.test(document.getElementById("dialog-title").textContent));
+    ok("A4 its buttons: Update, Later", /Update/.test(document.getElementById("dialog-btns").textContent) && /Later/.test(document.getElementById("dialog-btns").textContent));
+    ok("A4 a controller's navigation stays in it", G.Pad.scope() === document.getElementById("dialog-box"));
     key("Escape");
-    ok("A4 Escape = Later: closed", document.getElementById("update-dialog").classList.contains("hidden") && !G.Modal.isOpen("update"));
+    ok("A4 Escape = Later: closed", !dlg());
     // found during a run: waits for the lobby
     fresh(1); G.Game.state = "GAMEPLAY";
     G.PWA.offer();
-    ok("A4 found during a run: not shown over the game", document.getElementById("update-dialog").classList.contains("hidden"));
+    ok("A4 found during a run: not shown over the game", !dlg());
     G.Game.quitToMainMenu();
-    ok("A4 ... shown once back in the lobby", !document.getElementById("update-dialog").classList.contains("hidden"));
+    ok("A4 ... shown once back in the lobby", dlg());
     G.PWA.later();
   }
 

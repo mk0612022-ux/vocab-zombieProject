@@ -1,0 +1,14 @@
+# Cloudflare reads this file (it is not served itself). New series, round 1, C2:
+# the update check must always see the live version.json -- never one from the
+# browser's cache or Cloudflare's.
+/version.json
+  Cache-Control: no-store
+# The page and its service worker are always checked for a newer copy.
+/
+  Cache-Control: no-cache
+/index.html
+  Cache-Control: no-cache
+/sw.js
+  Cache-Control: no-cache
+/manifest.json
+  Content-Type: application/manifest+json

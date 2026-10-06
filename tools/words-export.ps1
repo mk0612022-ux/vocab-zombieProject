@@ -18,9 +18,9 @@ if (-not $Out) { $Out = $root }
 
 $rows = New-Object System.Collections.Generic.List[object]
 foreach ($lv in 1, 2, 3) {
-  foreach ($e in (Read-DataBlock (Join-Path $root ('js/data/' + $BANK_FILES[$lv])) 'BANK')) { $rows.Add((ConvertTo-CsvRow $e)) }
+  foreach ($e in (Read-DataBlock (Join-Path $root ('public/js/data/' + $BANK_FILES[$lv])) 'BANK')) { $rows.Add((ConvertTo-CsvRow $e)) }
 }
-$conf = @(Read-DataBlock (Join-Path $root 'js/data/confusables.js') 'CONFUSABLES' | ForEach-Object {
+$conf = @(Read-DataBlock (Join-Path $root 'public/js/data/confusables.js') 'CONFUSABLES' | ForEach-Object {
     [pscustomobject][ordered]@{ headword = [string]$_.headword; partOfSpeech = [string]$_.partOfSpeech; thai = [string]$_.thai; definition = [string]$_.definition }
   })
 

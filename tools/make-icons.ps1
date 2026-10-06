@@ -1,11 +1,11 @@
-# Dev-only: draws the app icons (A4) into icons/ -- a blocky zombie head
+# Dev-only: draws the app icons (A4) into public/icons/ -- a blocky zombie head
 # on the lobby's dark background, the word "VOCAB" under it. Everything that
 # matters sits inside the middle 80%, so the "maskable" crop on Android
 # (circle, squircle...) never cuts into it.
 #   powershell -ExecutionPolicy Bypass -File .\tools\make-icons.ps1
 Add-Type -AssemblyName System.Drawing
 $root = Split-Path -Parent $PSScriptRoot
-$out = Join-Path $root 'icons'
+$out = Join-Path $root 'public\icons'
 New-Item -ItemType Directory -Force $out | Out-Null
 
 function Draw-Icon([int]$S, [string]$file) {

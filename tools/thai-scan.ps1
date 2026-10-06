@@ -1,15 +1,16 @@
 # Lists every line that still contains Thai characters (U+0E00-U+0E7F) in the
 # game's code, markup and styles. Vocabulary data (the word bank
-# js/data/bank_*.js, js/data/confusables.js, js/data/words_bosses.js) is
-# skipped on purpose: the Thai meanings there are part of the game.
+# public/js/data/bank_*.js, confusables.js, words_bosses.js) is
+# skipped on purpose: the Thai meanings there are part of the game. So is
+# public/version.json (the commit messages it lists for the update screen).
 #
 #   powershell -ExecutionPolicy Bypass -File tools\thai-scan.ps1
 #
 # Exit code 0 = clean, 1 = Thai text found.
 $root = Split-Path -Parent $PSScriptRoot
-$skip = @('js\data\bank_school.js', 'js\data\bank_hospital.js', 'js\data\bank_bunker.js', 'js\data\confusables.js', 'js\data\words_bosses.js')
+$skip = @('public\js\data\bank_school.js', 'public\js\data\bank_hospital.js', 'public\js\data\bank_bunker.js', 'public\js\data\confusables.js', 'public\js\data\words_bosses.js', 'public\version.json')
 $files = Get-ChildItem -Path $root -Recurse -File -Include *.js, *.html, *.css, *.json, *.ps1 |
-  Where-Object { $_.FullName -notmatch '\\(\.git|node_modules|screenshots)\\' }
+  Where-Object { $_.FullName -notmatch '\\(\.git|node_modules|\.wrangler|screenshots|_review)\\' }
 $hits = 0; $scanned = 0; $skipped = @()
 foreach ($f in $files) {
   $rel = $f.FullName.Substring($root.Length + 1)
