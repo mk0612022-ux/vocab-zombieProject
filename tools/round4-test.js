@@ -160,6 +160,9 @@ G.Round4Test = (function () {
       ok("Space on the school: its Learning Style first", G.Modal.isOpen("campstyle"));
       await until(() => document.activeElement && document.activeElement.id === "btn-camp-go", 1000);
       key("Enter");
+      // (a player who has not seen it yet gets the style's first-time intro: Got it)
+      await until(() => G.Modal.isOpen("studyintro") || G.Game.state === "GAMEPLAY", 3000);
+      if (G.Modal.isOpen("studyintro")) key("Enter");
       await until(() => G.Game.state === "GAMEPLAY", 15000);
       ok("Space on the school starts it", G.Game.state === "GAMEPLAY" && G.Game.level && G.Game.level.id === 1);
       G.Game.quitToMainMenu();

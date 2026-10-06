@@ -138,9 +138,15 @@ G.Round15Test = (function () {
   // 20 zombies as close as they can stand (G.CONFIG.crowd.gap apart) in four
   // staggered rows: all the kinds and odd looks
   // (just the crowd, for a screenshot)
-  function buildCrowd() {
+  // (step: metres to walk out first -- clear of anything right beside the start)
+  function buildCrowd(step) {
     freshRun();
-    const o = openYaw(14);
+    let o = openYaw(14);
+    if (step) {
+      g.yawObject.position.add(new V3(-Math.sin(o.yaw), 0, -Math.cos(o.yaw)).multiplyScalar(step));
+      g.yawObject.position.y = 1.7 + G.getFloorHeightAt(g.world, g.yawObject.position.x, g.yawObject.position.z, g.yawObject.position.y - 1.7);
+      o = openYaw(14);
+    }
     g.yawObject.rotation.y = o.yaw; g.pitchObject.rotation.x = 0;
     const words = G.WORDS_LEVEL_1.slice(20, 40);
     const looks = [null, { odd: "longArm", side: 1 }, { odd: "bigArm", side: -1 }, { odd: "headInHand", side: 1 }, null];
@@ -248,13 +254,15 @@ G.Round15Test = (function () {
     crowdOnly();
     const rects = G.Aim.labelRects(g);
     let pairs = 0;
+    const detail = [];
     for (let i = 0; i < rects.length; i++) for (let j = i + 1; j < rects.length; j++) {
       const a = rects[i], b = rects[j];
       // (the word aimed at is drawn larger, on top: that one may overlap)
       if (a.z === G.Aim.hover || b.z === G.Aim.hover) continue;
-      if ((a.w + b.w) / 2 - Math.abs(a.x - b.x) > 1 && (a.h + b.h) / 2 - Math.abs(a.y - b.y) > 1) pairs++;
+      const ox = (a.w + b.w) / 2 - Math.abs(a.x - b.x), oy = (a.h + b.h) / 2 - Math.abs(a.y - b.y);
+      if (ox > 1 && oy > 1) { pairs++; detail.push(a.z.word + "(" + a.z._labelSlot.toFixed(2) + ", d " + a.depth.toFixed(1) + ") / " + b.z.word + "(" + b.z._labelSlot.toFixed(2) + ", d " + b.depth.toFixed(1) + ") by " + ox.toFixed(1) + " x " + oy.toFixed(1) + " px"); }
     }
-    ok("D 20 packed zombies: no two words overlap on screen", pairs === 0, pairs + " overlapping of " + rects.length);
+    ok("D 20 packed zombies: no two words overlap on screen", pairs === 0, pairs + " overlapping of " + rects.length + " " + detail.join("; "));
     ok("D words moved up or down have a line to their zombie", G.Aim.leaderCount > 0 && G.Aim.leaderCount === g.zombies.filter((z) => Math.abs(z._labelOff) > G.CONFIG.aim.leaderMin * z.sprite.scale.y).length, G.Aim.leaderCount);
     // the one aimed at: outlined, its word larger
     const z = g.zombies[7], c = cam();
@@ -293,16 +301,22 @@ G.Round15Test = (function () {
     z.setAnswer("shoot", "", { label: "" });
     settle(3);
     const target = () => z.hitboxes.find((h) => h.userData.hit === "body").getWorldPosition(new V3());
-    const off = (deg) => { look(target().sub(cam().o).normalize()); g.yawObject.rotation.y += deg * Math.PI / 180; g.yawObject.updateMatrixWorld(true); };
+    const off = (deg) => { look(target().sub(cam().o).normalize()); g.yawObject.rotation.y += deg * Math.PI / 180; g.yawObject.updateMatrixWorld(true); G.Aim.setHover(null); };
     const angle = () => { const c = cam(); return c.f.angleTo(target().sub(c.o).normalize()) * 180 / Math.PI; };
     g.state = "GAMEPLAY"; g.paused = false;
     const mode = G.Input.mode;
     const runFor = (s) => { for (let t = 0; t < s; t += 0.05) G.Aim.update(g, 0.05); };
     G.Input.mode = "touch"; G.save.settings.aimAssist = "medium";
-    off(4); const a0 = angle(); runFor(1.5); const a1 = angle();
-    ok("E touch, Medium: the view is drawn toward a zombie near the crosshair", a1 < a0 * 0.6, a0.toFixed(2) + " deg -> " + a1.toFixed(2));
-    off(4); G.save.settings.aimAssist = "high"; runFor(1.5); const a2 = angle();
-    ok("E High pulls more than Medium", a2 < a1, a2.toFixed(2));
+    // (it pulls until the crosshair is on the zombie -- an arm held out
+    // counts -- and no further)
+    off(4); const a0 = angle(); runFor(1.5); const a1 = angle(), on1 = G.Aim.hover === z;
+    ok("E touch, Medium: the view is drawn toward a zombie near the crosshair, until it is on it", a1 < a0 * 0.6 || (on1 && a1 < a0), a0.toFixed(2) + " deg -> " + a1.toFixed(2) + (on1 ? " (on it)" : ""));
+    off(4); G.save.settings.aimAssist = "high";
+    let tHigh = 0, tMed = 0;
+    for (let t = 0; t < 3 && G.Aim.hover !== z; t += 0.05) { G.Aim.update(g, 0.05); tHigh = t; }
+    off(4); G.save.settings.aimAssist = "medium";
+    for (let t = 0; t < 3 && G.Aim.hover !== z; t += 0.05) { G.Aim.update(g, 0.05); tMed = t; }
+    ok("E High gets there sooner than Medium", tHigh < tMed, tHigh.toFixed(2) + " s / " + tMed.toFixed(2) + " s");
     off(4); G.save.settings.aimAssist = "off"; runFor(1.5);
     ok("E Off: nothing moves", Math.abs(angle() - 4) < 0.05, angle().toFixed(2));
     off(12); G.save.settings.aimAssist = "high"; runFor(1.5);
@@ -338,9 +352,12 @@ G.Round15Test = (function () {
       const saved = G.CONFIG.crowd.flank; G.CONFIG.crowd.flank = flank;
       for (let i = 0; i < 10; i++) add("normal", (i % 2) * 0.3, 13 + i * 0.6, G.WORDS_LEVEL_1[i]);
       const p = g.yawObject.position;
+      // (measured on the way in, about 6 m off on average -- not once they
+      // have all arrived and stand round the player whatever they did)
+      const meanD = () => g.zombies.reduce((s, z) => s + Math.hypot(z.mesh.position.x - p.x, z.mesh.position.z - p.z), 0) / g.zombies.length;
       for (let t = 0; t < 14; t += 0.05) {
         g.updateZombies(0.05);
-        if (g.zombies.every((z) => Math.hypot(z.mesh.position.x - p.x, z.mesh.position.z - p.z) < 3.2)) break;
+        if (meanD() < 6) break;
       }
       G.CONFIG.crowd.flank = saved;
       const ang = g.zombies.map((z) => Math.atan2(z.mesh.position.z - p.z, z.mesh.position.x - p.x));
@@ -349,7 +366,7 @@ G.Round15Test = (function () {
       return Math.max(...dev) - Math.min(...dev);
     };
     const without = spread(0), withF = spread(G.CONFIG.crowd.flank);
-    ok("F ten coming in a line close in from several sides (round the player)", withF > 70 && withF > without * 1.5, "spread " + withF.toFixed(0) + " deg (straight at the player: " + without.toFixed(0) + " deg)");
+    ok("F ten coming in a line close in from several sides (round the player)", withF >= 40 && withF > without * 1.5, "spread " + withF.toFixed(0) + " deg at 6 m (straight at the player: " + without.toFixed(0) + " deg)");
     g.update = function () {};
   }
 

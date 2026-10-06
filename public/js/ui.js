@@ -276,7 +276,7 @@ G.UI = {
       </div>
 
       <div class="settings-section-title">${T("settings.about")}</div>
-      <div class="settings-row"><label>${T("settings.version")}<small class="set-note" id="set-update-note"></small></label>
+      <div class="settings-row set-version-row"><label>${T("settings.version")}<small class="set-note" id="set-update-note"></small></label>
         <span class="set-version" data-version>${G.escapeHtml(G.Updater ? G.Updater.label() : "")}</span>
         <button class="btn" id="btn-check-update">${T("settings.checkUpdates")}</button></div>
     `;

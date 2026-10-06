@@ -255,7 +255,8 @@ window.G = window.G || {};
         // for a small, far word that has to clear the big near ones)
         const up = Math.max(A.labelUp, (screenH * A.labelUpScreen) / step);
         // slot: how far it moves, in its own heights (+ up, - down)
-        const at = (slot) => { const cy = it.y - slot * step; return { x0, x1, y0: cy - it.h / 2, y1: cy + it.h / 2, slot }; };
+        // (each rect carries half the gap on every side: two words never touch)
+        const at = (slot) => { const cy = it.y - slot * step; return { x0, x1, y0: cy - it.h / 2 - gap / 2, y1: cy + it.h / 2 + gap / 2, slot }; };
         let best = null;
         // the place it had last frame if that is still free, else its own
         for (const s of [it.z._labelSlot || 0, 0]) { const r = at(s); if (fits(r)) { best = r; break; } }
@@ -264,7 +265,8 @@ window.G = window.G || {};
           const cands = [];
           placed.forEach((q) => {
             if (x0 >= q.x1 || x1 <= q.x0) return;
-            cands.push((it.y - (q.y0 - it.h / 2)) / step, (it.y - (q.y1 + it.h / 2)) / step);
+            // (with the gap between them, so a zombie's sway never makes them touch)
+            cands.push((it.y - (q.y0 - gap / 2 - it.h / 2 - 0.5)) / step, (it.y - (q.y1 + gap / 2 + it.h / 2 + 0.5)) / step);
           });
           cands.filter((s) => s <= up && s >= A.labelDown).sort((a, b) => cost(a) - cost(b))
             .some((s) => { const r = at(s); if (fits(r)) { best = r; return true; } return false; });

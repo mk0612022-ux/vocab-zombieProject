@@ -7,7 +7,7 @@
 
 ## เล่นเลย
 
-**https://vocab-zombie67project.mk0612022.workers.dev**
+**https://vocab-zombieproject.mk0612022.workers.dev**
 
 หรือสแกน `play-qr.png` ด้วยกล้องของ iPad/มือถือ (เว็บอยู่บน Cloudflare อัปเดตเองทุกครั้งที่ push)
 
