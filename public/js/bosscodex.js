@@ -44,7 +44,7 @@
         return `<button class="codex-card" data-id="${d.id}" aria-label="${esc(T("codex.open", { name }))}"><div class="codex-img"><img alt="" data-pic="${d.id}"></div>` +
           `<div class="codex-name">${esc(name)}</div>` +
           `<div class="codex-title">${esc(T("boss.the", { w: d.word.charAt(0).toUpperCase() + d.word.slice(1) }))}</div>` +
-          `<div class="codex-thai" lang="th">${esc(G.Bosses.thai(d))}</div>` +
+          `<div class="codex-thai"${G.Lang.attr(G.Lang.meaning())}>${G.Bosses.meaningHtml(d)}</div>` +
           `<div class="codex-sub">${esc(this.codexMoves(d).map((m) => m.name).join(" · "))}</div>` +
           (S.defeated[d.id] ? `<div class="codex-beaten">✓</div>` : "") + `</button>`;
       }).join("");
@@ -67,7 +67,8 @@
       this.el("codex-d-img").src = G.BossModels.portrait(id, false) || "";
       this.el("codex-d-name").textContent = T("boss." + id + ".name");
       this.el("codex-d-title").textContent = T("boss.the", { w: d.word.charAt(0).toUpperCase() + d.word.slice(1) });
-      this.el("codex-d-thai").textContent = G.Bosses.thai(d);
+      this.el("codex-d-thai").innerHTML = G.Bosses.meaningHtml(d);
+      this.el("codex-d-thai").lang = G.Lang.TAG[G.Lang.meaning()];
       this.el("codex-d-look").textContent = T("boss." + id + ".look");
       // (new series, round 2) its three moves, a phase each, with the way out of each
       this.el("codex-d-moves").innerHTML = this.codexMoves(d).map((m, i) =>

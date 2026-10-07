@@ -21,6 +21,9 @@
 //   G.Questions.pickType(pair, prev)      a kind for this word
 //   G.Questions.build(pair, type, pool)   the question
 //   G.QuestionView.fill(els, q, handlers) draws it (choices or the spelling pad)
+// (Round 3, H) "Thai" and "English" above are the Meaning and the Word
+// Language now: 1, 2, 7 and 8 are asked in every pair of languages; 3-6 and
+// their written forms only while the words are English.
 // (new series, round 2, G) An English word shown as a choice -- or as the word
 // asked about -- carries its part of speech, research (N./V.), and the wrong
 // choices are of the same part of speech; a question about the word's forms
@@ -53,8 +56,9 @@ window.G = window.G || {};
     can(type, pair) {
       if (!pair || !pair[0]) return false;
       if (type === "th2en" || type === "en2th" || type === "spell") return !!pair[1];
-      if (type === "listen") return !!pair[1] && ("speechSynthesis" in window);
-      if (type === "dictation") return "speechSynthesis" in window;
+      // (round 3: heard in the Word Language's voice -- none on the device, not asked)
+      if (type === "listen") return !!pair[1] && ("speechSynthesis" in window) && G.Clues.has(pair, "audio");
+      if (type === "dictation") return ("speechSynthesis" in window) && G.Clues.has(pair, "audio");
       if (type === "def2word" || type === "defspell") return G.Clues.has(pair, "definition");
       if (type === "cloze" || type === "clozespell") return G.Clues.has(pair, "cloze");
       if (type === "colloc") return G.Clues.has(pair, "colloc");
@@ -134,20 +138,23 @@ window.G = window.G || {};
       pool = pool && pool.length >= 4 ? pool : G.getAllBuiltinWords();
       if (!this.can(type, pair)) type = this.SPELLED.includes(type) ? "spell" : "th2en";
       const q = { type, kind: type, pair, recall: this.RECALL.includes(type), answerText: pair[0], spell: this.SPELLED.includes(type), skills: this.SKILLS[type] || ["recognition"] };
-      // (new series, round 2, G) an English choice carries its part of speech
-      const words = (list) => list.map((p) => ({ text: p[0], lang: "en", pair: p, pos: G.POS.of(p) }));
-      const thais = (list) => list.map((p) => ({ text: p[1], lang: "th", pair: p }));
+      // (round 3) the word's and the meaning's languages: the lang of each
+      // text, Chinese with its pinyin over it (G.Lang.html)
+      const WL = G.Lang.TAG[G.Lang.wl(pair)] || "en", ML = G.Lang.TAG[G.Lang.ml(pair)] || "th";
+      // (new series, round 2, G) a word as a choice carries its part of speech
+      const words = (list) => list.map((p) => ({ text: p[0], html: G.Lang.html(p, 0), lang: WL, word: true, pair: p, pos: G.POS.of(p), g: G.POS.gender(p) }));
+      const thais = (list) => list.map((p) => ({ text: p[1], html: G.Lang.html(p, 1), lang: ML, pair: p }));
       const shuffleIn = (right, wrong) => {
         const all = G.shuffle([right].concat(wrong));
         q.choices = all; q.answer = all.indexOf(right);
       };
-      const own = { text: pair[0], lang: "en", pair, pos: G.POS.of(pair) };
+      const own = words([pair])[0];
       if (type === "th2en") {
-        q.ask = T("q.th2en"); q.prompt = { html: esc(pair[1]), lang: "th", big: true };
+        q.ask = T("q.th2en"); q.prompt = { html: G.Lang.html(pair, 1), lang: ML, big: true };
         shuffleIn(own, words(this.posChoices(pair, pool, 3)));
       } else if (type === "en2th") {
-        q.ask = T("q.en2th"); q.prompt = { html: esc(pair[0]) + G.POS.tag(pair), lang: "en", big: true };
-        shuffleIn({ text: pair[1], lang: "th", pair }, thais(G.Distract.forChoices(pair, pool, 3)));
+        q.ask = T("q.en2th"); q.prompt = { html: G.Lang.html(pair, 0) + G.POS.tag(pair), lang: WL, big: true };
+        shuffleIn(thais([pair])[0], thais(G.Distract.forChoices(pair, pool, 3)));
       } else if (type === "def2word") {
         q.ask = T("q.def2word"); q.prompt = { html: "≈ " + esc(G.Clues.definition(pair)), lang: "en" };
         shuffleIn(own, words(this.posChoices(pair, pool, 3)));
@@ -188,14 +195,14 @@ window.G = window.G || {};
         shuffleIn({ text: P.word, lang: "en", pair, pos: G.POS.of(pair) }, words(this.samePos(pair, pool, 3, (p) => syn.has(low(p[0])))));
         if (low(P.word) !== low(pair[0])) q.noPos = true;
       } else if (type === "listen") {
-        q.ask = T("q.listen"); q.prompt = { html: "", lang: "en", listen: true }; q.speak = pair[0];
-        shuffleIn({ text: pair[1], lang: "th", pair }, thais(G.Distract.forChoices(pair, pool, 3)));
+        q.ask = T("q.listen"); q.prompt = { html: "", lang: WL, listen: true }; q.speak = pair[0];
+        shuffleIn(thais([pair])[0], thais(G.Distract.forChoices(pair, pool, 3)));
       } else if (type === "spell") {
-        q.ask = T("q.spell"); q.prompt = { html: esc(pair[1]), lang: "th", big: true };
+        q.ask = T("q.spell"); q.prompt = { html: G.Lang.html(pair, 1), lang: ML, big: true };
       } else if (type === "defspell") {
         q.ask = T("q.defspell"); q.prompt = { html: "≈ " + esc(G.Clues.definition(pair)), lang: "en" };
       } else if (type === "dictation") {
-        q.ask = T("q.dictation"); q.prompt = { html: "", lang: "en", listen: true }; q.speak = pair[0];
+        q.ask = T("q.dictation"); q.prompt = { html: "", lang: WL, listen: true }; q.speak = pair[0];
       } else if (type === "clozespell") {
         // the form the sentence uses is the word to write
         const c = G.Clues.cloze(pair, G.rng() < 0.5 ? 0 : 1) || G.Clues.cloze(pair);
@@ -252,12 +259,14 @@ window.G = window.G || {};
           showCursor: () => G.Input.padActive,
         });
         pad.setWord(Q.spellTarget(q), "");
+        if (G.Input.mode !== "touch") setTimeout(() => pad.focusField(), 0);
       } else {
         const cls = h.choiceClass || "quiz-choice";
         // (new series, round 2, G) an English word with its part of speech --
         // not in a question of the word's forms (q.noPos)
-        const tag = (c) => (c.lang === "en" && c.pos && !q.noPos ? G.POS.tag(c.pos) : "");
-        box.innerHTML = q.choices.map((c, k) => `<button class="${cls}${c.lang === "th" ? " th" : ""}" data-k="${k}" lang="${c.lang}" type="button"><b>${k + 1}</b><span>${esc(c.text)}${tag(c)}</span></button>`).join("");
+        // (round 3: a word of the Word Language -- a French noun with its gender)
+        const tag = (c) => ((c.word || c.lang === "en") && c.pos && !q.noPos ? (c.g ? G.POS.tag(c.pair) : G.POS.tag(c.pos)) : "");
+        box.innerHTML = q.choices.map((c, k) => `<button class="${cls}${c.lang === "th" ? " th" : c.lang === "zh-Hans" ? " zh" : ""}" data-k="${k}" lang="${c.lang}" type="button"><b>${k + 1}</b><span>${c.html || esc(c.text)}${tag(c)}</span></button>`).join("");
         box.querySelectorAll("[data-k]").forEach((b) => { b.onclick = () => h.pick && h.pick(parseInt(b.dataset.k, 10)); });
       }
       return { pad };
@@ -266,6 +275,15 @@ window.G = window.G || {};
     key(e, q, pad, h) {
       if (e.code === G.save.settings.keybinds.replay && q.prompt.listen) { h.speak && h.speak(); return true; }
       if (q.spell && pad) {
+        // (round 3) a word in another language: its text field takes the keys
+        // (an IME's Enter included); Enter answers, Tab hints
+        if (pad.usesField()) {
+          if (pad.composing || e.isComposing || e.keyCode === 229) return true;
+          if (e.code === "Enter" || e.code === "NumpadEnter") { h.spell && h.spell(pad.text()); return true; }
+          if (e.code === "Tab") { if (e.preventDefault) e.preventDefault(); if (pad.hint()) h.hint && h.hint(); return true; }
+          if (G.Spell.fieldKey(e)) { pad.focusField(); return true; }
+          return false;
+        }
         const ch = G.Spell.keyChar(e);
         if (e.code === "Enter" || e.code === "NumpadEnter") { h.spell && h.spell(pad.text()); return true; }
         if (e.code === "Backspace") { pad.back(); return true; }

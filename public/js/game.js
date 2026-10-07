@@ -49,6 +49,10 @@ G.Game = {
   init() {
     const isFirstRun = !localStorage.getItem("vocabZombie_save_v1");
     G.loadSave();
+    // (round 3, H) the word lists in the Word and Meaning Language chosen;
+    // the menus in the UI language (js/strings.js read it from the save early)
+    G.Lang.apply();
+    if (G.setUILang && G.save.settings.uiLang !== G.lang) G.setUILang(G.save.settings.uiLang, { quiet: true });
     if (isFirstRun) {
       // Phones/tablets start on medium so the first frame isn't a slideshow.
       // matchMedia("pointer: coarse") is what actually catches an iPad --
@@ -1121,11 +1125,12 @@ G.Game = {
       // J3: pronounce the word once it has been earned (default), so the
       // audio reinforces the answer instead of giving it away
       if ((G.save.settings.speechMode || "after") === "after") G.Audio.speak(z.word);
-      const prevStat = G.wordStat(z.word), prevWrong = !!prevStat && prevStat.wrong > 0;
+      const prevStat = G.wordStat(z.pair), prevWrong = !!prevStat && prevStat.wrong > 0;
       this.learnRight(z, spelled);
       this.player.combo++;
       if (this.player.combo >= 50) G.unlockAchievement("streak50");
-      let reward = 10 + z.word.length * 3 + Math.min(this.player.combo, 20) * 2;
+      // (round 3: a word's length in its language -- a Chinese character counts as three letters)
+      let reward = 10 + G.SpellUnits.weight(z.word, G.Lang.wl(z.pair)) * 3 + Math.min(this.player.combo, 20) * 2;
       if (prevWrong) reward = Math.round(reward * 1.6);
       // Big Word Bounty: a hard word -- a long one, or one missed before -- pays more
       if (P.has("word_bounty") && (z.word.replace(/[^A-Za-z]/g, "").length >= 8 || prevWrong)) {
@@ -1274,8 +1279,8 @@ G.Game = {
     if (!z._spellWrong) {
       z._spellWrong = true;
       if (!z.retry) G.Learning.answerWord(z.pair, false, { typed, skills: G.Learning.skillsFor(z.clueKind, "spell") });
-      else if (typed && (G.WordBank.ownerOf(typed) || G.WordBank.confusable(typed))) G.SRS.noteConfusion(z.pair, typed);
-    } else if (typed && (G.WordBank.ownerOf(typed) || G.WordBank.confusable(typed))) G.SRS.noteConfusion(z.pair, typed);
+      else if (G.SRS.typedWord(typed, z.pair)) G.SRS.noteConfusion(z.pair, typed);
+    } else if (G.SRS.typedWord(typed, z.pair)) G.SRS.noteConfusion(z.pair, typed);
     this.trackWrongWord(z.word, z.meaning);
     G.Quiz.noteMissed(this, z.word);
     const pl = this.player;
@@ -1533,6 +1538,7 @@ G.Game = {
       return false;
     } });
     G.UI.renderShop();
+    G.UI.updateShopTimer(this.shopTimer, lim);
     G.Tutorial.shopTip();
     G.UI.showScreen("screen-shop");
   },
@@ -1963,13 +1969,15 @@ G.Game = {
     // Hint Reader: the first letter, and at level 2 how many letters
     // (round 3: the Whisper ability says more -- the first three and the length)
     const hint = G.Perks.level("perk_hint");
+    // (round 3: the first units and the length of the word in its language --
+    // Thai clusters, Chinese characters)
     if (this.targetPair && G.Abilities.whisper()) {
-      const w = this.targetPair[0];
-      meaning += G.T("hud.whisper", { s: w.slice(0, 3).toUpperCase(), n: w.replace(/[^A-Za-z]/g, "").length });
+      const w = this.targetPair[0], wl = G.Lang.wl(this.targetPair);
+      meaning += G.T("hud.whisper", { s: G.SpellUnits.first(w, wl, 3).toUpperCase(), n: G.SpellUnits.count(w, wl) });
     } else if (hint && this.targetPair) {
-      const w = this.targetPair[0];
-      meaning += hint >= 2 ? G.T("hud.hintLen", { c: w[0].toUpperCase(), n: w.replace(/[^A-Za-z]/g, "").length })
-        : G.T("hud.hintFirst", { c: w[0].toUpperCase() });
+      const w = this.targetPair[0], wl = G.Lang.wl(this.targetPair);
+      meaning += hint >= 2 ? G.T("hud.hintLen", { c: G.SpellUnits.first(w, wl, 1).toUpperCase(), n: G.SpellUnits.count(w, wl) })
+        : G.T("hud.hintFirst", { c: G.SpellUnits.first(w, wl, 1).toUpperCase() });
     }
     // (vocabulary series, round 2) what kind of clue this is: the word to
     // shoot, or -- nothing to shoot -- the one the spelling pad is on
@@ -2003,6 +2011,10 @@ G.Game = {
       else if (sf.clueKind === "cloze") { clueKind = "cloze"; meaningLabel = G.T("hud.clue.clozeSpell"); meaning = sf.clueFull || sf.clue; }
     }
     else if (!this.targetPair && G.Spell && G.Spell.active && this.learn && !this.learn.shoots) meaningLabel = G.T("hud.spellMeaning");
+    // (round 3, H4) a Chinese meaning at the top: its pinyin over it
+    let meaningRuby = null;
+    const mp = clueKind === "thai" ? (this.targetPair || (sf && sf.pair)) : null;
+    if (mp && G.Lang.showPinyin() && G.Lang.ml(mp) === "zh" && String(meaning).indexOf(mp[1]) === 0) meaningRuby = { text: mp[1], py: G.Lang.pinyin(mp, 1), rest: String(meaning).slice(mp[1].length) };
     const campaign = this.mode === "campaign";
     return {
       hp: (this.player.hp / this.player.maxHp) * 100, stamina: (this.stamina / this.maxStamina) * 100,
@@ -2013,7 +2025,7 @@ G.Game = {
       // what is still between the player and the end of the wave: the ones
       // alive plus the rest of the quota still to come (a decoy is not one)
       zombiesLeft: this.zombies.filter((z) => !z.decoy).length + (G.Bosses.phase ? 0 : Math.max(0, this.requiredKills - this.spawnedCount)), weaponName: def.name,
-      meaningLabel, clueKind, clueSub, thaiBtn,
+      meaningLabel, clueKind, clueSub, thaiBtn, meaningRuby,
       isMelee: id === "melee",
       weightLabel: def.id === "melee" ? null : G.weightClass(def).label,
       weightColor: def.id === "melee" ? null : G.weightClass(def).color,

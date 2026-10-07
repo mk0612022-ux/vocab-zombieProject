@@ -16,6 +16,9 @@
 #   - every entry has its part of speech: one of n v adj adv prep conj pron
 #     det phrase, or two of them as "n/v" when the meaning given is both
 #     (new series, round 2, G: shown after the word as N./V.)
+#   - (round 3, H3) the Chinese (characters, pinyin with tone marks, one
+#     syllable per character, zhPos) and French (word, frPos, frGender m / f /
+#     m/f for a noun) are there, NFC accents, none repeated in a level
 #   - every confusable is in the bank or in the confusables lexicon
 #   - topic from the fixed list; awlSublist 1-10; the AWL complete: all
 #     570 families, each in the sublist the official list gives it
@@ -103,6 +106,36 @@ function Find-Form([string]$text, $inflSet, $multi) {
   return $null
 }
 $THAI = '[\u0E00-\u0E7F]'
+$HAN = '[\u3400-\u4DBF\u4E00-\u9FFF]'
+function Test-Pos([string]$code) {
+  $p = @($code.Split('/'))
+  $idx = @($p | ForEach-Object { [array]::IndexOf($POS_ORDER, $_) })
+  if (-not $code -or $p.Count -gt 2 -or $idx -contains -1) { return $false }
+  return ($p.Count -eq 1 -or $idx[0] -lt $idx[1])
+}
+# Pinyin: letters, tone marks, spaces and apostrophes; every word starts with
+# a marked syllable (later ones may be neutral, like the second of zhishi). A syllable is one run
+# of vowels -- the spelling rules (y-, w-, the apostrophe) keep two syllables'
+# vowels apart.
+$TONED = [regex]::Unescape('\u0101\u00E1\u01CE\u00E0\u0113\u00E9\u011B\u00E8\u012B\u00ED\u01D0\u00EC\u014D\u00F3\u01D2\u00F2\u016B\u00FA\u01D4\u00F9\u01D6\u01D8\u01DA\u01DC')   # the tone-marked vowels (escapes: this file is ASCII)
+function Test-Pinyin([string]$py) {
+  $r = @{ syllables = 0; bad = '' }
+  $low = $py.ToLowerInvariant()
+  if ($low -notmatch "^[a-z\u00FC$TONED' ]+$") { $r.bad = 'only pinyin letters, tone marks, spaces and apostrophes'; return $r }
+  foreach ($w in ($low -split ' ' | Where-Object { $_ })) {
+    $first = $true
+    foreach ($part in ($w -split "'" | Where-Object { $_ })) {
+      foreach ($m in [regex]::Matches($part, "[aeiou\u00FC$TONED]+")) {
+        $r.syllables++
+        $marked = ($m.Value.ToCharArray() | Where-Object { $TONED.IndexOf($_) -ge 0 }).Count
+        if ($marked -gt 1) { $r.bad = "two tone marks in '$($m.Value)'"; return $r }
+        if ($first -and $marked -eq 0) { $r.bad = "no tone mark on '$w'"; return $r }
+        $first = $false
+      }
+    }
+  }
+  return $r
+}
 
 # ---------------- read ----------------
 $entries = New-Object System.Collections.Generic.List[object]
@@ -123,6 +156,8 @@ if (Test-Path $confPath) { $lexicon = @(Read-Block $confPath 'CONFUSABLES') } el
 $ids = @{}
 $formOwner = @{}                 # form -> id
 $thaiByLevel = @{ 1 = @{}; 2 = @{}; 3 = @{} }
+$otherByLevel = @{ zh = @{ 1 = @{}; 2 = @{}; 3 = @{} }; fr = @{ 1 = @{}; 2 = @{}; 3 = @{} } }
+$needsReview = New-Object System.Collections.Generic.List[string]
 foreach ($e in $entries) {
   $id = [string]$e.id
   $where = "[$($e.__file)] $id"
@@ -195,6 +230,35 @@ foreach ($e in $entries) {
   if (@($th -split '\s*[/;,]\s*' | Where-Object { $_ }).Count -gt 2) { Err "$where : thai gives more than two meanings: $th" }
   $tl = $thaiByLevel[$e.__lv]
   if ($tl.ContainsKey($th)) { Err "$where : the same Thai as '$($tl[$th])' in this level: $th" } else { $tl[$th] = $id }
+  if ($e.thPos -and -not (Test-Pos ([string]$e.thPos))) { Err "$where : thPos '$($e.thPos)'" }
+
+  # (round 3, H3) Chinese: characters, pinyin with tone marks (one syllable per
+  # character), its own part of speech; French: the word, its part of speech,
+  # and a gender for a noun. None the same as another target's in the level.
+  $zh = ([string]$e.zh).Trim(); $py = ([string]$e.pinyin).Trim(); $fr = ([string]$e.fr).Trim()
+  if (-not $zh) { Err "$where : zh is missing" }
+  elseif ($zh -notmatch "^$HAN+$") { Err "$where : zh should be Chinese characters only: $zh" }
+  if (-not $py) { Err "$where : pinyin is missing" }
+  else {
+    $pc = Test-Pinyin $py
+    if ($pc.bad) { Err "$where : pinyin '$py': $($pc.bad)" }
+    elseif ($zh -and $pc.syllables -ne $zh.Length) { Err "$where : pinyin '$py' has $($pc.syllables) syllables for $($zh.Length) characters ($zh)" }
+  }
+  if (-not (Test-Pos ([string]$e.zhPos))) { Err "$where : zhPos '$($e.zhPos)'" }
+  if (-not $fr) { Err "$where : fr is missing" }
+  elseif ($fr -match $THAI -or $fr -match $HAN) { Err "$where : fr has Thai or Chinese letters: $fr" }
+  elseif ($fr -ne $fr.Normalize([Text.NormalizationForm]::FormC)) { Err "$where : fr accents should be single letters (NFC): $fr" }
+  if (-not (Test-Pos ([string]$e.frPos))) { Err "$where : frPos '$($e.frPos)'" }
+  elseif (([string]$e.frPos).Split('/') -contains 'n') {
+    if (@('m', 'f', 'm/f') -cnotcontains [string]$e.frGender) { Err "$where : French noun '$fr' needs frGender m, f or m/f" }
+  } elseif ($e.frGender) { Err "$where : frGender is only for nouns ('$fr' is $($e.frPos))" }
+  foreach ($r in @($e.review)) { if ($r -and @('th', 'zh', 'fr') -cnotcontains [string]$r) { Err "$where : review '$r' (th, zh or fr)" } }
+  foreach ($pair in @(@('zh', $zh), @('fr', $fr.ToLowerInvariant()))) {
+    if (-not $pair[1]) { continue }
+    $tl = $otherByLevel[$pair[0]][$e.__lv]
+    if ($tl.ContainsKey($pair[1])) { Err "$where : the same $($pair[0]) as '$($tl[$pair[1]])' in this level: $($pair[1])" } else { $tl[$pair[1]] = $id }
+  }
+  if (@($e.review | Where-Object { $_ }).Count) { $needsReview.Add("$id ($(@($e.review) -join ', '))") }
 
   if ($e.source -eq 'AWL') {
     $sub = $e.awlSublist
@@ -269,6 +333,7 @@ if (-not $Quiet) {
   $bySub = $awl | Group-Object awlSublist | Sort-Object { [int]$_.Name }
   "  AWL families: $($awlHeads.Count) of 570 -- by sublist: " + (($bySub | ForEach-Object { "$($_.Name):$($_.Count)" }) -join '  ')
   "  parts of speech: " + (($POS_ORDER | Where-Object { $posCount[$_] } | ForEach-Object { "${_}:$($posCount[$_])" }) -join '  ') + "  (two of them: $posTwo)"
+  "  languages: en th zh fr in every entry -- needs review: $($needsReview.Count)$(if ($needsReview.Count) { ' -- ' + ($needsReview -join ', ') })"
   foreach ($w in $warnings) { "  WARNING $w" }
 }
 if ($errors.Count) {

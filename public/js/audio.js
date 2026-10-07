@@ -33,9 +33,16 @@ G.Audio = {
       window.addEventListener(ev, unlock, { passive: true, capture: true }));
     document.addEventListener("visibilitychange", () => { if (!document.hidden && this.ctx && this.ctx.state !== "running") this.ctx.resume().catch(() => {}); });
     if ("speechSynthesis" in window) {
-      const pickVoice = () => { this._voice = this.pickVoice(); };
+      // (round 3: once the device has listed its voices, whether the Word
+      // Language has one is known -- the lobby and Settings say when not)
+      const pickVoice = () => {
+        this._voice = this.pickVoice();
+        if ((speechSynthesis.getVoices() || []).length && !this._voicesKnown) { this._voicesKnown = true; window.dispatchEvent(new Event("vz-voices")); }
+      };
       pickVoice();
       speechSynthesis.addEventListener && speechSynthesis.addEventListener("voiceschanged", pickVoice);
+      // (some browsers never send voiceschanged when the list was ready at once)
+      setTimeout(() => { if (!this._voicesKnown) { this._voicesKnown = true; window.dispatchEvent(new Event("vz-voices")); } }, 2500);
     }
   },
 
@@ -929,39 +936,59 @@ G.Audio = {
   // Australian) picks among the English ones it really has; an accent it
   // does not have falls back to any English voice (British first). Speed:
   // Normal, or Slow (0.8 of it) -- G.CONFIG.speech.
+  // (Round 3, H4) A word is said in its language -- the Word Language:
+  // English (the accent above), French (fr-FR first), Chinese (zh-CN first,
+  // Mandarin), Thai. A device with no voice for it says nothing, and the
+  // modes and questions that are heard are not offered (G.Audio.canSpeak).
   ACCENTS: { british: /^en[-_]GB/i, american: /^en[-_]US/i, australian: /^en[-_]AU/i },
-  voices() {
+  LANG_RE: { en: /^en/i, fr: /^fr/i, zh: /^(zh|cmn)/i, th: /^th/i },
+  PREFER: { fr: /^fr[-_]FR/i, zh: /^(zh[-_](CN|Hans)|cmn)/i, th: /^th/i },
+  voices(lang) {
     if (!("speechSynthesis" in window)) return [];
-    return (speechSynthesis.getVoices() || []).filter((v) => /^en/i.test(v.lang));
+    const re = this.LANG_RE[lang || "en"] || this.LANG_RE.en;
+    // (Chinese: Mandarin voices -- not Cantonese, zh-HK)
+    return (speechSynthesis.getVoices() || []).filter((v) => re.test(v.lang) && !(lang === "zh" && /HK|yue/i.test(v.lang)));
   },
   accent() { return (G.save && G.save.settings && G.save.settings.accent) || "british"; },
   // does the device have a voice for this accent? (Settings says when not)
   hasAccent(a) { const re = this.ACCENTS[a]; return !re || this.voices().some((v) => re.test(v.lang)); },
-  pickVoice() {
-    const vs = this.voices();
+  // (round 3) can a word in this language be said here? Before the device has
+  // listed its voices (they come a moment after the page opens) it may.
+  canSpeak(lang) {
+    if (!("speechSynthesis" in window)) return false;
+    if (!this._voicesKnown && !(speechSynthesis.getVoices() || []).length) return true;
+    return this.voices(lang || "en").length > 0;
+  },
+  pickVoice(lang) {
+    lang = lang || "en";
+    const vs = this.voices(lang);
     if (!vs.length) return null;
+    if (lang !== "en") { const p = this.PREFER[lang]; return (p && vs.find((v) => p.test(v.lang))) || vs[0]; }
     const a = this.accent(), re = this.ACCENTS[a];
     if (a === "mixed") return vs[Math.floor(Math.random() * vs.length)];
     const own = re ? vs.filter((v) => re.test(v.lang)) : [];
     return own[0] || vs.find((v) => this.ACCENTS.british.test(v.lang)) || vs.find((v) => this.ACCENTS.american.test(v.lang)) || vs[0];
   },
   speechRate() { const C = G.CONFIG.speech; return G.save && G.save.settings.speechSpeed === "slow" ? C.rate * C.slowRate : C.rate; },
-  // a word (kept for "hear it again"), or with { text: true } a sentence
+  // a word (kept for "hear it again"), or with { text: true } a sentence;
+  // opts.lang its language (the Word Language when not given)
   speak(word, opts) {
     if (!word || !("speechSynthesis" in window)) return;
     const vol = this.vol("speech");
     if (vol <= 0.001) return;
-    if (!(opts && opts.text)) this._lastSpoken = word;
+    const lang = (opts && opts.lang) || (G.Lang ? G.Lang.word() : "en");
+    if (!(opts && opts.text)) { this._lastSpoken = word; this._lastLang = lang; }
+    if (!this.canSpeak(lang)) return;
     try {
       speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(word);
-      const v = this.pickVoice();
-      u.lang = (v && v.lang) || "en-GB";
-      if (v) u.voice = v;
+      const v = this.pickVoice(lang);
+      u.lang = (v && v.lang) || (G.Lang ? G.Lang.SPEECH[lang] : "en-GB") || "en-GB";
+      if (v) { try { u.voice = v; } catch (e) { /* (not a voice the browser listed) */ } }
       u.rate = this.speechRate() * (opts && opts.text ? 0.95 : 0.9); u.pitch = 1; u.volume = Math.min(1, vol);
       speechSynthesis.speak(u);
       this._spokenAt = performance.now();
     } catch (e) { /* speech is a nicety; never let it break the game */ }
   },
-  replay() { if (this._lastSpoken) this.speak(this._lastSpoken); },
+  replay() { if (this._lastSpoken) this.speak(this._lastSpoken, { lang: this._lastLang }); },
 };

@@ -2,13 +2,15 @@
 # game's code, markup and styles. Vocabulary data (the word bank
 # public/js/data/bank_*.js, confusables.js, words_bosses.js) is
 # skipped on purpose: the Thai meanings there are part of the game. So is
-# public/version.json (the commit messages it lists for the update screen).
+# public/version.json (the commit messages it lists for the update screen),
+# and (round 3) public/js/strings-th.js, the Thai of the menus.
 #
 #   powershell -ExecutionPolicy Bypass -File tools\thai-scan.ps1
 #
 # Exit code 0 = clean, 1 = Thai text found.
 $root = Split-Path -Parent $PSScriptRoot
-$skip = @('public\js\data\bank_school.js', 'public\js\data\bank_hospital.js', 'public\js\data\bank_bunker.js', 'public\js\data\confusables.js', 'public\js\data\words_bosses.js', 'public\version.json')
+# (round 3, H2: the Thai UI strings are Thai on purpose -- js/strings-th.js)
+$skip = @('public\js\data\bank_school.js', 'public\js\data\bank_hospital.js', 'public\js\data\bank_bunker.js', 'public\js\data\confusables.js', 'public\js\data\words_bosses.js', 'public\js\strings-th.js', 'public\version.json')
 $files = Get-ChildItem -Path $root -Recurse -File -Include *.js, *.html, *.css, *.json, *.ps1 |
   Where-Object { $_.FullName -notmatch '\\(\.git|node_modules|\.wrangler|screenshots|_review)\\' }
 $hits = 0; $scanned = 0; $skipped = @()

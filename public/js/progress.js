@@ -141,7 +141,7 @@ window.G = window.G || {};
     // a word the player can open
     wordBtn(pair, extra) {
       const i = this._words.push(pair) - 1;
-      return `<button class="pg-word" type="button" data-word="${i}"><b lang="en">${esc(pair[0])}${G.POS.tag(pair)}</b><span lang="th">${esc(pair[1] || "")}</span>${extra ? `<em>${esc(extra)}</em>` : ""}</button>`;
+      return `<button class="pg-word" type="button" data-word="${i}"><b${G.Lang.attr(pair, 0)}>${G.Lang.html(pair, 0)}${G.POS.tag(pair)}</b><span${G.Lang.attr(pair, 1)}>${G.Lang.html(pair, 1)}</span>${extra ? `<em>${esc(extra)}</em>` : ""}</button>`;
     },
 
     learnHtml(d) {
@@ -155,7 +155,8 @@ window.G = window.G || {};
       const overview = this.card("pg-overview", T("progress.overview"), `<div class="pg-tiles">${tiles}</div>${split}<div class="pg-legend">${kinds.map(([k, n]) => `<span><i style="background:${COLORS[k]}"></i>${esc(n)} ${pct(o[k], o.total)}%</span>`).join("")}</div>`, esc(T("progress.overviewSub", { n: o.total })));
       // 2. AWL
       const awlRows = d.awl.subs.map((s) => `<div class="pg-row"><span class="pg-rl">${esc(T("progress.sublist", { n: s.n }))}</span>${this.bar([{ v: s.mastered, color: COLORS.mastered }, { v: s.review, color: COLORS.review }, { v: s.learning, color: COLORS.learning }], s.total, T("progress.sublistLabel", { n: s.n, m: s.mastered, t: s.total }))}<span class="pg-rv">${s.mastered}/${s.total}</span></div>`).join("");
-      const awl = this.card("pg-awl", T("progress.awl"), `<div class="pg-big">${esc(T("progress.awlLine", { x: d.awl.mastered, n: d.awl.total, y: pct(d.awl.mastered, d.awl.total) }))}</div>
+      // (round 3, H5: the Academic Word List is English words -- shown while English is the Word Language)
+      const awl = !G.Lang.enWord() ? this.card("pg-awl", T("progress.awl"), `<p class="pg-off">\u{1F512} ${esc(T("progress.awlEnglishOnly", { lang: G.Lang.label(G.Lang.word()) }))}</p>`) : this.card("pg-awl", T("progress.awl"), `<div class="pg-big">${esc(T("progress.awlLine", { x: d.awl.mastered, n: d.awl.total, y: pct(d.awl.mastered, d.awl.total) }))}</div>
         ${this.bar([{ v: d.awl.mastered, color: COLORS.mastered }], d.awl.total, T("progress.awlLine", { x: d.awl.mastered, n: d.awl.total, y: pct(d.awl.mastered, d.awl.total) }))}
         <div class="pg-rows">${awlRows}</div>
         <div class="pg-legend"><span><i style="background:${COLORS.mastered}"></i>${esc(T("progress.mastered"))}</span><span><i style="background:${COLORS.review}"></i>${esc(T("progress.review"))}</span><span><i style="background:${COLORS.learning}"></i>${esc(T("progress.learning"))}</span></div>`);

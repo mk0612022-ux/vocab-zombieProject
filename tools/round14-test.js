@@ -424,7 +424,7 @@ G.Round14Test = (function () {
     $("btn-camp-go").focus();
     press("Enter");
     await wait(30);
-    ok("F ...the first time: its short intro", G.Modal.isOpen("studyintro") && /Audio \+ Shoot/.test($("study-intro-title").textContent) && /every zombie carries its English word/.test($("study-intro-text").textContent));
+    ok("F ...the first time: its short intro", G.Modal.isOpen("studyintro") && /Audio \+ Shoot/.test($("study-intro-title").textContent) && /every zombie carries its (English )?word/.test($("study-intro-text").textContent));
     $("btn-intro-start").click();
     await wait(60);
     ok("F ...then the level, with Spell to Reload on", g.state === "GAMEPLAY" && g.learn.id === "custom:audio+shoot" && G.save.settings.spellReload === true && G.save.learnSeen.mode_listenword);

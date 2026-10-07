@@ -39,7 +39,11 @@ G.Clues = {
     if (!pair) return false;
     const info = this.info(pair);
     if (kind === "thai") return !!pair[1];
-    if (kind === "audio" || kind === "spell") return true;
+    if (kind === "spell") return true;
+    // (round 3, H4) a word is heard in its language's voice: none on the device, no audio clue
+    if (kind === "audio") return !G.Audio || !G.Audio.canSpeak || G.Audio.canSpeak(G.Lang.wl(pair));
+    // (round 3, H5) the rest are English: definitions, sentences, collocations
+    if (!G.Lang.enWord(pair)) return false;
     if (!info) return false;
     if (kind === "definition") return !!(info.definition && String(info.definition).trim());
     if (kind === "cloze") return !!this.cloze(pair);
@@ -120,6 +124,7 @@ G.Clues = {
 
   // "IN-di-cate" -> [{s: "in", stressed: true}, {s: "di"}, {s: "cate"}]
   syllables(pair) {
+    if (!pair || !G.Lang.enWord(pair)) return null;          // (round 3: English syllables only)
     const i = this.info(pair);
     const st = i && i.stress ? String(i.stress) : "";
     if (!st) return null;

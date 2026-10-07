@@ -305,18 +305,21 @@ window.G = window.G || {};
       const box = $("learn-pick");
       const p = (this._pick = Object.assign({ preset: "spelling", clue: "definition", answer: "spell" }, this._pick));
       if (!p.from) p.from = { level: p.level || 1 };
-      const presets = G.Learn.availablePresets();
+      // (round 3: every mode, those the languages rule out greyed with the reason)
+      const presets = G.Learn.PRESETS;
+      if (p.preset !== "custom" && G.Learn.whyNot(p.preset)) p.preset = "classic";
+      if (G.Learn.clueWhyNot(p.clue)) p.clue = "thai";
       const levels = G.LEVELS.filter((l) => G.save.unlockedLevels.includes(l.id));
       if (!p.from.topic && !levels.some((l) => l.id === p.from.level)) p.from = { level: levels[0].id };
       const topicCount = {};
       G.WordBank.entries().forEach((e) => { topicCount[e.topic] = (topicCount[e.topic] || 0) + 1; });
-      const opt = (attr, val, on, name, sub, small) => `<button class="learn-opt${small ? " small" : ""}${on ? " on" : ""}" data-${attr}="${esc(val)}" aria-pressed="${on}"><b>${esc(name)}</b>${sub ? `<span>${esc(sub)}</span>` : ""}</button>`;
+      const opt = (attr, val, on, name, sub, small, lock) => `<button class="learn-opt${small ? " small" : ""}${on ? " on" : ""}${lock ? " locked" : ""}" data-${attr}="${esc(val)}" aria-pressed="${on}"${lock ? ` disabled aria-disabled="true" title="${esc(lock)}"` : ""}><b>${lock ? "\u{1F512} " : ""}${esc(name)}</b>${sub ? `<span>${esc(sub)}</span>` : ""}</button>`;
       const render = () => {
-        $("learn-modes").innerHTML = presets.map((x) => opt("preset", x.id, x.id === p.preset, T("learn.preset." + x.id), T("learn.presetDesc." + x.id))).join("")
+        $("learn-modes").innerHTML = presets.map((x) => { const why = G.Learn.whyNot(x); return opt("preset", x.id, !why && x.id === p.preset, T("learn.preset." + x.id), why || T("learn.presetDesc." + x.id), false, why); }).join("")
           + opt("preset", "custom", p.preset === "custom", T("learn.preset.custom"), T("learn.presetDesc.custom"));
         const custom = $("learn-custom");
         custom.classList.toggle("hidden", p.preset !== "custom");
-        custom.innerHTML = `<div class="learn-h">${esc(T("learn.clueHead"))}</div><div class="learn-row">${Object.keys(G.Learn.CLUES).map((c) => opt("clue", c, c === p.clue, T("learn.clue." + c), "", true)).join("")}</div>
+        custom.innerHTML = `<div class="learn-h">${esc(T("learn.clueHead"))}</div><div class="learn-row">${Object.keys(G.Learn.CLUES).map((c) => { const why = G.Learn.clueWhyNot(c); return opt("clue", c, !why && c === p.clue, T("learn.clue." + c), why, true, why); }).join("")}</div>
           <div class="learn-h">${esc(T("learn.answerHead"))}</div><div class="learn-row">${Object.keys(G.Learn.ANSWERS).map((a) => opt("answer", a, a === p.answer, T("learn.answer." + a), "", true)).join("")}</div>`;
         $("learn-levels").innerHTML = levels.map((l) => opt("level", l.id, !p.from.topic && l.id === p.from.level, l.name, T("learn.words", { n: G.WordBank.count(l.id) }), true)).join("");
         $("learn-topics").innerHTML = G.WORD_TOPICS.filter((t) => topicCount[t]).map((t) => opt("topic", t, p.from.topic === t, G.topicLabel(t), T("learn.words", { n: topicCount[t] }), true)).join("");

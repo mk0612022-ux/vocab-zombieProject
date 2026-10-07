@@ -33,6 +33,8 @@ window.G = window.G || {};
     open(levelId, go, back) {
       const cur = G.save.settings.campaignStyle || "adaptive", pr = G.Learn.preset(cur);
       this.p = { style: pr.custom ? "custom" : cur, clue: pr.custom ? pr.clue : "definition", answer: pr.custom ? pr.answer : "shoot", reload: !!G.save.settings.spellReload };
+      // (round 3) a clue the languages rule out (an English one, a word with no voice): the meaning instead
+      if (G.Learn.clueWhyNot(this.p.clue)) this.p.clue = "thai";
       this.levelId = levelId; this.go = go; this.back = back;
       $("camp-style-title").textContent = T("camp.title", { level: G.getLevel(levelId).name });
       this.render();
@@ -56,11 +58,11 @@ window.G = window.G || {};
     },
     render() {
       const p = this.p;
-      const opt = (attr, val, on, name, sub, small) => `<button class="learn-opt${small ? " small" : ""}${on ? " on" : ""}" type="button" data-${attr}="${esc(val)}" aria-pressed="${on}"><b>${esc(name)}</b>${sub ? `<span>${esc(sub)}</span>` : ""}</button>`;
+      const opt = (attr, val, on, name, sub, small, lock) => `<button class="learn-opt${small ? " small" : ""}${on ? " on" : ""}${lock ? " locked" : ""}" type="button" data-${attr}="${esc(val)}" aria-pressed="${on}"${lock ? ` disabled aria-disabled="true" title="${esc(lock)}"` : ""}><b>${lock ? "\u{1F512} " : ""}${esc(name)}</b>${sub ? `<span>${esc(sub)}</span>` : ""}</button>`;
       $("camp-style-opts").innerHTML = ["adaptive", "classic", "custom"].map((s) => opt("style", s, p.style === s, T("camp.style." + s), T("camp.styleDesc." + s))).join("");
       const custom = $("camp-style-custom");
       custom.classList.toggle("hidden", p.style !== "custom");
-      custom.innerHTML = `<div class="learn-h">${esc(T("learn.clueHead"))}</div><div class="learn-row">${Object.keys(G.Learn.CLUES).map((c) => opt("clue", c, p.clue === c, T("learn.clue." + c), "", true)).join("")}</div>
+      custom.innerHTML = `<div class="learn-h">${esc(T("learn.clueHead"))}</div><div class="learn-row">${Object.keys(G.Learn.CLUES).map((c) => { const why = G.Learn.clueWhyNot(c); return opt("clue", c, !why && p.clue === c, T("learn.clue." + c), why, true, why); }).join("")}</div>
         <div class="learn-h">${esc(T("learn.answerHead"))}</div><div class="learn-row">${Object.keys(G.Learn.ANSWERS).map((a) => opt("answer", a, p.answer === a, T("learn.answer." + a), "", true)).join("")}</div>
         <p class="camp-note">${esc(T(p.clue === "audio" && p.answer === "shoot" ? "camp.audioNote" : "camp.customNote", { mode: G.Learn.label(this.styleId()) }))}</p>`;
       $("camp-style-reload").innerHTML = opt("reload", "1", p.reload, T("camp.reload"), T("camp.reloadDesc"));
@@ -88,6 +90,7 @@ window.G = window.G || {};
     cancel() { this.close(); if (this.back) this.back(); },
     // kept for next time; then the intro of a way of asking not met yet, then the level
     confirm() {
+      if (G.Learn.clueWhyNot(this.p.clue)) return;
       const id = this.styleId();
       G.save.settings.campaignStyle = id;
       G.save.settings.spellReload = !!this.p.reload;

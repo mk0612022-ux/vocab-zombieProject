@@ -2,12 +2,18 @@
    (a notch, rounded corners), unless Settings > Graphics sets its own
    (G.applySafeArea writes these on <html>) */
 :root { --sa-l: env(safe-area-inset-left, 0px); --sa-r: env(safe-area-inset-right, 0px); --sa-t: env(safe-area-inset-top, 0px); --sa-b: env(safe-area-inset-bottom, 0px); }
+/* (round 3, H4) one font list for the four languages: the Latin face first (English, French
+   with its accents), then Thai, then Simplified Chinese -- no letter is ever a box */
+:root {
+  --font-ui: 'Segoe UI', 'Tahoma', 'Leelawadee UI', 'Noto Sans Thai', 'Thonburi', 'Microsoft YaHei', 'PingFang SC', 'Hiragino Sans GB', 'Noto Sans SC', 'Source Han Sans SC', sans-serif;
+  --font-zh: 'Microsoft YaHei', 'PingFang SC', 'Hiragino Sans GB', 'Noto Sans SC', 'Source Han Sans SC', 'Segoe UI', sans-serif;
+}
 * { box-sizing: border-box; }
 html, body {
   margin: 0; padding: 0; width: 100%; height: 100%;
   overflow: hidden; background: #05070a;
-  /* English UI, but the word meanings are Thai: keep Thai-capable fallbacks */
-  font-family: 'Segoe UI', 'Tahoma', 'Leelawadee UI', 'Noto Sans Thai', 'Thonburi', sans-serif;
+  /* (round 3, H4) four languages: Latin with its accents, Thai, Chinese -- --font-ui */
+  font-family: var(--font-ui);
   color: #eaf2f2;
   user-select: none;
   -webkit-user-select: none;
@@ -49,7 +55,7 @@ html, body {
 .game-title .accent { color: #6bff7a; }
 .game-subtitle { color: #9fb; opacity: 0.75; margin-top: 4px; letter-spacing: 2px; }
 .menu-btns { display: flex; flex-direction: column; gap: 10px; margin-top: 26px; width: 320px; }
-.menu-btns.row { flex-direction: row; width: auto; }
+.menu-btns.row { flex-direction: row; width: auto; max-width: 100%; flex-wrap: wrap; justify-content: center; }
 .btn {
   background: linear-gradient(180deg, #1c2b22, #101a14);
   border: 1px solid #3a5c40; color: #dff5df;
@@ -146,7 +152,7 @@ html, body {
 /* ---------------- Practice mode: see "vocabulary series, round 4" at the end ---------------- */
 
 /* ---------------- HUD ---------------- */
-.hud { position: fixed; inset: 0; z-index: 10; pointer-events: none; font-family: 'Segoe UI', 'Tahoma', 'Leelawadee UI', 'Noto Sans Thai', 'Thonburi', sans-serif; }
+.hud { position: fixed; inset: 0; z-index: 10; pointer-events: none; font-family: var(--font-ui); }
 .hud-top { position: absolute; top: 16px; left: 0; right: 0; display: flex; flex-direction: column; align-items: center; gap: 8px; }
 /* capped so a long meaning (plus the Hint Reader's "starts with ..., n
    letters") wraps instead of pushing the 🔊 button off a portrait phone */
@@ -212,7 +218,7 @@ html, body {
 .hud-challenge-box.boss .hud-boss-timer-fill { background: #ff6a4a; }
 
 /* ---------------- boss cutscenes (round 2) ---------------- */
-.cine { position: fixed; inset: 0; z-index: 16; pointer-events: none; font-family: 'Segoe UI', 'Tahoma', 'Leelawadee UI', 'Noto Sans Thai', 'Thonburi', sans-serif; }
+.cine { position: fixed; inset: 0; z-index: 16; pointer-events: none; font-family: var(--font-ui); }
 .cine-bar { position: absolute; left: 0; right: 0; height: 12vh; background: #000; transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1); }
 .cine-top { top: 0; transform: translateY(-101%); }
 .cine-bottom { bottom: 0; transform: translateY(101%); }
@@ -811,6 +817,13 @@ body.touch-mode .kbd-only { display: none; }
 .cv-more-row .btn { padding: 6px 12px; font-size: 0.8rem; }
 .cv-extra { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 10px; border: 1px dashed #345; border-radius: 6px; }
 .cv-extra.hidden { display: none; }
+/* (round 3, H5) a word in another language than English: no English-only fields; its languages on the list */
+.cv-extra.cv-noen .cv-en-only { display: none; }
+.cv-langnote { grid-column: 1 / -1; margin: 0; font-size: 0.78rem; color: #ffd43b; }
+.cv-langnote:empty { display: none; }
+.cv-langs { font-size: 0.66rem; font-weight: 700; letter-spacing: 0.05em; color: #8fd8c0; }
+.cv-langs.off { color: #8a929a; }
+.cv-row.cv-off { opacity: 0.62; }
 .cv-wide { grid-column: 1 / -1; }
 .cv-word .cv-extra-note { font-size: 0.72rem; opacity: 0.65; }
 .cv-msg { grid-column: 1 / -1; min-height: 1.4em; font-size: 0.85rem; line-height: 1.45; }
@@ -933,7 +946,7 @@ body.modal-open .hud-minimap { opacity: 0.35; }
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto calc(var(--card-h) * 1.24) auto auto auto;
   padding: max(10px, var(--sa-t)) max(var(--pad), var(--sa-r)) max(8px, var(--sa-b)) max(var(--pad), var(--sa-l));
-  font-family: 'Segoe UI', 'Tahoma', 'Leelawadee UI', sans-serif;
+  font-family: var(--font-ui);
 }
 /* the backdrop: the selected mode's picture, blurred and dark, drifting */
 .lobby-bg { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
@@ -1635,7 +1648,7 @@ body.hudcfg-open .hud-perks { display: flex; }
    thumbs (touch), above the touch controls; it goes when the HUD does */
 .hud-spell { position: fixed; z-index: 16; left: 50%; transform: translateX(-50%); bottom: calc(84px + var(--sa-b));
   width: min(480px, calc(100vw - 560px)); min-width: 340px; padding: 8px 12px 6px; border-radius: 12px; background: rgba(5,10,7,0.8);
-  border: 1px solid #6bff7a55; box-shadow: 0 8px 26px rgba(0,0,0,0.5); pointer-events: auto; font-family: 'Segoe UI', 'Tahoma', 'Leelawadee UI', 'Noto Sans Thai', 'Thonburi', sans-serif; }
+  border: 1px solid #6bff7a55; box-shadow: 0 8px 26px rgba(0,0,0,0.5); pointer-events: auto; font-family: var(--font-ui); }
 #hud.hidden ~ .hud-spell, body.cine-on .hud-spell { display: none; }
 body.modal-open .hud-spell { opacity: 0.25; pointer-events: none; }
 .hud-spell.idle .spad-slots, .hud-spell.idle .spad-tiles { opacity: 0.3; }
@@ -1942,7 +1955,7 @@ button.pg-tile:hover, button.pg-tile:focus-visible, button.pg-tile.pad-focus { b
 /* ---- the Loading screen (round 2, D; js/boot.js): the horde with its words,
    the real progress, a tip or the Word of the Day; Update Available over it
    (js/updater.js) ---- */
-.loading-overlay.boot { z-index: 120; display: block; padding: 0; overflow: hidden; background: #040607; font-family: 'Segoe UI', 'Tahoma', 'Leelawadee UI', sans-serif; }
+.loading-overlay.boot { z-index: 120; display: block; padding: 0; overflow: hidden; background: #040607; font-family: var(--font-ui); }
 .boot-scene { position: absolute; inset: 0; transform-origin: 50% 40%; animation: boot-drift 26s ease-out both; }
 @keyframes boot-drift { from { transform: scale(1.05); } to { transform: scale(1); } }
 .boot-art, .boot-art img { position: absolute; inset: 0; width: 100%; height: 100%; }
@@ -2009,7 +2022,7 @@ button.pg-tile:hover, button.pg-tile:focus-visible, button.pg-tile.pad-focus { b
   padding: max(12px, var(--sa-t)) max(16px, var(--sa-r)) max(14px, var(--sa-b)) max(16px, var(--sa-l));
   background: radial-gradient(ellipse 75% 65% at 50% 44%, #0f2d1c 0%, #08180f 42%, #030706 78%, #010202 100%);
   cursor: pointer; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none;
-  font-family: 'Segoe UI', 'Tahoma', 'Leelawadee UI', sans-serif; animation: start-in 0.6s ease-out; }
+  font-family: var(--font-ui); animation: start-in 0.6s ease-out; }
 @keyframes start-in { from { opacity: 0; } to { opacity: 1; } }
 .start-screen.leaving { animation: start-out 0.5s ease-in forwards; pointer-events: none; }
 @keyframes start-out { to { opacity: 0; transform: scale(1.04); } }
@@ -2046,7 +2059,7 @@ button.pg-tile:hover, button.pg-tile:focus-visible, button.pg-tile.pad-focus { b
 @media (max-height: 460px) { .start-logo { display: none; } .start-hero img { max-height: 46vh; } .start-tap { font-size: clamp(1.3rem, 7vmin, 2rem); } .start-account { padding: 4px 4px 4px 12px; } .sa-avatar { width: 26px; height: 26px; } .sa-signin { min-height: 32px; padding: 6px 14px; } }/* ---- F: the Settings page (js/settings.js) ---- */
 .screen.screen-set { padding: 0; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; overflow: hidden;
   background: radial-gradient(ellipse 70% 60% at 22% 12%, rgba(40,110,60,0.22), transparent 62%), radial-gradient(ellipse 60% 50% at 90% 100%, rgba(30,90,50,0.14), transparent 70%), rgba(4,7,6,0.97);
-  font-family: 'Segoe UI', 'Tahoma', 'Leelawadee UI', sans-serif; }
+  font-family: var(--font-ui); }
 .set-top { flex: none; display: flex; align-items: center; gap: 14px; padding: max(12px, var(--sa-t)) max(18px, var(--sa-r)) 8px max(18px, var(--sa-l)); }
 .set-back { flex: none; width: 46px; height: 46px; border-radius: 50%; border: 1px solid rgba(107,255,122,0.5); background: rgba(10,20,14,0.85); color: #e8ffe8;
   font-size: 2rem; line-height: 1; padding: 0 0 4px; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 0 12px rgba(107,255,122,0.18); transition: box-shadow .2s, border-color .2s, transform .2s; }
@@ -2169,3 +2182,59 @@ button.pg-tile:hover, button.pg-tile:focus-visible, button.pg-tile.pad-focus { b
 .privacy-body h4 { margin: 12px 0 4px; font-size: 0.9rem; color: #b9ffc4; }
 .privacy-body p { margin: 0 0 8px; }
 .privacy-box .dialog-btns { justify-content: center; }
+/* ===================================================================
+   Round 3 (H): four languages
+   =================================================================== */
+/* Chinese in a Chinese face (Simplified forms), wherever it is */
+:lang(zh) { font-family: var(--font-zh); }
+/* pinyin over Chinese (G.Lang.html): small, a little apart, never larger than the line */
+ruby { ruby-position: over; ruby-align: center; }
+ruby rt { font-size: 0.5em; font-weight: 600; letter-spacing: 0.02em; opacity: 0.85; font-family: var(--font-ui); line-height: 1.1; }
+.vw-th ruby rt, .vc-mini-th ruby rt, .qm-row ruby rt, .pg-word ruby rt { font-size: 0.55em; }
+/* Thai: its marks above and below need room in tight lines */
+:lang(th) { line-height: 1.55; }
+/* ...and is never spaced out letter by letter: a vowel or tone mark belongs to
+   the letter before it (the headings spaced in English stay together in Thai) */
+:lang(th) { letter-spacing: normal !important; }
+/* a phone on its side: Thai's taller lines leave the lobby's level text room
+   for one whole line (two would be cut through the middle) */
+@media (max-height: 500px) {
+  .lp-title:lang(th) { line-height: 1.25; }
+  .lp-desc:lang(th) { -webkit-line-clamp: 1; }
+}
+/* Settings > Language: the language the other side has, greyed with a lock */
+.seg-lang .seg-o { min-width: 0; }
+.seg-o.lang-taken { opacity: 0.45; cursor: not-allowed; text-decoration: none; }
+.seg-o .lang-lock { font-size: 0.8em; margin-right: 3px; }
+.set-langnote { color: #ffd43b; }
+/* the vocabulary card: the word in the two other languages */
+.vc-other { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 2px 0 8px; font-size: 0.86rem; color: #c5d0d6; }
+.vc-other small { opacity: 0.7; margin-right: 3px; font-size: 0.78em; }
+/* the Progress page: a card that is about English words */
+.pg-off { margin: 6px 0; color: #9aa6ae; font-size: 0.9rem; line-height: 1.5; }
+/* the mode pickers: a mode the languages rule out */
+.learn-opt.locked { opacity: 0.5; cursor: not-allowed; }
+.learn-opt.locked span { color: #ffd9a0; }
+/* the spelling pad: a word in another language is typed into a text field that lies over the
+   slots (an IME's window opens by them); French has its accent buttons; Chinese a line of help */
+.spad-input { grid-area: slots; z-index: 2; align-self: stretch; width: 100%; min-height: 34px; margin: 0; padding: 0; border: 0; outline: none;
+  background: transparent; color: transparent; caret-color: transparent; font-size: 16px; cursor: text; opacity: 0; }
+.spad-tiles.spad-accents { grid-template-columns: repeat(10, minmax(0, 36px)); gap: 4px; }
+.spad-tiles.spad-accents .sp-acc { aspect-ratio: auto; min-height: 30px; font-size: 1rem; padding: 0; }
+.spad-msg.sp-help { color: #9fb8a8; font-size: 0.78rem; }
+.spad[data-lang="zh"] .sp-slot, .spad[data-lang="th"] .sp-slot { font-family: var(--font-ui); }
+.spad[data-lang="zh"] .sp-slot { flex-basis: 40px; }
+.spad[data-lang="zh"] .sp-tile { font-family: var(--font-zh); font-size: 1.25rem; }
+.spad[data-lang="th"] .sp-tile { font-size: 1.2rem; }
+/* the lobby: no voice for the Word Language on this device */
+.lobby-notice { position: absolute; z-index: 6; left: calc(16px + var(--sa-l, 0px)); top: 86px; max-width: min(460px, 70vw); display: flex; flex-direction: column; gap: 3px;
+  padding: 8px 34px 8px 12px; border-radius: 8px; border: 1px solid rgba(255, 212, 59, 0.55); background: rgba(16, 14, 6, 0.86); color: #f3e7b8; font-size: 0.78rem; line-height: 1.4; }
+.lobby-notice b { color: #ffd43b; font-size: 0.86rem; }
+.lobby-notice .ln-x { position: absolute; top: 4px; right: 4px; width: 26px; height: 26px; border: 0; border-radius: 6px; background: transparent; color: #f3e7b8; font-size: 1.1rem; cursor: pointer; }
+.lobby-notice .ln-x:hover, .lobby-notice .ln-x:focus-visible { background: rgba(255, 255, 255, 0.12); }
+.lobby-notice.hidden { display: none; }
+/* (round 3) a longer tab name (French "ENTRAÎNEMENT & PERSO") takes two lines
+   rather than pushing the icons off the screen */
+.lobby-tab { white-space: normal; text-wrap: balance; line-height: 1.15; text-align: center; min-width: 0; }
+.lobby-tabs > .lobby-tab { flex: 0 1 auto; }
+:root[lang="fr"] .lobby-tab { letter-spacing: 1px; }

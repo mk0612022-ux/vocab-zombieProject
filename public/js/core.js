@@ -83,6 +83,14 @@ G.defaultSave = function () {
       safeArea: "auto",           // the screen-edge margin: auto (what the device reports) | manual
       safeMargin: 24,             // ...manual: px from the left and right edges (half that top and bottom), 0-60
       padSensitivity: 1,          // a controller's look speed, 0.3-2.5
+      // (round 3, H1) languages: the menus' (UI), the words learnt (Word) and
+      // their meanings (Meaning, never the Word Language); a save from before
+      // languages is English menus, English words, Thai meanings
+      uiLang: "en",               // th | en | zh | fr
+      wordLang: "en",
+      meaningLang: "th",
+      pinyin: true,               // (H4) pinyin over Chinese -- turned on when Chinese becomes the Word Language
+      strictAccents: false,       // (H5) French spelling: a missing accent is wrong (off: right, the accent shown)
     },
     importedSets: {},             // {id: {name, words:[[en,th],...]}}
     customWords: { level1: [], level2: [], level3: [] },   // words the player added to each level ([[en,th] or [en,th,{definition,...}],...])
@@ -127,7 +135,8 @@ G.normalizeSave = function (data) {
   ["wordStats", "achievements", "levelHighScores", "dailyHighScores", "importedSets", "customWords"].forEach((k) => {
     if (!s[k] || typeof s[k] !== "object" || Array.isArray(s[k])) s[k] = def[k] || {};
   });
-  // word stats: by word-bank entry id, old keys moved over (see below)
+  // word stats: by word-bank entry id, old keys moved over (see below); a key
+  // with "@zh", "@fr", "@th" is the same word learnt in that language (round 3)
   s.wordStats = G.migrateWordStats(s.wordStats);
   s.wordStatsVersion = 2;
   // (vocabulary series, round 2) the boxes: kept as they were, or -- a save
@@ -147,6 +156,13 @@ G.normalizeSave = function (data) {
   const num = (k, lo, hi) => { const v = Number(s.settings[k]); s.settings[k] = Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : def.settings[k]; };
   num("renderScale", 0.5, 1); num("safeMargin", 0, 60); num("padSensitivity", 0.3, 2.5);
   s.settings.playOnce = !!s.settings.playOnce;
+  // (round 3, H1) the three languages: one of the four each, the Meaning Language
+  // never the Word Language (if a save says so, the meaning goes back to the default)
+  const LANGS = ["th", "en", "zh", "fr"];
+  ["uiLang", "wordLang", "meaningLang"].forEach((k) => { if (!LANGS.includes(s.settings[k])) s.settings[k] = def.settings[k]; });
+  if (s.settings.meaningLang === s.settings.wordLang) s.settings.meaningLang = s.settings.wordLang === "th" ? "en" : "th";
+  s.settings.pinyin = s.settings.pinyin !== false;
+  s.settings.strictAccents = !!s.settings.strictAccents;
   s.settings.highlightTarget = !!s.settings.highlightTarget;
   // (round 4) a campaign style it does not know is Adaptive
   if (G.Learn && !G.Learn.campaignStyleOk(s.settings.campaignStyle)) s.settings.campaignStyle = def.settings.campaignStyle;
@@ -162,9 +178,10 @@ G.normalizeSave = function (data) {
   s.learnSeen = {};
   // (round 3: and the first look at each newer mode, mode_<id>)
   if (seen && typeof seen === "object" && !Array.isArray(seen)) Object.keys(seen).forEach((k) => { if (/^(intro_(keys|touch|pad)|mode_[a-z]+)$/.test(k) && seen[k] === true) s.learnSeen[k] = true; });
-  // custom words: three lists of [English, Thai] string pairs, each with an
+  // custom words: three lists of [word, meaning] string pairs, each with an
   // optional third item of extra fields (definition, synonyms, example,
-  // collocations, topic -- G.cleanCustomExtra); nothing else
+  // collocations, topic, pos, and -- round 3 -- the languages wl and ml when
+  // they are not English and Thai: G.cleanCustomExtra); nothing else
   const cw = {};
   Object.keys(def.customWords).forEach((key) => {
     const list = Array.isArray(s.customWords[key]) ? s.customWords[key] : [];
@@ -208,13 +225,15 @@ G.migrateWordStats = function (ws) {
   if (!ws || typeof ws !== "object" || Array.isArray(ws)) return out;
   // (a page without js/wordbank.js keeps the keys as they are)
   if (!G.wordKey) G.wordKey = (w) => String(Array.isArray(w) ? w[0] : w).trim().toLowerCase();
+  // (round 3: old keys are English words -- G.wordKey.en -- whatever language is chosen now)
+  const keyOf = G.wordKey && G.wordKey.en ? G.wordKey.en : (w) => String(Array.isArray(w) ? w[0] : w).trim().toLowerCase();
   const num = (v) => { v = Number(v); return isFinite(v) && v > 0 ? v : 0; };
   // an id's own record first, so its extra fields win over a merged word's
-  const keys = Object.keys(ws).sort((a, b) => (G.wordKey(a) === a ? 0 : 1) - (G.wordKey(b) === b ? 0 : 1));
+  const keys = Object.keys(ws).sort((a, b) => (keyOf(a) === a ? 0 : 1) - (keyOf(b) === b ? 0 : 1));
   keys.forEach((k) => {
     const v = ws[k];
     if (!v || typeof v !== "object" || Array.isArray(v)) return;
-    const id = G.wordKey(k);
+    const id = keyOf(k);
     const cur = out[id];
     if (!cur) { out[id] = Object.assign({}, v, { correct: num(v.correct), wrong: num(v.wrong), lastCorrect: num(v.lastCorrect) }); return; }
     cur.correct += num(v.correct);
@@ -241,6 +260,9 @@ G.cleanCustomExtra = function (x) {
   // ("n", "n/v"); a word saved before there was one has none and shows none
   // -- or Phr. when it is several words (G.WordBank.info)
   if (G.POS && G.POS.valid(x.pos)) out.pos = x.pos;
+  // (round 3, H5) the languages of the word and its meaning, when not English > Thai
+  const LANGS = ["th", "en", "zh", "fr"];
+  if (LANGS.includes(x.wl) && LANGS.includes(x.ml) && x.wl !== x.ml && !(x.wl === "en" && x.ml === "th")) { out.wl = x.wl; out.ml = x.ml; }
   return Object.keys(out).length ? out : null;
 };
 
@@ -402,7 +424,7 @@ G.weightedSample = function (wordPairs, n) {
   const chosen = [];
   n = Math.min(n, pool.length);
   for (let k = 0; k < n; k++) {
-    const weights = pool.map((p) => G.wordWeight(p[0]));
+    const weights = pool.map((p) => G.wordWeight(p));
     const total = weights.reduce((a, b) => a + b, 0);
     let r = G.rng() * total;
     let idx = 0;

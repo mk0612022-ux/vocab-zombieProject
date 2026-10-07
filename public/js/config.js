@@ -256,6 +256,7 @@ G.CONFIG = {
     outline: 1.12,                  // the glow round the zombie under the crosshair (x its hitboxes)
     labelHover: 1.3,                // ...and its word, this much larger
     posScale: 0.46,                 // (new series, round 2, G) a word's part of speech after it, this share of its size
+    pinyinScale: 0.4,               // (round 3, H4) the pinyin over a Chinese label, this share of the characters' size
     labelGapPx: 4,                  // between two words on screen
     labelUp: 16,                    // a word may move up this many of its heights to keep clear of the others...
     labelUpScreen: 0.6,             // ...or this share of the screen, whichever is more

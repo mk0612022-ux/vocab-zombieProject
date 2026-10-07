@@ -9,13 +9,28 @@
 //                                 (levels, weapons, achievements, shop items,
 //                                 rarity and weight labels) -- by id, so no
 //                                 save data ever depends on the text
-// The Thai meanings of the vocabulary are NOT here: they are the learning
-// content and stay in js/data/words_*.js. To add a language, add a block
-// beside `en` with the same keys and set G.lang; anything missing falls
-// back to English.
+// The words of the vocabulary and their meanings are NOT here: they are the
+// learning content and stay in js/data/bank_*.js.
+//
+// (Round 3, H2) Four UI languages: English here, and Thai, Chinese
+// (Simplified) and French each in a file of their own -- js/strings-th.js,
+// js/strings-zh.js, js/strings-fr.js -- with exactly the same keys and
+// {placeholders} (tools/check-strings.ps1 checks that). Only the one the
+// player chose is loaded with the page (written in right after this file,
+// before the Loading screen draws); another is fetched when it is chosen
+// (G.setUILang). Anything missing falls back to English. Names stay English
+// everywhere -- guns, bosses, the game's own -- and so do the story notes.
 // ===================================================================
 window.G = window.G || {};
 G.lang = "en";
+G.UI_LANGS = ["th", "en", "zh", "fr"];
+G.UI_LANG_FILES = { th: "js/strings-th.js", zh: "js/strings-zh.js", fr: "js/strings-fr.js" };
+// the save's language settings, read before anything else (the Loading screen
+// is already in the player's language; js/core.js reads the whole save later)
+G.earlySettings = (function () {
+  try { const s = JSON.parse(localStorage.getItem("vocabZombie_save_v1") || "null"); return (s && s.settings && typeof s.settings === "object") ? s.settings : {}; } catch (e) { return {}; }
+})();
+if (G.UI_LANGS.indexOf(G.earlySettings.uiLang) >= 0) G.lang = G.earlySettings.uiLang;
 G.STRINGS = {
   en: {
     // ---- main menu ----
@@ -56,7 +71,7 @@ G.STRINGS = {
 
     // ---- how to play ----
     "howto.title": "How to Play",
-    "howto.body": "<p>The top of the screen shows the <strong>Thai meaning</strong> of a word — find the zombie carrying the English word with that meaning and shoot it!</p>"
+    "howto.body": "<p>The top of the screen shows the <strong>meaning</strong> of a word — find the zombie carrying the word with that meaning and shoot it! (Settings &gt; Language: the language of the words, and of their meanings.)</p>"
       + "<ul><li><b>WASD</b> move, <b>Mouse</b> look, <b>Left click</b> shoot, <b>Hold right click</b> aim (zoom)</li>"
       + "<li><b>R</b> reload, <b>E</b> use / pick up, <b>Shift</b> sprint (uses the blue stamina bar, which refills when you stop)</li>"
       + "<li><b>1</b> knife (unlimited melee), <b>2-5</b> switch guns (<b>6-7</b> with the Extra Weapon Slot perk), or the <b>mouse wheel</b></li>"
@@ -71,17 +86,17 @@ G.STRINGS = {
       + "<ul><li>Every word you meet goes into a <b>memory box</b> (1-5). Right when it is due: up one box, and it comes back later (after 1, 3, 7, 14, then 30 days). Wrong: back to box 1. Past box 5 it is <b>Mastered</b></li>"
       + "<li>Boxes 4 and 5 need you to <b>produce</b> the word (spell it): shooting the right zombie takes a word to box 3 at most. An answer found with a hint, or with a perk or ability that shows it, moves nothing</li>"
       + "<li><b>Daily Review</b> (Training tab) brings back every word due today. One session a day keeps your streak; a day with nothing due does not break it</li>"
-      + "<li><b>Spelling</b>: each zombie shows a Thai meaning over its head. On a keyboard, type its English word in the bar at the bottom and press <b>Enter</b>: letters all go into the bar, so walk with the <b>arrow keys</b>, and <b>Tab</b> gives a hint. On a touch screen, tap the letters in order; on a controller, the <b>D-pad</b> and <b>A</b></li>"
+      + "<li><b>Spelling</b>: each zombie shows a meaning over its head. On a keyboard, type its word in the bar at the bottom and press <b>Enter</b>: letters all go into the bar, so walk with the <b>arrow keys</b>, and <b>Tab</b> gives a hint. On a touch screen, tap the letters in order; on a controller, the <b>D-pad</b> and <b>A</b>. French has accent buttons; Chinese takes the characters or the pinyin without tones</li>"
       + "<li><b>Spell to Reload</b> (Settings, Gameplay): a reload asks for one of the wave's words first. Right: a full magazine; wrong: half</li></ul>"
       + "<h3>English clues, listening and context</h3>"
-      + "<ul><li><b>Paraphrase</b>: the box at the top gives an English definition (≈ similar meaning). New words show the Thai under it; later, <b>0</b> (or the Thai button) shows it, but then the answer does not move the word's box</li>"
-      + "<li><b>Listening</b>: the zombies carry Thai meanings; listen and shoot the right one. <b>Dictation</b>: the zombies have no labels; aim at one to hear its word, then spell it. Hear it again: <b>9</b>, 🔊 or the controller's <b>View</b>. Settings: accent, speed, Play Once</li>"
+      + "<ul><li><b>Paraphrase</b> (English words): the box at the top gives an English definition (≈ similar meaning). New words show the meaning under it; later, <b>0</b> (or the meaning button) shows it, but then the answer does not move the word's box</li>"
+      + "<li><b>Listening</b>: the zombies carry meanings; listen and shoot the right one. <b>Dictation</b>: the zombies have no labels; aim at one to hear its word, then spell it. Hear it again: <b>9</b>, 🔊 or the controller's <b>View</b>. Settings: accent, speed, Play Once</li>"
       + "<li><b>Context</b>: a sentence with a gap; shoot the zombie with the word that fills it, in the right form (indicate, indication, indicative...)</li>"
       + "<li>The end-of-wave quiz, the boss's question and the vocabulary locks ask eight kinds of question: meanings both ways, definitions, gaps, collocations, paraphrases, listening and spelling. A wrong answer shows the word in a sentence</li>"
       + "<li>The <b>Word Log</b>: click a word for its vocabulary card. In story notes, the level's words are underlined: tap one to look it up</li></ul>"
       + "<h3>Learning style, practice and progress</h3>"
-      + "<ul><li>Before a campaign level, pick its <b>Learning Style</b>: <b>Adaptive</b> (each word asked by its box: the panel at the top says which clue), <b>Classic</b> (Thai, shoot), or your own clue and answer. In the campaign every zombie carries its English word, so an Audio clue means: listen, then shoot the word you hear</li>"
-      + "<li><b>Learning Modes</b> and <b>Practice Mode</b>: a ready-made mode or your own pairing of a clue (Thai, Definition, Audio, Sentence gap) and an answer (Shoot, Spell), on a level's words or a topic's. Practice has no zombies and no clock, and filters: level, topic, memory box, words you often get wrong</li>"
+      + "<ul><li>Before a campaign level, pick its <b>Learning Style</b>: <b>Adaptive</b> (each word asked by its box: the panel at the top says which clue), <b>Classic</b> (meaning, shoot), or your own clue and answer. In the campaign every zombie carries its word, so an Audio clue means: listen, then shoot the word you hear</li>"
+      + "<li><b>Learning Modes</b> and <b>Practice Mode</b>: a ready-made mode or your own pairing of a clue (Meaning, Definition, Audio, Sentence gap) and an answer (Shoot, Spell), on a level's words or a topic's. Practice has no zombies and no clock, and filters: level, topic, memory box, words you often get wrong</li>"
       + "<li><b>Progress</b> (📈, top right of the lobby): your words by box, the Academic Word List sublist by sublist, accuracy by topic and by skill, the words you miss most (with Practise these), the last 30 days, your streak and what comes due. Game progress (scores, guns) has its own tab</li></ul>",
 
     // ---- settings ----
@@ -191,7 +206,7 @@ G.STRINGS = {
 
     // ---- import vocabulary ----
     "import.title": "Import Vocabulary",
-    "import.fileHint": "Upload a .csv or .txt file with one <code>english,Thai meaning</code> pair per line",
+    "import.fileHint": "Upload a .csv or .txt file with one <code>word,meaning</code> pair per line (in the languages chosen on the Custom Vocabulary page)",
     "import.ocrHint": "Or take a photo of a vocabulary page (basic OCR — needs internet the first time to load the library):",
     "import.save": "Import Words",
     "import.dest": "Add these words to",
@@ -203,7 +218,7 @@ G.STRINGS = {
     "import.sumInvalid": "Left out as unusable ({n}):",
     "import.whyDup": "already in {level}",
     "import.whyDupFile": "repeated in this file",
-    "import.sumSame": "Added, with the same Thai meaning as another word in the level (the two are never on the field together): {words}",
+    "import.sumSame": "Added, with the same meaning as another word in the level (the two are never on the field together): {words}",
     "import.sets": "Imported Word Sets",
     "import.more": "... and {n} more",
     "import.none": "No valid words found",
@@ -599,7 +614,7 @@ G.STRINGS = {
     "cv.intro": "Add your own words to a level. They join that level's word list the next time you start it, and they're kept in your save (Export Save included). A definition, synonyms or an example are optional — question types that need one skip words without it.",
     "cv.more": "More details (optional)",
     "cv.less": "Hide details",
-    "cv.definition": "Definition in English",
+    "cv.definition": "Definition (English)",
     "cv.synonyms": "Synonyms (commas between)",
     "cv.collocations": "Collocations (commas between)",
     "cv.example": "Example sentence",
@@ -623,8 +638,8 @@ G.STRINGS = {
     "topic.crime_security": "Crime & Security",
     "topic.work_economy": "Work & Economy",
     "topic.urban_life_transport": "Urban Life & Transport",
-    "cv.en": "English Word",
-    "cv.th": "Thai Meaning",
+    "cv.en": "Word",
+    "cv.th": "Meaning",
     "cv.level": "Level",
     "cv.add": "Add Word",
     "cv.saveChanges": "Save Changes",
@@ -638,11 +653,9 @@ G.STRINGS = {
     "cv.added": "Added “{w}” to {level}.",
     "cv.updated": "Saved “{w}” in {level}.",
     "cv.deleted": "Deleted “{w}”.",
-    "cv.warnSame": "Heads-up: {others} has exactly the same Thai meaning in this level, so the two will never be on the field at the same time.",
-    "cv.errEmpty": "Fill in both the English word and the Thai meaning.",
-    "cv.errLong": "That's too long (32 letters for the English word, 80 characters for the meaning).",
-    "cv.errLetters": "The English word can only use the letters A–Z (a hyphen, an apostrophe or a single space between words is fine).",
-    "cv.errThai": "The meaning needs to be written in Thai.",
+    "cv.warnSame": "Heads-up: {others} has exactly the same meaning in this level, so the two will never be on the field at the same time.",
+    "cv.errEmpty": "Fill in both the word and its meaning.",
+    "cv.errLong": "That's too long (32 letters for a word, 12 characters in Chinese, 80 characters for the meaning).",
     "cv.errDup": "“{w}” is already in the game — it's one of the words in {level}. Nothing was saved.",
     "cv.errDupCustom": "“{w}” is already on your list for {level}. Nothing was saved.",
     "cv.errLevel": "Choose a level.",
@@ -672,8 +685,8 @@ G.STRINGS = {
     "tut.move.desk": "Walk with W A S D · move the mouse to look · Shift to sprint · Space to jump",
     "tut.move.touch": "Drag the joystick (bottom left) to walk · drag on the right half of the screen to look · \"RUN\" to sprint",
     "tut.rule.title": "The main rule",
-    "tut.rule.desk": "Read the Thai meaning at the top, then shoot the zombie carrying the matching English word — the wrong word costs health and speeds the zombies up",
-    "tut.rule.touch": "Read the Thai meaning at the top, then shoot the zombie carrying the matching English word — the wrong word costs health and speeds the zombies up",
+    "tut.rule.desk": "Read the meaning at the top, then shoot the zombie carrying the matching word — the wrong word costs health and speeds the zombies up",
+    "tut.rule.touch": "Read the meaning at the top, then shoot the zombie carrying the matching word — the wrong word costs health and speeds the zombies up",
     "tut.shoot.title": "Shooting",
     "tut.shoot.desk": "Left click to shoot · hold right click to aim · R to reload · 1-5 to switch weapons · V to hear the word again",
     "tut.shoot.touch": "FIRE to shoot · AIM to zoom · R to reload · the number row switches weapons · 🔊 hears the word",
@@ -931,7 +944,7 @@ G.STRINGS = {
     "ability.fifty.name": "Fifty-Fifty",
     "ability.fifty.desc": "For 10 seconds, half of the wrong words on the field are crossed out in grey (✗).",
     "ability.lens.name": "Translator Lens",
-    "ability.lens.desc": "For 6 seconds, the zombie you aim at shows its Thai meaning above its word.",
+    "ability.lens.desc": "For 6 seconds, the zombie you aim at shows its meaning above its word.",
     "ability.resupply.name": "Resupply",
     "ability.resupply.desc": "Instantly fills every gun's magazine and adds one spare magazine to each.",
     "ability.magnet.name": "Magnet",
@@ -1038,7 +1051,7 @@ G.STRINGS = {
     "quiz.correct": "Correct: {x}/{n}",
     "quiz.mistakes": "Mistakes: {x}/{n}",
     "quiz.progress": "Question {i} of {n}",
-    "quiz.askEnglish": "Which English word means",
+    "quiz.askEnglish": "Which word means",
     "quiz.askThai": "What does this word mean?",
     "quiz.right": "Correct!",
     "quiz.wrong": "Not quite. The answer is: {a}",
@@ -1082,7 +1095,7 @@ G.STRINGS = {
     "spell.glanceType": "Bullets can't stop this zombie: type its word and press Enter",
     "spell.glanceTiles": "Bullets can't stop this zombie: put its word together from the letters",
     "spell.reloadTitle": "Spell to reload",
-    "spell.reloadKeys.keys": "Type the English word, then Enter · right: full magazine · wrong: half",
+    "spell.reloadKeys.keys": "Type the word, then Enter · right: full magazine · wrong: half",
     "spell.reloadKeys.touch": "Tap the letters in order · right: full magazine · wrong: half",
     "spell.reloadKeys.pad": "D-pad and A to place the letters · right: full magazine · wrong: half",
     // the Learning Modes window (js/study.js, js/learnmodes.js)
@@ -1093,9 +1106,9 @@ G.STRINGS = {
     "learn.start": "Start",
     "learn.words": "{n} words",
     "learn.preset.classic": "Classic",
-    "learn.presetDesc.classic": "Read the Thai meaning, shoot the zombie carrying the English word.",
+    "learn.presetDesc.classic": "Read the meaning, shoot the zombie carrying the word.",
     "learn.preset.spelling": "Spelling",
-    "learn.presetDesc.spelling": "Every zombie shows a Thai meaning: spell its English word to take it down.",
+    "learn.presetDesc.spelling": "Every zombie shows a meaning: spell its word to take it down.",
     "learn.preset.paraphrase": "Paraphrase",
     "learn.presetDesc.paraphrase": "An English definition: shoot the word it describes.",
     "learn.preset.listening": "Listening",
@@ -1142,23 +1155,23 @@ G.STRINGS = {
     "study.toLobby": "Back to Lobby",
     "study.introTitle": "How spelling works",
     "study.introGo": "Got it",
-    "study.intro.keys.1": "Each zombie shows a Thai meaning over its head. Type its English word in the bar at the bottom of the screen.",
+    "study.intro.keys.1": "Each zombie shows a meaning over its head. Type its word in the bar at the bottom of the screen.",
     "study.intro.keys.2": "Press Enter: if a zombie on screen carries that word, your gun fires at it. Bullets alone can't stop these zombies.",
     "study.intro.keys.3": "Every letter key goes into the bar, so walk with the arrow keys. Backspace deletes, Tab puts in the next letter (it costs points).",
     "study.intro.keys.4": "The dashes show how many letters the word has. A wrong spelling shows which letters were off, and the right word.",
-    "study.intro.touch.1": "Each zombie shows a Thai meaning over its head. The bar at the bottom works on one of them: its meaning is at the top of the bar.",
+    "study.intro.touch.1": "Each zombie shows a meaning over its head. The bar at the bottom works on one of them: its meaning is at the top of the bar.",
     "study.intro.touch.2": "Tap its letters in the right order. Tap a placed letter to take it back, with the ones after it.",
     "study.intro.touch.3": "When every letter is in, the gun fires by itself. Hint puts in the next letter (it costs points); ⟳ moves to another zombie.",
     "study.intro.touch.4": "Keep moving with the joystick. A wrong spelling shows which letters were off, and the right word.",
-    "study.intro.pad.1": "Each zombie shows a Thai meaning over its head. The bar at the bottom works on one of them: its meaning is at the top of the bar.",
+    "study.intro.pad.1": "Each zombie shows a meaning over its head. The bar at the bottom works on one of them: its meaning is at the top of the bar.",
     "study.intro.pad.2": "D-pad to choose a letter, A to place it, B to take the last one back.",
     "study.intro.pad.3": "When every letter is in, the gun fires by itself. X puts in the next letter (it costs points); LB / RB move to another zombie.",
     "study.intro.pad.4": "The left stick still walks and the right stick looks. A wrong spelling shows which letters were off, and the right word.",
     // the tutorial's spelling cards (js/tutorial.js)
     "tut.spell.title": "Spell to shoot",
-    "tut.spell.desk": "Each zombie's Thai meaning floats over its head. Type its English word in the bar at the bottom and press Enter: your gun fires at the zombie that carries it.",
-    "tut.spell.touch": "Each zombie's Thai meaning floats over its head. Tap the letters of its word in order in the bar at the bottom: when the word is complete, your gun fires.",
-    "tut.spell.pad": "Each zombie's Thai meaning floats over its head. Choose its letters with the D-pad and place them with A: when the word is complete, your gun fires.",
+    "tut.spell.desk": "Each zombie's meaning floats over its head. Type its word in the bar at the bottom and press Enter: your gun fires at the zombie that carries it.",
+    "tut.spell.touch": "Each zombie's meaning floats over its head. Tap the letters of its word in order in the bar at the bottom: when the word is complete, your gun fires.",
+    "tut.spell.pad": "Each zombie's meaning floats over its head. Choose its letters with the D-pad and place them with A: when the word is complete, your gun fires.",
     "tut.spellMove.title": "Keep moving",
     "tut.spellMove.desk": "Letters go into the spelling bar, so walk with the arrow keys. Tab puts in the next letter, but costs points.",
     "tut.spellMove.touch": "Walk with the joystick while you spell. Hint puts in the next letter, but costs points; ⟳ switches to another zombie.",
@@ -1185,16 +1198,16 @@ G.STRINGS = {
     "hud.clue.cloze": "Fill the gap: shoot the word",
     "hud.clue.audio": "Listen: shoot its meaning",
     "hud.clue.audioSpell": "Listen: spell what you hear",
-    "hud.showThai": "Show the Thai meaning (a helper: the word's box will not move)",
-    "hud.showThaiShort": "Thai",
+    "hud.showThai": "Show the meaning (a helper: the word's box will not move)",
+    "hud.showThaiShort": "Meaning",
     "hud.playedOnce": "Play Once: you have heard this word",
     "spell.hearAgain": "Hear it again",
     "spell.keys.hear.keys": "{key}: hear it again",
     "spell.keys.hear.touch": "🔊 hear it again",
     "spell.keys.hear.pad": "View: hear it again",
-    "spell.thaiShort": "Thai",
+    "spell.thaiShort": "Meaning",
     "key.replay": "Hear the word again",
-    "key.thaiHint": "Show the Thai of an English clue",
+    "key.thaiHint": "Show the meaning of an English clue",
     // after a wrong answer
     "learn.heardTitle": "You heard:",
     "learn.heardText": "{w} · {s} = {m}",
@@ -1217,14 +1230,14 @@ G.STRINGS = {
     "settings.speedSlow": "Slow",
     "settings.playOnce": "Play Once",
     // the eight kinds of question (H5)
-    "q.th2en": "Which English word means",
+    "q.th2en": "Which word means",
     "q.en2th": "What does this word mean?",
     "q.def2word": "Which word matches this definition?",
     "q.cloze": "Which word fills the gap?",
     "q.colloc": "Which word completes the phrase?",
     "q.paraphrase": "Which word can replace the underlined words?",
     "q.listen": "Listen: what does the word mean?",
-    "q.spell": "Spell the English word for",
+    "q.spell": "Spell the word for",
     "q.defspell": "Spell the word that matches this definition",
     "q.dictation": "Listen, then spell the word",
     "q.clozespell": "Spell the word that fills the gap",
@@ -1251,15 +1264,15 @@ G.STRINGS = {
     "card.from": "from {w}",
     "pos.n": "noun", "pos.v": "verb", "pos.adj": "adjective", "pos.adv": "adverb", "pos.prep": "preposition", "pos.conj": "conjunction",
     // the first time in each newer mode ({replay}, {thai}: their keys)
-    "study.mode.paraphrase.1": "The box at the top gives an English definition (≈ similar meaning) instead of the Thai. Shoot the zombie with the word it describes.",
-    "study.mode.paraphrase.2": "New words show the Thai under it. From box 3 it is English only: Thai ({thai}) shows it, but then the answer does not move the word's box.",
-    "study.mode.listening.1": "No English on the zombies: they carry Thai meanings. Listen to the word, then shoot the zombie with its meaning.",
+    "study.mode.paraphrase.1": "The box at the top gives an English definition (≈ similar meaning) instead of the meaning. Shoot the zombie with the word it describes.",
+    "study.mode.paraphrase.2": "New words show the meaning under it. From box 3 it is English only: Meaning ({thai}) shows it, but then the answer does not move the word's box.",
+    "study.mode.listening.1": "No words on the zombies: they carry meanings. Listen to the word, then shoot the zombie with its meaning.",
     "study.mode.listening.2": "Hear it again with {replay} or 🔊. Settings: accent, speed, and Play Once to hear each word only once.",
     "study.mode.dictation.1": "The zombies have no labels. Aim at one to hear its word (on touch or a controller, the bar picks one).",
     "study.mode.dictation.2": "Spell what you hear. Hear it again with {replay} or 🔊. A wrong spelling shows the word in syllables and says it again.",
     "study.mode.context.1": "The box at the top shows a sentence with a gap. Shoot the zombie with the word that fills it.",
     "study.mode.context.2": "Watch the form: indicate, indication, indicative... only one of them fits the sentence.",
-    "study.mode.adaptive.1": "Each word is asked its own way, by how well you know it: new words in Thai, then English definitions and sentences, then spelling and dictation.",
+    "study.mode.adaptive.1": "Each word is asked its own way, by how well you know it: new words by their meaning, then (English words) definitions and sentences, then spelling and dictation.",
     // ---- new series, round 1 ----
     "menu.madeWith": "Made with Three.js",
     "version.unknown": "version unknown",
@@ -1289,12 +1302,12 @@ G.STRINGS = {
     "settings.update.dev": "Updates are off on this test server",
     "settings.aimAssist": "Aim assist",
     "settings.aimAssistNote": "Touch screen and controller: the crosshair is drawn a little toward the nearest zombie or word",
-    "settings.aimAssist.off": "Off", "settings.aimAssist.low": "Low", "settings.aimAssist.medium": "Medium", "settings.aimAssist.high": "High",    "study.mode.adaptive.2": "The box at the top always says which: the Thai meaning, ≈ a definition, a sentence with a gap, or a word to listen to.",
+    "settings.aimAssist.off": "Off", "settings.aimAssist.low": "Low", "settings.aimAssist.medium": "Medium", "settings.aimAssist.high": "High",    "study.mode.adaptive.2": "The box at the top always says which: the meaning, ≈ a definition, a sentence with a gap, or a word to listen to.",
     // ---- vocabulary series, round 4 ----
-    "study.mode.listenword.1": "Listen to the word, then shoot the zombie that carries it: in the campaign every zombie carries its English word.",
+    "study.mode.listenword.1": "Listen to the word, then shoot the zombie that carries it: in the campaign every zombie carries its word.",
     "study.mode.listenword.2": "Hear it again with {replay} or 🔊. Settings: accent, speed, and Play Once to hear each word only once.",
     "study.mode.defspell.1": "The box at the top gives an English definition (≈ similar meaning), and the zombie a one-word synonym. Spell the word they describe.",
-    "study.mode.defspell.2": "New words show the Thai under it. From box 3 it is English only: Thai ({thai}) shows it, but then the answer does not move the word's box.",
+    "study.mode.defspell.2": "New words show the meaning under it. From box 3 it is English only: Meaning ({thai}) shows it, but then the answer does not move the word's box.",
     "study.mode.clozespell.1": "The box at the top shows a sentence with a gap; the zombie you are spelling shows ___. Spell the word that fills it.",
     "study.mode.clozespell.2": "Write the form the sentence needs: indicate, indication or indicative... only one of them is right.",
     "hud.clue.audioWord": "Listen: shoot the word you hear",
@@ -1305,7 +1318,7 @@ G.STRINGS = {
     "learn.customName": "{clue} + {answer}",
     "learn.clueHead": "The clue",
     "learn.answerHead": "Your answer",
-    "learn.clue.thai": "Thai meaning",
+    "learn.clue.thai": "Meaning",
     "learn.clue.definition": "Definition",
     "learn.clue.audio": "Audio",
     "learn.clue.cloze": "Sentence gap",
@@ -1319,12 +1332,12 @@ G.STRINGS = {
     "camp.optHead": "Option",
     "camp.go": "Play",
     "camp.style.adaptive": "Adaptive",
-    "camp.styleDesc.adaptive": "Recommended. Each word is asked by how well you know it: Thai at first, then English clues, then spelling. The panel at the top says which.",
+    "camp.styleDesc.adaptive": "Recommended. Each word is asked by how well you know it: its meaning at first, then English clues (English words), then spelling. The panel at the top says which.",
     "camp.style.classic": "Classic",
-    "camp.styleDesc.classic": "The Thai meaning at the top: shoot the zombie carrying its English word.",
+    "camp.styleDesc.classic": "The meaning at the top: shoot the zombie carrying its word.",
     "camp.style.custom": "Your own",
     "camp.styleDesc.custom": "Choose the clue and how you answer, for every word.",
-    "camp.customNote": "{mode}: every target is asked this way. Zombies always carry English words here.",
+    "camp.customNote": "{mode}: every target is asked this way. Zombies always carry their words here.",
     "camp.audioNote": "Audio + Shoot: listen to the word, then shoot the zombie that carries it.",
     "camp.reload": "Spell to Reload",
     "camp.reloadDesc": "Reloading asks you to spell a word of the wave first: right, a full magazine; wrong, half.",
@@ -1336,10 +1349,10 @@ G.STRINGS = {
     "practice.topicHead": "Topic",
     "practice.answer.shoot": "Choose",
     "practice.answer.spell": "Spell",
-    "practice.presetDesc.classic": "The Thai meaning: choose the English word.",
-    "practice.presetDesc.spelling": "The Thai meaning: spell the English word.",
+    "practice.presetDesc.classic": "The meaning: choose the word.",
+    "practice.presetDesc.spelling": "The meaning: spell the word.",
     "practice.presetDesc.paraphrase": "An English definition: choose the word it describes.",
-    "practice.presetDesc.listening": "Hear the word: choose its Thai meaning.",
+    "practice.presetDesc.listening": "Hear the word: choose its meaning.",
     "practice.presetDesc.dictation": "Hear the word: spell it.",
     "practice.presetDesc.context": "A sentence with a gap: choose the word that fills it.",
     "practice.presetDesc.adaptive": "Chosen for each word by its memory box: new words are chosen from four, words you know well are spelt.",
@@ -1390,7 +1403,7 @@ G.STRINGS = {
     "progress.skill.listening": "Listening",
     "progress.skill.paraphrase": "Paraphrase",
     "progress.skill.context": "Context",
-    "progress.skillNote": "Recognition: Thai clues, shot. Listening, Paraphrase and Context: the audio, definition and sentence clues. Spelling: every word you write (Dictation counts for Listening too).",
+    "progress.skillNote": "Recognition: meaning clues, shot. Listening, Paraphrase and Context: the audio, definition and sentence clues. Spelling: every word you write (Dictation counts for Listening too).",
     "progress.missed": "Missed most (top {n})",
     "progress.missedTimes": "missed ×{n}",
     "progress.missedNone": "Nothing missed yet. Words you get wrong will show here.",
@@ -1522,15 +1535,14 @@ G.STRINGS = {
     "settings.campStyleDesc": "How a campaign level asks its words. It can also be changed just before each level.",
     "settings.spellReloadDesc": "Spell a word of the wave to reload: right gives a full magazine, wrong half.",
     "settings.highlightDesc": "The word to shoot is drawn in yellow. A helper: those answers do not move a word's memory box.",
-    "settings.clueThaiName": "Thai with English clues",
+    "settings.clueThaiName": "Meaning with English clues",
     "settings.clueThaiAutoShort": "While new",
-    "settings.clueThaiDesc": "The Thai meaning under an English definition: while a word is new (boxes 1-2), always, or never.",
+    "settings.clueThaiDesc": "The meaning under an English definition: while a word is new (boxes 1-2), always, or never.",
     "settings.customVocabDesc": "Add your own words to a level's list.",
     // Language (more languages: round 3)
-    "settings.uiLang": "UI language", "settings.uiLangDesc": "Menus, the HUD, buttons and help.",
-    "settings.wordLang": "Word language", "settings.wordLangDesc": "The words on the zombies and the words to spell.",
+    "settings.uiLang": "UI language", "settings.uiLangDesc": "Menus, the HUD, buttons and help. Change it any time.",
+    "settings.wordLang": "Word language", "settings.wordLangDesc": "The words you learn: on the zombies, to spell, to hear.",
     "settings.meanLang": "Meaning language", "settings.meanLangDesc": "The language of the meanings. It cannot be the word language.",
-    "settings.langMore": "More languages are on the way.",
     // Accessibility
     "settings.gameSpeedName": "Game speed", "settings.gameSpeedDesc": "Slows the whole game down, or speeds it up.",
     "settings.fontSizeDesc": "The size of the text in menus and windows.",
@@ -1553,7 +1565,75 @@ G.STRINGS = {
       + "<h4>Voices</h4><p>Words are spoken with your device's own voices. Nothing you hear leaves the device.</p>"
       + "<h4>Moving or removing it</h4><p>Settings &gt; Account exports your progress to a file and imports it again. To remove everything, clear this site's data in your browser settings, or delete the home-screen app.</p>"
       + "<h4>Accounts</h4><p>Player accounts are not available yet. When they are, this page will say what they keep and how to delete them.</p>",
+
+    // ---- round 3 (H): four languages ----
+    "pos.g.m": "masculine", "pos.g.f": "feminine", "pos.g.mf": "masculine or feminine",
+    "settings.langIsMeaning": "Your meaning language: choose another meaning language first, or swap them.",
+    "settings.langIsWord": "Your word language: choose another word language first, or swap them.",
+    "settings.langSwap": "Swap languages", "settings.langSwapBtn": "Swap",
+    "settings.langSwapDesc": "Now: words in {a}, meanings in {b}. Swap turns them round.",
+    "settings.pinyin": "Pinyin", "settings.pinyinDesc": "Pinyin above Chinese characters. It comes on by itself when Chinese becomes the word language.",
+    "settings.strictAccents": "Strict accents (French)",
+    "settings.strictAccentsDesc": "On: a missing or wrong accent is a wrong answer. Off: it counts as right, and the word is shown with its accents.",
+    "settings.noVoice": "This device has no {lang} voice: Listening, Dictation and the questions you hear are off until it has one (add a voice in your device's speech settings).",
+    "settings.englishOnly": "Some parts are about English words and stay off while the words are in {lang}: Paraphrase and Context, collocation and paraphrase questions, spelling tips, syllables, words marked in the notes, and the AWL count.",
+    "learn.needEnglish": "Needs English as the word language (now {lang}).",
+    "learn.needVoice": "No {lang} voice on this device.",
+    "progress.awlEnglishOnly": "The Academic Word List counts English words: it shows while English is your word language (now {lang}).",
+    // a language's name inside a sentence of the UI language (on the choices, each is named in itself: G.Lang.NAMES)
+    "lang.en": "English", "lang.th": "Thai", "lang.zh": "Chinese", "lang.fr": "French",
+    "cv.wl": "Word language", "cv.ml": "Meaning language",
+    "cv.langNote": "Kept, but in play only while your word and meaning languages are {pair} (or the other way round).",
+    "cv.notInPlay": "Not in play with your languages now",
+    "cv.errSameLang": "The word and its meaning need two different languages.",
+    "cv.errLetters.en": "An English word can only use the letters A–Z (a hyphen, an apostrophe or a single space between words is fine).",
+    "cv.errLetters.fr": "A French word can only use letters, with their accents (a hyphen, an apostrophe or a single space between words is fine).",
+    "cv.errLetters.zh": "A Chinese word can only use Chinese characters.",
+    "cv.errLetters.th": "A Thai word can only use Thai letters (a single space between words is fine).",
+    "cv.errMeaning.en": "The meaning needs to be written in English.",
+    "cv.errMeaning.fr": "The meaning needs to be written in French.",
+    "cv.errMeaning.zh": "The meaning needs to be written in Chinese characters.",
+    "cv.errMeaning.th": "The meaning needs to be written in Thai.",
+    "spell.fieldLabel": "Type the word",
+    "spell.accent": "Type {c}",
+    "spell.accentNote": "Right! With its accents:",
+    "spell.zhHint": "Type the characters, or the pinyin without tones (fenxi for 分析)",
+    "import.langs": "Languages of these words: {pair}",
+    "lobby.noVoiceTitle": "No {lang} voice",
   },
+};
+
+// (round 3) the chosen UI language's own file, read now -- this script runs
+// while the page is still being parsed, so the file runs before js/boot.js
+if (G.UI_LANG_FILES[G.lang] && document.readyState === "loading") {
+  document.write('<script src="' + G.UI_LANG_FILES[G.lang] + '"><\/script>');
+}
+
+// (round 3) dates and numbers written the UI language's way
+G.LOCALES = { en: "en-GB", th: "th-TH", zh: "zh-CN", fr: "fr-FR" };
+G.locale = function () { return G.LOCALES[G.lang] || "en-GB"; };
+
+// (round 3, H1) the menus in another language, at any time: its file is
+// fetched if it is not here yet, then every static text, the names on the
+// game's data and the screen in view are written again ("vz-uilang")
+G.setUILang = function (code, opts) {
+  opts = opts || {};
+  if (G.UI_LANGS.indexOf(code) < 0) return;
+  const go = () => {
+    G.lang = code;
+    if (G.save && G.save.settings && G.save.settings.uiLang !== code) { G.save.settings.uiLang = code; if (G.persist) G.persist(); }
+    G.localizeData();
+    G.applyStaticStrings();
+    document.documentElement.classList.toggle("ui-zh", code === "zh");
+    if (!opts.quiet) { try { window.dispatchEvent(new CustomEvent("vz-uilang", { detail: code })); } catch (e) { /* old browser */ } }
+    if (opts.done) opts.done(true);
+  };
+  if (code === "en" || G.STRINGS[code]) { go(); return; }
+  const s = document.createElement("script");
+  s.src = G.UI_LANG_FILES[code];
+  s.onload = () => (G.STRINGS[code] ? go() : opts.done && opts.done(false));
+  s.onerror = () => { if (opts.done) opts.done(false); };
+  document.head.appendChild(s);
 };
 
 G.T = function (key, vars) {
@@ -1571,7 +1651,9 @@ G.applyStaticStrings = function (root) {
   root.querySelectorAll("[data-i18n]").forEach((el) => { el.textContent = G.T(el.getAttribute("data-i18n")); });
   root.querySelectorAll("[data-i18n-html]").forEach((el) => { el.innerHTML = G.T(el.getAttribute("data-i18n-html")); });
   root.querySelectorAll("[data-i18n-aria]").forEach((el) => { el.setAttribute("aria-label", G.T(el.getAttribute("data-i18n-aria"))); });
-  document.documentElement.lang = G.lang;
+  // the short names under icons and their tooltips (js/tips.js)
+  if (G.Tips && G.Tips.applyKeys) G.Tips.applyKeys(root);
+  document.documentElement.lang = G.lang === "zh" ? "zh-Hans" : G.lang;
 };
 
 // names and labels carried on game data, set from the table by id

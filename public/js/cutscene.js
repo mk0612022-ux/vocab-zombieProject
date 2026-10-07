@@ -587,7 +587,8 @@
       E.wave.textContent = kind === "death" ? "" : G.T("cine.wave", { n: game.wave });
       E.name.textContent = G.T("boss." + def.id + ".name");
       E.title.textContent = kind === "death" ? G.T("cine.defeated") : G.T("boss.the", { w: def.word.charAt(0).toUpperCase() + def.word.slice(1) });
-      E.thai.textContent = kind === "death" ? "" : G.Bosses.thai(def);
+      E.thai.innerHTML = kind === "death" ? "" : G.Bosses.meaningHtml(def);
+      E.thai.lang = G.Lang.TAG[G.Lang.meaning()];
       document.body.classList.add("cine-on");
       document.body.classList.remove("slowmo");
       G.Input.clearHeldInputs();

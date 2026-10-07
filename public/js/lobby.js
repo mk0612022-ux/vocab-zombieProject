@@ -135,7 +135,7 @@ G.Lobby = {
       <div class="lobby" id="lobby">
         <div class="lobby-bg"><div class="lobby-bg-art" id="lobby-bg-art"></div><div class="lobby-bg-glow"></div><div class="lobby-embers">${"<i></i>".repeat(14)}</div></div>
         <div class="lobby-top">
-          <div class="lobby-logo">${T("menu.title")}</div>
+          <div class="lobby-logo" lang="en">${T("menu.title")}</div>
           <div class="lobby-tabs" role="tablist">
             <span class="lobby-key kb-only">Q</span><span class="lobby-key pad-only">LB</span>
             ${this.TABS.map((t) => `<button class="lobby-tab" role="tab" data-tab="${t}">${esc(T("lobby.tab." + t))}</button>`).join("")}
@@ -165,6 +165,7 @@ G.Lobby = {
         </div>
         <div class="lobby-footer"><span data-version>${esc(G.Updater ? G.Updater.label() : "")}</span> · ${T("menu.madeWith")}</div>
         <div class="lobby-launch" id="lobby-launch"></div>
+        <div class="lobby-notice hidden" id="lobby-notice" role="status"></div>
       </div>`;
     this.el = (id) => document.getElementById(id);
     // fetch every picture now, so no crossfade ever fades in an empty frame
@@ -175,6 +176,24 @@ G.Lobby = {
     this.bindInput();
     this.built = true;
     this.setDevice(G.Input && G.Input.mode === "touch" ? "touch" : "kb");
+  },
+
+  // (round 3) the menus in another language: the lobby's fixed words written
+  // again (its cards and preview are drawn again by open)
+  relabel() {
+    if (!this.built) return;
+    const T = G.T, esc = G.escapeHtml, q = (s) => this.root.querySelector(s);
+    q(".lobby-logo").innerHTML = T("menu.title");
+    this.root.querySelectorAll(".lobby-tab").forEach((b) => { b.textContent = T("lobby.tab." + b.dataset.tab); });
+    this.root.querySelectorAll(".lobby-icon").forEach((b) => {
+      const id = b.dataset.icon;
+      b.dataset.tip = T("lobby.icon." + id); b.setAttribute("aria-label", T("lobby.icon." + id));
+      const lab = b.querySelector(".li-label"); if (lab) lab.textContent = T("lobby.iconShort." + id);
+    });
+    q(".lobby-featured").textContent = T("lobby.featured");
+    const h = q("#lobby-hints");
+    if (h) h.innerHTML = `<span class="kb-only">${T("lobby.hint.kb")}</span><span class="pad-only">${T("lobby.hint.pad")}</span><span class="touch-only">${T("lobby.hint.touch")}</span>`;
+    q(".lobby-footer").innerHTML = `<span data-version>${esc(G.Updater ? G.Updater.label() : "")}</span> · ${T("menu.madeWith")}`;
   },
 
   cardsFor(tab) {
@@ -211,6 +230,19 @@ G.Lobby = {
     this.focus = "cards";
     this.renderTab(true);
     this.startClock();
+    this.voiceNotice();
+  },
+  // (round 3, H4) no voice on this device for the Word Language: said in the
+  // lobby (not in the way: a line that can be closed) until it is closed
+  voiceNotice() {
+    const el = this.el && this.el("lobby-notice");
+    if (!el) return;
+    const wl = G.Lang.word(), lang = G.Lang.label(wl), esc = G.escapeHtml;
+    const off = !!(G.Audio && G.Audio._voicesKnown && G.Audio.canSpeak && !G.Audio.canSpeak(wl)) && this._noticeClosed !== wl;
+    el.classList.toggle("hidden", !off);
+    if (!off) return;
+    el.innerHTML = `<b>\u{1F507} ${esc(G.T("lobby.noVoiceTitle", { lang }))}</b><span>${esc(G.T("settings.noVoice", { lang }))}</span><button class="ln-x" type="button" aria-label="${esc(G.T("common.close"))}">\u00D7</button>`;
+    el.querySelector(".ln-x").onclick = () => { this._noticeClosed = wl; el.classList.add("hidden"); };
   },
   renderTab(instant) {
     const track = this.el("lobby-track");
@@ -507,3 +539,6 @@ G.Lobby = {
     window.addEventListener("keydown", () => { if (this.device !== "kb") this.setDevice("kb"); });
   },
 };
+
+// (round 3) the device listed its voices: the lobby says if the Word Language has none
+window.addEventListener("vz-voices", () => { if (G.Lobby && G.Lobby.built) G.Lobby.voiceNotice(); });

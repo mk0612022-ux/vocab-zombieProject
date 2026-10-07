@@ -41,31 +41,37 @@ G.Distract = {
     return prev[b.length];
   },
 
-  // a word (bank key, bank form, lexicon word or the player's own) as a pair
-  // [english, thai] with .id, and .lexicon for a confusables-lexicon word
+  // a word (bank key -- "analyse@zh" too --, bank form, lexicon word or the
+  // player's own) as a pair [word, meaning] in the languages chosen, with
+  // .id, and .lexicon for a confusables-lexicon word (English > Thai only:
+  // those words have nothing else)
   resolve(w) {
     if (!w) return null;
     if (Array.isArray(w)) return w;
-    const e = G.WordBank.byId(w) || G.WordBank.ownerOf(w);
-    if (e) { const p = [e.headword, e.thai]; p.id = e.id; return p; }
-    const c = G.WordBank.confusable(w);
+    const k = G.wordKey.parse(w);
+    if (k.lang !== "en" && k.lang !== G.Lang.word()) return null;
+    const e = G.WordBank.byId(k.id) || G.WordBank.textOwner(k.id);
+    if (e) return G.WordBank.pairOf(e);
+    const c = G.Lang.word() === "en" && G.Lang.meaning() === "th" ? G.WordBank.confusable(w) : null;
     if (c) { const p = [c.headword, c.thai]; p.id = c.headword.toLowerCase(); p.lexicon = true; return p; }
-    const key = String(w).toLowerCase();
-    for (const list of Object.values(G.save.customWords || {})) {
+    const key = String(k.id).toLowerCase();
+    const lists = G.CustomVocab && G.CustomVocab.allCurrent ? [G.CustomVocab.allCurrent()] : Object.values(G.save.customWords || {});
+    for (const list of lists) {
       const hit = list.find((p) => p[0].toLowerCase() === key);
       if (hit) return hit;
     }
     return null;
   },
 
-  // bank headwords spelt within `nearSpelling` letters of this one
+  // bank words spelt within `nearSpelling` letters of this one (round 3: in
+  // the Word Language; Chinese within one character -- two would be any word)
   nearSpellings(word) {
-    const w = String(word).toLowerCase();
+    const w = String(word).toLowerCase(), wl = G.Lang.word();
     if (this._near.has(w)) return this._near.get(w);
-    const max = G.CONFIG.distractors.nearSpelling, out = [];
+    const max = wl === "zh" ? 1 : G.CONFIG.distractors.nearSpelling, out = [];
     G.WordBank.entries().forEach((e) => {
-      const h = e.headword.toLowerCase();
-      if (h === w) return;
+      const h = G.Lang.text(e, wl).toLowerCase();
+      if (!h || h === w) return;
       const d = this.distance(w, h, max);
       if (d <= max) out.push({ id: e.id, d });
     });
@@ -92,7 +98,8 @@ G.Distract = {
       out.push(q);
     };
     G.SRS.confusedWith(pair).forEach((x) => add(x, "confusion"));
-    ((info && info.confusables) || []).forEach((x) => add(x, "confusable"));
+    // (the bank's confusables are English look-alikes)
+    if (G.Lang.enWord(pair)) ((info && info.confusables) || []).forEach((x) => add(x, "confusable"));
     this.nearSpellings(pair[0]).forEach((x) => add(x, "spelling"));
     if (withTopic && info && info.topic) {
       G.shuffle(G.WordBank.entries(info.level || undefined).filter((e) => e.topic === info.topic)).slice(0, 12).forEach((e) => add(e.id, "topic"));

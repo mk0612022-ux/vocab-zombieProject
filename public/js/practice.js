@@ -34,14 +34,23 @@ window.G = window.G || {};
     sources() {
       const out = [{ id: "all", name: T("practice.srcAll") }];
       G.LEVELS.forEach((l) => out.push({ id: l.wordsKey, name: T("common.levelNamed", { n: l.id, name: l.name }) }));
-      const own = Object.values(G.save.customWords || {}).reduce((n, l) => n + l.length, 0);
-      if (own) out.push({ id: "own", name: T("practice.srcOwn") });
-      Object.keys(G.save.importedSets || {}).forEach((id) => out.push({ id: "set:" + id, name: G.save.importedSets[id].name }));
+      // (round 3: the player's own words and imported sets in the languages chosen -- or the reverse)
+      if (G.CustomVocab.allCurrent().length) out.push({ id: "own", name: T("practice.srcOwn") });
+      Object.keys(G.save.importedSets || {}).forEach((id) => { if (this.setWords(id).length) out.push({ id: "set:" + id, name: G.save.importedSets[id].name }); });
       return out;
     },
+    // an imported set's words as pairs in the player's languages ([] when it is in another pair)
+    setWords(id) {
+      const s = G.save.importedSets[id];
+      if (!s || !Array.isArray(s.words)) return [];
+      const L = s.wl && s.ml ? { wl: s.wl, ml: s.ml } : { wl: "en", ml: "th" }, wl = G.Lang.word(), ml = G.Lang.meaning();
+      const rev = L.wl === ml && L.ml === wl;
+      if (!rev && !(L.wl === wl && L.ml === ml)) return [];
+      return s.words.filter((p) => p[0] && p[1]).map((p) => Object.assign(rev ? [p[1], p[0]] : [p[0], p[1]], { wl, ml }));
+    },
     sourceWords(src) {
-      if (src === "own") return [].concat(...Object.values(G.save.customWords || {}));
-      if (/^set:/.test(src)) { const s = G.save.importedSets[src.slice(4)]; return s ? s.words.filter((p) => p[0] && p[1]) : []; }
+      if (src === "own") return G.CustomVocab.allCurrent();
+      if (/^set:/.test(src)) return this.setWords(src.slice(4));
       if (G.WORD_SETS[src]) return G.WORD_SETS[src].words;
       return G.SRS.pool();
     },
@@ -89,15 +98,18 @@ window.G = window.G || {};
     render() {
       const f = this.f, wrap = $("practice-setup-content");
       if (!this.sources().some((s) => s.id === f.src)) f.src = "all";
-      const opt = (attr, val, on, name, sub, small) => `<button class="learn-opt${small ? " small" : ""}${on ? " on" : ""}" type="button" data-${attr}="${esc(val)}" aria-pressed="${on}"><b>${esc(name)}</b>${sub ? `<span>${esc(sub)}</span>` : ""}</button>`;
+      // (round 3) a mode or clue the languages rule out: back to Classic / the meaning
+      if (f.mode !== "custom" && G.Learn.whyNot(f.mode)) f.mode = "classic";
+      if (G.Learn.clueWhyNot(f.clue)) f.clue = "thai";
+      const opt = (attr, val, on, name, sub, small, lock) => `<button class="learn-opt${small ? " small" : ""}${on ? " on" : ""}${lock ? " locked" : ""}" type="button" data-${attr}="${esc(val)}" aria-pressed="${on}"${lock ? ` disabled aria-disabled="true" title="${esc(lock)}"` : ""}><b>${lock ? "\u{1F512} " : ""}${esc(name)}</b>${sub ? `<span>${esc(sub)}</span>` : ""}</button>`;
       const list = this.matching();
       const boxName = (b) => b === "0" ? T("learn.boxNew") : b === "6" ? T("learn.boxMastered") : T("practice.boxN", { n: b });
       wrap.innerHTML = `
         <p class="pr-sub">${esc(T("practice.sub"))}</p>
         <div class="learn-h">${esc(T("learn.modeHead"))}</div>
-        <div class="learn-modes">${G.Learn.availablePresets().map((p) => opt("mode", p.id, f.mode === p.id, T("learn.preset." + p.id), T("practice.presetDesc." + p.id))).join("")}${opt("mode", "custom", f.mode === "custom", T("learn.preset.custom"), T("learn.presetDesc.custom"))}</div>
+        <div class="learn-modes">${G.Learn.PRESETS.map((p) => { const why = G.Learn.whyNot(p); return opt("mode", p.id, !why && f.mode === p.id, T("learn.preset." + p.id), why || T("practice.presetDesc." + p.id), false, why); }).join("")}${opt("mode", "custom", f.mode === "custom", T("learn.preset.custom"), T("learn.presetDesc.custom"))}</div>
         <div class="learn-custom${f.mode === "custom" ? "" : " hidden"}">
-          <div class="learn-h">${esc(T("learn.clueHead"))}</div><div class="learn-row">${Object.keys(G.Learn.CLUES).map((c) => opt("clue", c, f.clue === c, T("learn.clue." + c), "", true)).join("")}</div>
+          <div class="learn-h">${esc(T("learn.clueHead"))}</div><div class="learn-row">${Object.keys(G.Learn.CLUES).map((c) => { const why = G.Learn.clueWhyNot(c); return opt("clue", c, !why && f.clue === c, T("learn.clue." + c), why, true, why); }).join("")}</div>
           <div class="learn-h">${esc(T("learn.answerHead"))}</div><div class="learn-row">${Object.keys(G.Learn.ANSWERS).map((a) => opt("answer", a, f.answer === a, T("practice.answer." + a), "", true)).join("")}</div>
         </div>
         <div class="learn-h">${esc(T("learn.levelHead"))}</div>
@@ -229,7 +241,9 @@ window.G = window.G || {};
       }
       const fb = $("practice-feedback");
       if (right) {
-        fb.textContent = T("quiz.right"); fb.className = "quiz-feedback ok";
+        // (round 3) right without its accents: the word as written
+        const fix = q.spell && typeof k === "string" ? G.Spell.accentFix(k, G.Questions.spellTarget(q)) : "";
+        fb.textContent = fix ? T("quiz.right") + " " + T("spell.accentNote") + " " + fix : T("quiz.right"); fb.className = "quiz-feedback ok";
         this._t = setTimeout(() => this.next(), G.CONFIG.quiz.feedback * 1000);
       } else {
         fb.innerHTML = `<div class="qf-line">${esc(T("quiz.wrong", { a: G.Questions.rightText(q) }))}</div>` + G.VocabCard.miniHtml(q.pair, { form: q.answerText }) +

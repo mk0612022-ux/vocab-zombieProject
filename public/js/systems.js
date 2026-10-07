@@ -151,12 +151,14 @@ G.spawnPointOpen = function (world, sp) {
 // and the one word question comes after the boss is down)
 G.pickHardWords = function (wordPool, count) {
   // Priority: previously-wrong words > longer-than-average words > random
-  const avgLen = wordPool.reduce((a, p) => a + p[0].length, 0) / wordPool.length;
+  // (round 3: a word's length in its language -- G.SpellUnits.weight)
+  const len = (p) => (G.SpellUnits ? G.SpellUnits.weight(p[0], G.Lang.wl(p)) : p[0].length);
+  const avgLen = wordPool.reduce((a, p) => a + len(p), 0) / wordPool.length;
   const wrongOnes = wordPool.filter((p) => {
     const s = G.wordStat(p);
     return s && s.wrong > 0 && s.wrong >= s.correct;
   });
-  const longOnes = wordPool.filter((p) => p[0].length > avgLen && !wrongOnes.includes(p));
+  const longOnes = wordPool.filter((p) => len(p) > avgLen && !wrongOnes.includes(p));
   const rest = wordPool.filter((p) => !wrongOnes.includes(p) && !longOnes.includes(p));
   const combined = [].concat(G.shuffle(wrongOnes), G.shuffle(longOnes), G.shuffle(rest));
   return combined.slice(0, count);

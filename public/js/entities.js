@@ -617,26 +617,41 @@ const THAI_CHAR = new RegExp("[" + String.fromCharCode(0x0E00) + "-" + String.fr
 // (new series, round 2, G) `pos`: the word's part of speech ("N./V."), drawn
 // after it smaller (G.CONFIG.aim.posScale of the word) and fainter, so the
 // word still reads first and a crowd's words stay narrow
-G.drawWordLabel = function (ctx, canvas, text, color, pos) {
-  const thai = THAI_CHAR.test(text);
-  const family = thai ? "Tahoma, Leelawadee UI, Noto Sans Thai, Segoe UI, sans-serif" : "Segoe UI, sans-serif";
+// (round 3, H4) Chinese is drawn in a Chinese font, with `ruby` -- its pinyin --
+// small above it (G.CONFIG.aim.pinyinScale of the characters); French accents
+// and Thai marks stay inside the canvas
+const CJK_CHAR = /[\u3400-\u9FFF]/;
+G.LABEL_FONTS = {
+  latin: "Segoe UI, Helvetica Neue, Arial, sans-serif",
+  thai: "Tahoma, Leelawadee UI, Noto Sans Thai, Thonburi, Segoe UI, sans-serif",
+  cjk: "Microsoft YaHei, PingFang SC, Noto Sans SC, Hiragino Sans GB, Source Han Sans SC, sans-serif",
+};
+G.drawWordLabel = function (ctx, canvas, text, color, pos, ruby) {
+  const thai = THAI_CHAR.test(text), cjk = CJK_CHAR.test(text);
+  const family = thai ? G.LABEL_FONTS.thai : cjk ? G.LABEL_FONTS.cjk : G.LABEL_FONTS.latin;
   pos = pos && text ? "(" + pos + ")" : "";
-  let size = thai ? 52 : 64;
+  ruby = ruby && text ? String(ruby) : "";
+  let size = thai ? 52 : ruby ? 54 : 64;
   const room = canvas.width - 28;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   const k = (G.CONFIG && G.CONFIG.aim && G.CONFIG.aim.posScale) || 0.46;
-  const posFont = (s) => "600 " + Math.round(s * k) + "px Segoe UI, sans-serif";
+  const posFont = (s) => "600 " + Math.round(s * k) + "px " + G.LABEL_FONTS.latin;
+  const rk = (G.CONFIG && G.CONFIG.aim && G.CONFIG.aim.pinyinScale) || 0.4;
+  const rubyFont = (s) => "600 " + Math.round(s * rk) + "px " + G.LABEL_FONTS.latin;
   const widths = () => {
     ctx.font = "bold " + size + "px " + family;
     const w = ctx.measureText(text).width;
-    if (!pos) return { w, p: 0, gap: 0 };
+    let r = 0;
+    if (ruby) { ctx.font = rubyFont(size); r = ctx.measureText(ruby).width; }
+    if (!pos) return { w, p: 0, gap: 0, r };
     ctx.font = posFont(size);
-    return { w, p: ctx.measureText(pos).width, gap: size * 0.12 };
+    return { w, p: ctx.measureText(pos).width, gap: size * 0.12, r };
   };
   let m = widths();
-  while (size > 20 && m.w + m.gap + m.p > room) { size -= 3; m = widths(); }
+  while (size > 20 && (m.w + m.gap + m.p > room || m.r > room)) { size -= 3; m = widths(); }
   ctx.textBaseline = "middle";
-  const y = canvas.height / 2 + (thai ? size * 0.08 : 0);
+  // (with pinyin: the characters a little lower, the pinyin over them)
+  const y = canvas.height / 2 + (thai ? size * 0.08 : 0) + (ruby ? size * 0.3 : 0);
   const total = m.w + m.gap + m.p, x0 = (canvas.width - total) / 2;
   ctx.lineWidth = thai ? 7 : 8; ctx.strokeStyle = "rgba(0,0,0,0.85)"; ctx.lineJoin = "round";
   ctx.font = "bold " + size + "px " + family;
@@ -644,6 +659,16 @@ G.drawWordLabel = function (ctx, canvas, text, color, pos) {
   ctx.strokeText(text, x0, y);
   ctx.fillStyle = color || "#ffffff";
   ctx.fillText(text, x0, y);
+  if (ruby) {
+    ctx.font = rubyFont(size);
+    ctx.textAlign = "center";
+    const ry = y - size * 0.62 - size * rk * 0.45;
+    ctx.lineWidth = 5; ctx.strokeStyle = "rgba(0,0,0,0.9)";
+    ctx.strokeText(ruby, x0 + m.w / 2, ry);
+    ctx.fillStyle = "#ffe9a8";
+    ctx.fillText(ruby, x0 + m.w / 2, ry);
+    ctx.textAlign = "left"; ctx.lineWidth = 8;
+  }
   if (pos) {
     // on the word's baseline, not its middle: small text sits on the line
     ctx.font = posFont(size);
@@ -659,14 +684,14 @@ G.drawWordLabel = function (ctx, canvas, text, color, pos) {
   // is hit where its words are, not on the empty band around them
   const tw = text ? total + ctx.lineWidth + 12 : 0;
   canvas.__fw = Math.min(1, tw / canvas.width);
-  canvas.__fh = text ? Math.min(1, (size * 1.3 + ctx.lineWidth) / canvas.height) : 0;
+  canvas.__fh = text ? Math.min(1, (size * (ruby ? 1.3 + rk * 1.6 : 1.3) + ctx.lineWidth) / canvas.height) : 0;
 };
 G.makeWordSprite = function (text, opts) {
   opts = opts || {};
   const canvas = document.createElement("canvas");
   canvas.width = 512; canvas.height = 128;
   const ctx = canvas.getContext("2d");
-  G.drawWordLabel(ctx, canvas, text, opts.color || "#ffffff", opts.pos);
+  G.drawWordLabel(ctx, canvas, text, opts.color || "#ffffff", opts.pos, opts.ruby);
   const tex = new THREE.CanvasTexture(canvas);
   const mat = new THREE.SpriteMaterial({ map: tex, depthTest: true, transparent: true });
   const sprite = new THREE.Sprite(mat);
@@ -677,8 +702,8 @@ G.makeWordSprite = function (text, opts) {
   sprite.userData.baseScale = [2.2, 0.55];
   return sprite;
 };
-G.updateWordSprite = function (sprite, text, color, pos) {
-  G.drawWordLabel(sprite.userData.ctx, sprite.userData.canvas, text, color || "#ffffff", pos);
+G.updateWordSprite = function (sprite, text, color, pos, ruby) {
+  G.drawWordLabel(sprite.userData.ctx, sprite.userData.canvas, text, color || "#ffffff", pos, ruby);
   sprite.userData.tex.needsUpdate = true;
 };
 
@@ -1264,22 +1289,29 @@ G.Zombie.prototype.setTarget = function (isTarget) {
   // helper: those answers move no box, js/game.js helpersActive)
   const hot = (spell && this.spellFocus) || (!spell && isTarget && !!(G.save && G.save.settings.highlightTarget));
   const text = this.labelText || (hot ? "🔊" : "");
-  const pos = this.labelPos();
-  const key = (hot ? "t" : out ? "x" : "n") + (spell ? "s" : "") + text + "|" + pos;
+  const pos = this.labelPos(), ruby = this.labelRuby();
+  const key = (hot ? "t" : out ? "x" : "n") + (spell ? "s" : "") + text + "|" + pos + "|" + ruby;
   if (this._label === key) return;
   this._label = key;
   this.sprite.visible = !!text;
   if (!text) return;
-  G.updateWordSprite(this.sprite, out ? "✗ " + text : text, hot ? "#ffe36b" : out ? "#6c7078" : spell ? "#9ae8ff" : "#ffffff", pos);
+  G.updateWordSprite(this.sprite, out ? "✗ " + text : text, hot ? "#ffe36b" : out ? "#6c7078" : spell ? "#9ae8ff" : "#ffffff", pos, ruby);
 };
 // (new series, round 2, G) the part of speech after the word it carries --
-// its own English word only: not a Thai meaning or a clue, and not in a
-// question of its family's forms (Cloze), where the tag would be the answer
+// its own word only: not a meaning or a clue, and not in a question of its
+// family's forms (Cloze), where the tag would be the answer. (Round 3: in
+// the Word Language -- a French noun with its gender, "N. f.")
 G.Zombie.prototype.labelPos = function () {
   if (this.answer === "spell" || this.clueKind === "cloze" || !this.pair || !G.POS) return "";
-  if (this.labelText !== this.word || this.word !== this.pair[0] || THAI_CHAR.test(this.labelText)) return "";
-  const code = G.POS.of(this.pair);
-  return code ? G.POS.abbr(code) : "";
+  if (this.labelText !== this.word || this.word !== this.pair[0]) return "";
+  return G.POS.short(this.pair);
+};
+// (round 3, H4) the pinyin over a Chinese label: the word's or the meaning's
+G.Zombie.prototype.labelRuby = function () {
+  if (!this.pair || !G.Lang || !G.Lang.showPinyin() || !this.labelText) return "";
+  if (this.labelText === this.pair[0]) return G.Lang.pinyin(this.pair, 0);
+  if (this.labelText === this.pair[1]) return G.Lang.pinyin(this.pair, 1);
+  return "";
 };
 // (vocabulary series, round 2-3) how it is answered, its clue, and what its
 // label says: setAnswer(answer, clue, { kind, label, full })
@@ -1296,7 +1328,7 @@ G.Zombie.prototype.setAnswer = function (answer, clue, o) {
   this.clueFull = o.full || "";
   this.labelText = o.label != null ? o.label : this.answer === "spell" ? this.clue : this.word;
   // (Thai is read, not recognised at a glance: a larger label)
-  const k = THAI_CHAR.test(this.labelText) ? 1.3 : 1;
+  const k = THAI_CHAR.test(this.labelText) ? 1.3 : CJK_CHAR.test(this.labelText) ? 1.15 : 1;
   this.sprite.scale.set(2.2 * k, 0.55 * k, 1);
   this.sprite.userData.baseScale = [2.2 * k, 0.55 * k];
   this._label = null;

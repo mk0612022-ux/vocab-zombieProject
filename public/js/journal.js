@@ -36,7 +36,7 @@
         if (!b) return;
         const en = G.WordBank.byId(b.dataset.id);
         if (!en) return;
-        const p = [en.headword, en.thai]; p.id = en.id;
+        const p = G.WordBank.pairOf(en);
         G.VocabCard.peek(p, b.dataset.form);
       };
       this.el("btn-note-keep").textContent = G.T(fromJournal ? "notes.close" : "notes.keep");

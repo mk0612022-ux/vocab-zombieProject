@@ -1356,7 +1356,7 @@
     // (held in front of the chest: where a player aiming at him can read it)
     // (new series, round 2, G: with its part of speech, as on a zombie)
     const sign = (root, pair) => {
-      const sp = G.makeWordSprite(pair[0], { color: "#fff29b", pos: G.POS ? G.POS.abbr(G.POS.of(pair)) : "" });
+      const sp = G.makeWordSprite(pair[0], { color: "#fff29b", pos: G.POS ? G.POS.short(pair) : "", ruby: G.Lang.showPinyin() ? G.Lang.pinyin(pair, 0) : "" });
       sp.scale.set(3.4, 0.85, 1);
       sp.position.set(0, b.rig.H * 0.55, b.rig.R + 0.6);
       root.add(sp);
@@ -1369,7 +1369,7 @@
       if (res === "right") {
         b.vuln = C.vuln; b.vulnT = C.stun;
         G.Audio.sfx("correct");
-        G.recordWordResult(ans[0], true);
+        G.recordWordResult(ans, true);
         M.hint(T("boss.move.choice.right", { w: ans[0] }), 3);
         M.stats.dodged++;
       } else if (res === "timeout") M.hint(null);
@@ -1403,7 +1403,7 @@
                 M.popClone(game, c);
                 G.Audio.sfx("wrong");
                 M.hurt(game, C.wrongDamage, { src: "choice" });
-                G.recordWordResult(ans[0], false);
+                G.recordWordResult(ans, false);
                 if (game.trackWrongWord) game.trackWrongWord(ans[0], ans[1]);
                 if (figs.every((f) => f.real || f.clone.popped)) finish("revealed");
               };

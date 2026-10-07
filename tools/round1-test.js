@@ -305,9 +305,9 @@ G.Round1Test = (function () {
     r = CV.save("serendipity", THAI_X, "level2");
     ok("C: a word already added elsewhere is refused and says where", !r.ok && r.dupWhere.key === "level1" && r.dupWhere.custom);
     ok("C: empty fields refused", CV.save("", THAI_X, "level1").error === "cv.errEmpty" && CV.save("word", "   ", "level1").error === "cv.errEmpty");
-    ok("C: non-letters refused", CV.save("abc1", THAI_X, "level1").error === "cv.errLetters" && CV.save("hello!", THAI_X, "level1").error === "cv.errLetters");
+    ok("C: non-letters refused", CV.save("abc1", THAI_X, "level1").error === "cv.errLetters.en" && CV.save("hello!", THAI_X, "level1").error === "cv.errLetters.en");   // (round 3: by language)
     ok("C: hyphen / space between letters allowed", CV.save("long-winded", THAI_X + "1", "level2").ok && CV.save("give up", THAI_X + "2", "level2").ok);
-    ok("C: meaning must be Thai", CV.save("zebra", "a horse", "level1").error === "cv.errThai");
+    ok("C: meaning must be Thai", CV.save("zebra", "a horse", "level1").error === "cv.errMeaning.th");   // (round 3: by language)
     r = CV.save("forsake", abandonTh, "level1");
     ok("C: same meaning as another word in the level -> saved with a warning", r.ok && r.warnSame.includes(firstEn), JSON.stringify(r.warnSame));
     // edit / delete

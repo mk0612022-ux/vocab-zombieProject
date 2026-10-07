@@ -389,4 +389,6 @@ window.G = window.G || {};
   };
 
   window.addEventListener("DOMContentLoaded", () => G.Updater.start());
+  // (round 3) the version in the corner, in the menus' new language
+  window.addEventListener("vz-uilang", () => G.Updater.showLabel());
 })();

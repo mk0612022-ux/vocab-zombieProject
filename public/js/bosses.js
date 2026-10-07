@@ -1345,7 +1345,16 @@
     active() { return !!this.phase; },
     fighting() { return this.phase === "fight" && !!this.boss; },
     label(def) { return G.T("boss.hpLabel", { name: G.T("boss." + def.id + ".name"), title: G.T("boss.the", { w: cap(def.word) }) }); },
-    thai(def) { return (G.BOSS_WORDS[def.word] || {}).th || ""; },
+    // (round 3, H) the boss word's meaning in the Meaning Language (Chinese with its pinyin)
+    thai(def) { return this.meaning(def).text; },
+    meaning(def) {
+      const w = G.BOSS_WORDS[def.word] || {}, ml = G.Lang.meaning();
+      return { text: w[ml] || w.th || "", py: ml === "zh" ? w.py || "" : "", lang: ml };
+    },
+    meaningHtml(def) {
+      const m = this.meaning(def), esc = G.escapeHtml;
+      return m.py && G.Lang.showPinyin() ? `<ruby>${esc(m.text)}<rt>${esc(m.py)}</rt></ruby>` : esc(m.text);
+    },
 
     // which boss comes next: none met yet this run (a level's four are four
     // different ones); Endless takes them from a bag of all ten, refilled

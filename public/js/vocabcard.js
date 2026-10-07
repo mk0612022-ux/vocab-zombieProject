@@ -14,6 +14,11 @@
 //   peek   the mini card in a window of its own (from a note): looking a
 //          word up is not a review -- it moves no box
 // All are G.Modal windows: mouse, touch, keys and a controller.
+// (Round 3, H) The word and its meaning in the player's two languages
+// (Chinese with its pinyin, a French noun with its gender) and the same
+// word in the other two languages; the English parts -- syllables,
+// definition, examples, collocations, family, look-alikes, spelling, AWL --
+// only while English is the Word Language.
 // ===================================================================
 window.G = window.G || {};
 
@@ -21,11 +26,22 @@ window.G = window.G || {};
   const T = (k, v) => G.T(k, v);
   const esc = (s) => G.escapeHtml(String(s));
   const $ = (id) => document.getElementById(id);
-  const say = (w, text) => `<button class="vc-say" type="button" data-say="${esc(w)}"${text ? " data-text" : ""} aria-label="${esc(T(text ? "card.hearSentence" : "card.hear"))}">🔊</button>`;
+  // (a sentence is English: it is said in English; a word in its own language)
+  const say = (w, text) => `<button class="vc-say" type="button" data-say="${esc(w)}"${text ? ' data-text data-lang="en"' : ""} aria-label="${esc(T(text ? "card.hearSentence" : "card.hear"))}">🔊</button>`;
   // a word for a "don't confuse" line: from the bank, the lexicon, or the player's own
   const describe = (w) => {
     const p = G.Distract.resolve(w);
-    return p ? { w: p[0], th: p[1], pos: G.POS.tag(p) } : null;
+    return p ? { w: G.Lang.html(p, 0), th: G.Lang.html(p, 1), pos: G.POS.tag(p), wa: G.Lang.attr(p, 0), ma: G.Lang.attr(p, 1) } : null;
+  };
+  // (round 3) the word in the languages that are neither the Word nor the Meaning Language
+  const others = (pair, i) => {
+    if (!i || i.custom || !i.id) return "";
+    const wl = G.Lang.wl(pair), ml = G.Lang.ml(pair);
+    const rows = G.LANGS.filter((l) => l !== wl && l !== ml).map((l) => {
+      const p = G.WordBank.pairOf(i, l, l === "en" ? "th" : "en");
+      return `<span class="vc-other-l"><small>${esc(G.Lang.label(l))}</small> <b${G.Lang.attr(l)}>${G.Lang.html(p, 0)}</b>${G.POS.tag(p)}</span>`;
+    });
+    return rows.length ? `<p class="vc-other">${rows.join("")}</p>` : "";
   };
 
   G.VocabCard = {
@@ -34,21 +50,23 @@ window.G = window.G || {};
 
     cardHtml(pair) {
       const i = this.info(pair), C = G.Clues;
+      const en = G.Lang.enWord(pair);
       const stress = C.stressHtml(pair);
-      // (new series, round 2, G) its part of speech, as everywhere: (N./V.)
-      const pc = G.POS.of(pair);
-      const pos = pc ? `<span class="vc-pos" title="${esc(G.POS.name(pc))}">(${esc(G.POS.abbr(pc))})</span>` : "";
+      // (new series, round 2, G) its part of speech, as everywhere: (N./V.) --
+      // a French noun with its gender, (N. f.)
+      const pc = G.POS.of(pair), pg = G.POS.gender(pair);
+      const pos = pc ? `<span class="vc-pos" title="${esc(G.POS.name(pc))}">(${esc(G.POS.abbr(pc, pg))})</span>` : "";
       const sec = (title, body) => body ? `<div class="vc-sec"><div class="vc-h">${esc(title)}</div>${body}</div>` : "";
-      const examples = (i.examples || []).map((s) => `<li>${C.markHtml(s, pair)} ${say(s, true)}</li>`).join("");
-      const colls = (i.collocations || []).map((s) => `<li>${C.markHtml(s, pair)}</li>`).join("");
-      const fam = C.family(pair);
+      const examples = en ? (i.examples || []).map((s) => `<li>${C.markHtml(s, pair)} ${say(s, true)}</li>`).join("") : "";
+      const colls = en ? (i.collocations || []).map((s) => `<li>${C.markHtml(s, pair)}</li>`).join("") : "";
+      const fam = en ? C.family(pair) : [];
       const famRows = fam.length > 1 ? `<table class="vc-family">${fam.map((f) => `<tr><td lang="en">${esc(f.word)}</td><td title="${esc(f.pos ? G.POS.name(f.pos) : "")}">${esc(f.pos ? G.POS.abbr(f.pos) : "")}</td></tr>`).join("")}</table>` : "";
-      // E2 + confusables: what it is not
+      // E2 + confusables: what it is not (the bank's confusables are English)
       const confused = G.SRS.confusedWith(pair).map(describe).filter(Boolean);
-      const lex = (i.confusables || []).map(describe).filter((d) => d && !confused.some((c) => c.w === d.w));
-      const dont = confused.map((d) => `<li class="vc-mine"><b lang="en">${esc(d.w)}${d.pos}</b> <span lang="th">${esc(d.th)}</span> <span class="vc-tag">${esc(T("card.youConfused"))}</span></li>`)
-        .concat(lex.map((d) => `<li><b lang="en">${esc(d.w)}${d.pos}</b> <span lang="th">${esc(d.th)}</span></li>`)).join("");
-      const miss = (i.commonMisspellings || []).length ? `<p class="vc-warn">${esc(T("card.spelling", { w: i.headword || pair[0], x: i.commonMisspellings.join(", ") }))}</p>` : "";
+      const lex = en ? (i.confusables || []).map(describe).filter((d) => d && !confused.some((c) => c.w === d.w)) : [];
+      const dont = confused.map((d) => `<li class="vc-mine"><b${d.wa}>${d.w}${d.pos}</b> <span${d.ma}>${d.th}</span> <span class="vc-tag">${esc(T("card.youConfused"))}</span></li>`)
+        .concat(lex.map((d) => `<li><b${d.wa}>${d.w}${d.pos}</b> <span${d.ma}>${d.th}</span></li>`)).join("");
+      const miss = en && (i.commonMisspellings || []).length ? `<p class="vc-warn">${esc(T("card.spelling", { w: i.headword || pair[0], x: i.commonMisspellings.join(", ") }))}</p>` : "";
       // its box and next review
       const st = G.SRS.state(pair);
       let mem = T("learn.boxNew");
@@ -57,12 +75,13 @@ window.G = window.G || {};
         const when = T(d <= 0 ? "learn.dueToday" : d === 1 ? "learn.dueTomorrow" : "learn.dueIn", { n: d });
         mem = (st.b >= G.Learning.MASTERED ? T("learn.boxMastered") : T("learn.box", { n: st.b })) + " · " + T("learn.due", { when });
       }
-      const meta = [i.topic ? G.topicLabel(i.topic) : "", i.awlSublist ? T("card.awl", { n: i.awlSublist }) : (i.source === "Topic" ? T("card.topicWord") : ""), mem].filter(Boolean).map(esc).join(" · ");
-      return `<div class="vc-head"><div class="vc-word" lang="en">${esc(i.headword || pair[0])}</div>${pos}${say(pair[0])}</div>
+      const meta = [i.topic ? G.topicLabel(i.topic) : "", en ? (i.awlSublist ? T("card.awl", { n: i.awlSublist }) : (i.source === "Topic" ? T("card.topicWord") : "")) : "", mem].filter(Boolean).map(esc).join(" · ");
+      return `<div class="vc-head"><div class="vc-word"${G.Lang.attr(pair, 0)}>${G.Lang.html(pair, 0)}</div>${pos}${say(pair[0])}</div>
         ${stress ? `<div class="vc-stress" lang="en">${stress}</div>` : ""}
-        <div class="vc-thai" lang="th">${esc(pair[1] || i.thai || "")}</div>
-        ${i.definition ? `<p class="vc-def" lang="en">${esc(i.definition)}</p>` : ""}
-        ${(i.synonyms || []).length ? `<p class="vc-syn" lang="en"><span>${esc(T("card.synonyms"))}</span> ${esc(i.synonyms.join(", "))}</p>` : ""}
+        <div class="vc-thai"${G.Lang.attr(pair, 1)}>${G.Lang.html(pair, 1)}</div>
+        ${others(pair, i)}
+        ${en && i.definition ? `<p class="vc-def" lang="en">${esc(i.definition)}</p>` : ""}
+        ${en && (i.synonyms || []).length ? `<p class="vc-syn" lang="en"><span>${esc(T("card.synonyms"))}</span> ${esc(i.synonyms.join(", "))}</p>` : ""}
         ${sec(T("card.examples"), examples ? `<ul class="vc-list" lang="en">${examples}</ul>` : "")}
         ${sec(T("card.collocations"), colls ? `<ul class="vc-list vc-colls" lang="en">${colls}</ul>` : "")}
         ${sec(T("card.family"), famRows)}
@@ -74,16 +93,17 @@ window.G = window.G || {};
     miniHtml(pair, opts) {
       opts = opts || {};
       const i = this.info(pair), C = G.Clues;
-      const cz = (i.examples || [])[0];
-      const colls = (i.collocations || []).slice(0, 2);
+      const en = G.Lang.enWord(pair);
+      const cz = en ? (i.examples || [])[0] : "";
+      const colls = en ? (i.collocations || []).slice(0, 2) : [];
       const stress = C.stressHtml(pair);
-      const head = i.headword || pair[0];
+      const head = en ? i.headword || pair[0] : pair[0];
       // (another form of the family: the syllables are the headword's, so they go with it)
       const other = opts.form && opts.form.toLowerCase() !== String(head).toLowerCase();
       const marks = other ? `<span class="vc-mini-from" lang="en">${esc(T("card.from", { w: head }))}${stress ? ` <span class="vc-stress">${stress}</span>` : ""}</span>`
         : stress ? `<span class="vc-stress" lang="en">${stress}</span>` : "";
       return `<div class="vc-mini">
-        <div class="vc-mini-head"><b class="vc-mini-word" lang="en">${esc(other ? opts.form : head)}${other ? "" : G.POS.tag(pair)}</b>${marks}${say(other ? opts.form : pair[0])}<span class="vc-mini-th" lang="th">${esc(pair[1] || "")}</span></div>
+        <div class="vc-mini-head"><b class="vc-mini-word"${G.Lang.attr(pair, 0)}>${other ? esc(opts.form) : G.Lang.html(pair, 0)}${other ? "" : G.POS.tag(pair)}</b>${marks}${say(other ? opts.form : pair[0])}<span class="vc-mini-th"${G.Lang.attr(pair, 1)}>${G.Lang.html(pair, 1)}</span></div>
         ${cz ? `<div class="vc-mini-ex" lang="en">${C.markHtml(cz, pair)}</div>` : ""}
         ${colls.length ? `<div class="vc-mini-col" lang="en">${colls.map((c) => C.markHtml(c, pair)).join(" · ")}</div>` : ""}
       </div>`;
@@ -91,7 +111,7 @@ window.G = window.G || {};
     // the sound buttons in something just drawn
     bind(root) {
       (root || document).querySelectorAll(".vc-say").forEach((b) => {
-        b.onclick = (e) => { e.stopPropagation(); G.Audio.unlock && G.Audio.unlock(); G.Audio.speak(b.dataset.say, { text: b.hasAttribute("data-text") }); };
+        b.onclick = (e) => { e.stopPropagation(); G.Audio.unlock && G.Audio.unlock(); G.Audio.speak(b.dataset.say, { text: b.hasAttribute("data-text"), lang: b.dataset.lang || undefined }); };
       });
     },
 
@@ -141,7 +161,8 @@ window.G = window.G || {};
     // as buttons that open the peek. Only text between tags is touched.
     markNote(html, levelKey) {
       const lv = G.WordBank.LEVEL_KEYS[levelKey];
-      if (!lv) return html;
+      // (round 3: the notes are English -- their words are marked while English is the Word Language)
+      if (!lv || !G.Lang.enWord()) return html;
       const own = new Set(G.WordBank.entries(lv).map((e) => e.id));
       // (an entity -- &amp; -- is passed over whole, never read as a word)
       return html.replace(/>([^<]+)</g, (m, text) => ">" + text.replace(/(&[a-z#0-9]+;)|([A-Za-z]+(?:-[A-Za-z]+)*)/gi, (all, ent, w) => {

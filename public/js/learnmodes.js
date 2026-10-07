@@ -24,11 +24,13 @@ window.G = window.G || {};
 G.Learn = {
   // (round 3: the English clues -- js/clues.js; a word without the data for
   // a clue gets the Thai one instead)
+  // (round 3, H5) the English clues need English as the Word Language, the
+  // audio clue a voice for it on the device; `why` says what is missing
   CLUES: {
     thai: { available: true },
-    definition: { available: true },       // F: its English definition, "≈ similar meaning"
-    audio: { available: true },            // G: the word spoken
-    cloze: { available: true },            // H1: a sentence with it taken out
+    definition: { get available() { return G.Lang.word() === "en"; }, why: "learn.needEnglish" },    // F: its English definition, "≈ similar meaning"
+    audio: { get available() { return !G.Audio || !G.Audio.canSpeak || G.Audio.canSpeak(G.Lang.word()); }, why: "learn.needVoice" },  // G: the word spoken
+    cloze: { get available() { return G.Lang.word() === "en"; }, why: "learn.needEnglish" },         // H1: a sentence with it taken out
   },
   ANSWERS: {
     shoot: { available: true, recall: false },
@@ -70,6 +72,19 @@ G.Learn = {
     return !!(this.CLUES[p.clue] && this.CLUES[p.clue].available && this.ANSWERS[p.answer] && this.ANSWERS[p.answer].available);
   },
   availablePresets() { return this.PRESETS.filter((p) => this.available(p)); },
+  // (round 3) why a mode cannot be played now -- the text to grey it out with ("" when it can)
+  whyNot(p) {
+    if (typeof p === "string") p = this.preset(p);
+    if (p.adaptive || this.available(p)) return "";
+    return this.clueWhyNot(p.clue);
+  },
+  clueWhyNot(c) {
+    const x = this.CLUES[c];
+    if (!x || x.available) return "";
+    return x.why ? G.T(x.why, { lang: G.Lang.label(G.Lang.word()) }) : "";
+  },
+  // a mode the player picked before that cannot be played now: Classic instead
+  playable(id) { return this.whyNot(id) ? "classic" : id; },
   isRecall(clue, answer) { return !!(this.ANSWERS[answer] && this.ANSWERS[answer].recall) || this.RECALL_CLUES.includes(clue); },
 
   // can this word be asked with this clue? (a player's own word may have no

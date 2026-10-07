@@ -42,9 +42,7 @@ window.G = window.G || {};
   ];
   const ACTIONS = ["forward", "back", "left", "right", "sprint", "jump", "reload", "interact", "melee", "slot2", "slot3", "slot4", "slot5", "slot6", "slot7",
     "ability1", "ability2", "ability3", "ability4", "replay", "thaiHint", "pause"];
-  // a language's name in itself (the Thai built from its code points: no
-  // Thai letters in the UI's source, tools/thai-scan.ps1)
-  const LANG_NAMES = { en: "English", th: String.fromCharCode(0x0E44, 0x0E17, 0x0E22) };
+  // (round 3) a language's name in itself: G.Lang.NAMES (js/wordbank.js)
 
   // ---------------- the pieces of a row ----------------
   const row = (o) => `<div class="set-row${o.locked ? " locked" : ""}${o.hidden ? " hidden" : ""}" data-row="${o.id}">
@@ -139,14 +137,43 @@ window.G = window.G || {};
         + row({ id: "set-cluethai", name: T("settings.clueThaiName"), ctl: seg("set-cluethai", s.clueThai || "auto", [["auto", T("settings.clueThaiAutoShort")], ["always", T("settings.clueThaiAlways")], ["never", T("settings.clueThaiNever")]]), desc: T("settings.clueThaiDesc") })
         + row({ id: "btn-settings-customvocab", name: T("settings.customVocab", { n: G.CustomVocab.count() }), ctl: button("btn-settings-customvocab", T("settings.customVocabBtn")), desc: T("settings.customVocabDesc") });
     },
-    // (the three languages, as round 3 will let them be chosen; each named in
-    // its own language)
+    // (round 3, H1) the three languages, each of the four named in its own
+    // language: the menus' (any time), the words learnt and their meanings
+    // (from the lobby only -- never in a level). The Word and the Meaning
+    // Language are never the same: the one the other side has is greyed out
+    // with a lock and why. Swap turns them round.
     language(s, inRun) {
-      const self = (html) => html.replace(/<button /g, "<button data-lang-self ");
-      return row({ id: "set-uilang", name: T("settings.uiLang"), ctl: self(seg("set-uilang", "en", [["en", LANG_NAMES.en]])), desc: T("settings.uiLangDesc") })
-        + row({ id: "set-wordlang", name: T("settings.wordLang"), ctl: self(seg("set-wordlang", "en", [["en", LANG_NAMES.en]], inRun)), desc: T("settings.wordLangDesc"), locked: inRun })
-        + row({ id: "set-meanlang", name: T("settings.meanLang"), ctl: self(seg("set-meanlang", "th", [["th", LANG_NAMES.th]], inRun)), desc: T("settings.meanLangDesc"), locked: inRun })
-        + `<p class="set-foot">${esc(T("settings.langMore"))}</p>`;
+      const wl = G.Lang.word(), ml = G.Lang.meaning();
+      const langSeg = (id, value, taken, takenWhy, off) => `<div class="seg seg-lang" id="${id}" role="radiogroup" aria-labelledby="${id}-name" data-value="${value}">${G.LANGS.map((l) => {
+        const lock = l === taken;
+        return `<button type="button" role="radio" class="seg-o${l === value ? " on" : ""}${lock ? " lang-taken" : ""}" data-v="${l}" lang="${G.Lang.TAG[l]}" aria-checked="${l === value}"${off || lock ? " disabled" : ""}${lock ? ` title="${esc(takenWhy)}" aria-label="${esc(G.Lang.NAMES[l] + " - " + takenWhy)}"` : ""}>${lock ? '<span class="lang-lock" aria-hidden="true">🔒</span>' : ""}${esc(G.Lang.NAMES[l])}</button>`;
+      }).join("")}</div>`;
+      const notes = [];
+      if (!G.Audio.canSpeak(wl)) notes.push(T("settings.noVoice", { lang: G.Lang.label(wl) }));
+      if (wl !== "en") notes.push(T("settings.englishOnly", { lang: G.Lang.label(wl) }));
+      return row({ id: "set-uilang", name: T("settings.uiLang"), ctl: langSeg("set-uilang", G.lang, null, ""), desc: T("settings.uiLangDesc") })
+        + row({ id: "set-wordlang", name: T("settings.wordLang"), ctl: langSeg("set-wordlang", wl, ml, T("settings.langIsMeaning"), inRun), desc: T("settings.wordLangDesc"), locked: inRun })
+        + row({ id: "set-meanlang", name: T("settings.meanLang"), ctl: langSeg("set-meanlang", ml, wl, T("settings.langIsWord"), inRun), desc: T("settings.meanLangDesc"), locked: inRun })
+        + row({ id: "btn-lang-swap", name: T("settings.langSwap"), ctl: button("btn-lang-swap", "⇄ " + T("settings.langSwapBtn"), "", inRun), desc: T("settings.langSwapDesc", { a: G.Lang.label(wl), b: G.Lang.label(ml) }), locked: inRun })
+        + row({ id: "set-pinyin", name: T("settings.pinyin"), ctl: toggle("set-pinyin", G.Lang.showPinyin()), desc: T("settings.pinyinDesc") })
+        + row({ id: "set-strictacc", name: T("settings.strictAccents"), ctl: toggle("set-strictacc", !!s.strictAccents), desc: T("settings.strictAccentsDesc") })
+        + (notes.length ? `<p class="set-foot set-langnote" id="set-langnote">${notes.map(esc).join("<br>")}</p>` : "");
+    },
+    // (round 3) a new Word / Meaning Language: from the lobby only; the lists
+    // built again; Chinese words bring their pinyin on
+    setLangs(p) {
+      if (this.inRun()) return;
+      const s = G.save.settings;
+      let word = p.word || G.Lang.word(), meaning = p.meaning || G.Lang.meaning();
+      if (word === meaning || !G.Lang.ok(word) || !G.Lang.ok(meaning)) return;
+      if (word === "zh" && s.wordLang !== "zh") s.pinyin = true;
+      s.wordLang = word; s.meaningLang = meaning;
+      G.persist();
+      G.Lang.apply();
+      const keep = document.activeElement && document.activeElement.closest && document.activeElement.closest("[data-row]");
+      this.render();
+      const back = keep && document.querySelector(`#settings-content [data-row="${keep.dataset.row}"] .seg-o.on, #settings-content [data-row="${keep.dataset.row}"] button:not([disabled])`);
+      if (back && G.Input.mode !== "touch") back.focus({ preventScroll: true });
     },
     accessibility(s) {
       const hb = s.headBob == null ? 1 : s.headBob;
@@ -184,8 +211,8 @@ window.G = window.G || {};
         "set-safearea": (v) => { s.safeArea = v; G.applySafeArea(); this.show("set-safemargin", v === "manual"); },
         "set-safemargin": (v) => { s.safeMargin = Math.round(v); G.applySafeArea(); return Math.round(v) + " px"; },
         "set-speechmode": (v) => { s.speechMode = v; },
-        "set-accent": (v) => { s.accent = v; this.accentNote(); G.Audio.unlock(); G.Audio.speak("vocabulary"); },
-        "set-speechspeed": (v) => { s.speechSpeed = v; G.Audio.unlock(); G.Audio.speak("vocabulary"); },
+        "set-accent": (v) => { s.accent = v; this.accentNote(); G.Audio.unlock(); G.Audio.speak("vocabulary", { lang: "en" }); },
+        "set-speechspeed": (v) => { s.speechSpeed = v; G.Audio.unlock(); G.Audio.speak(G.Lang.sample()); },
         "set-playonce": (v) => { s.playOnce = v; },
         "set-controlmode": (v) => { s.controlMode = v; G.Input.mode = v === "auto" ? G.Input.mode : v; G.UI.applyControlMode(); this.keysHint(); },
         "set-sens": (v) => { s.mouseSensitivity = v; return times(v); },
@@ -208,7 +235,15 @@ window.G = window.G || {};
         "set-colorblind": (v) => { s.colorblindMode = v; if (G.Game.state === "GAMEPLAY" && G.Game.buildWeaponViewModel) G.Game.buildWeaponViewModel(); },
         "set-headbob": (v) => { s.headBob = v; return pct(v); },
         "set-headbob-off": (v) => { s.headBobOff = v; const hb = $("set-headbob"); if (hb) hb.disabled = v; },
-        "set-uilang": () => {}, "set-wordlang": () => {}, "set-meanlang": () => {},
+        // (round 3, H1) the languages
+        "set-uilang": (v) => { if (G.setUILang) G.setUILang(v); },
+        "set-wordlang": (v) => { this.setLangs({ word: v }); },
+        "set-meanlang": (v) => { this.setLangs({ meaning: v }); },
+        "set-pinyin": (v) => {
+          s.pinyin = v;
+          if (G.Game.zombies) G.Game.zombies.forEach((z) => { if (z.alive) { z._label = null; z.setTarget(z.isTarget); } });
+        },
+        "set-strictacc": (v) => { s.strictAccents = v; },
       };
       // the volumes: heard as they move
       ["sfxVolume", "musicVolume", "ambientVolume", "speechVolume"].forEach((k) => {
@@ -241,7 +276,8 @@ window.G = window.G || {};
       const click = (id, fn) => { const b = $(id); if (b) b.onclick = fn; };
       click("btn-hudcfg", () => G.HudCfg.openEditor());
       click("btn-touchcfg", () => G.TouchCfg.openEditor());
-      click("btn-speech-test", () => { G.Audio.unlock(); G.Audio.speak("vocabulary"); });
+      click("btn-speech-test", () => { G.Audio.unlock(); G.Audio.speak(G.Lang.sample()); });
+      click("btn-lang-swap", () => { if (!inRun) this.setLangs({ word: G.Lang.meaning(), meaning: G.Lang.word() }); });
       click("btn-reset-keybinds", () => { s.keybinds = G.defaultKeybinds(); save(); this.render(); });
       wrap.querySelectorAll(".keybind-btn").forEach((b) => { b.onclick = () => { b.textContent = "..."; G.Input.rebindingAction = b.dataset.action; }; });
       click("btn-settings-customvocab", () => G.CustomVocabUI.open("screen-settings"));
@@ -271,7 +307,7 @@ window.G = window.G || {};
         G.readSaveFile(f, (err, res) => {
           if (err) { alert(T("save.importFailed", { msg: err.message })); return; }
           const a = res.summary, b = G.saveSummary(G.save);
-          const when = res.exportedAt ? new Date(res.exportedAt).toLocaleString("en-GB") : T("common.unknown");
+          const when = res.exportedAt ? new Date(res.exportedAt).toLocaleString(G.locale ? G.locale() : "en-GB") : T("common.unknown");
           if (!confirm(T("save.importConfirm", { when, al: a.levels, aw: a.words, aa: a.achievements, ag: a.weapons, bl: b.levels, bw: b.words, ba: b.achievements, bg: b.weapons }))) return;
           G.applyImportedSave(res.save);
           alert(T("save.importDone"));
@@ -440,6 +476,12 @@ window.G = window.G || {};
   // (new series, round 2, F) the screen-edge margin: Auto takes what the
   // device reports (a notch, rounded corners); Manual, the player's own --
   // every padding that keeps clear of the edges reads --sa-l/r/t/b (css)
+  // (round 3) the menus in another language, or the words in other
+  // languages: the page drawn again where it is; the voice known at last
+  ["vz-uilang", "vz-langs", "vz-voices"].forEach((ev) => window.addEventListener(ev, () => {
+    if (G.UI && G.UI._currentScreen === "screen-settings" && G.save) G.SettingsUI.render();
+  }));
+
   G.applySafeArea = function () {
     const s = G.save && G.save.settings, root = document.documentElement.style;
     if (!s || s.safeArea !== "manual") { ["l", "r", "t", "b"].forEach((k) => root.removeProperty("--sa-" + k)); return; }

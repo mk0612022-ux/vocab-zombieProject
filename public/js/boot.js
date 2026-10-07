@@ -172,35 +172,49 @@ window.G = window.G || {};
       const fill = () => {
         if (word) {
           const w = this.wotd;
+          this._tipShown = "wotd";
           $("boot-tip-h").textContent = T("boot.wotd");
-          $("boot-tip-text").innerHTML = `<b class="bt-word" lang="en">${esc(w.word)}</b>${w.pos ? ` <span class="pos-tag">(${esc(w.pos)})</span>` : ""} <span class="bt-sep">—</span> <span lang="th">${esc(w.thai)}</span>`;
+          $("boot-tip-text").innerHTML = `<b class="bt-word"${w.wa}>${w.html}</b>${w.pos ? ` <span class="pos-tag">(${esc(w.pos)})</span>` : ""} <span class="bt-sep">—</span> <span${w.ma}>${w.mhtml}</span>`;
         } else {
           const list = this.tips();
           if (!list.length) return;
+          this._tipShown = this.tipI++ % list.length;
           $("boot-tip-h").textContent = T("boot.tipHead");
-          $("boot-tip-text").textContent = list[this.tipI++ % list.length];
+          $("boot-tip-text").textContent = list[this._tipShown];
         }
       };
       if (!$("boot-tip-text").textContent) { fill(); return; }
       box.classList.add("fade");
       setTimeout(() => { fill(); box.classList.remove("fade"); }, 260);
     },
-    // the same word all day: by the date
+    // (round 3) the tip in view, again in the menus' new language
+    retip() {
+      if (this._tipShown == null || !$("boot-tip-h")) return;
+      if (this._tipShown === "wotd") { $("boot-tip-h").textContent = T("boot.wotd"); return; }
+      $("boot-tip-h").textContent = T("boot.tipHead");
+      $("boot-tip-text").textContent = this.tips()[this._tipShown] || "";
+    },
+    // the same word all day: by the date -- (round 3) in the player's Word
+    // and Meaning Language, Chinese with its pinyin
     wordOfTheDay() {
       const all = G.WordBank.entries().slice().sort((a, b) => (a.id < b.id ? -1 : 1));
       if (!all.length) return null;
       const d = new Date(), day = Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000);
       const e = all[(Math.imul(day, 2654435761) >>> 0) % all.length];
-      return { word: e.headword, thai: e.thai, pos: G.POS ? G.POS.abbr(e.partOfSpeech) : "" };
+      const p = G.WordBank.pairOf(e);
+      return { word: p[0], thai: p[1], html: G.Lang.html(p, 0), mhtml: G.Lang.html(p, 1), wa: G.Lang.attr(p, 0), ma: G.Lang.attr(p, 1), pos: G.POS ? G.POS.short(p) : "" };
     },
 
     // ---------------- the words over the heads ----------------
     // the bank has arrived: pick this time's words, and the day's
     onVocab() {
       if (!G.WordBank) return;
-      const pool = G.WordBank.entries().filter((e) => e.headword.length <= 11 && !/\s/.test(e.headword));
+      // (round 3: in the Word Language -- short ones, no spaces; Chinese with its pinyin)
+      const wl = G.Lang.word();
+      const pool = G.WordBank.entries().filter((e) => { const t = G.Lang.text(e, wl); return t.length <= (wl === "th" ? 14 : 11) && !/\s/.test(t); });
       for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
-      this.words = pool.slice(0, 16).map((e) => ({ word: e.headword, pos: G.POS ? G.POS.abbr(e.partOfSpeech) : "" }));
+      this.words = pool.slice(0, 16).map((e) => { const p = G.WordBank.pairOf(e); return { word: p[0], html: G.Lang.html(p, 0), pos: G.POS ? G.POS.short(p) : "" }; });
+      this.wordLang = G.Lang.TAG[wl] || "en";
       this.wotd = this.wordOfTheDay();
       this.placeWords();
     },
@@ -222,11 +236,11 @@ window.G = window.G || {};
         if (px < 8 || px > W - 8 || py < 30 || py > H * 0.7) return;
         const el = document.createElement("div");
         el.className = "bw";
-        el.lang = "en";
+        el.lang = this.wordLang || "en";
         el.style.left = px.toFixed(1) + "px"; el.style.top = py.toFixed(1) + "px";
         el.style.fontSize = Math.max(11, base * s).toFixed(1) + "px";
         el.style.animationDelay = (0.06 * placed.length).toFixed(2) + "s";
-        el.innerHTML = esc(w.word) + (w.pos ? ` <span class="pos-tag">(${esc(w.pos)})</span>` : "");
+        el.innerHTML = (w.html || esc(w.word)) + (w.pos ? ` <span class="pos-tag">(${esc(w.pos)})</span>` : "");
         box.appendChild(el);
         const r = { l: px - el.offsetWidth / 2 - 6, r: px + el.offsetWidth / 2 + 6, t: py - el.offsetHeight - 3, b: py + 3 };
         if (r.l < 4 || r.r > W - 4 || placed.some((q) => r.l < q.r && r.r > q.l && r.t < q.b && r.b > q.t)) { el.remove(); return; }
@@ -242,4 +256,5 @@ window.G = window.G || {};
   };
 
   B.start();
+  window.addEventListener("vz-uilang", () => B.retip());
 })();

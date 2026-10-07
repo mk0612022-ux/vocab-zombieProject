@@ -11,10 +11,15 @@ $script:BANK_FILES = @{ 1 = 'bank_school.js'; 2 = 'bank_hospital.js'; 3 = 'bank_
 $script:LEVEL_NAMES = @{ 1 = 'Abandoned School'; 2 = 'Abandoned Hospital'; 3 = 'Underground Bunker' }
 $script:TOPIC_ORDER = @('General Academic', 'Education', 'Society & Culture', 'Media & Communication', 'Health', 'Science & Research',
   'Environment', 'Technology', 'Government & Law', 'Crime & Security', 'Work & Economy', 'Urban Life & Transport')
-# the fields of an entry, in the order they are written
-$script:FIELDS = @('id', 'headword', 'partOfSpeech', 'acceptedSpellings', 'thai', 'definition', 'synonyms', 'examples', 'collocations',
-  'family', 'topic', 'level', 'source', 'awlSublist', 'awlHeadword', 'aliases', 'confusables', 'commonMisspellings', 'stress', 'paraphrase')
-$script:OPTIONAL = @('awlSublist', 'awlHeadword', 'aliases', 'confusables', 'commonMisspellings', 'stress', 'paraphrase')
+# the fields of an entry, in the order they are written. (Round 3, H3) The
+# word in the other three languages, each with its own part of speech:
+# thai (+ thPos when it differs from partOfSpeech), zh + pinyin (tone marks)
+# + zhPos, fr + frPos + frGender (m, f or m/f, nouns only); review lists
+# the languages whose entry a person should check ("zh", "fr").
+$script:FIELDS = @('id', 'headword', 'partOfSpeech', 'acceptedSpellings', 'thai', 'thPos', 'zh', 'pinyin', 'zhPos', 'fr', 'frPos', 'frGender',
+  'definition', 'synonyms', 'examples', 'collocations',
+  'family', 'topic', 'level', 'source', 'awlSublist', 'awlHeadword', 'aliases', 'confusables', 'commonMisspellings', 'stress', 'paraphrase', 'review')
+$script:OPTIONAL = @('thPos', 'frGender', 'awlSublist', 'awlHeadword', 'aliases', 'confusables', 'commonMisspellings', 'stress', 'paraphrase', 'review')
 
 function Read-DataBlock([string]$path, [string]$marker) {
   $t = [IO.File]::ReadAllText($path, [Text.Encoding]::UTF8)
@@ -74,7 +79,7 @@ function ConvertTo-EntryJson($e) {
     if ($script:OPTIONAL -contains $f) {
       if ($null -eq $v -or ($v -is [string] -and -not $v) -or ($v -is [array] -and $v.Count -eq 0)) { continue }
     }
-    if (@('acceptedSpellings', 'synonyms', 'examples', 'collocations', 'family', 'aliases', 'confusables', 'commonMisspellings') -contains $f) { $v = @($v | Where-Object { $null -ne $_ }) }
+    if (@('acceptedSpellings', 'synonyms', 'examples', 'collocations', 'family', 'aliases', 'confusables', 'commonMisspellings', 'review') -contains $f) { $v = @($v | Where-Object { $null -ne $_ }) }
     if ($f -eq 'level' -or $f -eq 'awlSublist') { $v = [int]$v }
     $o[$f] = $v
   }
@@ -114,10 +119,10 @@ $body
 # ---------------- CSV (tools/words-export.ps1, tools/words-import.ps1) ----------------
 # Lists sit in one cell joined with " | "; family cells read
 # "analysis (n) | analytical (adj)"; the paraphrase is three columns.
-$script:CSV_COLUMNS = @('id', 'headword', 'partOfSpeech', 'acceptedSpellings', 'thai', 'definition', 'synonyms', 'examples', 'collocations',
+$script:CSV_COLUMNS = @('id', 'headword', 'partOfSpeech', 'acceptedSpellings', 'thai', 'thPos', 'zh', 'pinyin', 'zhPos', 'fr', 'frPos', 'frGender', 'definition', 'synonyms', 'examples', 'collocations',
   'family', 'topic', 'level', 'source', 'awlSublist', 'awlHeadword', 'aliases', 'confusables', 'commonMisspellings', 'stress',
-  'paraphraseSentence', 'paraphrasePhrase', 'paraphraseWord')
-$script:LIST_FIELDS = @('acceptedSpellings', 'synonyms', 'examples', 'collocations', 'aliases', 'confusables', 'commonMisspellings')
+  'paraphraseSentence', 'paraphrasePhrase', 'paraphraseWord', 'review')
+$script:LIST_FIELDS = @('acceptedSpellings', 'synonyms', 'examples', 'collocations', 'aliases', 'confusables', 'commonMisspellings', 'review')
 
 function ConvertTo-CsvRow($e) {
   $o = [ordered]@{}

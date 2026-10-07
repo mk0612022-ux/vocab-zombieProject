@@ -8,6 +8,10 @@
 // Load it into the running game, then:
 //   const r = await G.UIAudit.run();          // whole tour
 //   r.problems                                  // [] when everything is clean
+// (Round 3: G.UIAudit.run({ lang: "fr" }) tours it with the menus in that
+// language -- French is the longest, Thai the tallest. Thai is only "left
+// over" while the menus are not Thai; a word or meaning marked with its own
+// lang, and the language choices (each named in itself), are not counted.)
 window.G = window.G || {};
 // Thai block U+0E00-U+0E7F, built from char codes so this file itself stays
 // free of Thai characters (tools/thai-scan.ps1 checks it too)
@@ -34,19 +38,23 @@ G.UIAudit = {
   // Thai left over once every known meaning has been cut out of the text
   thai(root) {
     const out = [];
+    if (G.lang === "th") return out;
     const walker = document.createTreeWalker(root || document.body, NodeFilter.SHOW_TEXT);
     const M = this.meanings();
     for (let n = walker.nextNode(); n; n = walker.nextNode()) {
       const t = n.nodeValue;
       if (!THAI.test(t) || !n.parentElement || !this.visible(n.parentElement)) continue;
       // (new series, round 2: a language named in its own language -- Settings > Language)
-      if (n.parentElement.closest("[data-lang-self]")) continue;
+      if (n.parentElement.closest("[data-lang-self], .seg-lang, .cv-langs, [lang=\"th\"]")) continue;
       let rest = t;
       for (const m of M) if (rest.includes(m)) rest = rest.split(m).join(" ");
       if (THAI.test(rest)) out.push({ text: t.trim().slice(0, 80), where: this.path(n.parentElement) });
     }
     // attributes a player can see or hear
     (root || document.body).querySelectorAll("[aria-label],[title],[placeholder]").forEach((el) => {
+      // (round 3: a language named in itself -- the language choices; and
+      // only what is on screen -- a hidden screen is written again when it opens)
+      if (el.closest(".seg-lang, [data-lang-self], [lang=\"th\"]") || !this.visible(el)) return;
       ["aria-label", "title", "placeholder"].forEach((a) => {
         const v = el.getAttribute(a);
         if (v && THAI.test(v)) out.push({ text: a + "=" + v.slice(0, 60), where: this.path(el) });
@@ -120,6 +128,9 @@ G.UIAudit = {
     this.results = [];
     G._missingKeys = {};
     const realAlert = window.alert, realConfirm = window.confirm, realUpdate = Game.update;
+    // (round 3) the tour in another UI language
+    const prevLang = G.lang;
+    if (opts.lang && opts.lang !== G.lang) await new Promise((res) => G.setUILang(opts.lang, { done: res }));
     const backup = JSON.stringify(G.save);   // the tour answers words and buys things; put the save back afterwards
     const dialogs = [];
     // Screens fade in and banners pop in with CSS animations, which stand still
@@ -178,7 +189,7 @@ G.UIAudit = {
       await step("achievements", () => { UI.renderAchievements(); UI.showScreen("screen-achievements"); });
       for (const l of [1, 2, 3]) await step("word log " + l, () => { UI._logReturnScreen = "screen-mainmenu"; UI.renderVocabLog(l); UI.showScreen("screen-vocablog"); });
       for (const l of [1, 2, 3]) await step("armory " + l, () => { UI._logReturnScreen = "screen-mainmenu"; UI.renderWeaponLog(l); UI.showScreen("screen-weaponlog"); });
-      await step("import", () => { UI.renderImportedSets(); UI.showScreen("screen-import"); UI.renderImportPreview(G.WORDS_LEVEL_1.slice(0, 60)); });
+      await step("import", () => { UI.openImport("screen-mainmenu"); UI.renderImportPreview(G.WORDS_LEVEL_1.slice(0, 60)); });
       await step("import (empty preview)", () => UI.renderImportPreview([]));
       // (vocabulary series, round 4: Practice Mode is js/practice.js)
       await step("practice setup", () => Game.goToPracticeSetup());
@@ -286,7 +297,7 @@ G.UIAudit = {
       G.Modal.reset(); Game.state = "GAMEPLAY";
       const stats = { score: 123456, wave: 12, correct: 88, wrong: 17, money: 45678, bosses: [{ id: longBoss.id, wave: 5 }, { id: "void", wave: 10 }, { id: "examiner", wave: 15 }, { id: "headmaster", wave: 20 }] };
       const wrong = {}; G.WORDS_LEVEL_3.slice(0, 8).forEach((p, i) => { wrong[p[0]] = { meaning: p[1], count: 9 - i }; });
-      await step("game over", () => { UI.renderResultScreen("lose", stats, wrong); UI.showScreen("screen-gameover"); });
+      await step("game over", () => { UI.renderResultScreen("lose", stats, wrong); if (G.Checkpoint) G.Checkpoint.onGameOver(Game); UI.showScreen("screen-gameover"); });
       await step("victory", () => { UI.renderResultScreen("win", stats, {}); UI.showScreen("screen-victory"); });
       await step("touch editor", () => { Game.quitToMainMenu(); G.TouchCfg.openEditor(); });
       for (const id of G.TouchCfg.IDS) await step("touch editor: " + id, () => G.TouchCfg.select(id));
@@ -557,7 +568,9 @@ G.UIAudit = {
       G.save = JSON.parse(backup); G.persist();
       freeze.remove();
     }
-    const dialogThai = dialogs.filter((d) => THAI.test(d));
+    const tourLang = G.lang;
+    if (G.lang !== prevLang) await new Promise((res) => G.setUILang(prevLang, { done: res }));
+    const dialogThai = tourLang === "th" ? [] : dialogs.filter((d) => THAI.test(d));
     const problems = [];
     this.results.forEach((r) => {
       if (r.error) problems.push({ screen: r.name, error: r.error });
@@ -566,7 +579,7 @@ G.UIAudit = {
     });
     dialogThai.forEach((d) => problems.push({ screen: "dialog", kind: "thai", text: d }));
     return {
-      viewport: window.innerWidth + "x" + window.innerHeight,
+      viewport: window.innerWidth + "x" + window.innerHeight, lang: tourLang,
       screens: this.results.length, dialogs, missingKeys: Object.keys(G._missingKeys), problems,
       texts: this.results.map((r) => r.name + ":" + r.texts),
     };

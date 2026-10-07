@@ -157,7 +157,9 @@
       }
       const fb = document.getElementById("quiz-feedback");
       const ans = G.Questions.rightText(q);
-      if (right) { fb.textContent = T("quiz.right"); fb.className = "quiz-feedback ok"; }
+      // (round 3) right without its accents (French, Strict accents off): the word as written
+      const fix = right && q.spell && typeof k === "string" ? G.Spell.accentFix(k, G.Questions.spellTarget(q)) : "";
+      if (right) { fb.textContent = fix ? T("quiz.right") + " " + T("spell.accentNote") + " " + fix : T("quiz.right"); fb.className = "quiz-feedback ok"; }
       else {
         // (H3) the right word in context: a sentence, a collocation, its sound
         fb.innerHTML = `<div class="qf-line">${esc(k === -1 ? T("quiz.timeUp", { a: ans }) : T("quiz.wrong", { a: ans }))}</div>` + G.VocabCard.miniHtml(q.pair, { form: q.answerText }) +
@@ -182,7 +184,7 @@
       el("quiz-verdict").textContent = T(passed ? "quiz.passed" : "quiz.failed");
       el("quiz-verdict-sub").textContent = T(passed ? "quiz.passedSub" : "quiz.failedSub", { x: this.correct, n: this.qs.length });
       el("quiz-missed").innerHTML = this.missed.length
-        ? `<div class="qm-title">${esc(T("quiz.review"))}</div>` + this.missed.map((p) => `<div class="qm-row"><b lang="en">${esc(p[0])}${G.POS.tag(p)}</b><span lang="th">${esc(p[1])}</span></div>`).join("")
+        ? `<div class="qm-title">${esc(T("quiz.review"))}</div>` + this.missed.map((p) => `<div class="qm-row"><b${G.Lang.attr(p, 0)}>${G.Lang.html(p, 0)}${G.POS.tag(p)}</b><span${G.Lang.attr(p, 1)}>${G.Lang.html(p, 1)}</span></div>`).join("")
         : `<div class="qm-none">${esc(T("quiz.noneMissed"))}</div>`;
       G.Audio.sfx(passed ? "unlock" : "wrong");
       this.counters();

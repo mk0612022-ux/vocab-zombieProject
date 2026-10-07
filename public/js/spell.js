@@ -1,9 +1,9 @@
 // ===================================================================
 // Spelling (vocabulary series, round 2, D): the Spell answer
 // -------------------------------------------------------------------
-// The player writes the English word instead of shooting it.
-//   keyboard      a zombie shows its clue (the Thai meaning) over its head;
-//                 the player types the word in the bar at the bottom of the
+// The player writes the word instead of shooting it.
+//   keyboard      a zombie shows its clue (the meaning) over its head; the
+//                 player types the word in the bar at the bottom of the
 //                 screen and Enter fires at whichever zombie on the field
 //                 carries it. Letters all go into the bar, so the arrow
 //                 keys walk in this mode (D1).
@@ -23,6 +23,22 @@
 // Every spelling in the word's acceptedSpellings is right, in any case,
 // spaces at the ends ignored.
 //
+// (Round 3, H5) In every Word Language, by its own units (G.SpellUnits):
+//   English   letters, typed as before (a key on the Thai layout still types
+//             its English letter)
+//   French    letters with their accents; on screen the accent buttons
+//             (é è ê à â ç î ô ù û) for a keyboard without them. Strict
+//             accents (Settings) off: a missing or wrong accent is right,
+//             and the word is shown with its accents
+//   Chinese   the characters: put together from the word's own and a few
+//             others, or typed -- the characters themselves through an IME,
+//             or the pinyin without tones (fenxi for 分析)
+//   Thai      the tiles are its grapheme clusters (a consonant with the
+//             vowels and tone mark above and below it, as one)
+// A word in another language than English is typed into a real text field
+// (it takes the IME, dead keys, the Thai keyboard), and Enter never answers
+// while an IME is still composing.
+//
 // Also here: Spell to Reload (D2), a setting for the ordinary modes -- a
 // reload asks for one of the wave's words first (the whole magazine if it
 // is right, half if not), while the player stands still.
@@ -35,9 +51,43 @@ window.G = window.G || {};
   const C = () => G.CONFIG.spell;
   const LETTER = /^[a-z]$/i;
 
+  // ---------------- a language's units (round 3, H5) ----------------
+  const THAI = /[\u0E00-\u0E7F]/, HAN = /[\u3400-\u9FFF]/, ALPHA = /^[A-Za-z\u00C0-\u024F]$/;
+  const segmenter = (() => { try { return window.Intl && Intl.Segmenter ? new Intl.Segmenter("th", { granularity: "grapheme" }) : null; } catch (e) { return null; } })();
+  const U = G.SpellUnits = {
+    // the language a pair is spelt in (a form a sentence asks for is English)
+    lang(pair) { return !pair || pair.exact ? "en" : G.Lang.wl(pair); },
+    // Thai: grapheme clusters -- a consonant with what sits above and below it
+    graphemes(s) {
+      s = String(s);
+      if (segmenter) return Array.from(segmenter.segment(s), (x) => x.segment);
+      return s.match(/[\s\S][\u0E31\u0E33-\u0E3A\u0E47-\u0E4E]*/g) || [];
+    },
+    // a word as units: [{ch, fixed}] -- a space, a hyphen, an apostrophe are fixed
+    split(word, lang) {
+      const s = String(word == null ? "" : word);
+      const list = lang === "th" ? this.graphemes(s) : Array.from(s);
+      return list.map((ch) => ({ ch, fixed: lang === "th" ? !THAI.test(ch) : lang === "zh" ? !HAN.test(ch) : !ALPHA.test(ch) }));
+    },
+    // the same text split as typed (Chinese typed as pinyin: its letters)
+    pieces(s, lang) { return this.split(s, lang).map((u) => u.ch); },
+    // French without its accents (and ü -> u, for pinyin)
+    fold(s) { return String(s).normalize("NFD").replace(/[\u0300-\u036F]/g, "").normalize("NFC"); },
+    // pinyin as it is typed without tones: letters only ("fēn xī" -> "fenxi"; v for ü)
+    toneless(py) { return this.fold(String(py).toLowerCase()).replace(/[^a-z]/g, ""); },
+    typedPinyin(s) { return String(s).toLowerCase().replace(/v/g, "u").replace(/[^a-z]/g, ""); },
+    // the units a word is spelt with (not spaces, hyphens...), how many, the first few
+    letters(word, lang) { return this.split(word, lang || "en").filter((u) => !u.fixed).map((u) => u.ch); },
+    count(word, lang) { return this.letters(word, lang).length; },
+    first(word, lang, n) { return this.letters(word, lang).slice(0, n || 1).join(""); },
+    // a word's length as letters: a Chinese character is worth three
+    weight(word, lang) { lang = lang || "en"; const n = this.count(word, lang); return lang === "zh" ? n * 3 : n; },
+    isLatin(s) { return /^[a-z\s'\u2019-]+$/i.test(String(s)); },
+  };
+
   // ---------------- words: what counts as right ----------------
   const S = G.Spell = {
-    norm(s) { return String(s == null ? "" : s).trim().replace(/\s+/g, " ").toLowerCase(); },
+    norm(s) { return String(s == null ? "" : s).trim().replace(/\s+/g, " ").replace(/\u2019/g, "'").toLowerCase(); },
     // the character a key press types -- the English letter of the key even
     // when the keyboard is left on the Thai layout (e.key would be Thai)
     // what a zombie's spelling is checked against: its word -- or, asked
@@ -53,30 +103,70 @@ window.G = window.G || {};
     accepted(pair) {
       // (a form a sentence asks for -- "indication" -- is the only right spelling)
       if (pair && pair.exact) return [this.norm(pair[0])];
-      const info = G.WordBank.info(pair);
+      // (round 3: the other spellings in the bank are English ones)
+      const info = U.lang(pair) === "en" ? G.WordBank.info(pair) : null;
       const list = (info && info.acceptedSpellings && info.acceptedSpellings.length ? info.acceptedSpellings : [pair[0]]).map((w) => this.norm(w));
       if (!list.includes(this.norm(pair[0]))) list.push(this.norm(pair[0]));
       return list;
     },
-    isRight(text, pair) { return this.accepted(pair).includes(this.norm(text)); },
-    distance(text, pair) { const t = this.norm(text); return Math.min(...this.accepted(pair).map((a) => G.Distract.distance(t, a, 6))); },
+    // (round 3) the forms a typed answer is compared in: French without
+    // accents unless they are strict; Chinese typed in Latin letters as its
+    // toneless pinyin
+    strict() { return !!(G.save && G.save.settings.strictAccents); },
+    compare(text, pair) {
+      const lang = U.lang(pair), t = this.norm(text);
+      if (lang === "zh" && U.isLatin(t)) {
+        const py = U.toneless(G.Lang.pinyin(pair, 0) || "");
+        return { t: U.typedPinyin(t), list: py ? [py] : [], pinyin: true };
+      }
+      if (lang === "zh") return { t: t.replace(/\s+/g, ""), list: this.accepted(pair).map((a) => a.replace(/\s+/g, "")) };
+      if (lang === "fr" && !this.strict()) return { t: U.fold(t), list: this.accepted(pair).map((a) => U.fold(a)) };
+      return { t, list: this.accepted(pair) };
+    },
+    isRight(text, pair) {
+      const c = this.compare(text, pair);
+      return !!c.t && c.list.includes(c.t);
+    },
+    // right only once the accents are forgiven: the word as it is written ("" otherwise)
+    accentFix(text, pair) {
+      if (U.lang(pair) !== "fr" || this.strict()) return "";
+      const t = this.norm(text);
+      return this.isRight(text, pair) && !this.accepted(pair).includes(t) ? this.answerOf(pair) : "";
+    },
+    distance(text, pair) { const c = this.compare(text, pair); return c.list.length ? Math.min(...c.list.map((a) => G.Distract.distance(c.t, a, 6))) : 99; },
+    // how far off still counts as a misspelling of this word, not another
+    // (a two-character Chinese word is all of it two away)
+    nearMiss(pair) {
+      const n = C().nearMiss;
+      if (U.lang(pair) !== "zh") return n;
+      return Math.max(0, Math.min(n, Math.floor(String(pair[0]).length / 2)));
+    },
 
-    // letter by letter against the answer: [{ch, cls: ok | bad | miss}]
-    markup(typed, answer) {
-      const a = this.norm(typed), b = String(answer);
-      const bl = b.toLowerCase(), n = a.length, m = b.length;
+    // unit by unit against the answer: [{ch, cls: ok | bad | miss}]
+    markup(typed, answer, lang) {
+      lang = lang || "en";
+      let A = U.pieces(this.norm(typed), lang), B = U.pieces(String(answer), lang);
+      // (Chinese typed as pinyin is marked against the pinyin)
+      if (lang === "zh" && U.isLatin(typed) && answer && HAN.test(answer)) {
+        const z = G.WordBank.byText(answer, "zh");
+        if (z) B = Array.from(U.toneless(z.pinyin));
+        A = Array.from(U.typedPinyin(typed));
+      }
+      const lowU = (x) => String(x).toLowerCase();
+      const same = (x, y) => lowU(x) === lowU(y) || (lang === "fr" && !this.strict() && U.fold(lowU(x)) === U.fold(lowU(y)));
+      const n = A.length, m = B.length;
       const d = [];
       for (let i = 0; i <= n; i++) { d[i] = []; for (let j = 0; j <= m; j++) d[i][j] = i === 0 ? j : j === 0 ? i : 0; }
       for (let i = 1; i <= n; i++) for (let j = 1; j <= m; j++) {
-        d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === bl[j - 1] ? 0 : 1));
+        d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (same(A[i - 1], B[j - 1]) ? 0 : 1));
       }
       const out = [];
       let i = n, j = m;
       while (i > 0 || j > 0) {
-        if (i > 0 && j > 0 && d[i][j] === d[i - 1][j - 1] + (a[i - 1] === bl[j - 1] ? 0 : 1)) {
-          out.push({ ch: a[i - 1], cls: a[i - 1] === bl[j - 1] ? "ok" : "bad" }); i--; j--;
-        } else if (j > 0 && d[i][j] === d[i][j - 1] + 1) { out.push({ ch: b[j - 1], cls: "miss" }); j--; }
-        else { out.push({ ch: a[i - 1], cls: "bad" }); i--; }
+        if (i > 0 && j > 0 && d[i][j] === d[i - 1][j - 1] + (same(A[i - 1], B[j - 1]) ? 0 : 1)) {
+          out.push({ ch: A[i - 1], cls: same(A[i - 1], B[j - 1]) ? "ok" : "bad" }); i--; j--;
+        } else if (j > 0 && d[i][j] === d[i][j - 1] + 1) { out.push({ ch: B[j - 1], cls: "miss" }); j--; }
+        else { out.push({ ch: A[i - 1], cls: "bad" }); i--; }
       }
       return out.reverse();
     },
@@ -85,7 +175,9 @@ window.G = window.G || {};
     // spelling it goes wrong on (the word itself, or a form of it: "occured"
     // is "occurred" misspelt): "accommodation has double c and double m",
     // "plagiarism has "i" after "g"", "achieve has "ie" after "h", not "ei""
+    // (round 3: English words only -- the bank's misspellings are English)
     tipFor(typed, pair) {
+      if (U.lang(pair) !== "en") return "";
       const info = G.WordBank.info(pair);
       const t = this.norm(typed);
       if (!info || !(info.commonMisspellings || []).some((w) => this.norm(w) === t)) return "";
@@ -152,28 +244,70 @@ window.G = window.G || {};
         else out.push({ start: o.j, end: o.j, want: o.want, got: o.got });
       });
       return out.map((g) => ({ want: g.want, got: g.got, after: b[g.start - 1] || "" }));
-    },  };
+    },
+    // (round 3) the keys a pad in a text field leaves to the field: true when
+    // the key belongs to it -- the caller then does nothing with it (and does
+    // not stop the browser typing it)
+    fieldKey(e) {
+      const k = e.key || "";
+      return e.isComposing || e.keyCode === 229 || k === "Process" || k === "Dead" || k === "Backspace" || k === "Delete" || k.length === 1;
+    },
+  };
+
+  // decoy tiles: English and French letters, Thai clusters and Chinese characters from other words
+  const ABC = { en: "etaoinshrdlcumpbgfywkv", fr: "eaisnrtoluedcmp\u00E9\u00E8\u00E0" };
+  const decoyFrom = (lang, avoid) => {
+    if (lang === "th" || lang === "zh") {
+      const all = G.WordBank.entries();
+      for (let k = 0; k < 20; k++) {
+        const e = all[Math.floor(G.rng() * all.length)];
+        const units = U.split(G.Lang.text(e, lang), lang).filter((u) => !u.fixed).map((u) => u.ch);
+        const u = units[Math.floor(G.rng() * units.length)];
+        if (u && !avoid.includes(u)) return u;
+      }
+      return lang === "zh" ? "\u7684" : "\u0E01";
+    }
+    const abc = ABC[lang] || ABC.en;
+    return abc[Math.floor(G.rng() * abc.length)];
+  };
+  const ACCENTS = ["\u00E9", "\u00E8", "\u00EA", "\u00E0", "\u00E2", "\u00E7", "\u00EE", "\u00F4", "\u00F9", "\u00FB"];
 
   // ---------------- the pad: one word, typed or put together from tiles ----------------
   // G.SpellPad(root, { mode: "type" | "tiles", onSubmit(text), onHint(), actions: [{id, label, fn}] })
   G.SpellPad = function (root, opts) {
     this.root = root; this.opts = opts || {};
     this.mode = this.opts.mode || "type";
-    this.pair = null; this.answer = ""; this.typed = ""; this.tiles = []; this.placed = []; this.cursor = 0; this.feedback = null;
+    this.pair = null; this.answer = ""; this.units = []; this.lang = "en"; this.typed = ""; this.tiles = []; this.placed = []; this.cursor = 0; this.feedback = null;
     root.classList.add("spad");
     root.innerHTML = `<div class="spad-clue" lang="th"></div><div class="spad-slots" aria-live="polite"></div>
+      <input class="spad-input hidden" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="${esc(T("spell.fieldLabel"))}">
       <div class="spad-tiles"></div><div class="spad-actions"></div><div class="spad-msg" role="status"></div>`;
     this.el = (c) => root.querySelector(".spad-" + c);
-    this.el("tiles").addEventListener("click", (e) => { const b = e.target.closest("button[data-t]"); if (b) this.place(+b.dataset.t); });
+    this.input = this.el("input");
+    this.el("tiles").addEventListener("click", (e) => {
+      const a = e.target.closest("button[data-acc]");
+      if (a) { this.insert(a.dataset.acc); return; }
+      const b = e.target.closest("button[data-t]"); if (b) this.place(+b.dataset.t);
+    });
     this.el("slots").addEventListener("click", (e) => { const b = e.target.closest("[data-s]"); if (b && this.mode === "tiles") this.unplace(+b.dataset.s); });
     this.el("actions").addEventListener("click", (e) => { const b = e.target.closest("button[data-act]"); if (b) this.action(b.dataset.act); });
+    // (round 3) the text field: what is typed, an IME's composing kept apart
+    // -- Enter never answers while it is still composing
+    const inp = this.input;
+    inp.addEventListener("compositionstart", () => { this.composing = true; });
+    inp.addEventListener("compositionend", () => { this.composing = false; this.fromField(); });
+    inp.addEventListener("input", () => this.fromField());
+    // (Enter, Tab and the rest are the window's to handle: G.Spell.onKey,
+    // G.QuestionView.key, G.SpellReload.key -- they leave the field its keys)
+    inp.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === "Tab") e.preventDefault(); });
     // (a touch press answers at once; the click that follows is ignored)
     root.addEventListener("touchstart", (e) => {
-      const b = e.target.closest("button[data-t], [data-s], button[data-act]");
+      const b = e.target.closest("button[data-t], button[data-acc], [data-s], button[data-act]");
       if (!b) return;
       e.preventDefault();
       G.touchFeedback && G.touchFeedback(b);
-      if (b.dataset.t != null) this.place(+b.dataset.t);
+      if (b.dataset.acc != null) this.insert(b.dataset.acc);
+      else if (b.dataset.t != null) this.place(+b.dataset.t);
       else if (b.dataset.s != null) { if (this.mode === "tiles") this.unplace(+b.dataset.s); }
       else this.action(b.dataset.act);
     }, { passive: false });
@@ -181,51 +315,73 @@ window.G = window.G || {};
   const P = G.SpellPad.prototype;
   P.setMode = function (m) { if (m === this.mode) return; this.mode = m; if (this.pair) this.setWord(this.pair, this.clue, true); };
   // fixed characters (a space, a hyphen, an apostrophe) are not tiles: they sit in their slots already
-  P.fixed = function (i) { return !LETTER.test(this.answer[i] || ""); };
+  P.fixed = function (i) { const u = this.units[i]; return !u || u.fixed; };
+  // (round 3) a word in another language than English is typed into the text field
+  P.usesField = function () { return this.mode === "type" && !!this.pair && this.lang !== "en"; };
+  P.focusField = function () {
+    if (!this.usesField() || document.activeElement === this.input) return;
+    try { this.input.focus({ preventScroll: true }); } catch (e) { this.input.focus(); }
+  };
+  P.fromField = function () {
+    if (this.feedback) { this.feedback = null; }
+    this.typed = String(this.input.value || "").slice(0, 40);
+    this.render();
+  };
+  // a character put in from the screen (an accent button)
+  P.insert = function (ch) {
+    if (this.feedback) this.clearFeedback();
+    if (this.typed.length < 40) this.typed += ch;
+    this.input.value = this.typed;
+    this.render();
+    this.focusField();
+  };
   P.setWord = function (pair, clue, keepTyped) {
     const same = this.pair && pair && this.pair[0] === pair[0];
     this.pair = pair; this.clue = clue || "";
     this.answer = pair ? S.answerOf(pair) : "";
+    this.lang = U.lang(pair);
+    this.units = U.split(this.answer, this.lang);
     // (typing: what is typed stays when the zombie in focus changes -- Enter
     // is checked against every zombie on the field)
-    if (!keepTyped) this.typed = "";
+    if (!keepTyped) { this.typed = ""; this.input.value = ""; }
     if (!same || !keepTyped) this.hints = 0;
     if (this.mode === "tiles" && pair) {
-      const letters = this.answer.split("").filter((ch) => LETTER.test(ch)).map((ch) => ch.toLowerCase());
+      const want = this.units.filter((u) => !u.fixed).map((u) => (this.lang === "en" || this.lang === "fr" ? u.ch.toLowerCase() : u.ch));
+      const letters = want.slice();
       const [lo, hi] = C().decoyLetters;
       const extra = lo + Math.floor(G.rng() * (hi - lo + 1));
-      const abc = "etaoinshrdlcumpbgfywkv";
-      for (let k = 0; k < extra; k++) letters.push(abc[Math.floor(G.rng() * abc.length)]);
+      for (let k = 0; k < extra; k++) letters.push(decoyFrom(this.lang, this.lang === "zh" || this.lang === "th" ? want.concat(letters) : []));
       let sh = G.shuffle(letters);
-      for (let t = 0; t < 4 && sh.join("").startsWith(this.answer.toLowerCase().replace(/[^a-z]/g, "")); t++) sh = G.shuffle(letters);
+      for (let t = 0; t < 4 && sh.slice(0, want.length).join("") === want.join(""); t++) sh = G.shuffle(letters);
       this.tiles = sh.map((ch) => ({ ch, used: false }));
       this.placed = [];
       this.cursor = 0;
     }
+    this.input.lang = G.Lang.TAG[this.lang] || "en";
     this.render();
   };
   // the text as it stands
   P.text = function () {
     if (this.mode === "type") return this.typed;
     let out = "", k = 0;
-    for (let i = 0; i < this.answer.length; i++) {
-      if (this.fixed(i)) { out += this.answer[i]; continue; }
+    for (let i = 0; i < this.units.length; i++) {
+      if (this.fixed(i)) { out += this.units[i].ch; continue; }
       const t = this.placed[k++];
       if (t == null) break;
       out += this.tiles[t].ch;
     }
     return out;
   };
-  P.letterCount = function () { return this.answer.split("").filter((ch) => LETTER.test(ch)).length; };
+  P.letterCount = function () { return this.units.filter((u) => !u.fixed).length; };
   P.full = function () { return this.mode === "tiles" && this.placed.length >= this.letterCount(); };
-  P.type = function (ch) { if (this.feedback) this.clearFeedback(); if (this.typed.length < 40) this.typed += ch; this.render(); };
+  P.type = function (ch) { if (this.feedback) this.clearFeedback(); if (this.typed.length < 40) this.typed += ch; this.input.value = this.typed; this.render(); };
   P.back = function () {
     if (this.feedback) this.clearFeedback();
-    if (this.mode === "type") this.typed = this.typed.slice(0, -1);
+    if (this.mode === "type") { this.typed = Array.from(this.typed).slice(0, -1).join(""); this.input.value = this.typed; }
     else if (this.placed.length) this.tiles[this.placed.pop()].used = false;
     this.render();
   };
-  P.clear = function () { this.typed = ""; this.placed.forEach((t) => { this.tiles[t].used = false; }); this.placed = []; this.render(); };
+  P.clear = function () { this.typed = ""; this.input.value = ""; this.placed.forEach((t) => { this.tiles[t].used = false; }); this.placed = []; this.render(); };
   P.place = function (t) {
     const tile = this.tiles[t];
     if (!tile || tile.used || this.full()) return;
@@ -241,20 +397,22 @@ window.G = window.G || {};
     while (this.placed.length > slotLetterIndex) this.tiles[this.placed.pop()].used = false;
     this.render();
   };
-  // the next right letter, the wrong ones after the right start taken out
+  // the next right unit, the wrong ones after the right start taken out
   P.hint = function () {
     if (!this.pair) return false;
     if (this.feedback) this.clearFeedback();
-    const want = this.answer.toLowerCase();
+    const lowU = (s) => (this.lang === "en" || this.lang === "fr" ? String(s).toLowerCase() : String(s));
+    const want = this.units.map((u) => lowU(u.ch));
     if (this.mode === "type") {
-      const t = this.typed.toLowerCase();
+      const t = U.pieces(this.typed, this.lang).map(lowU);
       let k = 0; while (k < t.length && k < want.length && t[k] === want[k]) k++;
       if (k >= want.length) return false;
-      let next = want.slice(0, k + 1);
-      while (next.length < want.length && !LETTER.test(want[next.length - 1])) next = want.slice(0, next.length + 1);
-      this.typed = this.answer.slice(0, next.length);
+      let next = k + 1;
+      while (next < want.length && this.units[next - 1].fixed) next++;
+      this.typed = this.units.slice(0, next).map((u) => u.ch).join("");
+      this.input.value = this.typed;
     } else {
-      const letters = want.split("").filter((ch) => LETTER.test(ch));
+      const letters = this.units.filter((u) => !u.fixed).map((u) => lowU(u.ch));
       let k = 0; while (k < this.placed.length && this.tiles[this.placed[k]].ch === letters[k]) k++;
       if (k >= letters.length) return false;
       while (this.placed.length > k) this.tiles[this.placed.pop()].used = false;
@@ -271,15 +429,24 @@ window.G = window.G || {};
     if (id === "back") this.back();
     else if (id === "hint") { if (this.opts.onHint) this.opts.onHint(); else this.hint(); }
     else if (id === "enter") { if (this.opts.onSubmit) this.opts.onSubmit(this.text()); }
-    else { const a = (this.opts.actions || []).find((x) => x.id === id); if (a) a.fn(); }
+    else { const a = (typeof this.opts.actions === "function" ? this.opts.actions() : this.opts.actions || []).find((x) => x.id === id); if (a) a.fn(); }
+    this.focusField();
   };
   // a wrong answer, marked up; `tip` a note under it
   P.showFeedback = function (typed, answer, tip, extraHtml) {
-    this.feedback = { parts: S.markup(typed, answer), answer, tip: tip || "", extra: extraHtml || "", until: performance.now() + C().feedbackSeconds * 1000 };
+    this.feedback = { parts: S.markup(typed, answer, this.lang), answer, tip: tip || "", extra: extraHtml || "", until: performance.now() + C().feedbackSeconds * 1000 };
     this.render();
   };
-  P.clearFeedback = function () { this.feedback = null; this.typed = ""; this.placed.forEach((t) => { this.tiles[t].used = false; }); this.placed = []; this.render(); };
-  P.tick = function () { if (this.feedback && performance.now() > this.feedback.until) this.clearFeedback(); };
+  // (round 3) a right answer with an accent forgiven: the word as it is written, a moment
+  P.showAccent = function (word) {
+    this.accentNote = { word, until: performance.now() + C().feedbackSeconds * 1000 };
+    this.render();
+  };
+  P.clearFeedback = function () { this.feedback = null; this.typed = ""; this.input.value = ""; this.placed.forEach((t) => { this.tiles[t].used = false; }); this.placed = []; this.render(); };
+  P.tick = function () {
+    if (this.feedback && performance.now() > this.feedback.until) this.clearFeedback();
+    if (this.accentNote && performance.now() > this.accentNote.until) { this.accentNote = null; this.render(); }
+  };
   // controller: move over the tiles, place the one lit
   P.moveCursor = function (d) {
     const n = this.tiles.length;
@@ -293,35 +460,46 @@ window.G = window.G || {};
   };
   P.render = function () {
     this.root.dataset.mode = this.mode;
+    this.root.dataset.lang = this.lang;
     const clue = this.el("clue");
-    clue.textContent = this.clue || "";
+    // (a Chinese meaning: its pinyin over it)
+    const py = this.pair && this.clue && this.clue === this.pair[1] && G.Lang.showPinyin() ? G.Lang.pinyin(this.pair, 1) : "";
+    if (py) clue.innerHTML = `<ruby>${esc(this.clue)}<rt>${esc(py)}</rt></ruby>`; else clue.textContent = this.clue || "";
+    clue.lang = G.Lang.TAG[this.pair ? G.Lang.ml(this.pair) : G.Lang.meaning()] || "th";
     clue.classList.toggle("hidden", !this.clue || !!this.opts.noClue);
-    // the slots: a box per letter, dashes until filled
+    // the field takes the typing of a word in another language than English
+    const field = this.usesField();
+    this.input.classList.toggle("hidden", !field);
+    // the slots: a box per unit, dashes until filled
     const slots = this.el("slots");
+    slots.lang = G.Lang.TAG[this.lang] || "en";
     if (this.feedback) {
       slots.innerHTML = this.feedback.parts.map((p) => `<span class="sp-slot ${p.cls}">${p.cls === "miss" ? "" : esc(p.ch)}</span>`).join("");
       slots.classList.add("marked");
     } else {
       slots.classList.remove("marked");
       // (a long word: closer, smaller boxes, so it still fits a phone)
-      slots.classList.toggle("long", this.answer.length > 11);
-      const txt = this.text().toLowerCase(), want = this.answer;
-      const len = Math.max(want.length, this.mode === "type" ? txt.length : 0);
+      slots.classList.toggle("long", this.units.length > 11);
+      // (by units: Thai clusters, Chinese characters -- or the pinyin letters typed)
+      const txtU = U.pieces(this.lang === "en" ? this.text().toLowerCase() : this.text(), this.lang);
+      const len = Math.max(this.units.length, this.mode === "type" ? txtU.length : 0);
       let html = "", letterIdx = 0;
       for (let i = 0; i < len; i++) {
-        const fixedCh = i < want.length && this.fixed(i);
-        const ch = this.mode === "type" ? txt[i] : fixedCh ? want[i] : txt[i];
+        const fixedCh = i < this.units.length && this.fixed(i);
+        const ch = this.mode === "type" ? txtU[i] : fixedCh ? this.units[i].ch : txtU[i];
         // (the next box to fill blinks, like a caret)
-        const cls = fixedCh ? "fixed" : ch ? "filled" : i === txt.length ? "empty cur" : "empty";
+        const cls = fixedCh ? "fixed" : ch ? "filled" : i === txtU.length ? "empty cur" : "empty";
         const attr = this.mode === "tiles" && !fixedCh ? ` data-s="${letterIdx}" role="button"` : "";
         if (!fixedCh) letterIdx++;
         html += `<span class="sp-slot ${cls}"${attr}>${ch && ch !== " " ? esc(ch) : ch === " " ? "&nbsp;" : ""}</span>`;
       }
       slots.innerHTML = html;
     }
-    // the tiles (touch and controller)
+    // the tiles (touch and controller) -- or, typing French, the accent buttons
     const tiles = this.el("tiles");
-    tiles.classList.toggle("hidden", this.mode !== "tiles");
+    const accents = this.mode === "type" && this.lang === "fr" && !this.opts.noAccents;
+    tiles.classList.toggle("hidden", this.mode !== "tiles" && !accents);
+    tiles.classList.toggle("spad-accents", accents);
     if (this.mode === "tiles") {
       // as many to a row as fit at a finger's width (~42px), in rows of even
       // length -- a long word on a phone takes two or three rows
@@ -331,8 +509,16 @@ window.G = window.G || {};
       this.cols = Math.ceil(n / rows);
       this._w = W;
       tiles.style.setProperty("--cols", this.cols);
+      tiles.lang = G.Lang.TAG[this.lang] || "en";
       tiles.innerHTML = this.tiles.map((t, i) => `<button class="sp-tile${t.used ? " used" : ""}${i === this.cursor && this.opts.showCursor && this.opts.showCursor() ? " cursor" : ""}" data-t="${i}" ${t.used ? "disabled" : ""}>${esc(t.ch)}</button>`).join("");
+    } else if (accents) {
+      if (tiles.dataset.acc !== "1") {
+        tiles.dataset.acc = "1";
+        tiles.style.setProperty("--cols", ACCENTS.length);
+        tiles.innerHTML = ACCENTS.map((a) => `<button class="sp-tile sp-acc" type="button" data-acc="${a}" tabindex="-1" aria-label="${esc(T("spell.accent", { c: a }))}">${a}</button>`).join("");
+      }
     }
+    if (!accents) tiles.dataset.acc = "";
     // the buttons
     const acts = [{ id: "back", label: "⌫", aria: T("spell.back") }, { id: "hint", label: "💡 " + T("spell.hint"), aria: T("spell.hint") }]
       .concat(this.mode === "type" && this.opts.enterButton ? [{ id: "enter", label: T("spell.enter"), aria: T("spell.enter") }] : [])
@@ -343,10 +529,15 @@ window.G = window.G || {};
       this.el("actions").innerHTML = acts.map((a) => `<button class="sp-act" data-act="${a.id}" aria-label="${esc(a.aria || a.label)}"${a.id === "back" ? " data-pad-back" : ""}>${esc(a.label)}</button>`).join("");
     }
     const msg = this.el("msg");
+    const wl = ` lang="${G.Lang.TAG[this.lang] || "en"}"`;
     if (this.feedback) {
-      msg.innerHTML = `<span class="sp-right">${esc(T("spell.correctIs"))} <b lang="en">${esc(this.feedback.answer)}</b></span>` + (this.feedback.extra ? `<span class="sp-stress">${this.feedback.extra}</span>` : "") + (this.feedback.tip ? `<span class="sp-tip">${esc(this.feedback.tip)}</span>` : "");
+      msg.innerHTML = `<span class="sp-right">${esc(T("spell.correctIs"))} <b${wl}>${esc(this.feedback.answer)}</b></span>` + (this.feedback.extra ? `<span class="sp-stress">${this.feedback.extra}</span>` : "") + (this.feedback.tip ? `<span class="sp-tip">${esc(this.feedback.tip)}</span>` : "");
       msg.className = "spad-msg bad";
+    } else if (this.accentNote) {
+      msg.innerHTML = `<span class="sp-right">${esc(T("spell.accentNote"))} <b${wl}>${esc(this.accentNote.word)}</b></span>`;
+      msg.className = "spad-msg";
     } else if (this.note) { msg.textContent = this.note; msg.className = "spad-msg"; }
+    else if (field && this.lang === "zh" && !this.typed) { msg.textContent = T("spell.zhHint"); msg.className = "spad-msg sp-help"; }
     else { msg.textContent = ""; msg.className = "spad-msg"; }
   };
 
@@ -455,6 +646,8 @@ window.G = window.G || {};
       const aimed = this.focus && this._aimed ? this.focus : null;
       if (aimed !== this._aimZ) { this._aimZ = aimed; if (aimed && aimed.clueKind === "audio") this.sayFocus(false); }
       this.pad.tick();
+      // (round 3) a word in another language: the keys go to the text field
+      if (this.typing() && this.pad.usesField()) this.pad.focusField();
       const none = !this.focus;
       this.pad.note = none ? T("spell.waiting") : "";
       document.getElementById("hud-spell").classList.toggle("idle", none);
@@ -463,6 +656,16 @@ window.G = window.G || {};
     // keyboard: true when the key was the bar's
     onKey(e) {
       if (!this.typing()) return false;
+      // (round 3) a word typed in its text field: the field takes the keys
+      // it types (the browser puts them in), Enter answers -- never while an
+      // IME is composing -- and Tab hints; arrows still walk
+      if (this.pad.usesField()) {
+        if (this.pad.composing || e.isComposing || e.keyCode === 229) return true;
+        if (e.key === "Enter") { this.submit(this.pad.text()); return true; }
+        if (e.key === "Tab") { this.hint(); if (e.preventDefault) e.preventDefault(); return true; }
+        if (S.fieldKey(e)) { this.pad.focusField(); return true; }
+        return false;
+      }
       const k = S.keyChar(e);
       if (e.ctrlKey || e.metaKey || e.altKey) return false;
       if (k === "Enter") { this.submit(this.pad.text()); return true; }
@@ -509,17 +712,21 @@ window.G = window.G || {};
       const scope = this.inputMode() === "tiles" && this.focus ? [this.focus] : list;
       const hit = scope.find((z) => S.isRight(t, S.target(z)));
       if (hit) {
+        const fix = S.accentFix(t, S.target(hit));
         g.spellKill(hit, { hints: hit._hints || 0 });
         this.pad.clear();
         this.pad.hints = 0;
+        // (round 3: right without its accents -- the word as it is written)
+        if (fix) this.pad.showAccent(fix);
         return;
       }
-      let near = null, best = C().nearMiss + 1;
+      let near = null, best = 99;
       for (const z of scope) {
         const d = S.distance(t, S.target(z));
+        if (d > S.nearMiss(S.target(z))) continue;
         if (d < best || (d === best && z === this.focus)) { best = d; near = z; }
       }
-      if (near && best <= C().nearMiss) {
+      if (near) {
         g.spellMiss(near, t);
         // (round 3, G3) Dictation: its syllables, the stressed one marked, and
         // the word said again
@@ -582,6 +789,7 @@ window.G = window.G || {};
       this.pad.setMode(G.Input.mode === "touch" || G.Input.padActive ? "tiles" : "type");
       this.pad.setWord(pair, pair[1]);
       this.pad.note = "";
+      setTimeout(() => this.pad.focusField(), 0);
       document.getElementById("spell-reload-keys").textContent = T("spell.reloadKeys." + S.device());
       box.classList.remove("hidden");
       G.Modal.open("spellreload", { keys: (e) => this.key(e) });
@@ -589,6 +797,14 @@ window.G = window.G || {};
     key(e) {
       if (!this.busy) return true;
       if (this.pad.feedback) { if (e.code === "Enter" || e.code === "Space") this.finish(); return true; }
+      // (round 3) a word in another language: its text field takes the keys (an IME's Enter included)
+      if (this.pad.usesField()) {
+        if (this.pad.composing || e.isComposing || e.keyCode === 229) return true;
+        if (e.code === "Enter" || e.code === "NumpadEnter") { this.submit(this.pad.text()); return true; }
+        if (e.code === "Tab") { this.pad.hint(); if (e.preventDefault) e.preventDefault(); return true; }
+        this.pad.focusField();
+        return true;
+      }
       if (e.code === "Enter" || e.code === "NumpadEnter") { this.submit(this.pad.text()); return true; }
       if (e.code === "Backspace") { this.pad.back(); return true; }
       if (e.code === "Tab") { this.pad.hint(); if (e.preventDefault) e.preventDefault(); return true; }
@@ -597,12 +813,18 @@ window.G = window.G || {};
       return true;
     },
     submit(text) {
-      if (!this.busy || this.pad.feedback) return;
+      if (!this.busy || this.pad.feedback || this.pad.accentNote) return;
       const t = S.norm(text);
       if (!t) return;
       const pair = this.pair, right = S.isRight(t, pair), hints = this.pad.hints || 0;
       G.Learning.answerWord(pair, right, { recall: true, assisted: hints > 0, typed: t, source: "reload", skills: ["spelling"] });
-      if (right) { this.result = "full"; G.Audio.sfx("correct"); this.finish(); return; }
+      if (right) {
+        this.result = "full"; G.Audio.sfx("correct");
+        // (round 3: right without its accents -- the word as written, a moment, before the window goes)
+        const fix = S.accentFix(t, pair);
+        if (fix) { this.pad.showAccent(fix); clearTimeout(this._t); this._t = setTimeout(() => this.finish(), 1200); return; }
+        this.finish(); return;
+      }
       this.result = "half";
       G.Audio.sfx("wrong");
       if (this.game) { this.game.trackWrongWord(pair[0], pair[1]); G.Quiz.noteMissed(this.game, pair[0]); }

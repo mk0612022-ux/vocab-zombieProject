@@ -124,7 +124,7 @@ G.Learning.answerWord = function (pair, right, opts) {
   const r = G.SRS.answer(pair, right, opts);
   G.Learning.track(right, opts);
   if (r && r.to >= G.Learning.MASTERED && r.from < G.Learning.MASTERED) G.Learning.checkMastery();
-  const x = !right ? (opts.picked || (opts.typed && (G.WordBank.ownerOf(opts.typed) || G.WordBank.confusable(opts.typed)) ? opts.typed : null)) : null;
+  const x = !right ? (opts.picked || (G.SRS.typedWord(opts.typed, pair) ? opts.typed : null)) : null;
   if (x && G.wordKey(x) !== G.wordKey(pair)) G.SRS.noteConfusion(pair, x);
   G.SRS.noteAnswer(pair, right, opts.inView);
   return r;
@@ -160,6 +160,13 @@ G.SRS = {
   C() { return G.CONFIG.srs; },
   data() { return G.save.learn; },
   key(w) { return G.wordKey(w); },
+  // (round 3) is what was typed another word of the bank -- in the word's
+  // language -- or (English) a known look-alike? Then it is a confusion
+  typedWord(typed, pair) {
+    if (!typed) return false;
+    const lang = G.Lang.wl(pair);
+    return !!(G.WordBank.textOwner(typed, lang) || (lang === "en" && G.WordBank.confusable(typed)));
+  },
   state(w) { return this.data().srs[this.key(w)] || null; },
   // 0 = New, 1-5 = the box, 6 = Mastered
   box(w) { const s = this.state(w); return s ? s.b : 0; },
@@ -222,7 +229,9 @@ G.SRS = {
   // player's -- is not counted)
   pool() {
     const seen = new Set(), out = [];
-    G.getAllBuiltinWords().concat(...Object.values(G.save.customWords || {})).forEach((p) => {
+    // (round 3: the player's own words in the languages chosen)
+    const own = G.CustomVocab && G.CustomVocab.allCurrent ? G.CustomVocab.allCurrent() : [].concat(...Object.values(G.save.customWords || {}));
+    G.getAllBuiltinWords().concat(own).forEach((p) => {
       const k = this.key(p);
       if (k && !seen.has(k)) { seen.add(k); out.push(p); }
     });

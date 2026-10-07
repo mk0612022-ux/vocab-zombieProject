@@ -49,6 +49,23 @@ G.UI = {
     if (id === "screen-mainmenu" && G.Audio && G.Audio.ctx && G.Audio.menuMusic && !(G.Start && G.Start.shown)) G.Audio.menuMusic(true);
   },
   hideAllScreens() { this.showScreen(null); },
+  // (round 3, H) the menus in another language, or the words in other
+  // languages: the screen in view written again where it is drawn from code
+  // (static text: G.applyStaticStrings, js/strings.js)
+  languageChanged() {
+    const id = this._currentScreen;
+    if (G.Lobby) G.Lobby.relabel();
+    if (id === "screen-mainmenu" && G.Lobby) G.Lobby.open();
+    else if (id === "screen-customvocab" && G.CustomVocabUI) G.CustomVocabUI.render();
+    else if (id === "screen-vocablog" && this._vocabLogLevel) this.renderVocabLog(this._vocabLogLevel);
+    else if (id === "screen-progress" && G.Progress && G.Progress.render) G.Progress.render();
+    else if (id === "screen-practice-setup" && G.Practice && G.Practice.render) G.Practice.render();
+    if (G.Game && G.Game.zombies) G.Game.zombies.forEach((z) => { if (z.alive) { z._label = null; z.setTarget(z.isTarget); } });
+    // the HUD parts that only redraw when their state changes keep their old
+    // words: forget what they drew so the next frame writes them again
+    this._hudPerkSig = this._abSig = this._touchSlotSig = this._shopSec = null;
+    if (G.Floor3) { G.Floor3._hudSig = null; if (G.Game && G.Floor3.s) G.Floor3.hud(G.Game); }
+  },
   setHudVisible(v) {
     this.el("hud").classList.toggle("hidden", !v);
     // (new series, round 1, F) the player's HUD sizes, fitted to the screen
@@ -282,8 +299,9 @@ G.UI = {
         box = `<div class="vw-box b${st.b}">${esc(st.b >= G.Learning.MASTERED ? G.T("learn.boxMastered") : G.T("learn.box", { n: st.b }))} · ${esc(G.T("learn.due", { when }))}</div>`;
       }
       const conf = G.SRS.confusedWith(pair).slice(0, 2).map((x) => G.Distract.resolve(x)).filter(Boolean);
-      const confLine = conf.length ? `<div class="vw-conf">${esc(G.T("learn.confusedWith")).replace("{x}", conf.map((p) => `<b lang="en">${esc(p[0])}${G.POS.tag(p)}</b> <span lang="th">(${esc(p[1])})</span>`).join(", "))}</div>` : "";
-      return `<div class="vocab-item"><div><div class="vw-en"><button class="vw-open" type="button" data-card="${i}" aria-label="${esc(G.T("card.open", { word: en }))}" lang="en">${esc(en)}</button>${G.POS.tag(pair)} <button class="speak-btn" data-word="${esc(en)}" aria-label="${G.T("vocablog.hear", { word: esc(en) })}">🔊</button>${mine}</div><div class="vw-th">${esc(th)}</div>${box}${confLine}</div>${badge}</div>`;
+      // (round 3: the word and meaning in their languages, Chinese with its pinyin)
+      const confLine = conf.length ? `<div class="vw-conf">${esc(G.T("learn.confusedWith")).replace("{x}", conf.map((p) => `<b${G.Lang.attr(p, 0)}>${G.Lang.html(p, 0)}${G.POS.tag(p)}</b> <span${G.Lang.attr(p, 1)}>(${G.Lang.html(p, 1)})</span>`).join(", "))}</div>` : "";
+      return `<div class="vocab-item"><div><div class="vw-en"><button class="vw-open" type="button" data-card="${i}" aria-label="${esc(G.T("card.open", { word: en }))}"${G.Lang.attr(pair, 0)}>${G.Lang.html(pair, 0)}</button>${G.POS.tag(pair)} <button class="speak-btn" data-word="${esc(en)}" aria-label="${G.T("vocablog.hear", { word: esc(en) })}">🔊</button>${mine}</div><div class="vw-th"${G.Lang.attr(pair, 1)}>${G.Lang.html(pair, 1)}</div>${box}${confLine}</div>${badge}</div>`;
     }).join("");
     this._vocabLogWords = words;
     this.el("vocablog-content").innerHTML = `<div class="vocab-grid">${items}</div>`;
@@ -369,11 +387,15 @@ G.UI = {
   // Vocabulary (which opens it set to the level it was showing).
   openImport(returnTo, levelKey) {
     this._importReturn = returnTo || "screen-mainmenu";
+    // (round 3, H5) the file's languages: those chosen on the Custom
+    // Vocabulary page when it comes from there, else the player's own pair
+    this._importLangs = returnTo === "screen-customvocab" && G.CustomVocabUI ? G.CustomVocabUI.langs() : { wl: G.Lang.word(), ml: G.Lang.meaning() };
     const sel = this.el("import-dest");
     sel.innerHTML = `<option value="practice">${G.T("import.destPractice")}</option>` +
       G.CustomVocab.LEVEL_KEYS.map((k) => `<option value="${k}">${G.T("import.destLevel", { level: G.CustomVocab.levelName(k) })}</option>`).join("");
     sel.value = levelKey || "practice";
-    this.el("import-summary").innerHTML = "";
+    const L = this._importLangs;
+    this.el("import-summary").innerHTML = `<div class="sum-head">${G.escapeHtml(G.T("import.langs", { pair: G.Lang.label(L.wl) + " → " + G.Lang.label(L.ml) }))}</div>`;
     this.renderImportedSets();
     this.showScreen("screen-import");
   },
@@ -414,7 +436,9 @@ G.UI = {
     const run = () => {
       status.textContent = G.T("import.ocrReading");
       const url = URL.createObjectURL(file);
-      Tesseract.recognize(url, "eng").then(({ data }) => {
+      // (round 3: the words' own language)
+      const ocrLang = { en: "eng", fr: "fra", th: "tha", zh: "chi_sim" }[(this._importLangs || {}).wl] || "eng";
+      Tesseract.recognize(url, ocrLang).then(({ data }) => {
         status.textContent = G.T("import.ocrDone");
         const lines = data.text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
         // OCR only reliably gives English words; pair each with a blank Thai meaning for manual edit
@@ -441,15 +465,19 @@ G.UI = {
     const T = G.T, esc = G.escapeHtml;
     let res, head;
     if (dest === "practice") {
-      const clean = G.CustomVocab.cleanPracticeSet(this._pendingImport.words);
+      const L = this._importLangs || { wl: "en", ml: "th" };
+      const clean = G.CustomVocab.cleanPracticeSet(this._pendingImport.words, L);
       res = { added: clean.words.map((p) => p[0]), dupes: clean.dupes, invalid: clean.invalid, sameMeaning: [] };
       if (clean.words.length) {
-        G.save.importedSets["import_" + Date.now()] = { name: this._pendingImport.name, words: clean.words };
+        // (round 3: with its languages, when not English > Thai)
+        const set = { name: this._pendingImport.name, words: clean.words };
+        if (!(L.wl === "en" && L.ml === "th")) { set.wl = L.wl; set.ml = L.ml; }
+        G.save.importedSets["import_" + Date.now()] = set;
         G.persist();
       }
       head = T("import.sumPractice", { n: res.added.length });
     } else {
-      res = G.CustomVocab.importPairs(this._pendingImport.words, dest);
+      res = G.CustomVocab.importPairs(this._pendingImport.words, dest, this._importLangs);
       head = T("import.sumLevel", { n: res.added.length, level: G.CustomVocab.levelName(dest) });
     }
     const reason = (d) => d.key ? T("import.whyDup", { level: G.CustomVocab.levelName(d.key) }) : T("import.whyDupFile");
@@ -725,7 +753,14 @@ G.UI = {
     this.el("hud-weapon-name").innerHTML = p.weaponName +
       (p.weightLabel ? ` <span style="color:${p.weightColor};font-size:0.78em">[${p.weightLabel}]</span>` : "");
     this.el("hud-ammo").textContent = p.isMelee ? G.T("hud.ammoMelee") : `${p.ammoInMag} / ${p.ammoReserve}`;
-    this.el("hud-meaning").textContent = p.currentMeaning || "-";
+    // (round 3, H4: a Chinese meaning with its pinyin over it)
+    const mr = p.meaningRuby, esc = G.escapeHtml;
+    const mHtml = mr && mr.py ? `<ruby>${esc(mr.text)}<rt>${esc(mr.py)}</rt></ruby>${esc(mr.rest || "")}` : null;
+    const mKey = mHtml || "t:" + (p.currentMeaning || "-");
+    if (mKey !== this._meaningKey) {
+      this._meaningKey = mKey;
+      if (mHtml) this.el("hud-meaning").innerHTML = mHtml; else this.el("hud-meaning").textContent = p.currentMeaning || "-";
+    }
     // (vocabulary series, round 3) which clue: its look, the Thai line under
     // a definition, or the button for it (a helper)
     const kind = p.clueKind || "thai";
@@ -733,10 +768,17 @@ G.UI = {
       this._clueKind = kind;
       const box = document.querySelector(".hud-meaning-box");
       if (box) { box.classList.remove("clue-thai", "clue-definition", "clue-cloze", "clue-audio"); box.classList.add("clue-" + kind); }
-      this.el("hud-meaning").lang = kind === "thai" ? "th" : "en";
     }
+    // (round 3: the meaning in the Meaning Language; the English clues are English)
+    this.el("hud-meaning").lang = kind === "thai" ? G.Lang.TAG[G.Lang.meaning()] || "th" : "en";
     const sub = this.el("hud-meaning-sub");
-    if (sub.textContent !== (p.clueSub || "")) sub.textContent = p.clueSub || "";
+    if (sub.textContent !== (p.clueSub || "") && sub.dataset.text !== (p.clueSub || "")) {
+      // (round 3: a Chinese meaning under the definition, with its pinyin)
+      const e = p.clueSub && G.Lang.meaning() === "zh" && G.Lang.showPinyin() ? G.WordBank.byText(p.clueSub, "zh") : null;
+      if (e && e.pinyin) sub.innerHTML = `<ruby>${esc(p.clueSub)}<rt>${esc(e.pinyin)}</rt></ruby>`; else sub.textContent = p.clueSub || "";
+      sub.dataset.text = p.clueSub || "";
+      sub.lang = G.Lang.TAG[G.Lang.meaning()] || "th";
+    }
     sub.classList.toggle("hidden", !p.clueSub);
     // (touch mode puts the stat and weapon panels at the top: a definition or
     // a sentence is fitted into the gap between them, wrapping, rather than
@@ -1085,3 +1127,6 @@ G.UI = {
     if (el.textContent !== txt) el.textContent = txt;
   },
 };
+
+// (round 3) a language changed: what is in view, written again
+["vz-uilang", "vz-langs"].forEach((ev) => window.addEventListener(ev, () => { if (G.UI && G.save) G.UI.languageChanged(); }));
