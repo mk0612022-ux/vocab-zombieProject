@@ -77,7 +77,7 @@
     insets() {
       if (!this._probe) {
         const p = this._probe = document.createElement("div");
-        p.style.cssText = "position:fixed;left:0;top:0;width:0;height:0;visibility:hidden;pointer-events:none;padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)";
+        p.style.cssText = "position:fixed;left:0;top:0;width:0;height:0;visibility:hidden;pointer-events:none;padding:var(--sa-t) var(--sa-r) var(--sa-b) var(--sa-l)";
         document.body.appendChild(p);
       }
       const cs = getComputedStyle(this._probe);

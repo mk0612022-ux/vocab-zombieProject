@@ -1354,8 +1354,9 @@
     hint(M, "choice", wind + 1);
     for (let i = 0; i < 30; i++) FX.paper(b.pos.x, A.floorY + 1 + Math.random() * 4, b.pos.z, (Math.random() - 0.5) * 6, Math.random() * 4, (Math.random() - 0.5) * 6, 2.5);
     // (held in front of the chest: where a player aiming at him can read it)
-    const sign = (root, word) => {
-      const sp = G.makeWordSprite(word, { color: "#fff29b" });
+    // (new series, round 2, G: with its part of speech, as on a zombie)
+    const sign = (root, pair) => {
+      const sp = G.makeWordSprite(pair[0], { color: "#fff29b", pos: G.POS ? G.POS.abbr(G.POS.of(pair)) : "" });
       sp.scale.set(3.4, 0.85, 1);
       sp.position.set(0, b.rig.H * 0.55, b.rig.R + 0.6);
       root.add(sp);
@@ -1391,7 +1392,7 @@
             if (w === ans) {
               b.pos.x = p.x; b.pos.z = p.z; b.word = w[0]; b.choiceMeaning = ans[1];
               figs.push({ real: true, root: b.root });
-              sign(b.root, w[0]);
+              sign(b.root, w);
             } else {
               const c = copies[i];
               c.root.position.set(p.x, A.floorY, p.z);
@@ -1407,7 +1408,7 @@
                 if (figs.every((f) => f.real || f.clone.popped)) finish("revealed");
               };
               figs.push({ real: false, root: c.root, clone: c });
-              sign(c.root, w[0]);
+              sign(c.root, w);
             }
             for (let k = 0; k < 10; k++) FX.paper(p.x, A.floorY + 1 + Math.random() * 4, p.z, (Math.random() - 0.5) * 5, Math.random() * 3, (Math.random() - 0.5) * 5, 2.2);
           });

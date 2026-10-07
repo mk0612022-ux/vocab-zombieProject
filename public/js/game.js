@@ -64,6 +64,8 @@ G.Game = {
     G.UI.init();
     if (G.PWA) G.PWA.init();
     G.TouchCfg.init();
+    // (new series, round 2, F) the screen-edge margin the player set
+    if (G.applySafeArea) G.applySafeArea();
     G.Shop.resetRun();
     this.setupThree();
     // (new series, round 1, C2) the boot screen stays until the update check is done too
@@ -77,7 +79,7 @@ G.Game = {
     const canvas = document.getElementById("gameCanvas");
     const q = G.save.settings.graphicsQuality;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: q === "high" || q === "vhigh" });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, q === "vhigh" ? 2 : q === "high" ? 1.5 : 1));
+    this.renderer.setPixelRatio(this.pixelRatio());
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.shadowMap.enabled = q === "high" || q === "vhigh";
     this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 200);
@@ -122,13 +124,20 @@ G.Game = {
     });
   },
 
+  // the 3D view's pixels per screen pixel: the quality's cap on the screen's
+  // own, times (new series, round 2, F) the Render Resolution setting
+  pixelRatio() {
+    const s = G.save.settings, q = s.graphicsQuality;
+    const base = Math.min(window.devicePixelRatio, q === "vhigh" ? 2 : q === "high" ? 1.5 : 1);
+    return Math.max(0.25, base * (Number(s.renderScale) || 1));
+  },
   applyGraphicsQuality() {
     const q = G.save.settings.graphicsQuality;
     // (the touch buttons' frosted glass blurs what is behind it every frame:
     // not on the two lowest settings)
     document.body.classList.toggle("fx-low", q === "vlow" || q === "low");
     this.renderer.shadowMap.enabled = q === "high" || q === "vhigh";
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, q === "vhigh" ? 2 : q === "high" ? 1.5 : 1));
+    this.renderer.setPixelRatio(this.pixelRatio());
     if (this.scene && this.scene.fog && this.level) {
       const pal = G.THEME_PALETTES[this.level.theme];
       this.scene.fog.far = q === "vlow" ? pal.fogFar * 0.5 : q === "low" ? pal.fogFar * 0.7 : pal.fogFar;
@@ -2022,9 +2031,11 @@ G.Game = {
     else { const d = G.Input.consumeMouseDelta(); dx = d.x; dy = d.y; }
     const gp = G.Input.pollGamepad();
     if (gp) {
+      // (new series, round 2, F: the look speed is a setting now)
+      const P = G.CONFIG.pad, k = P.look * (Number(G.save.settings.padSensitivity) || 1);
       const rx = gp.axes[2] || 0, ry = gp.axes[3] || 0;
-      if (Math.abs(rx) > 0.15) dx += rx * 6;
-      if (Math.abs(ry) > 0.15) dy += ry * 6;
+      if (Math.abs(rx) > P.deadzone) dx += rx * k;
+      if (Math.abs(ry) > P.deadzone) dy += ry * k;
     }
     this.yawObject.rotation.y -= dx * 0.0022;
     this.pitchObject.rotation.x -= dy * 0.0022;
@@ -3099,6 +3110,8 @@ G.onKeyDown = function (e) {
     G.Modal.handleKey(e);
     return;
   }
+  // (new series, round 2, F) the Settings page: rows, choices, categories, Esc back
+  if (G.SettingsUI && G.SettingsUI.onKey(e)) return;
   // round 4: the lobby takes its own keys (move, select, switch tab)
   if (Game.state === "MENU" && G.Lobby && G.Lobby.onKey(e)) return;
   // (vocabulary series, round 2, D1) typing the words: letters, space,

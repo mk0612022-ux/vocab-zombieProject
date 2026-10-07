@@ -95,6 +95,9 @@ G.WordBank = (function () {
         const x = w[2] && typeof w[2] === "object" ? w[2] : {};
         return {
           id: low(w[0]), headword: String(w[0]), thai: String(w[1] || ""), custom: true,
+          // (new series, round 2, G) the part of speech the player gave it; a
+          // word of several words is a phrase
+          partOfSpeech: G.POS.valid(x.pos) ? x.pos : /\s/.test(String(w[0]).trim()) ? "phrase" : "",
           definition: x.definition || "", synonyms: x.synonyms || [], examples: x.example ? [x.example] : [],
           collocations: x.collocations || [], topic: x.topic || "", family: [], acceptedSpellings: [String(w[0])],
         };
@@ -123,6 +126,43 @@ G.wordKey = function (w) {
   if (Array.isArray(w)) { if (w.id) return w.id; w = w[0]; }
   const e = G.WordBank.lookup(w);
   return e ? e.id : String(w == null ? "" : w).trim().toLowerCase();
+};
+
+// ---------------- parts of speech (new series, round 2, G) ----------------
+// Every bank entry has its part of speech: one, or two ("n/v") when the
+// meaning it is given is used as both -- research (N./V.). The short forms are
+// the same in every language. Shown after the word wherever a word of the
+// bank is: the zombies' labels, the vocabulary card, the Vocabulary Log, the
+// choices of a question, the Progress page -- never in a question about the
+// word's form (a gap filled from its family: the tag would be the answer).
+G.POS = {
+  ORDER: ["n", "v", "adj", "adv", "prep", "conj", "pron", "det", "phrase"],
+  ABBR: { n: "N.", v: "V.", adj: "Adj.", adv: "Adv.", prep: "Prep.", conj: "Conj.", pron: "Pron.", det: "Det.", phrase: "Phr." },
+  // "n/v" -> ["n", "v"]; a well-formed code is one or two of ORDER, in its order
+  parts(code) { return String(code || "").split("/").filter((c) => Object.prototype.hasOwnProperty.call(this.ABBR, c)); },
+  valid(code) {
+    if (typeof code !== "string" || !code) return false;
+    const p = code.split("/");
+    return p.length <= 2 && this.parts(code).length === p.length && (p.length < 2 || this.ORDER.indexOf(p[0]) < this.ORDER.indexOf(p[1]));
+  },
+  // a word's code ("" when it has none): a pair, an entry, a word or an id
+  of(w) {
+    const i = G.WordBank.info(w);
+    return i && this.valid(i.partOfSpeech) ? i.partOfSpeech : "";
+  },
+  abbr(code) { return this.parts(code).map((c) => this.ABBR[c]).join("/"); },                    // "N./V."
+  name(code) { return this.parts(code).map((c) => (G.T ? G.T("pos." + c) : c)).join(" / "); },  // "noun / verb"
+  // "(N./V.)" after a word, smaller and fainter (css .pos-tag); "" when none
+  tag(w) {
+    const code = this.valid(w) ? w : this.of(w);
+    if (!code) return "";
+    const n = G.escapeHtml ? G.escapeHtml(this.name(code)) : this.name(code);
+    return ` <span class="pos-tag" title="${n}" aria-label="${n}">(${this.abbr(code)})</span>`;
+  },
+  // plain text: "research (N./V.)"
+  text(word, w) { const code = this.valid(w) ? w : this.of(w); return code ? word + " (" + this.abbr(code) + ")" : String(word); },
+  // two words that share a part of speech (the wrong choices of a question)
+  overlap(a, b) { const x = this.parts(a); return this.parts(b).some((c) => x.includes(c)); },
 };
 
 G.WORDS_LEVEL_1 = G.WordBank.pairs(1);

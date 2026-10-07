@@ -132,7 +132,10 @@ window.G = window.G || {};
       const live = game.zombies.filter((z) => z.alive && z.hitboxes && z.hitboxes.length);
       live.forEach((z) => z.mesh.updateMatrixWorld(true));
       game.camera.updateMatrixWorld();
-      const lh = this.labelHit(game, origin, dir);
+      // (a word is where it is drawn on the screen: only a shot from the eye
+      // can be aimed at one -- not a ray that starts anywhere else)
+      game.camera.getWorldPosition(tmpA);
+      const lh = tmpA.distanceToSquared(origin) < 0.36 ? this.labelHit(game, origin, dir) : null;
       if (lh) {
         // (a word seen through a gap is still behind the wall if its zombie is)
         lh.z.sprite.getWorldPosition(tmpA);
@@ -246,6 +249,8 @@ window.G = window.G || {};
       // last frame first, so nothing shuffles while the view moves)
       items.sort((a, b) => a.depth - b.depth);
       const placed = [], gap = A.labelGapPx, lines = [], screenH = this.size(game).h;
+      // (the words that found no free place this frame: tools/round15-test.js)
+      const stuck = this.stuck = [];
       const fits = (r) => !placed.some((q) => r.x0 < q.x1 && r.x1 > q.x0 && r.y0 < q.y1 && r.y1 > q.y0);
       // (a move down costs twice a move up: a word below the head covers the body)
       const cost = (s) => (s >= 0 ? s : -2 * s);
@@ -270,15 +275,22 @@ window.G = window.G || {};
           });
           cands.filter((s) => s <= up && s >= A.labelDown).sort((a, b) => cost(a) - cost(b))
             .some((s) => { const r = at(s); if (fits(r)) { best = r; return true; } return false; });
-          if (!best) best = at(it.z._labelSlot || 0);        // nowhere left: it stays
+          // (a pile of words: higher than usual rather than over another --
+          // as long as it stays on the screen)
+          if (!best) cands.filter((s) => s > up && it.y - s * step - it.h / 2 > 0).sort((a, b) => a - b)
+            .some((s) => { const r = at(s); if (fits(r)) { best = r; return true; } return false; });
+          if (!best) { best = at(it.z._labelSlot || 0); stuck.push(it.z); }       // nowhere left: it stays
         }
         placed.push(best);
         it.z._labelSlot = best.slot;
         const want = best.slot * (it.h + gap) / (it.ppu || 1);          // world units, up
         const z = it.z;
         z._labelOff = z._labelOff + (want - z._labelOff) * ease;
-        it.s.position.copy(z._labelBase);
-        it.s.position.y += z._labelOff / it.scale;
+        // (new series, round 2) straight up in the world, whatever the
+        // zombie's sway: a word lifted far over its head would otherwise
+        // swing sideways with the body into the next word
+        tmpA.copy(z._labelBase); z.mesh.localToWorld(tmpA); tmpA.y += z._labelOff;
+        it.s.position.copy(z.mesh.worldToLocal(tmpA));
         if (Math.abs(z._labelOff) > A.leaderMin * it.s.scale.y) {
           // from the bottom (or top) of the word to just above the head
           const sgn = z._labelOff > 0 ? -1 : 1;

@@ -763,7 +763,58 @@ G.Audio = {
     hospital: { root: 82.4, scale: [0, 1, 3, 5, 7, 8, 10], lead: "sine", pad: 1.1, gap: [1.1, 2.8] },
     bunker: { root: 65.4, scale: [0, 1, 3, 5, 6, 8, 10], lead: "square", pad: 1.3, gap: [0.9, 2.4] },
   },
+  // ---------------- the lobby's music (new series, round 2, E) ----------------
+  // From the Start screen's tap (the gesture that lets iOS play anything)
+  // until a level starts, and again back in the lobby: a slow, dark bed -- a
+  // low drone breathing through a filter, a far-off bell now and then, wind
+  // on the ambient bus. Generated live, like the rest (G.CONFIG.menuMusic).
+  menuMusic(on) {
+    const ctx = this.ctx, M = this._menu;
+    if (!on) {
+      if (!M || !ctx) { this._menu = null; return; }
+      const t = ctx.currentTime;
+      M.out.gain.setTargetAtTime(0.0001, t, 0.4);
+      M.wind.gain.setTargetAtTime(0.0001, t, 0.4);
+      M.nodes.forEach((n) => { try { n.stop(t + 1.6); } catch (e) { /* stopped */ } });
+      clearInterval(M.timer);
+      this._menu = null;
+      return;
+    }
+    if (!ctx || M || this._level) return;
+    const C = G.CONFIG.menuMusic, t = ctx.currentTime;
+    const S = { nodes: [], next: t + 2.5 };
+    S.out = ctx.createGain(); S.out.gain.setValueAtTime(0.0001, t); S.out.gain.setTargetAtTime(C.gain, t, 2.2);
+    const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 300; lp.Q.value = 2.5;
+    lp.connect(S.out); S.out.connect(this.bus.music);
+    [[C.root, "sawtooth", 0.32, -6], [C.root * 1.5, "triangle", 0.2, 0], [C.root * 2, "sawtooth", 0.1, 7]].forEach(([f, type, g, det]) => {
+      const o = ctx.createOscillator(), og = ctx.createGain();
+      o.type = type; o.frequency.value = f; o.detune.value = det; og.gain.value = g;
+      o.connect(og); og.connect(lp); o.start(); S.nodes.push(o);
+    });
+    const lfo = ctx.createOscillator(), lg = ctx.createGain();
+    lfo.frequency.value = 0.045; lg.gain.value = 170; lfo.connect(lg); lg.connect(lp.frequency); lfo.start(); S.nodes.push(lfo);
+    const amb = ctx.createBufferSource(); amb.buffer = this.noiseBuffer(); amb.loop = true;
+    const af = ctx.createBiquadFilter(); af.type = "bandpass"; af.frequency.value = 480; af.Q.value = 0.7;
+    S.wind = ctx.createGain(); S.wind.gain.setValueAtTime(0.0001, t); S.wind.gain.setTargetAtTime(C.wind, t, 2.5);
+    amb.connect(af); af.connect(S.wind); S.wind.connect(this.bus.ambient); amb.start(); S.nodes.push(amb);
+    this._menu = S;
+    S.timer = setInterval(() => this._menuTick(), 250);
+  },
+  _menuTick() {
+    const ctx = this.ctx, M = this._menu, C = G.CONFIG.menuMusic;
+    if (!ctx || !M) return;
+    const now = ctx.currentTime;
+    // the bells: a minor pentatonic, far away, now and then
+    while (M.next < now + 0.4) {
+      const deg = C.bells[Math.floor(Math.random() * C.bells.length)];
+      const f = C.root * 4 * Math.pow(2, deg / 12) * (Math.random() < 0.3 ? 2 : 1);
+      this.tone({ type: "sine", freq: f, dur: 3.4, gain: C.bellGain, attack: 0.015, bus: "music", at: Math.max(0, M.next - now), filter: { type: "lowpass", freq: 2400 }, rev: 0.9 });
+      M.next += C.bellGap[0] + Math.random() * (C.bellGap[1] - C.bellGap[0]);
+    }
+  },
+
   startLevel(theme) {
+    this.menuMusic(false);
     if (!this.ctx) { this._pendingLevel = theme; return; }
     this.stopLevel();
     const ctx = this.ctx, T = this.THEMES[theme] || this.THEMES.school;

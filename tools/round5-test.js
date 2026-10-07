@@ -99,7 +99,7 @@ G.Round5Test = (function () {
   async function shop() {
     const g = fresh(1);
     const S = G.save.settings;
-    ok("C Settings: shop time 30 / 45 / 60 / no limit", (() => { G.UI.renderSettings(); const o = Array.from(document.querySelectorAll("#set-shoptime option")).map((x) => x.value); return o.join() === "30,45,60,0"; })());
+    ok("C Settings: shop time 30 / 45 / 60 / no limit", (() => { G.UI.renderSettings(); const o = Array.from(document.querySelectorAll("#set-shoptime .seg-o")).map((x) => x.dataset.v); return o.join() === "30,45,60,0"; })());
     ok("C default 45 s", G.defaultSave().settings.shopTime === 45);
     S.shopTime = 45; g.state = "GAMEPLAY"; g.openShop();
     ok("C the shop opens with 45 s", Math.round(g.shopTimer) === 45);

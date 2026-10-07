@@ -313,7 +313,7 @@ G.Round13Test = (function () {
     await wait(30);
     const body = $("vocab-card-body"), t = body.textContent;
     ok("E the Word Log: a word opens its vocabulary card (a G.Modal window)", G.Modal.isOpen("vocabcard") && !$("vocab-card").classList.contains("hidden") && G.Pad.scope() === $("vocab-card-box"));
-    ok("E card: the word, its part of speech, syllables and stress, a sound button", body.querySelector(".vc-word").textContent === "indicate" && /verb/.test(t) && !!body.querySelector(".vc-stress b.stress") && !!body.querySelector(".vc-head .vc-say"));
+    ok("E card: the word, its part of speech, syllables and stress, a sound button", body.querySelector(".vc-word").textContent === "indicate" && /\(V\.\)/.test(t) && /verb/.test(body.querySelector(".vc-pos").title) && !!body.querySelector(".vc-stress b.stress") && !!body.querySelector(".vc-head .vc-say"));
     ok("E card: Thai, definition, synonyms", t.includes(ind[1]) && t.includes(G.Clues.definition(ind)) && /show, suggest, signal/.test(t));
     ok("E card: two example sentences, the word marked, each can be heard", body.querySelectorAll(".vc-list")[0].querySelectorAll("li").length === 2 && body.querySelectorAll(".vc-list")[0].querySelectorAll("mark").length >= 2 && body.querySelectorAll(".vc-list")[0].querySelectorAll(".vc-say[data-text]").length === 2);
     ok("E card: collocations marked, the family table", body.querySelector(".vc-colls mark") && body.querySelectorAll(".vc-family tr").length === 4);
@@ -349,7 +349,7 @@ G.Round13Test = (function () {
   // ---------------- F: settings, keys, saves, strings ----------------
   function settings() {
     G.UI.renderSettings();
-    ok("F Settings: Thai with English clues, accent, speed, Play Once", ["set-cluethai", "set-accent", "set-speechspeed", "set-playonce"].every((id) => !!$(id)) && $("set-accent").options.length === 4);
+    ok("F Settings: Thai with English clues, accent, speed, Play Once", ["set-cluethai", "set-accent", "set-speechspeed", "set-playonce"].every((id) => !!$(id)) && $("set-accent").querySelectorAll(".seg-o").length === 4);
     ok("F Settings: the device's English voices named", /English voices on this device|No English voice/.test($("set-accent-note").textContent), $("set-accent-note").textContent);
     $("set-playonce").checked = true; $("set-playonce").dispatchEvent(new Event("change"));
     ok("F ...and they save", G.save.settings.playOnce === true);

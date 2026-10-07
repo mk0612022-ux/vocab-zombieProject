@@ -39,6 +39,8 @@ G.UIAudit = {
     for (let n = walker.nextNode(); n; n = walker.nextNode()) {
       const t = n.nodeValue;
       if (!THAI.test(t) || !n.parentElement || !this.visible(n.parentElement)) continue;
+      // (new series, round 2: a language named in its own language -- Settings > Language)
+      if (n.parentElement.closest("[data-lang-self]")) continue;
       let rest = t;
       for (const m of M) if (rest.includes(m)) rest = rest.split(m).join(" ");
       if (THAI.test(rest)) out.push({ text: t.trim().slice(0, 80), where: this.path(n.parentElement) });
@@ -154,7 +156,24 @@ G.UIAudit = {
       await step("badge: offline", () => { U.mismatch = false; U.offline = true; U.badge(); });
       Object.assign(U, keepU); U.badge(); document.getElementById("btn-update-go").classList.remove("hidden"); document.getElementById("upd-progress").classList.add("hidden");
       await step("how to play", () => UI.showScreen("screen-howtoplay"));
-      await step("settings", () => { UI._settingsReturn = "screen-mainmenu"; UI.renderSettings(); UI.showScreen("screen-settings"); });
+      // (new series, round 2, F) every category of the Settings page; the
+      // Learning Style's own rows; the manual screen-edge margin; the privacy policy
+      for (const c of ["graphics", "audio", "controls", "gameplay", "language", "accessibility", "account", "about"]) await step("settings: " + c, () => { UI._settingsReturn = "screen-mainmenu"; UI.renderSettings(); UI.showScreen("screen-settings"); G.SettingsUI.select(c); });
+      const keepStyle = G.save.settings.campaignStyle, keepSafe = G.save.settings.safeArea;
+      await step("settings: gameplay, your own Learning Style", () => { G.SettingsUI.select("gameplay"); document.querySelector('#set-campstyle [data-v="custom"]').click(); });
+      await step("settings: graphics, manual margin", () => { G.SettingsUI.select("graphics"); document.querySelector('#set-safearea [data-v="manual"]').click(); });
+      G.save.settings.campaignStyle = keepStyle; G.save.settings.safeArea = keepSafe; G.applySafeArea();
+      await step("settings: privacy policy", () => { G.SettingsUI.select("about"); G.SettingsUI.openPrivacy(); });
+      G.SettingsUI.closePrivacy();
+      // (D, E) the Loading screen -- words over the heads, a tip, then the Word of
+      // the Day -- and the Start screen, its Sign In
+      await step("loading screen", () => { UI.goToMainMenu(); document.getElementById("loading-overlay").classList.remove("hidden"); U.panel("boot-main"); G.Boot.active = true; G.Boot.placeWords(); G.Boot.showWord = false; G.Boot.tip(); G.Boot.update(); });
+      await step("loading: word of the day", () => { G.Boot.showWord = true; G.Boot.tip(); });
+      await new Promise((r) => setTimeout(r, 300));
+      G.Boot.finish(); document.getElementById("loading-overlay").classList.add("hidden");
+      await step("start screen", () => { G.Start.show(); });
+      await step("start: sign in", () => { document.getElementById("btn-start-signin").click(); });
+      G.Dialog.close(); G.Modal.close("start"); document.getElementById("start-screen").classList.add("hidden"); G.Start.shown = false;
       for (const c of ["level1", "daily", "endless"]) await step("leaderboard " + c, () => { UI.renderLeaderboard(c); UI.showScreen("screen-leaderboard"); });
       await step("achievements", () => { UI.renderAchievements(); UI.showScreen("screen-achievements"); });
       for (const l of [1, 2, 3]) await step("word log " + l, () => { UI._logReturnScreen = "screen-mainmenu"; UI.renderVocabLog(l); UI.showScreen("screen-vocablog"); });
@@ -228,7 +247,8 @@ G.UIAudit = {
       }
       document.body.classList.remove("cine-on"); G.Cutscene.el.card.classList.remove("show");
       await step("pause", () => { Game.state = "GAMEPLAY"; Game.pause(); });
-      await step("pause settings", () => { UI._settingsReturn = "screen-pause"; UI.renderSettings(); UI.showScreen("screen-settings"); });
+      await step("pause settings: gameplay (Learning Style locked)", () => { UI._settingsReturn = "screen-pause"; UI.renderSettings(); UI.showScreen("screen-settings"); G.SettingsUI.select("gameplay"); });
+      await step("pause settings: language", () => G.SettingsUI.select("language"));
       await step("resume", () => { UI.showScreen("screen-pause"); Game.resume(); });
       await step("shop", () => { Game._waveBonus = 300; G.save.tutorialDone = false; G.save.tutorialSeen = {}; Game.player.money = 99999; Game.openShop(); });
       await step("shop (maxed)", () => { Game.player.perks.perk_speed = 3; UI.renderShop(); });
@@ -357,7 +377,7 @@ G.UIAudit = {
       await step("quiz: failed, the words listed", () => allWrong());
       await step("quiz: passed, no mistakes", () => { G.Quiz.close(); G.Quiz.open(Game, () => {}); let n = 0; while (G.Quiz.stage !== "result" && n++ < 30) { if (G.Quiz.stage === "question") G.Quiz.answer(G.Quiz.qs[G.Quiz.i].answer); G.Quiz.update(5); } });
       await step("quiz closed", () => G.Quiz.close());
-      await step("settings: touch look sensitivities, HUD size", () => { Game.quitToMainMenu(); UI._settingsReturn = "screen-mainmenu"; UI.renderSettings(); UI.showScreen("screen-settings"); });
+      await step("settings: touch look sensitivities, HUD size", () => { Game.quitToMainMenu(); UI._settingsReturn = "screen-mainmenu"; UI.renderSettings(); UI.showScreen("screen-settings"); G.SettingsUI.select("controls"); });
       await step("hud sizes editor", () => G.HudCfg.openEditor());
       await step("hud sizes at 150%", () => { G.HudCfg.PARTS.concat("all").forEach((p) => G.HudCfg.set(p, 1.5)); G.HudCfg.renderPanel(); });
       await step("hud sizes at 50%", () => { G.HudCfg.PARTS.concat("all").forEach((p) => G.HudCfg.set(p, 0.5)); G.HudCfg.renderPanel(); });
@@ -439,7 +459,7 @@ G.UIAudit = {
         G.SRS.noteConfusion(y, byId("effect")); G.SRS.noteConfusion(y, longPair);
         UI._logReturnScreen = "screen-mainmenu"; UI.renderVocabLog(1); UI.showScreen("screen-vocablog");
       });
-      await step("settings: Spell to Reload", () => { UI._settingsReturn = "screen-mainmenu"; UI.renderSettings(); UI.showScreen("screen-settings"); });
+      await step("settings: Spell to Reload", () => { UI._settingsReturn = "screen-mainmenu"; UI.renderSettings(); UI.showScreen("screen-settings"); G.SettingsUI.select("gameplay"); });
       // ---- vocabulary series, round 3: the English clues, the eight kinds of question, the card ----
       const longDef = G.WordBank.entries().slice().sort((a, b) => b.definition.length - a.definition.length)[0];
       const longEx = G.WordBank.entries().slice().sort((a, b) => b.examples[0].length - a.examples[0].length)[0];
@@ -486,7 +506,7 @@ G.UIAudit = {
       await step("story note: words marked", () => { G.VocabCard.close(); G.Notes.open(G.NOTES.level1[19], { fromJournal: true, back: "screen-mainmenu" }); });
       await step("story note: a word looked up", () => { const b = document.querySelector("#note-body .note-word"); if (b) b.click(); });
       await step("story note closed", () => { G.VocabCard.closePeek(); G.Notes.close(); });
-      await step("settings: accent, speed, Play Once, Thai with clues", () => { UI._settingsReturn = "screen-mainmenu"; UI.renderSettings(); UI.showScreen("screen-settings"); });
+      await step("settings: accent, speed, Play Once, Thai with clues", () => { UI._settingsReturn = "screen-mainmenu"; UI.renderSettings(); UI.showScreen("screen-settings"); G.SettingsUI.select("audio"); });
       // ---- vocabulary series, round 4: Progress, Practice, the pairings of the player's own, the campaign's Learning Style ----
       await step("progress: nothing learnt yet", () => { G.save.learn = G.Learning.normalize({}); G.save.wordStats = {}; G.Progress.open("learn"); });
       await step("progress: a month in", () => {

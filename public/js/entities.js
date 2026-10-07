@@ -614,23 +614,50 @@ G.buildMeleeMesh = function () {
 // sits a little lower and smaller than English so the vowels and tone marks
 // stacked above the line (and the vowels below it) stay on the canvas.
 const THAI_CHAR = new RegExp("[" + String.fromCharCode(0x0E00) + "-" + String.fromCharCode(0x0E7F) + "]");
-G.drawWordLabel = function (ctx, canvas, text, color) {
+// (new series, round 2, G) `pos`: the word's part of speech ("N./V."), drawn
+// after it smaller (G.CONFIG.aim.posScale of the word) and fainter, so the
+// word still reads first and a crowd's words stay narrow
+G.drawWordLabel = function (ctx, canvas, text, color, pos) {
   const thai = THAI_CHAR.test(text);
   const family = thai ? "Tahoma, Leelawadee UI, Noto Sans Thai, Segoe UI, sans-serif" : "Segoe UI, sans-serif";
+  pos = pos && text ? "(" + pos + ")" : "";
   let size = thai ? 52 : 64;
   const room = canvas.width - 28;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.font = "bold " + size + "px " + family;
-  while (size > 20 && ctx.measureText(text).width > room) { size -= 3; ctx.font = "bold " + size + "px " + family; }
-  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  const k = (G.CONFIG && G.CONFIG.aim && G.CONFIG.aim.posScale) || 0.46;
+  const posFont = (s) => "600 " + Math.round(s * k) + "px Segoe UI, sans-serif";
+  const widths = () => {
+    ctx.font = "bold " + size + "px " + family;
+    const w = ctx.measureText(text).width;
+    if (!pos) return { w, p: 0, gap: 0 };
+    ctx.font = posFont(size);
+    return { w, p: ctx.measureText(pos).width, gap: size * 0.12 };
+  };
+  let m = widths();
+  while (size > 20 && m.w + m.gap + m.p > room) { size -= 3; m = widths(); }
+  ctx.textBaseline = "middle";
   const y = canvas.height / 2 + (thai ? size * 0.08 : 0);
+  const total = m.w + m.gap + m.p, x0 = (canvas.width - total) / 2;
   ctx.lineWidth = thai ? 7 : 8; ctx.strokeStyle = "rgba(0,0,0,0.85)"; ctx.lineJoin = "round";
-  ctx.strokeText(text, canvas.width / 2, y);
+  ctx.font = "bold " + size + "px " + family;
+  ctx.textAlign = "left";
+  ctx.strokeText(text, x0, y);
   ctx.fillStyle = color || "#ffffff";
-  ctx.fillText(text, canvas.width / 2, y);
+  ctx.fillText(text, x0, y);
+  if (pos) {
+    // on the word's baseline, not its middle: small text sits on the line
+    ctx.font = posFont(size);
+    const py = y + size * 0.19;
+    // (dimmer than the word, but solid: see-through grey vanished on a light wall)
+    ctx.lineWidth = 6; ctx.strokeStyle = "rgba(0,0,0,0.9)";
+    ctx.strokeText(pos, x0 + m.w + m.gap, py);
+    ctx.fillStyle = "#c2cbd3";
+    ctx.fillText(pos, x0 + m.w + m.gap, py);
+    ctx.lineWidth = 8;
+  }
   // (new series, round 1, B3) how much of the canvas the words take: a label
   // is hit where its words are, not on the empty band around them
-  const tw = text ? ctx.measureText(text).width + ctx.lineWidth + 12 : 0;
+  const tw = text ? total + ctx.lineWidth + 12 : 0;
   canvas.__fw = Math.min(1, tw / canvas.width);
   canvas.__fh = text ? Math.min(1, (size * 1.3 + ctx.lineWidth) / canvas.height) : 0;
 };
@@ -639,7 +666,7 @@ G.makeWordSprite = function (text, opts) {
   const canvas = document.createElement("canvas");
   canvas.width = 512; canvas.height = 128;
   const ctx = canvas.getContext("2d");
-  G.drawWordLabel(ctx, canvas, text, opts.color || "#ffffff");
+  G.drawWordLabel(ctx, canvas, text, opts.color || "#ffffff", opts.pos);
   const tex = new THREE.CanvasTexture(canvas);
   const mat = new THREE.SpriteMaterial({ map: tex, depthTest: true, transparent: true });
   const sprite = new THREE.Sprite(mat);
@@ -650,8 +677,8 @@ G.makeWordSprite = function (text, opts) {
   sprite.userData.baseScale = [2.2, 0.55];
   return sprite;
 };
-G.updateWordSprite = function (sprite, text, color) {
-  G.drawWordLabel(sprite.userData.ctx, sprite.userData.canvas, text, color || "#ffffff");
+G.updateWordSprite = function (sprite, text, color, pos) {
+  G.drawWordLabel(sprite.userData.ctx, sprite.userData.canvas, text, color || "#ffffff", pos);
   sprite.userData.tex.needsUpdate = true;
 };
 
@@ -1237,12 +1264,22 @@ G.Zombie.prototype.setTarget = function (isTarget) {
   // helper: those answers move no box, js/game.js helpersActive)
   const hot = (spell && this.spellFocus) || (!spell && isTarget && !!(G.save && G.save.settings.highlightTarget));
   const text = this.labelText || (hot ? "🔊" : "");
-  const key = (hot ? "t" : out ? "x" : "n") + (spell ? "s" : "") + text;
+  const pos = this.labelPos();
+  const key = (hot ? "t" : out ? "x" : "n") + (spell ? "s" : "") + text + "|" + pos;
   if (this._label === key) return;
   this._label = key;
   this.sprite.visible = !!text;
   if (!text) return;
-  G.updateWordSprite(this.sprite, out ? "✗ " + text : text, hot ? "#ffe36b" : out ? "#6c7078" : spell ? "#9ae8ff" : "#ffffff");
+  G.updateWordSprite(this.sprite, out ? "✗ " + text : text, hot ? "#ffe36b" : out ? "#6c7078" : spell ? "#9ae8ff" : "#ffffff", pos);
+};
+// (new series, round 2, G) the part of speech after the word it carries --
+// its own English word only: not a Thai meaning or a clue, and not in a
+// question of its family's forms (Cloze), where the tag would be the answer
+G.Zombie.prototype.labelPos = function () {
+  if (this.answer === "spell" || this.clueKind === "cloze" || !this.pair || !G.POS) return "";
+  if (this.labelText !== this.word || this.word !== this.pair[0] || THAI_CHAR.test(this.labelText)) return "";
+  const code = G.POS.of(this.pair);
+  return code ? G.POS.abbr(code) : "";
 };
 // (vocabulary series, round 2-3) how it is answered, its clue, and what its
 // label says: setAnswer(answer, clue, { kind, label, full })

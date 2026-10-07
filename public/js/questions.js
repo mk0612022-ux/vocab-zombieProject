@@ -21,6 +21,10 @@
 //   G.Questions.pickType(pair, prev)      a kind for this word
 //   G.Questions.build(pair, type, pool)   the question
 //   G.QuestionView.fill(els, q, handlers) draws it (choices or the spelling pad)
+// (new series, round 2, G) An English word shown as a choice -- or as the word
+// asked about -- carries its part of speech, research (N./V.), and the wrong
+// choices are of the same part of speech; a question about the word's forms
+// (Cloze, or a phrase that uses another form) shows none (q.noPos).
 // ===================================================================
 window.G = window.G || {};
 
@@ -78,21 +82,51 @@ window.G = window.G || {};
     // ---- the wrong choices ----
     // English words of the same part of speech, look-alikes first for a word
     // being learnt (E1); `bad(entry)` leaves out ones that would also be right
+    // (new series, round 2, G: exactly its part of speech -- "n/v" with
+    // "n/v" -- and only if there are too few of those, one that shares a part
+    // of it, then any)
     samePos(pair, pool, n, bad) {
-      const info = G.Clues.info(pair), pos = info && info.partOfSpeech;
+      const pos = G.POS.of(pair);
       const seen = new Set([G.wordKey(pair)]), out = [];
+      let rule = "same";
       const ok = (p) => {
         if (!p || seen.has(G.wordKey(p)) || low(p[1]) === low(pair[1])) return false;
-        const e = G.Clues.info(p);
-        if (pos && (!e || e.partOfSpeech !== pos)) return false;
+        const e = G.Clues.info(p), pp = G.POS.of(p);
+        if (pos && rule === "same" && pp !== pos) return false;
+        if (pos && rule === "share" && !G.POS.overlap(pos, pp)) return false;
         if (bad && bad(p, e)) return false;
         return true;
       };
       const take = (list) => { for (const p of list) { if (out.length >= n) break; if (ok(p)) { out.push(p); seen.add(G.wordKey(p)); } } };
-      take(G.Distract.forChoices(pair, pool, 12));
-      take(G.shuffle((pool || []).slice()));
-      if (out.length < n) take(G.shuffle(G.getAllBuiltinWords().slice()));
+      for (const r of pos ? ["same", "share", "any"] : ["any"]) {
+        rule = r;
+        take(G.Distract.forChoices(pair, pool, 12));
+        take(G.shuffle((pool || []).slice()));
+        if (out.length < n) take(G.shuffle(G.getAllBuiltinWords().slice()));
+        if (out.length >= n) break;
+      }
       return out.slice(0, n);
+    },
+    // (new series, round 2, G) wrong English words for a question whose
+    // choices show their parts of speech: the usual ones (look-alikes first
+    // for a word being learnt), those of its own part of speech first -- a
+    // tag must not be what picks the answer out
+    posChoices(pair, pool, n) {
+      const pos = G.POS.of(pair);
+      const base = G.Distract.forChoices(pair, pool, 12);
+      if (!pos) return base.slice(0, n);
+      const out = [], words = new Set([G.wordKey(pair)]), thais = new Set([low(pair[1])]);
+      const add = (p) => {
+        if (out.length >= n || !p || words.has(G.wordKey(p)) || thais.has(low(p[1]))) return;
+        out.push(p); words.add(G.wordKey(p)); thais.add(low(p[1]));
+      };
+      base.filter((p) => G.POS.of(p) === pos).forEach(add);
+      // (few words are two parts of speech, a level has only a handful: those
+      // of every level, so the same three do not come back every time)
+      if (out.length < n && G.POS.parts(pos).length > 1) G.shuffle(G.getAllBuiltinWords().filter((p) => G.POS.of(p) === pos)).forEach(add);
+      if (out.length < n) this.samePos(pair, pool, n).forEach(add);
+      if (out.length < n) base.forEach(add);
+      return out;
     },
 
     // ---- the question ----
@@ -100,22 +134,27 @@ window.G = window.G || {};
       pool = pool && pool.length >= 4 ? pool : G.getAllBuiltinWords();
       if (!this.can(type, pair)) type = this.SPELLED.includes(type) ? "spell" : "th2en";
       const q = { type, kind: type, pair, recall: this.RECALL.includes(type), answerText: pair[0], spell: this.SPELLED.includes(type), skills: this.SKILLS[type] || ["recognition"] };
-      const words = (list) => list.map((p) => ({ text: p[0], lang: "en", pair: p }));
+      // (new series, round 2, G) an English choice carries its part of speech
+      const words = (list) => list.map((p) => ({ text: p[0], lang: "en", pair: p, pos: G.POS.of(p) }));
       const thais = (list) => list.map((p) => ({ text: p[1], lang: "th", pair: p }));
       const shuffleIn = (right, wrong) => {
         const all = G.shuffle([right].concat(wrong));
         q.choices = all; q.answer = all.indexOf(right);
       };
+      const own = { text: pair[0], lang: "en", pair, pos: G.POS.of(pair) };
       if (type === "th2en") {
         q.ask = T("q.th2en"); q.prompt = { html: esc(pair[1]), lang: "th", big: true };
-        shuffleIn({ text: pair[0], lang: "en", pair }, words(G.Distract.forChoices(pair, pool, 3)));
+        shuffleIn(own, words(this.posChoices(pair, pool, 3)));
       } else if (type === "en2th") {
-        q.ask = T("q.en2th"); q.prompt = { html: esc(pair[0]), lang: "en", big: true };
+        q.ask = T("q.en2th"); q.prompt = { html: esc(pair[0]) + G.POS.tag(pair), lang: "en", big: true };
         shuffleIn({ text: pair[1], lang: "th", pair }, thais(G.Distract.forChoices(pair, pool, 3)));
       } else if (type === "def2word") {
         q.ask = T("q.def2word"); q.prompt = { html: "≈ " + esc(G.Clues.definition(pair)), lang: "en" };
-        shuffleIn({ text: pair[0], lang: "en", pair }, words(G.Distract.forChoices(pair, pool, 3)));
+        shuffleIn(own, words(this.posChoices(pair, pool, 3)));
       } else if (type === "cloze") {
+        // (a question of the family's forms: no part of speech on any choice --
+        // the tag would say which form fits the gap)
+        q.noPos = true;
         const c = G.Clues.cloze(pair, G.rng() < 0.5 ? 0 : 1) || G.Clues.cloze(pair);
         const start = !c.before.trim();
         const shape = (w) => (start ? w.charAt(0).toUpperCase() + w.slice(1) : w.toLowerCase());
@@ -134,7 +173,11 @@ window.G = window.G || {};
         // never one that also goes with these words somewhere in the bank
         const partner = G.Clues.tokens(c.partner).map(low).filter((w) => !G.Clues.STOP.has(w));
         const alsoFits = (p, e) => ((e && e.collocations) || []).some((col) => { const ts = G.Clues.tokens(col).map(low); return partner.length && partner.every((w) => ts.includes(w)); });
-        shuffleIn({ text: c.answer.toLowerCase(), lang: "en", pair }, words(this.samePos(pair, pool, 3, alsoFits)));
+        shuffleIn({ text: c.answer.toLowerCase(), lang: "en", pair, pos: G.POS.of(pair) }, words(this.samePos(pair, pool, 3, alsoFits)));
+        // (the words go in as they are in the bank; when the phrase uses
+        // another form of the word -- "economic growth" for economy -- the
+        // headword's part of speech would be wrong for it: none shown)
+        if (low(c.answer) !== low(pair[0])) q.noPos = true;
       } else if (type === "paraphrase") {
         const P = G.Clues.info(pair).paraphrase;
         const i = P.sentence.toLowerCase().indexOf(P.phrase.toLowerCase());
@@ -142,7 +185,8 @@ window.G = window.G || {};
         q.ask = T("q.paraphrase");
         q.prompt = { html: i < 0 ? esc(P.sentence) : esc(P.sentence.slice(0, i)) + "<u>" + esc(P.sentence.substr(i, P.phrase.length)) + "</u>" + esc(P.sentence.slice(i + P.phrase.length)), lang: "en" };
         const syn = new Set(((G.Clues.info(pair).synonyms) || []).map(low));
-        shuffleIn({ text: P.word, lang: "en", pair }, words(this.samePos(pair, pool, 3, (p) => syn.has(low(p[0])))));
+        shuffleIn({ text: P.word, lang: "en", pair, pos: G.POS.of(pair) }, words(this.samePos(pair, pool, 3, (p) => syn.has(low(p[0])))));
+        if (low(P.word) !== low(pair[0])) q.noPos = true;
       } else if (type === "listen") {
         q.ask = T("q.listen"); q.prompt = { html: "", lang: "en", listen: true }; q.speak = pair[0];
         shuffleIn({ text: pair[1], lang: "th", pair }, thais(G.Distract.forChoices(pair, pool, 3)));
@@ -210,7 +254,10 @@ window.G = window.G || {};
         pad.setWord(Q.spellTarget(q), "");
       } else {
         const cls = h.choiceClass || "quiz-choice";
-        box.innerHTML = q.choices.map((c, k) => `<button class="${cls}${c.lang === "th" ? " th" : ""}" data-k="${k}" lang="${c.lang}" type="button"><b>${k + 1}</b><span>${esc(c.text)}</span></button>`).join("");
+        // (new series, round 2, G) an English word with its part of speech --
+        // not in a question of the word's forms (q.noPos)
+        const tag = (c) => (c.lang === "en" && c.pos && !q.noPos ? G.POS.tag(c.pos) : "");
+        box.innerHTML = q.choices.map((c, k) => `<button class="${cls}${c.lang === "th" ? " th" : ""}" data-k="${k}" lang="${c.lang}" type="button"><b>${k + 1}</b><span>${esc(c.text)}${tag(c)}</span></button>`).join("");
         box.querySelectorAll("[data-k]").forEach((b) => { b.onclick = () => h.pick && h.pick(parseInt(b.dataset.k, 10)); });
       }
       return { pad };

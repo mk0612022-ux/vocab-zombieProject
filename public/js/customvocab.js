@@ -5,7 +5,7 @@
 // so they go wherever the save goes, Export Save included. A level's word
 // list (G.WORD_SETS[key].words) is its built-in words followed by these.
 // A word may carry optional fields as a third item, [en, th, {definition,
-// synonyms, example, collocations, topic}] (G.cleanCustomExtra); modes that
+// synonyms, example, collocations, topic, pos}] (G.cleanCustomExtra); modes that
 // need a field a word does not have skip that word (G.WordBank.has).
 //
 // Rules, for a word typed in and for every row of an imported CSV alike:
@@ -202,6 +202,12 @@ G.CustomVocabUI = {
     const keep = sel.value || this.tab;
     sel.innerHTML = G.CustomVocab.LEVEL_KEYS.map((k) => `<option value="${k}">${G.CustomVocab.levelName(k)}</option>`).join("");
     sel.value = keep;
+    // (new series, round 2, G) its part of speech: one, or the two the bank
+    // pairs most (noun and verb, noun and adjective)
+    const ps = $("cv-pos"), keepPos = ps.value;
+    ps.innerHTML = `<option value="">${G.T("cv.posNone")}</option>` + G.POS.ORDER.concat(["n/v", "n/adj", "v/adj"]).map((c) =>
+      `<option value="${c}">${G.escapeHtml(G.POS.abbr(c) + " " + G.POS.name(c))}</option>`).join("");
+    ps.value = keepPos;
     const tp = $("cv-topic"), keepTopic = tp.value;
     tp.innerHTML = `<option value="">${G.T("cv.topicNone")}</option>` + G.WORD_TOPICS.map((t) => `<option value="${G.escapeHtml(t)}">${G.escapeHtml(G.topicLabel(t))}</option>`).join("");
     tp.value = keepTopic;
@@ -220,7 +226,7 @@ G.CustomVocabUI = {
         const editing = this.editing && this.editing.key === this.tab && this.editing.index === i;
         const has = p[2] ? ["definition", "synonyms", "example", "collocations", "topic"].filter((f) => p[2][f]).map((f) => G.T("cv.has." + f)) : [];
         const note = has.length ? `<span class="cv-extra-note">+ ${esc(has.join(", "))}</span>` : "";
-        return `<div class="cv-row${editing ? " editing" : ""}"><div class="cv-word"><b>${esc(p[0])}</b><span>${esc(p[1])}</span>${note}</div>
+        return `<div class="cv-row${editing ? " editing" : ""}"><div class="cv-word"><b>${esc(p[0])}${G.POS.tag(p)}</b><span>${esc(p[1])}</span>${note}</div>
           <div class="cv-actions"><button class="btn" data-act="edit" data-idx="${i}">${G.T("cv.edit")}</button>
           <button class="btn${armed ? " danger" : ""}" data-act="del" data-idx="${i}">${G.T(armed ? "cv.confirmDelete" : "cv.delete")}</button></div></div>`;
       }).join("")
@@ -233,7 +239,8 @@ G.CustomVocabUI = {
     const $ = (id) => document.getElementById(id);
     $("cv-en").value = p[0]; $("cv-th").value = p[1]; $("cv-level").value = key;
     this.fillExtra(p[2]);
-    this.showExtra(!!p[2]);
+    // (its part of speech sits in the main row: "More" opens for the rest)
+    this.showExtra(!!p[2] && ["definition", "synonyms", "example", "collocations", "topic"].some((f) => p[2][f]));
     $("cv-save").textContent = G.T("cv.saveChanges");
     $("cv-cancel").classList.remove("hidden");
     this.showMsg(G.T("cv.editing", { w: p[0] }), "");
@@ -280,13 +287,13 @@ G.CustomVocabUI = {
   },
   readExtra() {
     const v = (id) => document.getElementById(id).value;
-    return { definition: v("cv-def"), synonyms: v("cv-syn"), example: v("cv-ex"), collocations: v("cv-col"), topic: v("cv-topic") };
+    return { definition: v("cv-def"), synonyms: v("cv-syn"), example: v("cv-ex"), collocations: v("cv-col"), topic: v("cv-topic"), pos: v("cv-pos") };
   },
   fillExtra(x) {
     x = x || {};
     const set = (id, val) => { document.getElementById(id).value = val || ""; };
     set("cv-def", x.definition); set("cv-syn", (x.synonyms || []).join(", ")); set("cv-ex", x.example);
-    set("cv-col", (x.collocations || []).join(", ")); set("cv-topic", x.topic);
+    set("cv-col", (x.collocations || []).join(", ")); set("cv-topic", x.topic); set("cv-pos", x.pos);
   },
   showMsg(text, kind) {
     const el = document.getElementById("cv-msg");

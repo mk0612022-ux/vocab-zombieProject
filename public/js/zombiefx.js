@@ -128,6 +128,16 @@ G.ZombieFX = {
     const { world } = ctx;
     const doors = (world.roomDoors || []).filter((d) => Math.abs((d.baseY || 0) - floorY) < 1.5);
     const nearDoor = (x, z, pad) => doors.some((d) => Math.hypot(d.x - x, d.z - z) < (d.width || 3) / 2 + pad);
+    // (new series, round 2: found by tools/round10-test.js, I3) the way in
+    // from each door of this space, straight across it from the door's wall,
+    // stays open -- a desk to crawl out from under once stood in a classroom's
+    // aisle. `pad`: how far from that line the spot must be
+    const inAisle = (x, z, pad) => doors.some((d) => {
+      const ex = Math.min(Math.abs(d.x - rect.minX), Math.abs(d.x - rect.maxX)), ez = Math.min(Math.abs(d.z - rect.minZ), Math.abs(d.z - rect.maxZ));
+      if (Math.min(ex, ez) > 1.2) return false;                 // not a door of this space
+      return ex < ez ? x >= rect.minX && x <= rect.maxX && Math.abs(z - d.z) < pad
+        : z >= rect.minZ && z <= rect.maxZ && Math.abs(x - d.x) < pad;
+    });
     const scratch = [];
     const free = (box) => {
       if (!this._idx) return !this._occ.some((b) => b.intersectsBox(box)) && !world.colliders.some((b) => b.intersectsBox(box));
@@ -230,6 +240,8 @@ G.ZombieFX = {
       const nodes = Object.values(world.waypointNodes || {}).filter((n) => Math.abs((n.y || 0) - floorY) < 1.5);
       for (const s of spots) {
         if (nearDoor(s.x, s.z, 2.0)) continue;
+        // (the desk reaches 0.75 from its middle; and room to walk past)
+        if (inAisle(s.x, s.z, 1.35)) continue;
         if (nodes.some((n) => Math.hypot(n.x - s.x, n.z - s.z) < 1.8)) continue;
         const yaws = G.shuffle([0, Math.PI / 2, Math.PI, -Math.PI / 2]);
         for (const yaw of yaws) {

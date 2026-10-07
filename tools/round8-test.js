@@ -73,7 +73,8 @@ G.Round8Test = (function () {
     ok("config: ...and nowhere else", dup.length === 0, dup.join(","));
     const C = G.CONFIG;
     ok("config: player, quiz, boss, abilities, third floor, checkpoint", C.player && C.quiz && C.boss && C.abilities && C.floor3 && C.checkpoint && C.player.maxHp === 450);
-    ok("config: loaded before everything else", Array.from(document.scripts).map((s) => s.getAttribute("src") || "").filter((s) => /^js\//.test(s)).indexOf("js/config.js") === 1);
+    // (new series, round 2: the game's scripts are deferred; strings.js and boot.js run while the page is read, before any of them)
+    ok("config: loaded before everything else", Array.from(document.scripts).map((s) => s.getAttribute("src") || "").filter((s) => /^js\//.test(s) && !/^js\/(strings|boot)\.js$/.test(s)).indexOf("js/config.js") === 0);
   }
 
   // ================================================================
@@ -125,7 +126,7 @@ G.Round8Test = (function () {
     Q.update(0.5);
     ok("A3 the answer stays up a moment", Q.stage === "feedback");
     Q.update(G.CONFIG.quiz.wrongFeedback);
-    ok("A3 then the next question (English word -> Thai meaning)", Q.stage === "question" && Q.i === 1 && el("quiz-prompt").textContent === Q.qs[1].pair[0]);
+    ok("A3 then the next question (English word -> Thai meaning)", Q.stage === "question" && Q.i === 1 && el("quiz-prompt").textContent === G.POS.text(Q.qs[1].pair[0], Q.qs[1].pair));
     // out of time
     Q.update(14.9);
     ok("A3 still waiting at 14.9 s", Q.stage === "question");

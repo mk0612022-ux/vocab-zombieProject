@@ -6,8 +6,9 @@
 // its size and hash. The device keeps one whole version in the service
 // worker's cache (sw.js) and plays from it, online or not.
 //
-//   opening     the boot screen checks the site's version.json (never from a
-//               cache). The same build as installed: on to the lobby. A
+//   opening     the Loading screen (js/boot.js) checks the site's version.json
+//               (never from a cache). The same build as installed: on to the
+//               Start screen (js/start.js), then the lobby. A
 //               different one: "Update Available" -- this version -> that
 //               one, what changed, about how much to download -- and Update.
 //               It has to be done before playing, so every device matches.
@@ -33,7 +34,7 @@ window.G = window.G || {};
 (function () {
   const T = (k, v) => (G.T ? G.T(k, v) : k);
   const $ = (id) => document.getElementById(id);
-  const C = () => (G.CONFIG && G.CONFIG.update) || { checkMinutes: 5, timeout: 8000, minBootMs: 600, restartDelay: 1200, offlineRetrySeconds: 60, parallel: 4 };
+  const C = () => (G.CONFIG && G.CONFIG.update) || { checkMinutes: 5, timeout: 8000, minBootMs: 1000, bootWaitMs: 8000, restartDelay: 1200, offlineRetrySeconds: 60, parallel: 4 };
   const PREFIX = "vz-files-";
   const abs = (p) => new URL(p, location.href.split("#")[0].split("?")[0].replace(/[^/]*$/, "")).href;
   const fmtSize = (b) => (b >= 1048576 ? (b / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(b / 1024)) + " KB");
@@ -47,7 +48,8 @@ window.G = window.G || {};
     mismatch: false,        // the player chose to play an old version
     busy: false,
     stage: "checking",      // checking | ready | update | downloading | failed | done
-    _t0: Date.now(),
+    // (new series, round 2: from when the Loading screen went up, js/boot.js)
+    _t0: (G.Boot && G.Boot.t0) || Date.now(),
 
     // ---------------- the version, for the corner of the screen and Settings ----------------
     label() {
@@ -63,9 +65,11 @@ window.G = window.G || {};
     // ---------------- start-up ----------------
     start() {
       G.Modal && G.Modal.open("boot", { keys: (e) => this.key(e) });
-      this.setStatus(T("boot.checking"), null);
+      // (the Loading screen shows the real progress itself)
+      if (!G.Boot) this.setStatus(T("boot.checking"), null);
       this.check(true).catch(() => {}).then(() => {
         if (this.stage === "checking") this.stage = "ready";
+        if (G.Boot) G.Boot.update();
         this.maybeEnter();
       });
       window.addEventListener("online", () => this.check(false).catch(() => {}));
@@ -74,18 +78,30 @@ window.G = window.G || {};
     },
     // the game has finished setting up (js/game.js)
     gameReady() { this._gameReady = true; this.maybeEnter(); },
-    // into the lobby once the check and the game are both done (and the
-    // screen has been up long enough not to flash)
+    // on to the Start screen (new series, round 2, E; then the lobby) once
+    // the check and the game are both done, everything the Loading screen
+    // counts has come (js/boot.js -- or it has waited long enough for a
+    // picture that does not), and the screen has been up long enough not to
+    // flash
     maybeEnter() {
       if (!this._gameReady || this.stage !== "ready" || this._entered) return;
-      const wait = Math.max(0, C().minBootMs - (Date.now() - this._t0));
+      const since = Date.now() - this._t0;
+      if (G.Boot && !G.Boot.loaded() && since < C().bootWaitMs) {
+        clearTimeout(this._enterT);
+        this._enterT = setTimeout(() => this.maybeEnter(), Math.min(500, C().bootWaitMs - since));
+        return;
+      }
+      const wait = Math.max(0, C().minBootMs - since);
       setTimeout(() => {
         if (this._entered || this.stage !== "ready") return;
         this._entered = true;
+        this._enteredAt = Date.now();
         $("loading-overlay").classList.add("hidden");
         G.Modal && G.Modal.close("boot");
+        if (G.Boot) G.Boot.finish();
         this.showLabel();
         this.badge();
+        if (G.Start) G.Start.show();
       }, wait);
     },
 
@@ -140,6 +156,9 @@ window.G = window.G || {};
       else this.offer();
     },
     async fetchManifest(fresh) {
+      // (the Loading screen asked for it the moment the page opened)
+      const early = fresh && G.Boot && G.Boot.takeVersion();
+      if (early) return early;
       const ctl = window.AbortController ? new AbortController() : null;
       const timer = ctl ? setTimeout(() => ctl.abort(), C().timeout) : null;
       try {

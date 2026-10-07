@@ -141,7 +141,7 @@ window.G = window.G || {};
     // a word the player can open
     wordBtn(pair, extra) {
       const i = this._words.push(pair) - 1;
-      return `<button class="pg-word" type="button" data-word="${i}"><b lang="en">${esc(pair[0])}</b><span lang="th">${esc(pair[1] || "")}</span>${extra ? `<em>${esc(extra)}</em>` : ""}</button>`;
+      return `<button class="pg-word" type="button" data-word="${i}"><b lang="en">${esc(pair[0])}${G.POS.tag(pair)}</b><span lang="th">${esc(pair[1] || "")}</span>${extra ? `<em>${esc(extra)}</em>` : ""}</button>`;
     },
 
     learnHtml(d) {

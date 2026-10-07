@@ -14,6 +14,11 @@
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
 <link rel="stylesheet" href="css/style.css">
+<!-- (new series, round 2, D) the Loading screen's picture first, ahead of
+     the scripts: it is the first thing on the screen (the same media test as
+     its <picture> below) -->
+<link rel="preload" as="image" type="image/webp" href="assets/boot/loading-small.webp" media="(max-width: 900px), (max-height: 540px)">
+<link rel="preload" as="image" type="image/webp" href="assets/boot/loading-large.webp" media="(min-width: 901px) and (min-height: 541px)">
 </head>
 <body>
 <!-- Every visible string comes from js/strings.js: data-i18n fills text,
@@ -61,10 +66,28 @@
 </div>
 
 <!-- ===================== SETTINGS ===================== -->
-<div id="screen-settings" class="screen hidden">
-  <h2 class="screen-title" data-i18n="settings.title"></h2>
-  <div class="settings-content" id="settings-content"></div>
-  <div class="row-center"><button class="btn" id="btn-settings-back" data-i18n="common.back"></button></div>
+<!-- (new series, round 2, F; js/settings.js) the back button and the page's
+     ribbon, the categories down the left (along the top on a narrow phone),
+     and the chosen category's settings on the right -->
+<div id="screen-settings" class="screen screen-set hidden">
+  <div class="set-top">
+    <button class="set-back" id="btn-settings-back" type="button" data-i18n-aria="common.back"><span aria-hidden="true">‹</span></button>
+    <h2 class="set-ribbon" data-i18n="settings.title"></h2>
+    <span class="set-keys kbd-only" id="set-keys"></span>
+  </div>
+  <div class="set-body">
+    <nav class="set-cats" id="set-cats" role="tablist" aria-orientation="vertical"></nav>
+    <div class="set-panel settings-content" id="settings-content"></div>
+  </div>
+</div>
+
+<!-- (new series, round 2, F) Settings > About > Privacy Policy: a G.Modal window -->
+<div id="privacy" class="dialog-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="privacy-title">
+  <div class="dialog-box privacy-box" id="privacy-box">
+    <h3 class="dialog-title" id="privacy-title" data-i18n="privacy.title"></h3>
+    <div class="privacy-body" id="privacy-body"></div>
+    <div class="dialog-btns"><button class="btn btn-primary" id="btn-privacy-close" type="button" data-pad-back data-i18n="common.close"></button></div>
+  </div>
 </div>
 
 <!-- ===================== LEADERBOARD ===================== -->
@@ -391,6 +414,7 @@
     <div class="cv-form">
       <label class="cv-field"><span data-i18n="cv.en"></span><input id="cv-en" type="text" maxlength="32" autocomplete="off" autocapitalize="off" spellcheck="false" lang="en"></label>
       <label class="cv-field"><span data-i18n="cv.th"></span><input id="cv-th" type="text" maxlength="80" autocomplete="off" lang="th"></label>
+      <label class="cv-field"><span data-i18n="cv.pos"></span><select id="cv-pos"></select></label>
       <label class="cv-field"><span data-i18n="cv.level"></span><select id="cv-level"></select></label>
       <div class="cv-more-row"><button class="btn" id="cv-more" type="button" aria-expanded="false" aria-controls="cv-extra" data-i18n="cv.more"></button></div>
       <div class="cv-extra hidden" id="cv-extra">
@@ -648,16 +672,25 @@
 </div>
 
 <!-- shown before any script has loaded, so it keeps a literal fallback -->
-<!-- The boot screen (new series, round 1, C2): the update check before the
-     lobby, and "Update Available" when the site has a newer version
-     (js/updater.js). Round 2 dresses it as the Loading screen. -->
+<!-- The Loading screen (new series, round 2, D; js/boot.js): the school's
+     horde with a word over each head, the real progress, tips and the Word
+     of the Day; the update check runs under it, and "Update Available" comes
+     up over it when the site has a newer version (js/updater.js). -->
 <div id="loading-overlay" class="loading-overlay boot">
+  <div class="boot-scene" aria-hidden="true">
+    <picture class="boot-art">
+      <source media="(max-width: 900px), (max-height: 540px)" srcset="assets/boot/loading-small.webp" type="image/webp">
+      <img id="boot-art-img" src="assets/boot/loading-large.webp" alt="" decoding="async" fetchpriority="high">
+    </picture>
+    <div class="boot-words" id="boot-words"></div>
+  </div>
+  <div class="boot-shade" aria-hidden="true"></div>
+  <div class="boot-logo">VOCAB <span>ZOMBIE</span></div>
   <div class="boot-box" id="boot-box">
-    <div class="boot-logo">VOCAB <span>ZOMBIE</span></div>
-    <div id="boot-main">
-      <div class="loading-text" id="boot-status" data-i18n="common.loading">Loading...</div>
+    <div id="boot-main" class="boot-main">
+      <div class="boot-tip" id="boot-tip" aria-live="polite"><b id="boot-tip-h"></b><span id="boot-tip-text"></span></div>
+      <div class="boot-row"><span class="loading-text" id="boot-status" data-i18n="common.loading">Loading...</span><span class="boot-pct" id="boot-pct"></span></div>
       <div class="boot-bar indeterminate" id="boot-bar"><div class="boot-bar-fill" id="boot-bar-fill"></div></div>
-      <div class="boot-pct" id="boot-pct"></div>
     </div>
     <div id="boot-update" class="boot-panel hidden" role="dialog" aria-modal="true" aria-labelledby="upd-title">
       <h3 class="boot-title" id="upd-title" data-i18n="update.title"></h3>
@@ -681,8 +714,23 @@
       </div>
     </div>
     <div class="loading-error hidden" id="loading-error"></div>
-    <div class="boot-version" data-version></div>
   </div>
+  <div class="boot-version" data-version></div>
+</div>
+
+<!-- The Start screen (new series, round 2, E; js/start.js): after Loading,
+     before the lobby. Anywhere, any key or A goes in (and lets the sound start). -->
+<div id="start-screen" class="start-screen hidden" role="dialog" aria-modal="true" aria-labelledby="start-tap">
+  <div class="start-motes" id="start-motes" aria-hidden="true"></div>
+  <div class="start-logo" aria-hidden="true">VOCAB <span>ZOMBIE</span></div>
+  <div class="start-hero" aria-hidden="true"><div class="start-glow"></div><img src="assets/boot/start-horde.webp" alt="" decoding="async"></div>
+  <button class="start-tap" id="start-tap" type="button" data-i18n="start.tap"></button>
+  <div class="start-hint" id="start-hint"></div>
+  <div class="start-account" id="start-account">
+    <span class="sa-who"><span class="sa-avatar" aria-hidden="true">👤</span><span class="sa-name" id="start-name"></span><span class="sa-uid hidden" id="start-uid"></span></span>
+    <button class="sa-signin" id="btn-start-signin" type="button" data-i18n="account.signIn"></button>
+  </div>
+  <div class="start-version" data-version></div>
 </div>
 <script>
 // (A4) A file that fails to load (offline before the game was ever kept,
@@ -706,78 +754,86 @@ window.addEventListener("load", function () {
 });
 </script>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<!-- (new series, round 2, D) The game's scripts are deferred: the page is read
+     to the end -- the Loading screen is up -- and they run after, in this
+     order, each counted on the Loading screen as it arrives (js/boot.js). -->
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script defer src="js/config.js"></script>
+<script defer src="js/data/bank_school.js"></script>
+<script defer src="js/data/bank_hospital.js"></script>
+<script defer src="js/data/bank_bunker.js"></script>
+<script defer src="js/data/confusables.js"></script>
+<script defer src="js/wordbank.js"></script>
+<script defer src="js/data/words.js"></script>
+<script defer src="js/srs.js"></script>
+<script defer src="js/learnmodes.js"></script>
+<script defer src="js/distract.js"></script>
+<script defer src="js/clues.js"></script>
+<script defer src="js/data/notes_school.js"></script>
+<script defer src="js/data/words_bosses.js"></script>
+<script defer src="js/core.js"></script>
+<script defer src="js/modal.js"></script>
+<script defer src="js/anim.js"></script>
+<script defer src="js/touchcfg.js"></script>
+<script defer src="js/entities.js"></script>
+<script defer src="js/aim.js"></script>
+<script defer src="js/zombiefx.js"></script>
+<script defer src="js/playerbody.js"></script>
+<script defer src="js/viewmodel.js"></script>
+<script defer src="js/headbob.js"></script>
+<script defer src="js/world.js"></script>
+<script defer src="js/schooldress.js"></script>
+<script defer src="js/schoolrooms.js"></script>
+<script defer src="js/wear.js"></script>
+<script defer src="js/campus.js"></script>
+<script defer src="js/schoolshell.js"></script>
+<script defer src="js/systems.js"></script>
+<script defer src="js/perks.js"></script>
+<script defer src="js/loadout.js"></script>
+<script defer src="js/customvocab.js"></script>
+<script defer src="js/gamepad.js"></script>
+<script defer src="js/objectives.js"></script>
+<script defer src="js/notes.js"></script>
+<script defer src="js/minimap.js"></script>
+<script defer src="js/audio.js"></script>
+<script defer src="js/gunaudio.js"></script>
+<script defer src="js/perf.js"></script>
+<script defer src="js/zones.js"></script>
+<script defer src="js/details.js"></script>
+<script defer src="js/sky.js"></script>
+<script defer src="js/glass.js"></script>
+<script defer src="js/bossmodels.js"></script>
+<script defer src="js/bosses.js"></script>
+<script defer src="js/bossmoves.js"></script>
+<script defer src="js/cutscene.js"></script>
+<script defer src="js/abilities.js"></script>
+<script defer src="js/floor3.js"></script>
+<script defer src="js/checkpoint.js"></script>
+<script defer src="js/dialog.js"></script>
+<script defer src="js/tutorial.js"></script>
+<script defer src="js/ui.js"></script>
+<script defer src="js/settings.js"></script>
+<script defer src="js/abilityui.js"></script>
+<script defer src="js/quiz.js"></script>
+<script defer src="js/spell.js"></script>
+<script defer src="js/study.js"></script>
+<script defer src="js/questions.js"></script>
+<script defer src="js/vocabcard.js"></script>
+<script defer src="js/practice.js"></script>
+<script defer src="js/campstyle.js"></script>
+<script defer src="js/progress.js"></script>
+<script defer src="js/hudcfg.js"></script>
+<script defer src="js/tips.js"></script>
+<script defer src="js/journal.js"></script>
+<script defer src="js/bosscodex.js"></script>
+<script defer src="js/lobby.js"></script>
+<script defer src="js/pwa.js"></script>
+<script defer src="js/account.js"></script>
+<script defer src="js/start.js"></script>
+<script defer src="js/updater.js"></script>
+<script defer src="js/game.js"></script>
+<!-- the two that run while the page is read: the words, then the Loading screen -->
 <script src="js/strings.js"></script>
-<script src="js/config.js"></script>
-<script src="js/data/bank_school.js"></script>
-<script src="js/data/bank_hospital.js"></script>
-<script src="js/data/bank_bunker.js"></script>
-<script src="js/data/confusables.js"></script>
-<script src="js/wordbank.js"></script>
-<script src="js/data/words.js"></script>
-<script src="js/srs.js"></script>
-<script src="js/learnmodes.js"></script>
-<script src="js/distract.js"></script>
-<script src="js/clues.js"></script>
-<script src="js/data/notes_school.js"></script>
-<script src="js/data/words_bosses.js"></script>
-<script src="js/core.js"></script>
-<script src="js/modal.js"></script>
-<script src="js/anim.js"></script>
-<script src="js/touchcfg.js"></script>
-<script src="js/entities.js"></script>
-<script src="js/aim.js"></script>
-<script src="js/zombiefx.js"></script>
-<script src="js/playerbody.js"></script>
-<script src="js/viewmodel.js"></script>
-<script src="js/headbob.js"></script>
-<script src="js/world.js"></script>
-<script src="js/schooldress.js"></script>
-<script src="js/schoolrooms.js"></script>
-<script src="js/wear.js"></script>
-<script src="js/campus.js"></script>
-<script src="js/schoolshell.js"></script>
-<script src="js/systems.js"></script>
-<script src="js/perks.js"></script>
-<script src="js/loadout.js"></script>
-<script src="js/customvocab.js"></script>
-<script src="js/gamepad.js"></script>
-<script src="js/objectives.js"></script>
-<script src="js/notes.js"></script>
-<script src="js/minimap.js"></script>
-<script src="js/audio.js"></script>
-<script src="js/gunaudio.js"></script>
-<script src="js/perf.js"></script>
-<script src="js/zones.js"></script>
-<script src="js/details.js"></script>
-<script src="js/sky.js"></script>
-<script src="js/glass.js"></script>
-<script src="js/bossmodels.js"></script>
-<script src="js/bosses.js"></script>
-<script src="js/bossmoves.js"></script>
-<script src="js/cutscene.js"></script>
-<script src="js/abilities.js"></script>
-<script src="js/floor3.js"></script>
-<script src="js/checkpoint.js"></script>
-<script src="js/dialog.js"></script>
-<script src="js/tutorial.js"></script>
-<script src="js/ui.js"></script>
-<script src="js/abilityui.js"></script>
-<script src="js/quiz.js"></script>
-<script src="js/spell.js"></script>
-<script src="js/study.js"></script>
-<script src="js/questions.js"></script>
-<script src="js/vocabcard.js"></script>
-<script src="js/practice.js"></script>
-<script src="js/campstyle.js"></script>
-<script src="js/progress.js"></script>
-<script src="js/hudcfg.js"></script>
-<script src="js/tips.js"></script>
-<script src="js/journal.js"></script>
-<script src="js/bosscodex.js"></script>
-<script src="js/lobby.js"></script>
-<script src="js/pwa.js"></script>
-<script src="js/updater.js"></script>
-<script src="js/game.js"></script>
+<script src="js/boot.js"></script>
 </body>
 </html>

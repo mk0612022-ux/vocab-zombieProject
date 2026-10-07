@@ -226,15 +226,36 @@ G.CONFIG = {
     checkMinutes: 5,                // in the lobby, look for a new version this often
     offlineRetrySeconds: 60,        // ...and this often while offline
     timeout: 8000,                  // ms to wait for version.json before calling it offline
-    minBootMs: 600,                 // the boot screen stays at least this long (no flash)
+    minBootMs: 1000,                // (round 2, D) the Loading screen stays at least this long (no flash)
+    bootWaitMs: 8000,               // ...and waits at most this long for a picture that does not come
     restartDelay: 1200,             // ms "Update complete - restarting" shows before the reload
     parallel: 4,                    // files downloaded at once
+  },
+  // (new series, round 2, E) the Start screen (js/start.js)
+  start: {
+    fadeMs: 500,                    // its fade into the lobby
+  },
+  // (new series, round 2, F) a controller's right stick (js/game.js); the
+  // Settings slider multiplies the speed (G.save.settings.padSensitivity)
+  pad: {
+    look: 6,                        // look per frame at full tilt, before the setting
+    deadzone: 0.15,                 // a stick this far off centre is still at rest
+  },
+  // (new series, round 2, E) the lobby's music, from the Start screen's tap on (js/audio.js menuMusic)
+  menuMusic: {
+    root: 55,                       // Hz: the drone's low A
+    gain: 0.5,                      // the drone, on the music bus
+    wind: 0.12,                     // the wind, on the ambient bus
+    bells: [0, 3, 5, 7, 10],        // semitones: a minor pentatonic
+    bellGain: 0.05,
+    bellGap: [3.5, 8.5],            // seconds between bells
   },
   // B: aiming into a crowd (js/aim.js)
   aim: {
     hitboxPad: 1.06,                // a hitbox is this much bigger than the part it covers
     outline: 1.12,                  // the glow round the zombie under the crosshair (x its hitboxes)
     labelHover: 1.3,                // ...and its word, this much larger
+    posScale: 0.46,                 // (new series, round 2, G) a word's part of speech after it, this share of its size
     labelGapPx: 4,                  // between two words on screen
     labelUp: 16,                    // a word may move up this many of its heights to keep clear of the others...
     labelUpScreen: 0.6,             // ...or this share of the screen, whichever is more

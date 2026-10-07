@@ -93,7 +93,10 @@ G.Pad = {
       // (vocabulary series, round 4)
       practice: "screen-practice-play", campstyle: "camp-style-box",
       // (new series, round 1) the boot screen: Update, Retry, Play this version
-      boot: "boot-box" };
+      boot: "boot-box",
+      // (new series, round 2) the Start screen: A on "Tap To Lobby", or down to
+      // Sign In; Settings' privacy policy
+      start: "start-screen", privacy: "privacy-box" };
     if (top && byModal[top.id]) return document.getElementById(byModal[top.id]);
     if (G.TouchCfg && G.TouchCfg.editing) return document.getElementById("touchcfg-panel");
     const cur = G.UI._currentScreen;
@@ -125,12 +128,17 @@ G.Pad = {
       if (edge(B.LB)) G.Progress.setTab("learn");
       if (edge(B.RB)) G.Progress.setTab("game");
     }
+    // (new series, round 2, F) the Settings page's categories on LB / RB
+    if (!G.Modal.isOpen() && G.UI._currentScreen === "screen-settings" && G.SettingsUI) {
+      if (edge(B.LB)) G.SettingsUI.cycle(-1);
+      if (edge(B.RB)) G.SettingsUI.cycle(1);
+    }
     const root = this.scope();
     const items = this.focusables(root);
     if (!items.length) { this.clearFocus(); return; }
     if (!this.focused || !items.includes(this.focused)) {
-      // start on the main action if there is one
-      this.setFocus(items.find((el) => el.classList.contains("btn-primary")) || items[0]);
+      // start where the page says (data-pad-start), else on the main action
+      this.setFocus(items.find((el) => el.hasAttribute("data-pad-start")) || items.find((el) => el.classList.contains("btn-primary")) || items[0]);
     }
     const ax = gp.axes[0] || 0, ay = gp.axes[1] || 0;
     let dir = null;
@@ -161,6 +169,9 @@ G.Pad = {
         el.dispatchEvent(new Event("change", { bubbles: true }));
         return;
       }
+      // (new series, round 2, F) a segmented choice: the next one along is
+      // chosen, like a list box; past its end, on to whatever is that way
+      if (el.closest && el.closest(".seg") && G.SettingsUI && G.SettingsUI.segStep(el, dir === "right" ? 1 : -1)) return;
     }
     const from = el.getBoundingClientRect();
     const cx = from.left + from.width / 2, cy = from.top + from.height / 2;
@@ -175,6 +186,12 @@ G.Pad = {
       const side = dir === "left" || dir === "right" ? Math.abs(dy) : Math.abs(dx);
       const score = main + side * 2.2;
       if (score < bestScore) { bestScore = score; best = o; }
+    }
+    // (new series, round 2, F) arriving on a segmented choice from outside
+    // it: on the option that is chosen, not the nearest one
+    if (best && best.closest && best.closest(".seg") && !(el && el.closest && el.closest(".seg") === best.closest(".seg"))) {
+      const on = best.closest(".seg").querySelector(".seg-o.on:not([disabled])");
+      if (on) best = on;
     }
     if (best) this.setFocus(best);
   },

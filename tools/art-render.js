@@ -1,11 +1,15 @@
 // Dev-only (not shipped). Renders the lobby's artwork (round 4) from the
 // game's own levels: each mode's scene built as in play, a survivor and a
 // few zombies posed in it, a camera placed by hand, a little extra light, and
-// the frame saved as a JPEG into assets/lobby/ by the localhost receiver
-// (scratchpad art-receiver.ps1, port 8092). Two sizes a mode: the 16:9
+// the frame saved as a JPEG into public/assets/lobby/ by the localhost receiver
+// (tools/art-receiver.ps1, port 8092). Two sizes a mode: the 16:9
 // preview and the portrait card.
 //   await G.ArtRender.all()        -> list of files written
 //   await G.ArtRender.shot("school", "preview")
+//   await G.ArtRender.boot()       -> (new series, round 2) the Loading
+//                                     screen's two pictures and where their
+//                                     words go (for js/boot.js), and the
+//                                     Start screen's horde (public/assets/boot/)
 window.G = window.G || {};
 G.ArtRender = {
   PORT: 8092,
@@ -195,6 +199,118 @@ G.ArtRender = {
     const file = name + (portrait ? "-card" : "") + ".jpg";
     await fetch("http://localhost:" + this.PORT + "/?name=" + file, { method: "POST", body: url, mode: "no-cors" });
     return { file, bytes: Math.round(url.length * 0.75) };
+  },
+
+  // ---------------- the Loading and Start screens (new series, round 2, D/E) ----------------
+  // Loading: a horde in front of the school, facing the camera, two sizes --
+  // the big screen 16:9, a phone 2.16:1 -- as WebP of at most ~500 KB, and
+  // where each zombie's word goes on the picture (its label's anchor, as a
+  // share of the width and height, and a size by how near it is) for
+  // js/boot.js, which writes words from the bank there each time.
+  BOOT: {
+    port: 8092,
+    sizes: { large: [1920, 1080], small: [1600, 740] },
+    cam: { pos: [0, 1.85, 56.4], look: [0, 1.25, 46], fov: 46 },
+    // [type, x, z, stride phase]
+    horde: [["normal", -1.3, 51.0, 0.2], ["fast", 1.6, 50.6, 0.6], ["normal", -3.8, 49.6, 0.8], ["normal", 0.2, 49.2, 0.1], ["normal", 3.7, 49.5, 0.5],
+      ["normal", -6.2, 48.2, 0.4], ["fast", -2.1, 47.7, 0.7], ["normal", 2.0, 47.6, 0.2], ["normal", 6.0, 48.0, 0.9], ["normal", -8.2, 46.7, 0.3],
+      ["normal", -4.2, 46.1, 0.6], ["crawler", -0.3, 50.4, 0.5], ["normal", 4.3, 46.2, 0.8], ["normal", 8.4, 46.8, 0.15], ["normal", 0.1, 45.4, 0.45]],
+    // Start: the horde alone, from low down, lit green from the sides, on a
+    // transparent background (cropped to it)
+    hero: { size: [2000, 1300], cam: [0.8, 0.32, 6.2], look: [0, 1.4, -1], fov: 40,
+      z: [["normal", 0, 0.2, 0.3], ["normal", -1.35, -0.7, 0.7], ["fast", 1.45, -0.5, 0.5], ["normal", -2.6, -1.9, 0.1], ["normal", 0.4, -2.0, 0.9], ["normal", 2.7, -1.8, 0.2],
+        ["crawler", -0.7, 1.35, 0.6], ["normal", -1.3, -3.4, 0.4], ["normal", 1.7, -3.6, 0.8], ["normal", -3.9, -3.3, 0.55], ["normal", 3.9, -3.2, 0.35]] },
+  },
+  async post(name, url) {
+    await fetch("http://localhost:" + this.BOOT.port + "/?name=" + name, { method: "POST", body: url, mode: "no-cors" });
+    return { file: name, kb: Math.round(url.length * 0.75 / 1024) };
+  },
+  // -> { large: {w, h, heads: [[x, y, s], ...]}, small: {...}, files }
+  async bootLoading() {
+    const g = G.Game, B = this.BOOT, V = THREE.Vector3;
+    this.stage(1);
+    const cam = { pos: new V(...B.cam.pos), look: new V(...B.cam.look), fov: B.cam.fov };
+    const zs = B.horde.map(([type, x, z, ph]) => {
+      const zb = this.zombie(g, type, x, z, cam.pos.x, cam.pos.z, ph);
+      zb.sprite.visible = false;
+      g.zombies.push(zb);
+      return zb;
+    });
+    G.PlayerBody.setVisible(false);
+    const out = { files: [] };
+    for (const kind of ["large", "small"]) {
+      const [W, H] = B.sizes[kind];
+      const r = g.renderer, camera = g.camera;
+      const prevVm = g.vmCamera; g.vmCamera = null;
+      const prevSize = new THREE.Vector2(); r.getSize(prevSize);
+      const prevPR = r.getPixelRatio(), prevFov = camera.fov, prevAspect = camera.aspect;
+      g.yawObject.position.copy(cam.pos);
+      const dir = cam.look.clone().sub(cam.pos);
+      g.yawObject.rotation.y = Math.atan2(-dir.x, -dir.z);
+      g.pitchObject.rotation.x = Math.atan2(dir.y, Math.hypot(dir.x, dir.z));
+      camera.fov = cam.fov; r.setPixelRatio(1); r.setSize(W, H, false);
+      camera.aspect = W / H; camera.updateProjectionMatrix();
+      g.scene.updateMatrixWorld(true);
+      G.Zones.update(g, true);
+      G.Perf.updateLights(cam.pos, dir.clone().setY(0).normalize(), 1);
+      if (G.Details) G.Details.update(g, 0.016);
+      g.renderFrame();
+      const url = r.domElement.toDataURL("image/webp", kind === "large" ? 0.8 : 0.78);
+      // each word's place: its label's anchor on the picture, the nearer the larger
+      const heads = zs.map((z) => {
+        const p = z.sprite.getWorldPosition(new V());
+        const d = p.distanceTo(camera.getWorldPosition(new V()));
+        p.project(camera);
+        return [+((p.x + 1) / 2).toFixed(4), +((1 - p.y) / 2).toFixed(4), +(6 / d).toFixed(3)];
+      }).filter(([x, y]) => x > 0.02 && x < 0.98 && y > 0.02 && y < 0.98).sort((a, b) => b[2] - a[2]);
+      out[kind] = { w: W, h: H, heads };
+      out.files.push(await this.post("boot/loading-" + kind + ".webp", url));
+      r.setPixelRatio(prevPR); r.setSize(prevSize.x, prevSize.y, false);
+      camera.fov = prevFov; camera.aspect = prevAspect; camera.updateProjectionMatrix();
+      g.vmCamera = prevVm;
+    }
+    G.PlayerBody.setVisible(true);
+    return out;
+  },
+  async bootStart() {
+    const H0 = this.BOOT.hero, [W, H] = H0.size;
+    const scene = new THREE.Scene();
+    H0.z.forEach(([type, x, z, ph]) => {
+      const zb = new G.Zombie(type, new THREE.Vector3(x, 0, z), G.pick(G.WORDS_LEVEL_1), "school");
+      zb.mesh.rotation.y = Math.atan2(H0.cam[0] - x, H0.cam[2] - z);
+      for (let i = 0; i < 20 + Math.round((ph || 0) * 30); i++) zb.animate(1 / 30, 0.05);
+      zb.sprite.visible = false;
+      scene.add(zb.mesh);
+    });
+    scene.add(new THREE.HemisphereLight(0x8aa4b8, 0x0c140e, 0.32));
+    const key = new THREE.DirectionalLight(0xd8e4ff, 0.75); key.position.set(-2, 5, 9); scene.add(key);
+    [[-7, 2.5, -1, 0x34e07a], [7, 2.5, -1, 0x52ff8f]].forEach(([x, y, z, c]) => { const l = new THREE.DirectionalLight(c, 1.5); l.position.set(x, y, z); scene.add(l); });
+    const top = new THREE.DirectionalLight(0x7dffb0, 0.5); top.position.set(0, 8, -4); scene.add(top);
+    const cam = new THREE.PerspectiveCamera(H0.fov, W / H, 0.1, 100);
+    cam.position.set(...H0.cam); cam.lookAt(...H0.look);
+    const r = new THREE.WebGLRenderer({ alpha: true, antialias: true, preserveDrawingBuffer: true });
+    r.setPixelRatio(1); r.setSize(W, H, false); r.setClearColor(0x000000, 0);
+    scene.updateMatrixWorld(true);
+    r.render(scene, cam);
+    // cropped to what is drawn, with a little room for the glow
+    const c2 = document.createElement("canvas"); c2.width = W; c2.height = H;
+    const x2 = c2.getContext("2d"); x2.drawImage(r.domElement, 0, 0);
+    r.dispose();
+    const d = x2.getImageData(0, 0, W, H).data;
+    let minX = W, minY = H, maxX = 0, maxY = 0;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      if (d[(y * W + x) * 4 + 3] > 8) { minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y); }
+    }
+    const m = Math.round(Math.max(maxX - minX, maxY - minY) * 0.04);
+    minX = Math.max(0, minX - m); minY = Math.max(0, minY - m); maxX = Math.min(W - 1, maxX + m); maxY = Math.min(H - 1, maxY + m);
+    const out = document.createElement("canvas"); out.width = maxX - minX + 1; out.height = maxY - minY + 1;
+    out.getContext("2d").drawImage(c2, minX, minY, out.width, out.height, 0, 0, out.width, out.height);
+    return Object.assign(await this.post("boot/start-horde.webp", out.toDataURL("image/webp", 0.86)), { w: out.width, h: out.height });
+  },
+  async boot() {
+    const saved = JSON.stringify(G.save), upd = G.Game.update;
+    try { return { loading: await this.bootLoading(), start: await this.bootStart() }; }
+    finally { G.save = JSON.parse(saved); G.persist(); G.Game.update = upd; G.Game.quitToMainMenu(); }
   },
 
   async all(names, kinds) {

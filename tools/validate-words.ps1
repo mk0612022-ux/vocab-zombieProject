@@ -13,6 +13,9 @@
 #   - acceptedSpellings includes the headword; English fields hold no Thai
 #     letters; the Thai is there, and no two targets in one level have
 #     exactly the same Thai
+#   - every entry has its part of speech: one of n v adj adv prep conj pron
+#     det phrase, or two of them as "n/v" when the meaning given is both
+#     (new series, round 2, G: shown after the word as N./V.)
 #   - every confusable is in the bank or in the confusables lexicon
 #   - topic from the fixed list; awlSublist 1-10; the AWL complete: all
 #     570 families, each in the sublist the official list gives it
@@ -34,6 +37,9 @@ $TOPICS = @('Education', 'Health', 'Environment', 'Technology', 'Science & Resea
   'Work & Economy', 'Society & Culture', 'Media & Communication', 'Urban Life & Transport', 'General Academic')
 $LEVELS = @{ 1 = 'bank_school.js'; 2 = 'bank_hospital.js'; 3 = 'bank_bunker.js' }
 $POS = @('n', 'v', 'adj', 'adv', 'prep', 'conj', 'det', 'pron', 'phrase')
+# the order a two-part partOfSpeech is written in (shown N./V., Adj., Phr. ...)
+$POS_ORDER = @('n', 'v', 'adj', 'adv', 'prep', 'conj', 'pron', 'det', 'phrase')
+$posCount = @{}; $posTwo = 0
 
 # The AWL's 570 families by sublist (headwords as the official list gives them)
 $AWL_REF = @'
@@ -131,7 +137,14 @@ foreach ($e in $entries) {
   if ($ids.ContainsKey($id)) { Err "$where : id also used in $($ids[$id])" } else { $ids[$id] = $e.__file }
   if ([int]$e.level -ne $e.__lv) { Err "$where : level is $($e.level) but it is in $($e.__file)" }
   $hw = ([string]$e.headword).ToLowerInvariant()
-  if ($POS -notcontains [string]$e.partOfSpeech) { Err "$where : partOfSpeech '$($e.partOfSpeech)' (use n, v, adj, adv, prep, conj, det, pron or phrase)" }
+  # (new series, round 2, G) one part of speech, or two when the meaning given
+  # is used as both ("n/v": research), in the order of $POS_ORDER, no repeats
+  $posParts = @(([string]$e.partOfSpeech).Split('/'))
+  $posIdx = @($posParts | ForEach-Object { [array]::IndexOf($POS_ORDER, $_) })
+  $posOk = $posParts.Count -ge 1 -and $posParts.Count -le 2 -and -not ($posIdx -contains -1)
+  if ($posOk -and $posParts.Count -eq 2 -and $posIdx[0] -ge $posIdx[1]) { $posOk = $false }
+  if (-not $posOk) { Err "$where : partOfSpeech '$($e.partOfSpeech)' (use n, v, adj, adv, prep, conj, pron, det or phrase -- or two of them, in that order, as n/v)" }
+  else { foreach ($pp in $posParts) { $posCount[$pp] = 1 + [int]$posCount[$pp] }; if ($posParts.Count -eq 2) { $posTwo++ } }
   if ($TOPICS -cnotcontains [string]$e.topic) { Err "$where : topic '$($e.topic)' is not one of the twelve" }
   if (@('AWL', 'Topic') -cnotcontains [string]$e.source) { Err "$where : source must be AWL or Topic" }
 
@@ -255,6 +268,7 @@ if (-not $Quiet) {
   }
   $bySub = $awl | Group-Object awlSublist | Sort-Object { [int]$_.Name }
   "  AWL families: $($awlHeads.Count) of 570 -- by sublist: " + (($bySub | ForEach-Object { "$($_.Name):$($_.Count)" }) -join '  ')
+  "  parts of speech: " + (($POS_ORDER | Where-Object { $posCount[$_] } | ForEach-Object { "${_}:$($posCount[$_])" }) -join '  ') + "  (two of them: $posTwo)"
   foreach ($w in $warnings) { "  WARNING $w" }
 }
 if ($errors.Count) {

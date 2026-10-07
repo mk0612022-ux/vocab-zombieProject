@@ -44,6 +44,9 @@ G.UI = {
     this._lobbyOpts = null;
     // a new version found during a run is offered once back in the lobby
     if (id === "screen-mainmenu" && G.PWA) G.PWA.maybeShow();
+    // (new series, round 2, E) the lobby's music, back from a level (the
+    // first time, the Start screen's tap starts it)
+    if (id === "screen-mainmenu" && G.Audio && G.Audio.ctx && G.Audio.menuMusic && !(G.Start && G.Start.shown)) G.Audio.menuMusic(true);
   },
   hideAllScreens() { this.showScreen(null); },
   setHudVisible(v) {
@@ -158,249 +161,15 @@ G.UI = {
   // ---------------- Settings ----------------
   // Settings is reachable from the main menu AND from the pause screen; "back"
   // used to always drop to the main menu, which quietly threw away the run.
+  // (new series, round 2, F: the page itself is js/settings.js)
   bindSettings() {
-    this.el("btn-settings-back").onclick = () => {
-      if (this._settingsReturn === "screen-pause") this.showScreen("screen-pause");
-      else this.goToMainMenu();
-    };
+    this.el("btn-settings-back").onclick = () => G.SettingsUI.back();
   },
   refreshSettingsScreen() { if (!this.el("screen-settings").classList.contains("hidden")) this.renderSettings(); },
   renderSettings() {
-    const s = G.save.settings;
-    const wrap = this.el("settings-content");
-    const kb = s.keybinds;
-    const T = G.T;
-    const actions = ["forward", "back", "left", "right", "sprint", "jump", "reload", "interact", "melee", "slot2", "slot3", "slot4", "slot5", "slot6", "slot7",
-      "ability1", "ability2", "ability3", "ability4", "replay", "thaiHint", "pause"];
-    const pct = (v, d) => Math.round((v == null ? d : v) * 100);
-    this._hudSlotSig = null;              // the HUD slot row shows these keys
-    wrap.innerHTML = `
-      <div class="settings-section-title">${T("settings.controls")}</div>
-      <div class="settings-row"><label>${T("settings.controlMode")}</label>
-        <select id="set-controlmode">
-          <option value="auto">${T("settings.controlAuto")}</option>
-          <option value="desktop">${T("settings.controlDesktop")}</option>
-          <option value="touch">${T("settings.controlTouch")}</option>
-        </select>
-      </div>
-      <div class="settings-row"><label>${T("settings.mouseSens", { v: s.mouseSensitivity.toFixed(2) })}</label>
-        <input type="range" id="set-sens" min="0.2" max="2.5" step="0.05" value="${s.mouseSensitivity}"></div>
-      <div class="settings-row"><label>${T("settings.aimAssist")}<small class="set-note">${T("settings.aimAssistNote")}</small></label>
-        <select id="set-aimassist">${["off", "low", "medium", "high"].map((v) => `<option value="${v}">${T("settings.aimAssist." + v)}</option>`).join("")}</select></div>
-      <div class="settings-row"><label>${T("settings.touchLayout")}</label>
-        <button class="btn" id="btn-touchcfg">${T("settings.touchLayoutBtn")}</button></div>
-      <div class="settings-row"><label>${T("settings.touchLookSens", { v: G.TouchCfg.lookSens().toFixed(2) })}</label>
-        <input type="range" id="set-tlook" min="0.3" max="3" step="0.05" value="${G.TouchCfg.lookSens()}"></div>
-      <div class="settings-row"><label>${T("settings.btnLookSens", { v: G.TouchCfg.btnLookSens().toFixed(2) })}</label>
-        <input type="range" id="set-blook" min="0.3" max="3" step="0.05" value="${G.TouchCfg.btnLookSens()}"></div>
-      <div class="settings-row"><label>${T("settings.hudSize")}</label>
-        <button class="btn" id="btn-hudcfg">${T("settings.hudSizeBtn")}</button></div>
-
-      <div class="settings-section-title">${T("settings.keybinds")}</div>
-      ${actions.map((a) => `
-        <div class="keybind-row"><span>${T("key." + a)}</span>
-          <button class="btn keybind-btn" data-action="${a}">${G.keyLabel(kb[a])}</button></div>`).join("")}
-      <div class="row-center"><button class="btn" id="btn-reset-keybinds">${T("settings.resetKeys")}</button></div>
-
-      <div class="settings-section-title">${T("settings.audio")}</div>
-      ${["sfxVolume", "musicVolume", "ambientVolume", "speechVolume"].map((k) => `
-      <div class="settings-row"><label>${T("settings." + k, { v: pct(s[k], 0.7) })}</label>
-        <input type="range" class="set-vol" data-key="${k}" min="0" max="1" step="0.05" value="${s[k] == null ? 0.7 : s[k]}"></div>`).join("")}
-      <div class="settings-row"><label>${T("settings.speechMode")}</label>
-        <select id="set-speechmode">
-          <option value="after">${T("settings.speechAfter")}</option>
-          <option value="before">${T("settings.speechBefore")}</option>
-          <option value="off">${T("settings.speechOff")}</option>
-        </select></div>
-      <div class="settings-row"><label for="set-accent">${T("settings.accent")}</label>
-        <select id="set-accent">${["mixed", "british", "american", "australian"].map((a) => `<option value="${a}">${T("settings.accent." + a)}</option>`).join("")}</select></div>
-      <div class="settings-note" id="set-accent-note"></div>
-      <div class="settings-row"><label for="set-speechspeed">${T("settings.speechSpeed")}</label>
-        <select id="set-speechspeed"><option value="normal">${T("settings.speedNormal")}</option><option value="slow">${T("settings.speedSlow")}</option></select></div>
-      <div class="settings-row"><label for="set-playonce">${T("settings.playOnce")}</label>
-        <input type="checkbox" id="set-playonce"></div>
-      <div class="row-center"><button class="btn" id="btn-speech-test">${T("settings.speechTest")}</button></div>
-
-      <div class="settings-section-title">${T("settings.performance")}</div>
-      <div class="settings-row"><label>${T("settings.fpsCap")}</label>
-        <select id="set-fpscap">
-          <option value="60">60</option><option value="90">90</option><option value="120">120</option>
-          <option value="144">144</option><option value="0">${T("settings.unlimited")}</option>
-        </select>
-      </div>
-      <div class="settings-row"><label>${T("settings.showFps")}</label>
-        <input type="checkbox" id="set-showfps"></div>
-      <div class="settings-row"><label>${T("settings.showDraws")}</label>
-        <input type="checkbox" id="set-showdraws"></div>
-      <div class="settings-row"><label>${T("settings.quality")}</label>
-        <select id="set-quality">
-          <option value="vlow">${T("settings.qVlow")}</option><option value="low">${T("settings.qLow")}</option><option value="medium">${T("settings.qMedium")}</option>
-          <option value="high">${T("settings.qHigh")}</option><option value="vhigh">${T("settings.qVhigh")}</option>
-        </select>
-      </div>
-      <div class="settings-row"><label>${T("settings.gameSpeed", { v: s.gameSpeed.toFixed(2) })}</label>
-        <input type="range" id="set-gamespeed" min="0.5" max="1.5" step="0.05" value="${s.gameSpeed}"></div>
-
-      <div class="settings-section-title">${T("settings.gameplay")}</div>
-      <div class="settings-row"><label>${T("settings.shopTime")}</label>
-        <select id="set-shoptime">
-          <option value="30">${T("settings.seconds", { n: 30 })}</option><option value="45">${T("settings.seconds", { n: 45 })}</option>
-          <option value="60">${T("settings.seconds", { n: 60 })}</option><option value="0">${T("settings.shopNoLimit")}</option>
-        </select></div>
-      <div class="settings-row"><label for="set-spellreload">${T("settings.spellReload")}</label>
-        <input type="checkbox" id="set-spellreload"></div>
-      <div class="settings-row"><label for="set-highlight">${T("settings.highlightTarget")}</label>
-        <input type="checkbox" id="set-highlight"></div>
-      <div class="settings-row"><label for="set-cluethai">${T("settings.clueThai")}</label>
-        <select id="set-cluethai"><option value="auto">${T("settings.clueThaiAuto")}</option><option value="always">${T("settings.clueThaiAlways")}</option><option value="never">${T("settings.clueThaiNever")}</option></select></div>
-
-      <div class="settings-section-title">${T("settings.accessibility")}</div>
-      <div class="settings-row"><label>${T("settings.fontSize")}</label>
-        <select id="set-fontsize"><option value="small">${T("settings.fontSmall")}</option><option value="medium">${T("settings.fontMedium")}</option><option value="large">${T("settings.fontLarge")}</option></select></div>
-      <div class="settings-row"><label>${T("settings.colorblind")}</label>
-        <input type="checkbox" id="set-colorblind"></div>
-      <div class="settings-row"><label>${T("settings.headBob", { v: pct(s.headBob, 1) })}</label>
-        <input type="range" id="set-headbob" min="0" max="1" step="0.05" value="${s.headBob == null ? 1 : s.headBob}" ${s.headBobOff ? "disabled" : ""}></div>
-      <div class="settings-row"><label>${T("settings.headBobOff")}</label>
-        <input type="checkbox" id="set-headbob-off"></div>
-
-      <div class="settings-section-title">${T("settings.vocabulary")}</div>
-      <div class="settings-row"><label>${T("settings.customVocab", { n: G.CustomVocab.count() })}</label>
-        <button class="btn" id="btn-settings-customvocab">${T("settings.customVocabBtn")}</button></div>
-
-      <div class="settings-section-title">${T("settings.saveData")}</div>
-      <div class="row-center">
-        <button class="btn" id="btn-export-save">${T("settings.exportSave")}</button>
-        <button class="btn" id="btn-import-save-settings">${T("settings.importSave")}</button>
-        <input type="file" id="import-save-file" accept="application/json" style="display:none">
-      </div>
-
-      <div class="settings-section-title">${T("settings.about")}</div>
-      <div class="settings-row set-version-row"><label>${T("settings.version")}<small class="set-note" id="set-update-note"></small></label>
-        <span class="set-version" data-version>${G.escapeHtml(G.Updater ? G.Updater.label() : "")}</span>
-        <button class="btn" id="btn-check-update">${T("settings.checkUpdates")}</button></div>
-    `;
-    wrap.querySelector("#set-controlmode").value = s.controlMode;
-    wrap.querySelector("#set-fpscap").value = String(s.fpsCap);
-    wrap.querySelector("#set-showfps").checked = s.showFpsCounter;
-    wrap.querySelector("#set-showdraws").checked = !!s.showDrawCalls;
-    wrap.querySelector("#set-showdraws").onchange = (e) => { s.showDrawCalls = e.target.checked; G.persist(); };
-    wrap.querySelector("#set-quality").value = s.graphicsQuality;
-    wrap.querySelector("#set-fontsize").value = s.fontSize;
-    wrap.querySelector("#set-colorblind").checked = s.colorblindMode;
-    wrap.querySelector("#set-headbob-off").checked = !!s.headBobOff;
-    // animation pass B: camera bob strength, live while playing (pause > settings)
-    const hbIn = wrap.querySelector("#set-headbob");
-    hbIn.oninput = (e) => {
-      s.headBob = parseFloat(e.target.value);
-      hbIn.previousElementSibling.textContent = hbIn.previousElementSibling.textContent.replace(/\(\d+%\)/, `(${Math.round(s.headBob * 100)}%)`);
-    };
-    hbIn.onchange = () => G.persist();
-    wrap.querySelector("#set-headbob-off").onchange = (e) => { s.headBobOff = e.target.checked; G.persist(); this.renderSettings(); };
-
-    wrap.querySelector("#set-controlmode").onchange = (e) => { s.controlMode = e.target.value; G.persist(); G.Input.mode = e.target.value === "auto" ? G.Input.mode : e.target.value; this.applyControlMode(); };
-    wrap.querySelector("#btn-touchcfg").onclick = () => G.TouchCfg.openEditor();
-    // (new series, round 1, B3) aim assist on a touch screen or a controller
-    wrap.querySelector("#set-aimassist").value = s.aimAssist || "medium";
-    wrap.querySelector("#set-aimassist").onchange = (e) => { s.aimAssist = e.target.value; G.persist(); };
-    // (C1) the version, and a look for a newer one now
-    wrap.querySelector("#btn-check-update").onclick = async () => {
-      const note = wrap.querySelector("#set-update-note");
-      note.textContent = T("settings.checking");
-      const r = G.Updater ? await G.Updater.checkNow() : "dev";
-      note.textContent = T("settings.update." + r, { v: G.Updater && G.Updater.pending ? "v" + G.Updater.pending.version : "" });
-      // (from the lobby's Settings: straight to Update; in a run, it waits for the lobby)
-      if (r === "found") { if (G.Game.state === "MENU") G.Updater.showUpdate(); else G.Updater._offerLater = true; }
-    };
-    // (new series, round 1, D/F) touch look sensitivities, the HUD's sizes
-    const sens = (id, set, key) => {
-      const inp = wrap.querySelector(id);
-      inp.oninput = (e) => { set(parseFloat(e.target.value)); inp.previousElementSibling.textContent = T(key, { v: parseFloat(e.target.value).toFixed(2) }); };
-      inp.onchange = () => G.persist();
-    };
-    sens("#set-tlook", (v) => G.TouchCfg.setLookSens(v), "settings.touchLookSens");
-    sens("#set-blook", (v) => G.TouchCfg.setBtnLookSens(v), "settings.btnLookSens");
-    wrap.querySelector("#btn-hudcfg").onclick = () => G.HudCfg.openEditor();
-    wrap.querySelector("#set-sens").oninput = (e) => { s.mouseSensitivity = parseFloat(e.target.value); G.persist(); this.renderSettings(); };
-    wrap.querySelector("#set-fpscap").onchange = (e) => { s.fpsCap = parseInt(e.target.value); G.persist(); };
-    wrap.querySelector("#set-showfps").onchange = (e) => { s.showFpsCounter = e.target.checked; G.persist(); this.el("hud-fps-counter").classList.toggle("hidden", !s.showFpsCounter); };
-    wrap.querySelector("#set-quality").onchange = (e) => { s.graphicsQuality = e.target.value; G.persist(); G.Game.applyGraphicsQuality && G.Game.applyGraphicsQuality(); };
-    wrap.querySelector("#set-gamespeed").oninput = (e) => { s.gameSpeed = parseFloat(e.target.value); G.persist(); this.renderSettings(); };
-    wrap.querySelector("#set-fontsize").onchange = (e) => { s.fontSize = e.target.value; G.persist(); this.applyFontSizeClass(); };
-    // J4: four independent volumes, saved as they move
-    wrap.querySelectorAll(".set-vol").forEach((inp) => {
-      inp.oninput = (e) => {
-        s[inp.dataset.key] = parseFloat(e.target.value);
-        G.Audio.applyVolumes();
-        inp.previousElementSibling.textContent = inp.previousElementSibling.textContent.replace(/\(\d+%\)/, `(${Math.round(s[inp.dataset.key] * 100)}%)`);
-      };
-      inp.onchange = () => { G.persist(); if (inp.dataset.key === "sfxVolume") { G.Audio.unlock(); G.Audio.sfx("pickup"); } };
-    });
-    wrap.querySelector("#set-shoptime").value = String(s.shopTime);
-    // (a shop already open keeps its clock; the new time applies from the next one)
-    wrap.querySelector("#set-shoptime").onchange = (e) => { s.shopTime = parseInt(e.target.value, 10); G.persist(); };
-    // (vocabulary series, round 2, D2) from the next reload on
-    wrap.querySelector("#set-spellreload").checked = !!s.spellReload;
-    wrap.querySelector("#set-spellreload").onchange = (e) => { s.spellReload = e.target.checked; G.persist(); };
-    // (vocabulary series, round 3, F and G3) the Thai beside English clues;
-    // the accent (from the voices this device has), the speed, Play Once
-    wrap.querySelector("#set-highlight").checked = !!s.highlightTarget;
-    wrap.querySelector("#set-highlight").onchange = (e) => {
-      s.highlightTarget = e.target.checked; G.persist();
-      // (redrawn at once in a run)
-      if (G.Game.zombies) G.Game.zombies.forEach((z) => { if (z.alive) { z._label = null; z.setTarget(z.isTarget); } });
-    };
-    wrap.querySelector("#set-cluethai").value = s.clueThai || "auto";
-    wrap.querySelector("#set-cluethai").onchange = (e) => { s.clueThai = e.target.value; G.persist(); };
-    const accentNote = () => {
-      const a = s.accent || "british", A = G.Audio;
-      const names = A.voices().map((v) => v.name.replace(/^Microsoft |^Google /, "").split(/ [-(]/)[0] + " (" + v.lang + ")");
-      // (the voices load a moment after the page: say so when they come)
-      if (!names.length && "speechSynthesis" in window && speechSynthesis.addEventListener) speechSynthesis.addEventListener("voiceschanged", accentNote, { once: true });
-      wrap.querySelector("#set-accent-note").textContent = !names.length ? T("settings.accentNone")
-        : (a !== "mixed" && !A.hasAccent(a) ? T("settings.accentMissing", { a: T("settings.accent." + a) }) + " " : "") + T("settings.accentVoices", { list: names.join(", ") });
-    };
-    wrap.querySelector("#set-accent").value = s.accent || "british";
-    wrap.querySelector("#set-accent").onchange = (e) => { s.accent = e.target.value; G.persist(); accentNote(); G.Audio.unlock(); G.Audio.speak("vocabulary"); };
-    accentNote();
-    wrap.querySelector("#set-speechspeed").value = s.speechSpeed || "normal";
-    wrap.querySelector("#set-speechspeed").onchange = (e) => { s.speechSpeed = e.target.value; G.persist(); G.Audio.unlock(); G.Audio.speak("vocabulary"); };
-    wrap.querySelector("#set-playonce").checked = !!s.playOnce;
-    wrap.querySelector("#set-playonce").onchange = (e) => { s.playOnce = e.target.checked; G.persist(); };
-    wrap.querySelector("#set-speechmode").value = s.speechMode || "after";
-    wrap.querySelector("#set-speechmode").onchange = (e) => { s.speechMode = e.target.value; G.persist(); };
-    wrap.querySelector("#btn-speech-test").onclick = () => G.Audio.speak("vocabulary");
-    wrap.querySelector("#set-colorblind").onchange = (e) => {
-      s.colorblindMode = e.target.checked; G.persist();
-      if (G.Game.state === "GAMEPLAY" && G.Game.buildWeaponViewModel) G.Game.buildWeaponViewModel();
-    };
-    wrap.querySelector("#btn-reset-keybinds").onclick = () => { s.keybinds = G.defaultKeybinds(); G.persist(); this.renderSettings(); };
-    wrap.querySelectorAll(".keybind-btn").forEach((btn) => {
-      btn.onclick = () => { btn.textContent = "..."; G.Input.rebindingAction = btn.dataset.action; };
-    });
-    wrap.querySelector("#btn-settings-customvocab").onclick = () => G.CustomVocabUI.open("screen-settings");
-    wrap.querySelector("#btn-export-save").onclick = () => G.exportSave();
-    wrap.querySelector("#btn-import-save-settings").onclick = () => wrap.querySelector("#import-save-file").click();
-    // Category L: the file is read and validated BEFORE asking, so the
-    // overwrite confirmation shows what is in it next to what will be lost.
-    wrap.querySelector("#import-save-file").onchange = (e) => {
-      const f = e.target.files[0];
-      e.target.value = "";                    // picking the same file twice should still fire
-      if (!f) return;
-      G.readSaveFile(f, (err, res) => {
-        if (err) { alert(G.T("save.importFailed", { msg: err.message })); return; }
-        const a = res.summary, b = G.saveSummary(G.save);
-        const when = res.exportedAt ? new Date(res.exportedAt).toLocaleString("en-GB") : G.T("common.unknown");
-        const msg = G.T("save.importConfirm", { when, al: a.levels, aw: a.words, aa: a.achievements, ag: a.weapons,
-          bl: b.levels, bw: b.words, ba: b.achievements, bg: b.weapons });
-        if (!confirm(msg)) return;
-        G.applyImportedSave(res.save);
-        alert(G.T("save.importDone"));
-        this.renderSettings();
-      });
-    };
+    this._hudSlotSig = null;              // the HUD slot row shows the keys set here
+    G.SettingsUI.render();
   },
-
   // ---------------- Leaderboard ----------------
   bindLeaderboard() { this.el("btn-leaderboard-back").onclick = () => this.goToMainMenu(); },
   // (vocabulary series, round 4, J3) the game's boards, then the learning
@@ -513,8 +282,8 @@ G.UI = {
         box = `<div class="vw-box b${st.b}">${esc(st.b >= G.Learning.MASTERED ? G.T("learn.boxMastered") : G.T("learn.box", { n: st.b }))} · ${esc(G.T("learn.due", { when }))}</div>`;
       }
       const conf = G.SRS.confusedWith(pair).slice(0, 2).map((x) => G.Distract.resolve(x)).filter(Boolean);
-      const confLine = conf.length ? `<div class="vw-conf">${esc(G.T("learn.confusedWith")).replace("{x}", conf.map((p) => `<b lang="en">${esc(p[0])}</b> <span lang="th">(${esc(p[1])})</span>`).join(", "))}</div>` : "";
-      return `<div class="vocab-item"><div><div class="vw-en"><button class="vw-open" type="button" data-card="${i}" aria-label="${esc(G.T("card.open", { word: en }))}" lang="en">${esc(en)}</button> <button class="speak-btn" data-word="${esc(en)}" aria-label="${G.T("vocablog.hear", { word: esc(en) })}">🔊</button>${mine}</div><div class="vw-th">${esc(th)}</div>${box}${confLine}</div>${badge}</div>`;
+      const confLine = conf.length ? `<div class="vw-conf">${esc(G.T("learn.confusedWith")).replace("{x}", conf.map((p) => `<b lang="en">${esc(p[0])}${G.POS.tag(p)}</b> <span lang="th">(${esc(p[1])})</span>`).join(", "))}</div>` : "";
+      return `<div class="vocab-item"><div><div class="vw-en"><button class="vw-open" type="button" data-card="${i}" aria-label="${esc(G.T("card.open", { word: en }))}" lang="en">${esc(en)}</button>${G.POS.tag(pair)} <button class="speak-btn" data-word="${esc(en)}" aria-label="${G.T("vocablog.hear", { word: esc(en) })}">🔊</button>${mine}</div><div class="vw-th">${esc(th)}</div>${box}${confLine}</div>${badge}</div>`;
     }).join("");
     this._vocabLogWords = words;
     this.el("vocablog-content").innerHTML = `<div class="vocab-grid">${items}</div>`;
@@ -753,7 +522,7 @@ G.UI = {
         return `<div class="result-boss"><span class="rb-name">${G.escapeHtml(G.Bosses.label(def))}</span><span class="rb-wave">${G.T("cine.wave", { n: d.wave })}</span></div>`;
       }).join("") : `<div class="result-boss none">${G.T("result.bossesNone")}</div>`) + "</div>";
     reviewWrap.innerHTML = bossHtml + (sorted.length
-      ? `<div style="opacity:.7;margin-bottom:6px">${G.T("result.review")}</div>` + sorted.map(([w, d]) => `<div class="review-item"><span>${G.escapeHtml(w)} — ${G.escapeHtml(d.meaning)}</span><span class="wrong-count">${G.T("result.wrongTimes", { n: d.count })}</span></div>`).join("")
+      ? `<div style="opacity:.7;margin-bottom:6px">${G.T("result.review")}</div>` + sorted.map(([w, d]) => `<div class="review-item"><span>${G.escapeHtml(w)}${G.POS.tag(w)} — ${G.escapeHtml(d.meaning)}</span><span class="wrong-count">${G.T("result.wrongTimes", { n: d.count })}</span></div>`).join("")
       : `<div style="opacity:.6">${G.T("result.perfect")}</div>`);
   },
 

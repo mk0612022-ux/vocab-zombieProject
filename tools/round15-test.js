@@ -327,7 +327,7 @@ G.Round15Test = (function () {
     ok("E with a controller: yes", angle() < 3, angle().toFixed(2));
     G.Input.padActive = false; G.Input.mode = mode;
     G.UI.renderSettings();
-    ok("E Settings: Aim assist, Off / Low / Medium / High", document.getElementById("set-aimassist").options.length === 4);
+    ok("E Settings: Aim assist, Off / Low / Medium / High", document.querySelectorAll("#set-aimassist .seg-o").length === 4);
   }
 
   // ---------------- F: the crowd ----------------

@@ -78,6 +78,11 @@ G.defaultSave = function () {
       campaignStyle: "adaptive",
       // (new series, round 1, B3) aim assist on a touch screen or a controller
       aimAssist: "medium",        // off | low | medium | high
+      // (new series, round 2, F) the new Settings page's additions
+      renderScale: 1,             // Render Resolution: the 3D view's sharpness, 0.5-1 of what the quality gives
+      safeArea: "auto",           // the screen-edge margin: auto (what the device reports) | manual
+      safeMargin: 24,             // ...manual: px from the left and right edges (half that top and bottom), 0-60
+      padSensitivity: 1,          // a controller's look speed, 0.3-2.5
     },
     importedSets: {},             // {id: {name, words:[[en,th],...]}}
     customWords: { level1: [], level2: [], level3: [] },   // words the player added to each level ([[en,th] or [en,th,{definition,...}],...])
@@ -136,6 +141,11 @@ G.normalizeSave = function (data) {
   oneOf("accent", ["mixed", "british", "american", "australian"]);
   oneOf("speechSpeed", ["normal", "slow"]);
   oneOf("aimAssist", ["off", "low", "medium", "high"]);
+  // (new series, round 2) a save from before them gets the defaults above; a
+  // number out of range is brought back into it
+  oneOf("safeArea", ["auto", "manual"]);
+  const num = (k, lo, hi) => { const v = Number(s.settings[k]); s.settings[k] = Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : def.settings[k]; };
+  num("renderScale", 0.5, 1); num("safeMargin", 0, 60); num("padSensitivity", 0.3, 2.5);
   s.settings.playOnce = !!s.settings.playOnce;
   s.settings.highlightTarget = !!s.settings.highlightTarget;
   // (round 4) a campaign style it does not know is Adaptive
@@ -215,6 +225,7 @@ G.migrateWordStats = function (ws) {
 };
 
 // the optional fields of a player's own word, cleaned; null when there are none
+// (definition, synonyms, example, collocations, topic, pos)
 G.cleanCustomExtra = function (x) {
   if (!x || typeof x !== "object" || Array.isArray(x)) return null;
   const str = (v, n) => typeof v === "string" ? v.trim().replace(/\s+/g, " ").slice(0, n) : "";
@@ -226,6 +237,10 @@ G.cleanCustomExtra = function (x) {
   const ex = str(x.example, 200); if (ex) out.example = ex;
   const co = list(x.collocations, 4, 60); if (co.length) out.collocations = co;
   const tp = str(x.topic, 40); if (tp && G.WORD_TOPICS && G.WORD_TOPICS.includes(tp)) out.topic = tp;
+  // (new series, round 2, G) its part of speech, as the bank writes them
+  // ("n", "n/v"); a word saved before there was one has none and shows none
+  // -- or Phr. when it is several words (G.WordBank.info)
+  if (G.POS && G.POS.valid(x.pos)) out.pos = x.pos;
   return Object.keys(out).length ? out : null;
 };
 
@@ -328,6 +343,9 @@ G.applyImportedSave = function (save) {
   if (G.Audio) G.Audio.applyVolumes();
   if (G.Input && G.save.settings.controlMode !== "auto") G.Input.mode = G.save.settings.controlMode;
   if (G.UI && G.UI.applyControlMode) G.UI.applyControlMode();
+  // (new series, round 2, F) the screen-edge margin, the render resolution
+  if (G.applySafeArea) G.applySafeArea();
+  if (G.Game && G.Game.renderer && G.Game.applyGraphicsQuality) G.Game.applyGraphicsQuality();
 };
 
 // kept for any caller of the old one-step API

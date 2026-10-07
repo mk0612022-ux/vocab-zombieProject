@@ -182,7 +182,7 @@
       el("quiz-verdict").textContent = T(passed ? "quiz.passed" : "quiz.failed");
       el("quiz-verdict-sub").textContent = T(passed ? "quiz.passedSub" : "quiz.failedSub", { x: this.correct, n: this.qs.length });
       el("quiz-missed").innerHTML = this.missed.length
-        ? `<div class="qm-title">${esc(T("quiz.review"))}</div>` + this.missed.map((p) => `<div class="qm-row"><b lang="en">${esc(p[0])}</b><span lang="th">${esc(p[1])}</span></div>`).join("")
+        ? `<div class="qm-title">${esc(T("quiz.review"))}</div>` + this.missed.map((p) => `<div class="qm-row"><b lang="en">${esc(p[0])}${G.POS.tag(p)}</b><span lang="th">${esc(p[1])}</span></div>`).join("")
         : `<div class="qm-none">${esc(T("quiz.noneMissed"))}</div>`;
       G.Audio.sfx(passed ? "unlock" : "wrong");
       this.counters();

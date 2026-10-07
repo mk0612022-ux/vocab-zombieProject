@@ -25,7 +25,7 @@ window.G = window.G || {};
   // a word for a "don't confuse" line: from the bank, the lexicon, or the player's own
   const describe = (w) => {
     const p = G.Distract.resolve(w);
-    return p ? { w: p[0], th: p[1] } : null;
+    return p ? { w: p[0], th: p[1], pos: G.POS.tag(p) } : null;
   };
 
   G.VocabCard = {
@@ -35,17 +35,19 @@ window.G = window.G || {};
     cardHtml(pair) {
       const i = this.info(pair), C = G.Clues;
       const stress = C.stressHtml(pair);
-      const pos = i.partOfSpeech ? `<span class="vc-pos">${esc(T("pos." + i.partOfSpeech))}</span>` : "";
+      // (new series, round 2, G) its part of speech, as everywhere: (N./V.)
+      const pc = G.POS.of(pair);
+      const pos = pc ? `<span class="vc-pos" title="${esc(G.POS.name(pc))}">(${esc(G.POS.abbr(pc))})</span>` : "";
       const sec = (title, body) => body ? `<div class="vc-sec"><div class="vc-h">${esc(title)}</div>${body}</div>` : "";
       const examples = (i.examples || []).map((s) => `<li>${C.markHtml(s, pair)} ${say(s, true)}</li>`).join("");
       const colls = (i.collocations || []).map((s) => `<li>${C.markHtml(s, pair)}</li>`).join("");
       const fam = C.family(pair);
-      const famRows = fam.length > 1 ? `<table class="vc-family">${fam.map((f) => `<tr><td lang="en">${esc(f.word)}</td><td>${esc(f.pos ? T("pos." + f.pos) : "")}</td></tr>`).join("")}</table>` : "";
+      const famRows = fam.length > 1 ? `<table class="vc-family">${fam.map((f) => `<tr><td lang="en">${esc(f.word)}</td><td title="${esc(f.pos ? G.POS.name(f.pos) : "")}">${esc(f.pos ? G.POS.abbr(f.pos) : "")}</td></tr>`).join("")}</table>` : "";
       // E2 + confusables: what it is not
       const confused = G.SRS.confusedWith(pair).map(describe).filter(Boolean);
       const lex = (i.confusables || []).map(describe).filter((d) => d && !confused.some((c) => c.w === d.w));
-      const dont = confused.map((d) => `<li class="vc-mine"><b lang="en">${esc(d.w)}</b> <span lang="th">${esc(d.th)}</span> <span class="vc-tag">${esc(T("card.youConfused"))}</span></li>`)
-        .concat(lex.map((d) => `<li><b lang="en">${esc(d.w)}</b> <span lang="th">${esc(d.th)}</span></li>`)).join("");
+      const dont = confused.map((d) => `<li class="vc-mine"><b lang="en">${esc(d.w)}${d.pos}</b> <span lang="th">${esc(d.th)}</span> <span class="vc-tag">${esc(T("card.youConfused"))}</span></li>`)
+        .concat(lex.map((d) => `<li><b lang="en">${esc(d.w)}${d.pos}</b> <span lang="th">${esc(d.th)}</span></li>`)).join("");
       const miss = (i.commonMisspellings || []).length ? `<p class="vc-warn">${esc(T("card.spelling", { w: i.headword || pair[0], x: i.commonMisspellings.join(", ") }))}</p>` : "";
       // its box and next review
       const st = G.SRS.state(pair);
@@ -81,7 +83,7 @@ window.G = window.G || {};
       const marks = other ? `<span class="vc-mini-from" lang="en">${esc(T("card.from", { w: head }))}${stress ? ` <span class="vc-stress">${stress}</span>` : ""}</span>`
         : stress ? `<span class="vc-stress" lang="en">${stress}</span>` : "";
       return `<div class="vc-mini">
-        <div class="vc-mini-head"><b class="vc-mini-word" lang="en">${esc(other ? opts.form : head)}</b>${marks}${say(other ? opts.form : pair[0])}<span class="vc-mini-th" lang="th">${esc(pair[1] || "")}</span></div>
+        <div class="vc-mini-head"><b class="vc-mini-word" lang="en">${esc(other ? opts.form : head)}${other ? "" : G.POS.tag(pair)}</b>${marks}${say(other ? opts.form : pair[0])}<span class="vc-mini-th" lang="th">${esc(pair[1] || "")}</span></div>
         ${cz ? `<div class="vc-mini-ex" lang="en">${C.markHtml(cz, pair)}</div>` : ""}
         ${colls.length ? `<div class="vc-mini-col" lang="en">${colls.map((c) => C.markHtml(c, pair)).join(" · ")}</div>` : ""}
       </div>`;
