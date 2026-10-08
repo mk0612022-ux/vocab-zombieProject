@@ -634,6 +634,7 @@
       if (G.Zones) G.Zones.update(game);
       if (G.Details) G.Details.update(game, dt);
       if (G.Sky) G.Sky.update(game, dt);
+      if (G.Visuals) G.Visuals.update(game, dt);
       G.updateDriftingFog(game.scene, game.world, performance.now() / 1000);
       if (game.world.dress) game.world.dress.update(dt);
       game.updateAudio(dt);

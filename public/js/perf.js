@@ -57,7 +57,7 @@ G.Perf = {
       if (!o.isMesh || o.isInstancedMesh || skip.has(o) || Array.isArray(o.material)) return;
       const m = o.material, g = o.geometry;
       if (!g || !g.index || !g.attributes.position || !m || m.map || m.transparent || m.vertexColors || m.side !== THREE.FrontSide) return;
-      if (m === P.PAL.lit || m === P.PAL.unlit) return;
+      if (m === P.PAL.lit || m === P.PAL.unlit || m === P.PAL.litMetal) return;
       const lit = m.isMeshLambertMaterial, basic = m.isMeshBasicMaterial;
       if (!lit && !basic) return;
       if (lit && m.emissive && m.emissive.getHex() !== 0) return;
@@ -102,7 +102,8 @@ G.Perf = {
     // clone) and baking the repeat into the UVs lets every floor top merge.
     const imgIds = new Map();
     const imgId = (t) => { const k = t.image || t; if (!imgIds.has(k)) imgIds.set(k, imgIds.size + 1); return imgIds.get(k); };
-    const matKey = (m) => [m.type, m.color ? m.color.getHex() : 0, m.map ? "img" + imgId(m.map) : "", m.transparent ? 1 : 0, m.opacity, m.side].join("|");
+    // (visual series: the palette's metal material stays apart -- only it reflects the sky)
+    const matKey = (m) => [m.type, m.color ? m.color.getHex() : 0, m.map ? "img" + imgId(m.map) : "", m.transparent ? 1 : 0, m.opacity, m.side, m.userData && m.userData.vzMetal ? "metal" : ""].join("|");
     const candidates = [];
     scene.traverse((o) => {
       if (!o.isMesh || o.isInstancedMesh || skip.has(o)) return;
@@ -112,6 +113,9 @@ G.Perf = {
       if (!mats.every((m) => m && (m.isMeshLambertMaterial || m.isMeshBasicMaterial))) return;
       candidates.push(o);
     });
+    // (visual series: the solid things the corners' AO looks for)
+    const occ = G.Visuals && G.Visuals.ready && G.Visuals.cfgQ().ao ? G.Visuals.occluders(candidates) : null;
+    const aoT0 = performance.now();
     const tmp = new THREE.Vector3();
     let meshesBefore = 0;
     candidates.forEach((o) => {
@@ -147,10 +151,19 @@ G.Perf = {
       const nor = new Float32Array(grp.verts * 3);
       const uv = new Float32Array(grp.verts * 2);
       const index = grp.verts > 65535 ? new Uint32Array(grp.idx) : new Uint16Array(grp.idx);
+      // (visual series: which vertices belong to small things -- books, paper,
+      // debris -- whose corners are not worth the AO's sampling)
+      const small = occ ? new Uint8Array(grp.verts) : null;
       let vo = 0, io = 0;
       grp.parts.forEach((p) => {
         const o = p.mesh, ga = o.geometry.attributes, mw = o.matrixWorld;
         nm.getNormalMatrix(mw);
+        if (small) {
+          const g = o.geometry;
+          if (!g.boundingBox) g.computeBoundingBox();
+          const sz = g.boundingBox.getSize(v).multiply(tmp.setFromMatrixScale(mw));
+          if (Math.max(sz.x, sz.y, sz.z) < 0.6) small.fill(1, vo, vo + ga.position.count);
+        }
         for (let i = 0; i < ga.position.count; i++) {
           v.fromBufferAttribute(ga.position, i).applyMatrix4(mw);
           pos[(vo + i) * 3] = v.x; pos[(vo + i) * 3 + 1] = v.y; pos[(vo + i) * 3 + 2] = v.z;
@@ -173,7 +186,8 @@ G.Perf = {
       merged.computeBoundingSphere();
       // repeat now lives in the UVs, so the merged mesh needs a 1x1 copy of
       // the texture rather than the first floor.s own repeat
-      let material = grp.material;
+      // (visual series: corners and seams darkened in the vertices)
+      let material = occ ? G.Visuals.bakeAO(merged, grp.material, occ, small) : grp.material;
       if (material.map && (material.map.repeat.x !== 1 || material.map.repeat.y !== 1)) {
         const tex = material.map.clone();
         tex.repeat.set(1, 1); tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.needsUpdate = true;
@@ -187,6 +201,7 @@ G.Perf = {
       scene.add(mesh);
       meshesAfter++;
     });
+    if (occ) this.aoMs = Math.round(performance.now() - aoT0);
     candidates.forEach((o) => { if (o.parent) o.parent.remove(o); o.geometry.dispose(); });
     // Groups emptied by the merge are dead weight in every traversal.
     let emptied = true;

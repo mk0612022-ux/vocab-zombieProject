@@ -90,6 +90,19 @@
   </div>
 </div>
 
+<!-- (visual series, round 1, E4) Brightness: set the first time the game opens, and from Settings > Graphics (js/brightness.js) -->
+<div id="brightness-cal" class="dialog-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="bcal-title">
+  <div class="dialog-box bcal-box" id="bcal-box">
+    <h3 class="dialog-title" id="bcal-title" data-i18n="bcal.title"></h3>
+    <p class="bcal-text" data-i18n="bcal.text"></p>
+    <canvas id="bcal-canvas" class="bcal-canvas" width="600" height="190" aria-hidden="true"></canvas>
+    <div class="bcal-labels" aria-hidden="true"><span data-i18n="bcal.barely"></span><span data-i18n="bcal.visible"></span><span data-i18n="bcal.clear"></span></div>
+    <div class="sld bcal-sld"><input type="range" id="bcal-slider" min="0.6" max="1.6" step="0.05" value="1" aria-labelledby="bcal-title" data-pad-start><output id="bcal-v">100%</output></div>
+    <p class="bcal-hint" id="bcal-hint"></p>
+    <div class="dialog-btns"><button class="btn" id="btn-bcal-reset" type="button" data-i18n="bcal.reset"></button><button class="btn btn-primary" id="btn-bcal-ok" type="button" data-pad-back data-i18n="bcal.ok"></button></div>
+  </div>
+</div>
+
 <!-- ===================== LEADERBOARD ===================== -->
 <div id="screen-leaderboard" class="screen hidden">
   <h2 class="screen-title" data-i18n="leaderboard.title"></h2>
@@ -762,6 +775,7 @@ window.addEventListener("load", function () {
      order, each counted on the Loading screen as it arrives (js/boot.js). -->
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script defer src="js/config.js"></script>
+<script defer src="js/visual-config.js"></script>
 <script defer src="js/data/bank_school.js"></script>
 <script defer src="js/data/bank_hospital.js"></script>
 <script defer src="js/data/bank_bunker.js"></script>
@@ -805,6 +819,7 @@ window.addEventListener("load", function () {
 <script defer src="js/details.js"></script>
 <script defer src="js/sky.js"></script>
 <script defer src="js/glass.js"></script>
+<script defer src="js/visuals.js"></script>
 <script defer src="js/bossmodels.js"></script>
 <script defer src="js/bosses.js"></script>
 <script defer src="js/bossmoves.js"></script>
@@ -816,6 +831,7 @@ window.addEventListener("load", function () {
 <script defer src="js/tutorial.js"></script>
 <script defer src="js/ui.js"></script>
 <script defer src="js/settings.js"></script>
+<script defer src="js/brightness.js"></script>
 <script defer src="js/abilityui.js"></script>
 <script defer src="js/quiz.js"></script>
 <script defer src="js/spell.js"></script>

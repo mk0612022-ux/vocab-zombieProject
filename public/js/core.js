@@ -91,6 +91,12 @@ G.defaultSave = function () {
       meaningLang: "th",
       pinyin: true,               // (H4) pinyin over Chinese -- turned on when Chinese becomes the Word Language
       strictAccents: false,       // (H5) French spelling: a missing accent is wrong (off: right, the accent shown)
+      // (visual series, round 1, E4) how bright the night looks, x the film's
+      // exposure (0.6-1.6); shadows lifted further for those who see badly in
+      // the dark; whether the calibration screen has been shown (first launch)
+      brightness: 1,
+      visibilityBoost: false,
+      brightnessSet: false,
     },
     importedSets: {},             // {id: {name, words:[[en,th],...]}}
     customWords: { level1: [], level2: [], level3: [] },   // words the player added to each level ([[en,th] or [en,th,{definition,...}],...])
@@ -155,6 +161,11 @@ G.normalizeSave = function (data) {
   oneOf("safeArea", ["auto", "manual"]);
   const num = (k, lo, hi) => { const v = Number(s.settings[k]); s.settings[k] = Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : def.settings[k]; };
   num("renderScale", 0.5, 1); num("safeMargin", 0, 60); num("padSensitivity", 0.3, 2.5);
+  // (visual series, round 1) a save from before it: brightness 1, no boost,
+  // and the calibration screen once, the next time the game opens
+  num("brightness", 0.6, 1.6);
+  s.settings.visibilityBoost = !!s.settings.visibilityBoost;
+  s.settings.brightnessSet = !!s.settings.brightnessSet;
   s.settings.playOnce = !!s.settings.playOnce;
   // (round 3, H1) the three languages: one of the four each, the Meaning Language
   // never the Word Language (if a save says so, the meaning goes back to the default)

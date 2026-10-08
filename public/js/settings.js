@@ -57,6 +57,8 @@ window.G = window.G || {};
   const toggle = (id, on, off) => `<label class="sw"><input type="checkbox" role="switch" id="${id}"${on ? " checked" : ""} aria-labelledby="${id}-name"${off ? " disabled" : ""}><span class="sw-track" aria-hidden="true"><span class="sw-knob"></span></span></label>`;
   const button = (id, label, cls, off) => `<button class="btn set-btn${cls ? " " + cls : ""}" id="${id}" type="button"${off ? " disabled" : ""}>${esc(label)}</button>`;
   const pct = (v) => Math.round(v * 100) + "%";
+  // (visual series) the Brightness slider's range: js/visual-config.js
+  const BR = () => (G.VISUAL ? G.VISUAL.brightness : { min: 0.6, max: 1.6, step: 0.05 });
   const times = (v) => Number(v).toFixed(2) + "×";
 
   G.SettingsUI = {
@@ -91,6 +93,8 @@ window.G = window.G || {};
       const manual = s.safeArea === "manual";
       return row({ id: "set-quality", name: T("settings.quality"), ctl: seg("set-quality", s.graphicsQuality, q), desc: T("settings.qualityDesc") })
         + row({ id: "set-render", name: T("settings.renderScale"), ctl: slider("set-render", s.renderScale, 0.5, 1, 0.05, pct(s.renderScale)), desc: T("settings.renderScaleDesc") })
+        // (visual series, round 1, E4) the night's brightness, and the screen it was first set on
+        + row({ id: "set-brightness", name: T("settings.brightness"), ctl: `<span class="set-btns">${slider("set-brightness", s.brightness, BR().min, BR().max, BR().step, pct(s.brightness))}${button("btn-brightcal", T("settings.brightnessCal"))}</span>`, desc: T("settings.brightnessDesc") })
         + row({ id: "set-fpscap", name: T("settings.fpsCap"), ctl: seg("set-fpscap", s.fpsCap, [[60, "60"], [90, "90"], [120, "120"], [144, "144"], [0, T("settings.unlimited")]]), desc: T("settings.fpsCapDesc") })
         + row({ id: "set-showfps", name: T("settings.showFps"), ctl: toggle("set-showfps", s.showFpsCounter), desc: T("settings.showFpsDesc") })
         + row({ id: "set-showdraws", name: T("settings.showDraws"), ctl: toggle("set-showdraws", !!s.showDrawCalls), desc: T("settings.showDrawsDesc") })
@@ -180,6 +184,8 @@ window.G = window.G || {};
       return row({ id: "set-gamespeed", name: T("settings.gameSpeedName"), ctl: slider("set-gamespeed", s.gameSpeed, 0.5, 1.5, 0.05, times(s.gameSpeed)), desc: T("settings.gameSpeedDesc") })
         + row({ id: "set-fontsize", name: T("settings.fontSize"), ctl: seg("set-fontsize", s.fontSize, [["small", T("settings.fontSmall")], ["medium", T("settings.fontMedium")], ["large", T("settings.fontLarge")]]), desc: T("settings.fontSizeDesc") })
         + row({ id: "set-colorblind", name: T("settings.colorblind"), ctl: toggle("set-colorblind", !!s.colorblindMode), desc: T("settings.colorblindDesc") })
+        // (visual series, round 1, E4) the shadows lifted further
+        + row({ id: "set-visboost", name: T("settings.visBoost"), ctl: toggle("set-visboost", !!s.visibilityBoost), desc: T("settings.visBoostDesc") })
         + row({ id: "set-headbob", name: T("settings.headBobName"), ctl: slider("set-headbob", hb, 0, 1, 0.05, pct(hb), !!s.headBobOff), desc: T("settings.headBobDesc") })
         + row({ id: "set-headbob-off", name: T("settings.headBobOff"), ctl: toggle("set-headbob-off", !!s.headBobOff), desc: T("settings.headBobOffDesc") });
     },
@@ -244,6 +250,9 @@ window.G = window.G || {};
           if (G.Game.zombies) G.Game.zombies.forEach((z) => { if (z.alive) { z._label = null; z.setTarget(z.isTarget); } });
         },
         "set-strictacc": (v) => { s.strictAccents = v; },
+        // (visual series, round 1, E4) seen at once, in a run or behind the menu
+        "set-brightness": (v) => { s.brightness = v; s.brightnessSet = true; if (G.Visuals && G.Visuals.ready) G.Visuals.applyGrade(G.Visuals.theme); return pct(v); },
+        "set-visboost": (v) => { s.visibilityBoost = v; if (G.Visuals && G.Visuals.ready) G.Visuals.applyGrade(G.Visuals.theme); },
       };
       // the volumes: heard as they move
       ["sfxVolume", "musicVolume", "ambientVolume", "speechVolume"].forEach((k) => {
@@ -287,6 +296,7 @@ window.G = window.G || {};
       click("btn-export-save", () => G.exportSave());
       click("btn-import-save-settings", () => $("import-save-file").click());
       click("btn-privacy", () => this.openPrivacy());
+      click("btn-brightcal", () => { if (G.BrightnessCal) G.BrightnessCal.open("settings"); });
       // (C1) a look for a newer version now
       click("btn-check-update", async () => {
         const note = $("set-update-note");

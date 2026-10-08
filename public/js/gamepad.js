@@ -96,7 +96,9 @@ G.Pad = {
       boot: "boot-box",
       // (new series, round 2) the Start screen: A on "Tap To Lobby", or down to
       // Sign In; Settings' privacy policy
-      start: "start-screen", privacy: "privacy-box" };
+      start: "start-screen", privacy: "privacy-box",
+      // (visual series, round 1) the brightness calibration
+      brightness: "bcal-box" };
     if (top && byModal[top.id]) return document.getElementById(byModal[top.id]);
     if (G.TouchCfg && G.TouchCfg.editing) return document.getElementById("touchcfg-panel");
     const cur = G.UI._currentScreen;

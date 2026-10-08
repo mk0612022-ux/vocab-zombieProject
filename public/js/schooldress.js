@@ -65,6 +65,14 @@
   PAL.tex.magFilter = PAL.tex.minFilter = THREE.NearestFilter; PAL.tex.generateMipmaps = false;
   PAL.lit = new THREE.MeshLambertMaterial({ map: PAL.tex });
   PAL.unlit = new THREE.MeshBasicMaterial({ map: PAL.tex });
+  // (visual series) the metal colours on a material of their own: only it
+  // reflects the night sky (js/visuals.js), the rest of the palette is spared
+  // the cost
+  PAL.litMetal = new THREE.MeshLambertMaterial({ map: PAL.tex });
+  PAL.litMetal.userData.vzMetal = true;
+  // (only where it can reflect: from Medium up -- below, a material more is
+  // just more draw calls)
+  const isMetal = (hex) => !!(G.VISUAL && G.Visuals && G.save && G.Visuals.cfgQ(G.save.settings.graphicsQuality).pbr !== false && G.VISUAL.materials.metal.colors.indexOf(hex) >= 0);
   function texel(hex) {
     if (PAL.idx[hex] == null) {
       const i = PAL.idx[hex] = PAL.n++;
@@ -84,7 +92,7 @@
       const [u, v] = texel(m.color), uv = geo.attributes.uv;
       if (uv) for (let i = 0; i < uv.count; i++) uv.setXY(i, u, v);
       else geo.setAttribute("uv", new THREE.Float32BufferAttribute(new Array(geo.attributes.position.count * 2).fill(0).map((_, k) => (k % 2 ? v : u)), 2));
-      return new THREE.Mesh(geo, m.lit ? PAL.lit : PAL.unlit);
+      return new THREE.Mesh(geo, m.lit ? (isMetal(m.color) ? PAL.litMetal : PAL.lit) : PAL.unlit);
     }
     return new THREE.Mesh(geo, m);
   }

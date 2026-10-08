@@ -86,6 +86,8 @@ G.Game = {
     this.renderer.setPixelRatio(this.pixelRatio());
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.shadowMap.enabled = q === "high" || q === "vhigh";
+    // (visual series) the frame's film, the shared shader values, the zombies' material
+    if (G.Visuals) G.Visuals.init(this);
     this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 200);
     this.pitchObject = new THREE.Object3D();
     this.pitchObject.add(this.camera);
@@ -140,11 +142,11 @@ G.Game = {
     // (the touch buttons' frosted glass blurs what is behind it every frame:
     // not on the two lowest settings)
     document.body.classList.toggle("fx-low", q === "vlow" || q === "low");
-    this.renderer.shadowMap.enabled = q === "high" || q === "vhigh";
+    if (!G.Visuals) this.renderer.shadowMap.enabled = q === "high" || q === "vhigh";
     this.renderer.setPixelRatio(this.pixelRatio());
     if (this.scene && this.scene.fog && this.level) {
       const pal = G.THEME_PALETTES[this.level.theme];
-      this.scene.fog.far = q === "vlow" ? pal.fogFar * 0.5 : q === "low" ? pal.fogFar * 0.7 : pal.fogFar;
+      this.scene.fog.far = G.Visuals ? G.Visuals.fogFar(pal, q) : q === "vlow" ? pal.fogFar * 0.5 : q === "low" ? pal.fogFar * 0.7 : pal.fogFar;
       if (this.world && this.world.fogBase) this.world.fogBase.far = this.scene.fog.far;
       G.Perf.resizePool(this.scene, q);
       this.syncViewmodelLights();
@@ -153,6 +155,8 @@ G.Game = {
       if (G.Sky) G.Sky.applyQuality(q);
       if (G.Glass) G.Glass.applyQuality(q);
       if (G.SchoolWear) G.SchoolWear.applyQuality(this, q);
+      // (visual series: shadows, cascades, the light pool, the grain on stone)
+      if (G.Visuals) G.Visuals.applyQuality(this, q);
     }
   },
 
@@ -377,6 +381,8 @@ G.Game = {
   // are simply not drawn. Then every shader is compiled now, during the load,
   // instead of as a hitch the first time each material comes into view.
   prepareScene() {
+    // (visual series: big boxes cut into pieces, for the corners' AO)
+    if (G.Visuals) G.Visuals.beforeBake(this);
     this.paletteCount = G.Perf.paletteize(this.scene, this.world, [this.yawObject]);
     if (G.Zones) G.Zones.prepare(this.world);
     this.perfReport = G.Perf.mergeStatic(this.scene, this.world, [this.yawObject]);
@@ -385,8 +391,12 @@ G.Game = {
     if (G.Zones) G.Zones.init(this);
     G.Perf.initLightPool(this.scene, this.world, G.save.settings.graphicsQuality);
     this.syncViewmodelLights();
+    // (visual series: the baked surfaces' materials, the night-sky reflection,
+    // the level's lights, fog and shadows)
+    if (G.Visuals) G.Visuals.afterBake(this);
     this.scene.updateMatrixWorld(true);
     try { this.renderer.compile(this.scene, this.camera); } catch (e) { /* best effort */ }
+    if (G.Visuals) G.Visuals.afterCompile(this);
   },
   startLayoutPreview() {
     if (this.state === "GAMEPLAY" || this.state === "PAUSE") return false;
@@ -735,6 +745,8 @@ G.Game = {
   },
   // held things live on layer 1 only, cast and take no shadows
   toViewmodelLayer(root) {
+    // (visual series: lit per pixel like the world, with the rim)
+    if (G.Visuals) G.Visuals.viewmodel(root);
     root.traverse((o) => { o.layers.set(1); if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; } });
   },
   // every light lights both passes
@@ -745,6 +757,8 @@ G.Game = {
   renderFrame() {
     const r = this.renderer, sc = this.scene, cam = this.camera;
     if (!r || !sc || !cam) return;
+    // (visual series: the HDR frame, its film, the words on top -- js/visuals.js)
+    if (G.Visuals && G.Visuals.ready) { G.Visuals.render(this); return; }
     r.info.reset();
     r.autoClear = true;
     // a boss cutscene is seen through its own camera, with no gun in hand
@@ -1887,6 +1901,7 @@ G.Game = {
     if (G.Floor3) G.Floor3.update(this, dt);
     if (G.Details) G.Details.update(this, dt);
     if (G.Sky) G.Sky.update(this, dt);
+    if (G.Visuals) G.Visuals.update(this, dt);
     if (G.Glass) G.Glass.update(dt);
     this.relocateStragglers(worldDt);
     if (G.Minimap) G.Minimap.update(this, dt);

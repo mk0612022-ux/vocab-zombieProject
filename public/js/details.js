@@ -314,7 +314,11 @@ G.Details = {
       g.rotateX(-Math.PI / 2); g.translate(pd.x, pd.y + 0.004, pd.z);
       (groups[key] = groups[key] || []).push(g);
     });
-    const mat = new THREE.MeshPhongMaterial({ color: 0x0c1216, specular: 0x7a8a9a, shininess: 90, envMap: this.skyCube(), reflectivity: 0.7, combine: THREE.MixOperation,
+    // (visual series, C) a mirror of the night sky (js/visuals.js's environment map), tinted by the water
+    const wet = G.VISUAL && G.VISUAL.materials.wet;
+    const mat = wet ? new THREE.MeshStandardMaterial({ color: wet.color, roughness: wet.roughness, metalness: wet.metalness, envMapIntensity: wet.env,
+      transparent: true, opacity: 0.86, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, userData: { vzEnv: true } })
+      : new THREE.MeshPhongMaterial({ color: 0x0c1216, specular: 0x7a8a9a, shininess: 90, envMap: this.skyCube(), reflectivity: 0.7, combine: THREE.MixOperation,
       transparent: true, opacity: 0.86, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
     Object.values(groups).forEach((geos) => {
       const m = new THREE.Mesh(P.concatGeos(geos), mat);

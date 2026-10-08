@@ -202,9 +202,18 @@ window.G = window.G || {};
           z._labelWalled = game.wallDistance(camPos, tmpB, d) < d - 0.4;
         }
         // (Word Radar's word shows through walls -- still not shot through one)
-        const m = z.sprite.material, want = z._labelWalled && !z._radar ? 0 : 1;
+        // (visual series, E1: past combat range a word fades out with distance)
+        const m = z.sprite.material, want = z._labelWalled && !z._radar ? 0 : this.labelFade(z);
         m.opacity = m.opacity + (want - m.opacity) * Math.min(1, dt * 10 || 1);
       }
+    },
+    // (visual series, E1) a word fades out between G.VISUAL.labels.fadeStart and fadeEnd metres
+    labelFade(z) {
+      const L = G.VISUAL && G.VISUAL.labels;
+      if (!L || z._radar) return 1;
+      z.sprite.getWorldPosition(tmpA);
+      const d = tmpA.distanceTo(camPos);
+      return d <= L.fadeStart ? 1 : d >= L.fadeEnd ? 0 : 1 - (d - L.fadeStart) / (L.fadeEnd - L.fadeStart);
     },
     setHover(z) {
       if (z && (z.answer === "spell" || !z.alive)) z = null;
@@ -236,14 +245,19 @@ window.G = window.G || {};
         // (the word aimed at is drawn larger, on top of the rest -- but placed
         // at its usual size, so aiming about never reshuffles the words)
         const k = z === this.hover ? A.labelHover : 1;
-        s.scale.set(base[0] * k, base[1] * k, 1);
         s.renderOrder = z._radar ? 998 : k > 1 ? 7 : 6;
-        if (!shown) { z._labelOff = 0; s.position.copy(z._labelBase); continue; }
+        if (!shown) { s.scale.set(base[0] * k, base[1] * k, 1); z._labelOff = 0; s.position.copy(z._labelBase); continue; }
         tmpA.copy(z._labelBase); z.mesh.localToWorld(tmpA);
         const p = this.screenOf(game, tmpA, {});
-        if (p.depth <= 0.1) continue;
         const c = s.userData.canvas || {};
-        items.push({ z, s, x: p.x, y: p.y, w: base[0] * (c.__fw || 0.6) * p.ppu, h: base[1] * (c.__fh || 0.7) * p.ppu, depth: p.depth, ppu: p.ppu, scale: z.mesh.scale.y || 1 });
+        // (visual series, E1) its letters never smaller on screen than
+        // G.VISUAL.labels.minPx: a far word grows (up to maxGrow) to stay readable
+        const LV = G.VISUAL && G.VISUAL.labels;
+        const textPx = base[1] * (c.__fh || 0.7) * p.ppu;
+        const grow = LV && textPx > 0 && textPx < LV.minPx ? Math.min(LV.maxGrow, LV.minPx / textPx) : 1;
+        s.scale.set(base[0] * k * grow, base[1] * k * grow, 1);
+        if (p.depth <= 0.1) continue;
+        items.push({ z, s, x: p.x, y: p.y, w: base[0] * (c.__fw || 0.6) * p.ppu * grow, h: base[1] * (c.__fh || 0.7) * p.ppu * grow, depth: p.depth, ppu: p.ppu, scale: z.mesh.scale.y || 1 });
       }
       // (the nearest keep their places; each word tries the place it had
       // last frame first, so nothing shuffles while the view moves)
@@ -306,11 +320,13 @@ window.G = window.G || {};
         const geo = new THREE.BufferGeometry();
         geo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(6 * 64), 3));
         geo.userData.shared = true;
-        const mat = new THREE.LineBasicMaterial({ color: 0xe6ffe6, transparent: true, opacity: 0.6, depthTest: false });
+        const mat = new THREE.LineBasicMaterial({ color: 0xe6ffe6, transparent: true, opacity: 0.6, depthTest: false, fog: false });
         mat.userData.shared = true;
         this._lines = new THREE.LineSegments(geo, mat);
         this._lines.frustumCulled = false;
         this._lines.renderOrder = 5;
+        // (visual series: drawn with the words, over the finished picture)
+        if (G.Visuals) this._lines.layers.set(G.Visuals.LABEL_LAYER);
         if (game.scene) game.scene.add(this._lines);
       }
       const a = this._lines.geometry.attributes.position, n = Math.min(pts.length, a.array.length);

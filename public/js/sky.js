@@ -44,6 +44,10 @@ G.Sky = {
     const world = game.world, theme = game.level.theme;
     this.game = game; this.scene = game.scene; this.world = world; this.theme = theme;
     world.noMerge = world.noMerge || [];
+    // (visual series) the moon's colour and strength: js/visual-config.js
+    const VM = G.VISUAL && G.VISUAL.school.moon;
+    if (VM) { this.LIGHT = VM.intensity; this.COLOR = VM.color; this.CLOUD_DIM = VM.cloudDim; }
+    this.indoors = false;
     this.R = G.makeRng(20261001);
     this.uniforms = {
       uTime: { value: 0 }, uMoon: { value: 1 },
@@ -85,7 +89,8 @@ G.Sky = {
   applyQuality(qName) {
     const q = this.Q[qName] != null ? this.Q[qName] : 2;
     this.q = q;
-    if (this.light) {
+    // (visual series: the moon's shadows by graphics level are js/visuals.js's)
+    if (this.light && !G.Visuals) {
       const on = q >= 3;
       const size = q >= 4 ? 2048 : 1024;
       if (this.light.castShadow !== on || this.light.shadow.mapSize.x !== size) {
@@ -107,7 +112,7 @@ G.Sky = {
     return new THREE.ShaderMaterial({
       uniforms: {
         uTime: u.uTime, uMoon: u.uMoon, uMoonDir: u.uMoonDir,
-        uTop: { value: new THREE.Color(0x04071a) }, uMid: { value: new THREE.Color(0x19163f) },
+        uTop: { value: new THREE.Color(G.VISUAL ? G.VISUAL.school.sky.top : 0x04071a) }, uMid: { value: new THREE.Color(G.VISUAL ? G.VISUAL.school.sky.mid : 0x19163f) },
         uHorizon: { value: new THREE.Color(horizon) },
       },
       vertexShader: [
@@ -142,7 +147,10 @@ G.Sky = {
         "  float glow = pow( md, 900.0 ) * 0.8 + pow( md, 70.0 ) * 0.32 + pow( md, 9.0 ) * 0.09;",
         "  col += vec3( 0.72, 0.8, 1.0 ) * glow * ( 0.3 + 0.7 * uMoon );",
         "  col += vec3( 0.86, 0.9, 1.0 ) * star * ( 0.45 + 0.55 * uMoon );",
-        "  gl_FragColor = vec4( col, 1.0 );",
+        // (visual series: written in the target's encoding -- nothing on the
+        // screen, but the environment map js/visuals.js makes from this sky
+        // is stored RGBE-encoded)
+        "  gl_FragColor = linearToOutputTexel( vec4( col, 1.0 ) );",
         "}",
       ].join("\n"),
       side: side || THREE.BackSide, depthWrite: false, fog: false,
@@ -252,12 +260,29 @@ G.Sky = {
   // texels (no shimmer as you walk); indoors it is parked far away, so the
   // building never shades its own rooms and nothing much is drawn into it
   placeShadow(p, force) {
-    const L = this.light, A = this._ax, texel = 68 / L.shadow.mapSize.x;
+    const L = this.light, A = this._ax, texel = 2 * (L.userData.extent || 34) / L.shadow.mapSize.x;
     const c = p.clone();
     const cx = Math.round(c.dot(A.x) / texel) * texel, cy = Math.round(c.dot(A.y) / texel) * texel, cz = c.dot(A.z);
     const snapped = A.x.clone().multiplyScalar(cx).addScaledVector(A.y, cy).addScaledVector(A.z, cz);
     if (!force && this._shadowAt && this._shadowAt.distanceToSquared(snapped) < 1e-6) return;
     this._shadowAt = snapped;
+    if (G.Visuals) G.Visuals._shadowDirty = true;       // (visual series: drawn again at once when it moves)
+    L.target.position.copy(snapped);
+    L.position.copy(snapped).addScaledVector(this.MOON_DIR, 90);
+    L.target.updateMatrixWorld();
+  },
+  // (visual series) the far cascade (High and up): the same, wider, round
+  // the player outdoors and parked away indoors like the near one
+  placeCascade(L, game) {
+    if (!this._ax) return;
+    const A = this._ax, texel = 2 * (L.userData.extent || 70) / L.shadow.mapSize.x;
+    const eye = game.yawObject.position;
+    const p = this.indoors ? new THREE.Vector3(0, -600, 0) : new THREE.Vector3(eye.x, 0, eye.z);
+    const cx = Math.round(p.dot(A.x) / texel) * texel, cy = Math.round(p.dot(A.y) / texel) * texel, cz = p.dot(A.z);
+    const snapped = A.x.clone().multiplyScalar(cx).addScaledVector(A.y, cy).addScaledVector(A.z, cz);
+    if (L.userData.at && L.userData.at.distanceToSquared(snapped) < 1e-6) return;
+    L.userData.at = snapped;
+    if (G.Visuals) G.Visuals._farDirty = true;
     L.target.position.copy(snapped);
     L.position.copy(snapped).addScaledVector(this.MOON_DIR, 90);
     L.target.updateMatrixWorld();
@@ -502,7 +527,7 @@ G.Sky = {
   // the puddles and the fountain: this sky, with its moon, in the water
   reflectInWater() {
     const size = 64, faces = [], R = G.makeRng(5);
-    const top = new THREE.Color(0x04071a), mid = new THREE.Color(0x19163f), hor = new THREE.Color(G.THEME_PALETTES.school.fog);
+    const top = new THREE.Color(G.VISUAL ? G.VISUAL.school.sky.top : 0x04071a), mid = new THREE.Color(G.VISUAL ? G.VISUAL.school.sky.mid : 0x19163f), hor = new THREE.Color(G.THEME_PALETTES.school.fog);
     const md = this.MOON_DIR, col = new THREE.Color();
     // cube faces in the order three.js wants them; x mirrored, as three.js
     // flips a cube texture's x when it samples it
@@ -535,7 +560,8 @@ G.Sky = {
     const cube = new THREE.CubeTexture(faces);
     cube.needsUpdate = true;
     this.cube = cube;
-    (G.Details && G.Details.puddles || []).forEach((m) => { m.material.envMap = cube; m.material.needsUpdate = true; });
+    // (visual series: a Standard puddle reflects the level's environment map instead)
+    (G.Details && G.Details.puddles || []).forEach((m) => { if (m.material.isMeshStandardMaterial) return; m.material.envMap = cube; m.material.needsUpdate = true; });
   },
 
   // ------------------------------------------------------------ frame ----
@@ -569,7 +595,7 @@ G.Sky = {
       });
       this.cover += (cover - this.cover) * Math.min(1, dt * 0.9);
     }
-    const target = 1 - 0.62 * this.cover;
+    const target = 1 - (this.CLOUD_DIM != null ? this.CLOUD_DIM : 0.62) * this.cover;
     const u = this.uniforms.uMoon;
     u.value += (target - u.value) * Math.min(1, dt * 1.2);
     if (this.halo) this.halo.material.opacity = 0.5 * u.value;
@@ -577,11 +603,12 @@ G.Sky = {
     if (this.light) {
       // (x G.Perf.dimK: a boss's Lights Out, js/bossmoves.js)
       this.light.intensity = this.LIGHT * (0.38 + 0.62 * u.value) * (G.Perf && G.Perf.dimK != null ? G.Perf.dimK : 1);
-      if (this.light.castShadow) {
-        const region = G.getRegionAt(game.world, eye.x, eye.z, eye.y - 1.7) || "";
-        const outdoors = /^YARD/.test(region);
-        this.placeShadow(outdoors ? new THREE.Vector3(eye.x, 0, eye.z) : new THREE.Vector3(0, -600, 0));
-      }
+      // (visual series: indoors or out -- the shadows, and how much sky the
+      // metal and glass reflect, js/visuals.js)
+      const region = G.getRegionAt(game.world, eye.x, eye.z, eye.y - 1.7) || "";
+      const outdoors = /^YARD/.test(region);
+      this.indoors = !outdoors;
+      if (this.light.castShadow) this.placeShadow(outdoors ? new THREE.Vector3(eye.x, 0, eye.z) : new THREE.Vector3(0, -600, 0));
     }
   },
 };

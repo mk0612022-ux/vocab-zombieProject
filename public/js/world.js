@@ -281,7 +281,9 @@ G.findPath = function (world, from, to) {
 G.buildLevelScene = function (scene, level, quality) {
   const pal = G.THEME_PALETTES[level.theme];
   scene.background = new THREE.Color(pal.fog);
-  const fogFar = quality === "vlow" ? pal.fogFar * 0.5 : quality === "low" ? pal.fogFar * 0.7 : pal.fogFar;
+  // (visual series: the fog thickens as distance squared now, and the low
+  // settings may not bring it so close that combat range is lost in it)
+  const fogFar = G.Visuals ? G.Visuals.fogFar(pal, quality) : quality === "vlow" ? pal.fogFar * 0.5 : quality === "low" ? pal.fogFar * 0.7 : pal.fogFar;
   scene.fog = new THREE.Fog(pal.fog, pal.fogNear, fogFar);
 
   const ambient = new THREE.AmbientLight(pal.ambient, 0.85);

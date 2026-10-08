@@ -95,7 +95,14 @@ G.Glass = {
     const o = { map, transparent: true, depthWrite: false, side: THREE.DoubleSide };
     let m;
     if (q <= 1) m = new THREE.MeshBasicMaterial(o);
-    else if (q === 2) m = new THREE.MeshLambertMaterial(o);
+    else if (q === 2 && !G.VISUAL) m = new THREE.MeshLambertMaterial(o);
+    else if (G.VISUAL) {
+      // (visual series, C) glass reflects the night sky (js/visuals.js's environment map)
+      const g = G.VISUAL.materials.glass;
+      m = new THREE.MeshStandardMaterial(Object.assign(o, { roughness: g.roughness, metalness: g.metalness, envMapIntensity: g.env }));
+      m.userData.vzEnv = true;
+      if (G.Visuals && G.Visuals._env) m.envMap = G.Visuals._env;
+    }
     else m = new THREE.MeshPhongMaterial(Object.assign(o, { envMap: this.sky(), reflectivity: 0.5, combine: THREE.MixOperation, specular: 0x8aa8c8, shininess: 90 }));
     m.userData.quality = q;
     return m;

@@ -93,6 +93,8 @@ window.G = window.G || {};
         this.shown = false; this._leaving = false;
         // a version found while the game was opening is offered now
         if (G.Updater) { G.Updater.badge(); if (G.Updater._offerLater) G.Updater.offer(G.Updater._offerM); }
+        // (visual series, round 1, E4) the first time: how bright the night should be
+        if (G.BrightnessCal && G.save && !G.save.settings.brightnessSet && !G.Modal.isOpen()) G.BrightnessCal.open("start");
       }, G.CONFIG.start.fadeMs);
     },
   };

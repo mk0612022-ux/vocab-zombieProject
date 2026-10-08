@@ -176,6 +176,14 @@ G.UIAudit = {
       G.save.settings.campaignStyle = keepStyle; G.save.settings.safeArea = keepSafe; G.applySafeArea();
       await step("settings: privacy policy", () => { G.SettingsUI.select("about"); G.SettingsUI.openPrivacy(); });
       G.SettingsUI.closePrivacy();
+      // (visual series, round 1, E4) the brightness calibration window
+      if (G.BrightnessCal) {
+        const keepB = G.save.settings.brightness, keepSet = G.save.settings.brightnessSet;
+        await step("brightness calibration", () => { G.SettingsUI.select("graphics"); G.BrightnessCal.open("settings"); });
+        G.BrightnessCal.ok();
+        G.save.settings.brightness = keepB; G.save.settings.brightnessSet = keepSet;
+        if (G.Visuals && G.Visuals.ready) G.Visuals.applyGrade(G.Visuals.theme);
+      }
       // (D, E) the Loading screen -- words over the heads, a tip, then the Word of
       // the Day -- and the Start screen, its Sign In
       await step("loading screen", () => { UI.goToMainMenu(); document.getElementById("loading-overlay").classList.remove("hidden"); U.panel("boot-main"); G.Boot.active = true; G.Boot.placeWords(); G.Boot.showWord = false; G.Boot.tip(); G.Boot.update(); });

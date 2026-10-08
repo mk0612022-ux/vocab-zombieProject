@@ -59,11 +59,13 @@ G.Round10Test = (function () {
     const mat = Gl.meshes.clean.material;
     ok("H: the glass is see-through and writes no depth", mat.transparent && !mat.depthWrite && mat.side === THREE.DoubleSide);
     ok("H: drawn after the solid things", Gl.meshes.clean.renderOrder > 0);
-    ok("H: High: reflective (lit, with the night sky in it)", mat.isMeshPhongMaterial && !!mat.envMap, mat.type);
+    // (visual series: per-pixel Standard reflecting js/visuals.js's night-sky environment map)
+    ok("H: High: reflective (lit, with the night sky in it)", (G.VISUAL ? mat.isMeshStandardMaterial : mat.isMeshPhongMaterial) && !!mat.envMap, mat.type);
     G.save.settings.graphicsQuality = "low"; g.applyGraphicsQuality();
     ok("H: Low: a plain flat material", Gl.meshes.clean.material.isMeshBasicMaterial, Gl.meshes.clean.material.type);
     G.save.settings.graphicsQuality = "medium"; g.applyGraphicsQuality();
-    ok("H: Medium: lit, no reflections", Gl.meshes.clean.material.isMeshLambertMaterial, Gl.meshes.clean.material.type);
+    // (visual series: from Medium up the glass reflects the sky too)
+    ok(G.VISUAL ? "H: Medium: lit and reflective (Standard)" : "H: Medium: lit, no reflections", G.VISUAL ? Gl.meshes.clean.material.isMeshStandardMaterial : Gl.meshes.clean.material.isMeshLambertMaterial, Gl.meshes.clean.material.type);
     G.save.settings.graphicsQuality = "high"; g.applyGraphicsQuality();
 
     // the opening: rounds through, people not

@@ -653,12 +653,32 @@ G.drawWordLabel = function (ctx, canvas, text, color, pos, ruby) {
   // (with pinyin: the characters a little lower, the pinyin over them)
   const y = canvas.height / 2 + (thai ? size * 0.08 : 0) + (ruby ? size * 0.3 : 0);
   const total = m.w + m.gap + m.p, x0 = (canvas.width - total) / 2;
+  // (visual series, E1) a dark see-through plate behind the words: they read
+  // against anything -- a lamp, the fog, the moon (js/visual-config.js labels)
+  const P = G.VISUAL && G.VISUAL.labels;
+  if (P && text && text.trim()) {
+    const padX = size * 0.32;
+    const top = Math.max(2, (ruby ? y - size * 0.62 - size * rk * 1.2 : y - size * (thai ? 0.8 : 0.66)) - size * 0.08);
+    const bottom = Math.min(canvas.height - 2, y + size * (thai ? 0.66 : 0.52));
+    const left = Math.max(2, x0 - padX), right = Math.min(canvas.width - 2, x0 + total + padX);
+    const rr = Math.min(size * 0.3, (bottom - top) / 2);
+    const c = new THREE.Color(P.plate);
+    ctx.fillStyle = "rgba(" + Math.round(c.r * 255) + "," + Math.round(c.g * 255) + "," + Math.round(c.b * 255) + "," + P.plateAlpha + ")";
+    ctx.beginPath();
+    ctx.moveTo(left + rr, top); ctx.lineTo(right - rr, top); ctx.quadraticCurveTo(right, top, right, top + rr);
+    ctx.lineTo(right, bottom - rr); ctx.quadraticCurveTo(right, bottom, right - rr, bottom);
+    ctx.lineTo(left + rr, bottom); ctx.quadraticCurveTo(left, bottom, left, bottom - rr);
+    ctx.lineTo(left, top + rr); ctx.quadraticCurveTo(left, top, left + rr, top);
+    ctx.fill();
+  }
   ctx.lineWidth = thai ? 7 : 8; ctx.strokeStyle = "rgba(0,0,0,0.85)"; ctx.lineJoin = "round";
   ctx.font = "bold " + size + "px " + family;
   ctx.textAlign = "left";
   ctx.strokeText(text, x0, y);
   ctx.fillStyle = color || "#ffffff";
   ctx.fillText(text, x0, y);
+  // a word crossed out (Fifty-Fifty): a line through it, as well as the grey
+  if (text.charCodeAt(0) === 0x2717) { ctx.fillRect(x0, y - size * 0.04, m.w, Math.max(3, size * 0.07)); }
   if (ruby) {
     ctx.font = rubyFont(size);
     ctx.textAlign = "center";
@@ -693,8 +713,11 @@ G.makeWordSprite = function (text, opts) {
   const ctx = canvas.getContext("2d");
   G.drawWordLabel(ctx, canvas, text, opts.color || "#ffffff", opts.pos, opts.ruby);
   const tex = new THREE.CanvasTexture(canvas);
-  const mat = new THREE.SpriteMaterial({ map: tex, depthTest: true, transparent: true });
+  // (visual series, E1) no fog, no film, no glow: words are drawn last, on
+  // their own layer, over the finished picture (js/visuals.js)
+  const mat = new THREE.SpriteMaterial({ map: tex, depthTest: true, transparent: true, fog: false, toneMapped: false });
   const sprite = new THREE.Sprite(mat);
+  sprite.layers.set(G.Visuals ? G.Visuals.LABEL_LAYER : 0);
   sprite.scale.set(2.2, 0.55, 1);
   sprite.userData.canvas = canvas;
   sprite.userData.ctx = ctx;
@@ -1295,7 +1318,10 @@ G.Zombie.prototype.setTarget = function (isTarget) {
   this._label = key;
   this.sprite.visible = !!text;
   if (!text) return;
-  G.updateWordSprite(this.sprite, out ? "✗ " + text : text, hot ? "#ffe36b" : out ? "#6c7078" : spell ? "#9ae8ff" : "#ffffff", pos, ruby);
+  // (visual series: the crossed-out grey from js/visual-config.js, light
+  // enough to read on the label's plate)
+  const outC = G.VISUAL ? "#" + new THREE.Color(G.VISUAL.labels.outColor).getHexString() : "#6c7078";
+  G.updateWordSprite(this.sprite, out ? "✗ " + text : text, hot ? "#ffe36b" : out ? outC : spell ? "#9ae8ff" : "#ffffff", pos, ruby);
 };
 // (new series, round 2, G) the part of speech after the word it carries --
 // its own word only: not a meaning or a clue, and not in a question of its

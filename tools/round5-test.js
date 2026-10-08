@@ -175,7 +175,8 @@ G.Round5Test = (function () {
     ok("E the building, trees and salas cast them", casters > 50, casters);
     ok("E beams through the windows that face the moon, with dust", S.beams.length >= 4 && S.dust.length >= 1);
     ok("E shafts through the fog outdoors", S.shafts.length >= 3);
-    ok("E the puddles reflect this sky", G.Details.puddles.length > 0 && G.Details.puddles.every((m) => m.material.envMap === S.cube));
+    // (visual series: the sky they reflect is js/visuals.js's environment map, made from this sky)
+    ok("E the puddles reflect this sky", G.Details.puddles.length > 0 && G.Details.puddles.every((m) => m.material.envMap && (m.material.envMap === S.cube || (G.Visuals && m.material.envMap === G.Visuals._env))));
     // a cloud over the moon: the light dims, slowly, and comes back
     S.clouds.forEach((c, i) => { c.speed = 0; c.az = S._moonAz + Math.PI + i * 0.3; });
     const cl = S.clouds[0]; cl.az = S._moonAz; cl.el = S._moonEl;
@@ -187,7 +188,8 @@ G.Round5Test = (function () {
     ok("E ... and it comes back", S.uniforms.uMoon.value > 0.95);
     // quality: the cheap mesh beams everywhere but the lowest, no shadows low
     G.save.settings.graphicsQuality = "low"; g.applyGraphicsQuality();
-    ok("E Low: no shadows, the beams still there (plain meshes)", !S.light.castShadow && S.beams.every((m) => m.visible));
+    // (visual series: Low has a small low-resolution moon shadow round the player, Very Low none)
+    ok("E Low: a low-resolution shadow at most, the beams still there (plain meshes)", (G.VISUAL ? S.light.shadow.mapSize.x <= G.VISUAL.shadows.low.size : !S.light.castShadow) && S.beams.every((m) => m.visible));
     G.save.settings.graphicsQuality = "vlow"; g.applyGraphicsQuality();
     ok("E Very Low: the beams off too", S.beams.every((m) => !m.visible));
     g = fresh(2, "high");
