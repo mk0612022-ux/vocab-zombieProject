@@ -65,7 +65,8 @@ G.ArtRender = {
   // warm key light and a cool rim, only for the picture
   lights(scene, key, rim) {
     const out = [];
-    const k = new THREE.PointLight(0xffc890, 1.5, 16); k.position.copy(key); scene.add(k); out.push(k);
+    // (visual series, round 3: a little less of it -- the scene's own light does more now)
+    const k = new THREE.PointLight(0xffc890, 1.15, 16); k.position.copy(key); scene.add(k); out.push(k);
     const r = new THREE.PointLight(0x8aa8ff, 1.3, 20); r.position.copy(rim); scene.add(r); out.push(r);
     const h = new THREE.HemisphereLight(0x8aa0c8, 0x2a2418, 0.18); scene.add(h); out.push(h);
     return out;
@@ -165,6 +166,16 @@ G.ArtRender = {
     G.Modal.reset();
   },
 
+  // (visual series, round 3) the world's own state for this view -- indoors
+  // or out, the moon's shadow, the lights and the haze in the air, the forest
+  // -- as a frame of the game would set it (the game's update is stopped here)
+  settle(g) {
+    for (let i = 0; i < 8; i++) {
+      if (G.Sky) G.Sky.update(g, 1 / 30);
+      if (G.Visuals) G.Visuals.update(g, 1 / 30);
+    }
+  },
+
   async shot(name, kind) {
     const cam = this.SHOTS[name](this, G.Game);
     return this.render(name, cam, kind);
@@ -190,6 +201,7 @@ G.ArtRender = {
     G.Zones.update(g, true);
     G.Perf.updateLights(cam.pos, dir.clone().setY(0).normalize(), 1);
     if (G.Details) G.Details.update(g, 0.016);
+    this.settle(g);
     g.zombies.forEach((z) => z.mesh.updateMatrixWorld(true));
     g.renderFrame();
     const url = r.domElement.toDataURL("image/jpeg", portrait ? 0.84 : 0.86);
@@ -197,7 +209,8 @@ G.ArtRender = {
     camera.fov = prevFov; camera.aspect = prevAspect; camera.updateProjectionMatrix();
     g.vmCamera = prevVm;
     const file = name + (portrait ? "-card" : "") + ".jpg";
-    await fetch("http://localhost:" + this.PORT + "/?name=" + file, { method: "POST", body: url, mode: "no-cors" });
+    // (the receiver takes a folder with the name: lobby/ or boot/)
+    await fetch("http://localhost:" + this.PORT + "/?name=lobby/" + file, { method: "POST", body: url, mode: "no-cors" });
     return { file, bytes: Math.round(url.length * 0.75) };
   },
 
@@ -254,6 +267,7 @@ G.ArtRender = {
       G.Zones.update(g, true);
       G.Perf.updateLights(cam.pos, dir.clone().setY(0).normalize(), 1);
       if (G.Details) G.Details.update(g, 0.016);
+      this.settle(g);
       g.renderFrame();
       const url = r.domElement.toDataURL("image/webp", kind === "large" ? 0.8 : 0.78);
       // each word's place: its label's anchor on the picture, the nearer the larger
@@ -282,16 +296,23 @@ G.ArtRender = {
       zb.sprite.visible = false;
       scene.add(zb.mesh);
     });
-    scene.add(new THREE.HemisphereLight(0x8aa4b8, 0x0c140e, 0.32));
-    const key = new THREE.DirectionalLight(0xd8e4ff, 0.75); key.position.set(-2, 5, 9); scene.add(key);
-    [[-7, 2.5, -1, 0x34e07a], [7, 2.5, -1, 0x52ff8f]].forEach(([x, y, z, c]) => { const l = new THREE.DirectionalLight(c, 1.5); l.position.set(x, y, z); scene.add(l); });
-    const top = new THREE.DirectionalLight(0x7dffb0, 0.5); top.position.set(0, 8, -4); scene.add(top);
+    // (visual series, round 3, N: the new look -- the moon's cool key light,
+    // a cyan rim from either side and behind, the navy of the night below;
+    // it used to be lit green)
+    scene.add(new THREE.HemisphereLight(0x5a6c94, 0x0a0e18, 0.34));
+    const key = new THREE.DirectionalLight(0xcfdcff, 0.8); key.position.set(-2, 5, 9); scene.add(key);
+    [[-7, 2.5, -1, 0x4fc8ff], [7, 2.5, -1, 0x7ab8ff]].forEach(([x, y, z, c]) => { const l = new THREE.DirectionalLight(c, 1.45); l.position.set(x, y, z); scene.add(l); });
+    const top = new THREE.DirectionalLight(0x9ac4ff, 0.55); top.position.set(0, 8, -4); scene.add(top);
     const cam = new THREE.PerspectiveCamera(H0.fov, W / H, 0.1, 100);
     cam.position.set(...H0.cam); cam.lookAt(...H0.look);
     const r = new THREE.WebGLRenderer({ alpha: true, antialias: true, preserveDrawingBuffer: true });
     r.setPixelRatio(1); r.setSize(W, H, false); r.setClearColor(0x000000, 0);
     scene.updateMatrixWorld(true);
-    r.render(scene, cam);
+    // (visual series: a zombie marks its pixels in the alpha for the game's
+    // haze -- here the alpha is the picture's own see-through: not marked)
+    const marked = [G.ZOMBIE_MATS.lambert, G.ZOMBIE_MATS.basic].filter((m) => m && m.userData.vzMark);
+    marked.forEach((m) => { m.userData.vzMark = false; });
+    try { r.render(scene, cam); } finally { marked.forEach((m) => { m.userData.vzMark = true; }); }
     // cropped to what is drawn, with a little room for the glow
     const c2 = document.createElement("canvas"); c2.width = W; c2.height = H;
     const x2 = c2.getContext("2d"); x2.drawImage(r.domElement, 0, 0);

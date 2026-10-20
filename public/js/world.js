@@ -2371,7 +2371,12 @@ G.buildLevelScene = function (scene, level, quality) {
       addFloatBox, addBloodStain, addLight, addGlowBox, fenceMat, barkMat, branchMat });
 
     // ---- perimeter: steel railings and brick piers, wrecked but sealed ----
-    function railRun(ax, from, to, fixed, broken) {
+    // (visual series, round 3, L2: the forest lies past it now, so the sealed
+    // line is a wall reaching WALL metres outwards -- `out`, the side the wood
+    // is on -- and nothing quick, a Dash, a Pole Vault, a shove, gets through
+    // it; every move is stepped too, js/game.js tryMove)
+    const WALL = (G.CONFIG && G.CONFIG.world && G.CONFIG.world.fenceWall) || 2.5;
+    function railRun(ax, from, to, fixed, broken, out) {
       const span = Math.abs(to - from), steps = Math.max(1, Math.round(span / 3)), seg = span / steps;
       const lo = Math.min(from, to);
       for (let i = 0; i < steps; i++) {
@@ -2398,20 +2403,27 @@ G.buildLevelScene = function (scene, level, quality) {
         }
       }
       // the sealed line behind the panels, whatever they look like
-      world.colliders.push(ax === "x"
-        ? new THREE.Box3(new THREE.Vector3(lo, 0, fixed - 0.3), new THREE.Vector3(lo + span, 3.2, fixed + 0.3))
-        : new THREE.Box3(new THREE.Vector3(fixed - 0.3, 0, lo), new THREE.Vector3(fixed + 0.3, 3.2, lo + span)));
+      // (a railing, though: a round passes it, out into the trees)
+      const a = out > 0 ? fixed - 0.3 : fixed - WALL, b = out > 0 ? fixed + WALL : fixed + 0.3;
+      const sealed = ax === "x"
+        ? new THREE.Box3(new THREE.Vector3(lo - WALL, 0, a), new THREE.Vector3(lo + span + WALL, 3.2, b))
+        : new THREE.Box3(new THREE.Vector3(a, 0, lo - WALL), new THREE.Vector3(b, 3.2, lo + span + WALL));
+      sealed.passShots = true;
+      world.colliders.push(sealed);
     }
     // The school fence runs round the whole campus now (round 3): the road
     // side in front with the main gate in it, the field side, the garden side
     // and the back. Brick piers every so often; panels missing here and
     // there, but the line behind them is sealed all the way round.
     const GATE = 3.4;
-    railRun("x", C.x0, -GATE, C.z1 - 0.5, true);     // front, west of the gate
-    railRun("x", GATE, C.x1, C.z1 - 0.5, true);      // front, east of the gate
-    railRun("x", C.x0, C.x1, C.z0 + 0.5, true);      // back
-    railRun("z", C.z0, C.z1, C.x0 + 0.5, true);      // field side
-    railRun("z", C.z0, C.z1, C.x1 - 0.5, false);     // garden side
+    railRun("x", C.x0, -GATE, C.z1 - 0.5, true, 1);     // front, west of the gate
+    railRun("x", GATE, C.x1, C.z1 - 0.5, true, 1);      // front, east of the gate
+    railRun("x", C.x0, C.x1, C.z0 + 0.5, true, -1);     // back
+    railRun("z", C.z0, C.z1, C.x0 + 0.5, true, -1);     // field side
+    railRun("z", C.z0, C.z1, C.x1 - 0.5, false, 1);     // garden side
+    // L3: inside the fence, clear of it by the sealed line and a body's width
+    // -- where anything may be born, dropped or stand (G.inPlayArea, js/forest.js)
+    world.playBounds = { x0: C.x0 + 0.5 + 0.65, x1: C.x1 - 0.5 - 0.65, z0: C.z0 + 0.5 + 0.65, z1: C.z1 - 0.5 - 0.65 };
     const brickMat = new THREE.MeshLambertMaterial({ color: 0x6b4a40 }), capMat = new THREE.MeshLambertMaterial({ color: 0x8a8578 });
     const pier = (x, z) => {
       const p = new THREE.Mesh(new THREE.BoxGeometry(0.7, 2.5, 0.7), brickMat); p.position.set(x, 1.25, z); scene.add(p);
@@ -2432,7 +2444,9 @@ G.buildLevelScene = function (scene, level, quality) {
       scene.add(leaf);
       world.colliders.push(new THREE.Box3().setFromObject(leaf));
     });
-    world.colliders.push(new THREE.Box3(new THREE.Vector3(-GATE, 0, C.z1 - 0.9), new THREE.Vector3(GATE, 3.2, C.z1 - 0.2)));
+    const gateLine = new THREE.Box3(new THREE.Vector3(-GATE, 0, C.z1 - 0.9), new THREE.Vector3(GATE, 3.2, C.z1 - 0.5 + WALL));
+    gateLine.passShots = true;            // (the leaves themselves stop a round; the line behind them only a body)
+    world.colliders.push(gateLine);
     // a fallen fence section on the grass, which is where the "hole" went
     const fallen = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.14, 2.0), fenceMat);
     fallen.position.set(C.x0 + 3.4, 0.09, 12);
@@ -2626,8 +2640,13 @@ G.buildLevelScene = function (scene, level, quality) {
   world.regions.forEach(spanOf);
   world.heightZones.forEach(spanOf);
   const bm = 2.5, bt = 3;
-  const boundaryBox = (x0, z0, x1, z1) => world.colliders.push(
-    new THREE.Box3(new THREE.Vector3(x0, -2, z0), new THREE.Vector3(x1, 40, z1)));
+  // (visual series, round 3, L2: round the school these stand out in the
+  // forest -- they stop a body, not a round, which flies on into the trees)
+  const boundaryBox = (x0, z0, x1, z1) => {
+    const b = new THREE.Box3(new THREE.Vector3(x0, -2, z0), new THREE.Vector3(x1, 40, z1));
+    if (world.campus) b.passShots = true;
+    world.colliders.push(b);
+  };
   boundaryBox(bMinX - bm - bt, bMinZ - bm - bt, bMinX - bm, bMaxZ + bm + bt);
   boundaryBox(bMaxX + bm, bMinZ - bm - bt, bMaxX + bm + bt, bMaxZ + bm + bt);
   boundaryBox(bMinX - bm - bt, bMinZ - bm - bt, bMaxX + bm + bt, bMinZ - bm);

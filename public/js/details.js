@@ -52,6 +52,7 @@ G.Details = {
     this.q = this.Q[q] != null ? this.Q[q] : 2;
     const show = (o, v) => { if (o) o.visible = v; };
     (this.puddles || []).forEach((m) => show(m, this.q >= 1));
+    this.liveEnv(q);
     (this.shafts || []).forEach((m) => show(m, this.q >= 2));
     (this.curtains || []).forEach((m) => { show(m, this.q >= 1); if (m.material.userData.amp) m.material.userData.amp.value = this.q >= 2 ? 1 : 0; });
   },
@@ -61,6 +62,8 @@ G.Details = {
     this.leaves = null; this.paper = null; this.crows = null;
     this.puddles = []; this.shafts = []; this.curtains = [];
     this._treeT = 0; this._near = [];
+    if (this.cubeRT) this.cubeRT.dispose();
+    this.cube = null; this.cubeRT = null; this.matOut = null; this.spots = [];
   },
 
   // a shot fired: anything perched within earshot takes off
@@ -320,13 +323,63 @@ G.Details = {
       transparent: true, opacity: 0.86, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, userData: { vzEnv: true } })
       : new THREE.MeshPhongMaterial({ color: 0x0c1216, specular: 0x7a8a9a, shininess: 90, envMap: this.skyCube(), reflectivity: 0.7, combine: THREE.MixOperation,
       transparent: true, opacity: 0.86, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
-    Object.values(groups).forEach((geos) => {
-      const m = new THREE.Mesh(P.concatGeos(geos), mat);
+    // (visual series, round 3, M: the ones out of doors have a material of
+    // their own -- on Very High it mirrors the real scene, this.liveEnv)
+    this.spots = list.filter((pd) => !(pd.y > 3 || pd.y < 0.05)).map((pd) => ({ x: pd.x, y: pd.y, z: pd.z }));
+    this.matOut = wet ? mat.clone() : null;
+    Object.keys(groups).forEach((key) => {
+      const m = new THREE.Mesh(P.concatGeos(groups[key]), key === "out" && this.matOut ? this.matOut : mat);
       m.renderOrder = 1;
       this.scene.add(m);
       this.world.noMerge.push(m);
       this.puddles.push(m);
     });
+  },
+
+  // (visual series, round 3, M) Very High: the real scene in the puddles out
+  // of doors -- a small cube camera just under the one nearest the player,
+  // one of its six faces drawn a frame; below Very High, and indoors, the
+  // night sky as before
+  liveEnv(q) {
+    const C = G.VISUAL && G.VISUAL.reflections, Q = G.VISUAL && G.VISUAL.quality[q];
+    if (!this.matOut || !C) return;
+    const on = !!(Q && Q.reflections) && this.spots.length > 0;
+    if (on && !this.cube) {
+      const gl2 = G.Game && G.Game.renderer && G.Game.renderer.capabilities.isWebGL2;
+      this.cubeRT = new THREE.WebGLCubeRenderTarget(C.size, { type: gl2 ? THREE.HalfFloatType : THREE.UnsignedByteType, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter });
+      this.cube = new THREE.CubeCamera(0.15, C.far, this.cubeRT);
+      this._face = 0; this._cubeT = 0; this._at = null;
+    }
+    const L = this.matOut.userData.vzEnvLive || (this.matOut.userData.vzEnvLive = { on: false, tex: null });
+    L.on = on && !!this.cube; L.tex = this.cube ? this.cubeRT.texture : null;
+    const want = L.on ? L.tex : (G.Visuals && G.Visuals._env) || null;
+    if (want && this.matOut.envMap !== want) { this.matOut.envMap = want; this.matOut.needsUpdate = true; }
+  },
+  reflect(game, dt) {
+    const L = this.matOut && this.matOut.userData.vzEnvLive, C = G.VISUAL && G.VISUAL.reflections;
+    if (!L || !L.on || !this.cube || !C) return;
+    if (G.Zones && G.Zones.state && G.Zones.state.inside) return;
+    this._cubeT -= dt || 0;
+    if (this._cubeT > 0) return;
+    this._cubeT = C.every;
+    const p = game.yawObject.position;
+    let best = null, bd = Infinity;
+    for (const s of this.spots) { const d = (s.x - p.x) * (s.x - p.x) + (s.z - p.z) * (s.z - p.z); if (d < bd) { bd = d; best = s; } }
+    if (!best || Math.sqrt(bd) > C.reach) return;
+    if (this._at !== best) { this._at = best; this._face = 0; }
+    this.cube.position.set(best.x, best.y - C.depth, best.z);
+    this.cube.updateMatrixWorld(true);
+    const r = game.renderer, cam = this.cube.children[this._face];
+    const prev = r.getRenderTarget(), au = r.shadowMap.autoUpdate, nu = r.shadowMap.needsUpdate, ac = r.autoClear;
+    this.puddles.forEach((m) => { m.userData.vzWas = m.visible; m.visible = false; });
+    r.shadowMap.autoUpdate = false; r.shadowMap.needsUpdate = false; r.autoClear = true;
+    r.setRenderTarget(this.cubeRT, this._face);
+    r.render(game.scene, cam);
+    r.setRenderTarget(prev);
+    r.shadowMap.autoUpdate = au; r.shadowMap.needsUpdate = nu; r.autoClear = ac;
+    this.puddles.forEach((m) => { m.visible = m.userData.vzWas; });
+    this._face = (this._face + 1) % 6;
+    this.reflected = (this.reflected || 0) + 1;
   },
 
   // ---- light shafts ------------------------------------------------------------
@@ -426,6 +479,7 @@ G.Details = {
     this.updateLeaves(dt, p, outdoors);
     this.updatePaper(dt, p, outdoors);
     this.updateCrows(dt, p, outdoors);
+    this.reflect(game, dt);
     // G1: the grass leans away from the player and the zombies near them
     const B = this.world.dress && this.world.dress.uniforms.uBend;
     if (B) {

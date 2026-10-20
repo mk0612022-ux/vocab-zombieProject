@@ -234,9 +234,16 @@
   // along the wind that bows the grass over as it passes and shows the paler
   // undersides of the blades. `o.headOnly` (the flowers): the instance colour
   // tints only the white parts of the geometry, the heads, not the stems.
+  // (visual series, round 3: the forest sways with the same wind --
+  // js/forest.js, through G.SchoolDress.sway -- `o.height`: how tall the
+  // thing is, its top moves the most; `o.amp`, `o.freq`: how far and how fast
+  // it moves next to a blade of grass; `o.bend` false: nothing walks through
+  // it, so no giving way)
   function swayMaterial(world, base, o) {
     const u = world.dress.uniforms;
     o = o || {};
+    const f = (x) => { const s = String(+x); return /[.e]/.test(s) ? s : s + ".0"; };
+    const H = f(o.height || 1), A = f(o.amp == null ? 1 : o.amp), F = f(o.freq || 1), bend = o.bend !== false;
     base.onBeforeCompile = (shader) => {
       shader.uniforms.uTime = u.uTime;
       shader.uniforms.uBend = u.uBend;
@@ -253,21 +260,21 @@
         "vec4 mvPosition = vec4( transformed, 1.0 );",
         "#ifdef USE_INSTANCING",
         "  mvPosition = instanceMatrix * mvPosition;",
-        "  float gh = clamp( transformed.y, 0.0, 1.0 );",
+        "  float gh = clamp( transformed.y / " + H + ", 0.0, 1.0 );",
         "  vec2 ip = instanceMatrix[3].xz;",
         "  float gust = 0.6 + 0.4 * sin( uTime * 0.37 + ip.x * 0.05 );",
-        "  float w = sin( uTime * 1.6 + ip.x * 0.31 + ip.y * 0.23 ) + 0.45 * sin( uTime * 2.9 + ip.x * 0.83 + ip.y * 0.5 );",
-        "  mvPosition.x += w * 0.09 * gust * gh * gh;",
-        "  mvPosition.z += w * 0.05 * gust * gh * gh;",
+        "  float w = sin( uTime * 1.6 * " + F + " + ip.x * 0.31 + ip.y * 0.23 ) + 0.45 * sin( uTime * 2.9 * " + F + " + ip.x * 0.83 + ip.y * 0.5 );",
+        "  mvPosition.x += w * 0.09 * " + A + " * gust * gh * gh;",
+        "  mvPosition.z += w * 0.05 * " + A + " * gust * gh * gh;",
         "  vec2 wd = vec2( 0.86, 0.5 );",
         "  float wv = sin( dot( ip, wd ) * 0.21 + sin( dot( ip, vec2( -0.5, 0.86 ) ) * 0.05 ) * 2.0 - uTime * 1.5 ) * 0.5 + 0.5;",
         "  float wave = wv * wv * wv;",
-        "  mvPosition.xz += wd * wave * 0.17 * gh * gh;",
-        "  mvPosition.y -= wave * 0.07 * gh * gh;",
+        "  mvPosition.xz += wd * wave * 0.17 * " + A + " * gh * gh;",
+        "  mvPosition.y -= wave * 0.07 * " + A + " * gh * gh;",
         "  #if defined( USE_COLOR ) || defined( USE_INSTANCING_COLOR )",
         "    vColor.rgb *= 1.0 + 0.28 * wave * gh;",
         "  #endif",
-        "  for ( int i = 0; i < 6; i++ ) {",
+        bend ? "  for ( int i = 0; i < 6; i++ ) {" : "  for ( int i = 0; i < 0; i++ ) {",
         "    vec4 b = uBend[ i ];",
         "    if ( b.w <= 0.0 ) continue;",
         "    vec2 d = ip - b.xz;",
@@ -284,7 +291,11 @@
         "gl_Position = projectionMatrix * mvPosition;",
       ].join("\n"));
     };
-    base.customProgramCacheKey = () => "grass-sway-bend" + (o.headOnly ? "-head" : "");
+    // (the rest of the key is the shared one: a forest material has a rim and
+    // a fog of its own -- js/visuals.js, its defines)
+    const key = "grass-sway-bend" + (o.headOnly ? "-head" : "") + (o.height || o.amp != null || o.freq || !bend ? "|" + H + "|" + A + "|" + F + "|" + bend : "");
+    const proto = THREE.Material.prototype.customProgramCacheKey;
+    base.customProgramCacheKey = o.height ? function () { return proto.call(this) + "|" + key; } : () => key;
     return base;
   }
   // A tuft (newer list, round 3, I1): thin pointed blades from a common root,
@@ -500,6 +511,9 @@
       world.noMerge = world.noMerge || [];
       return d;
     },
+
+    // (visual series, round 3) the grass's wind for something else: the forest
+    sway(world, mat, o) { this.init(world); return swayMaterial(world, mat, o); },
 
     // live graphics-quality changes: thin out / restore the small details
     applyQuality(world, q) {

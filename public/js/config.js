@@ -160,6 +160,15 @@ G.CONFIG = {
   // ---------------- the checkpoint ----------------
   checkpoint: { afterWave: 10 },
 
+  // ---------------- the edge of the map (visual series, round 3, L2-L3) ----------------
+  // The school's fence: its sealed line reaches fenceWall metres out into the
+  // forest; no move takes a step longer than moveStep (a Dash covers ~6 m in a
+  // fifth of a second); a zombie, a boss's helper or a drop is never placed
+  // closer to the fence than spawnMargin / dropMargin (past the play area's
+  // own edge, which is already a body's width in from the fence's sealed
+  // line). js/world.js, js/game.js
+  world: { fenceWall: 2.5, moveStep: 0.25, spawnMargin: 0.2, dropMargin: 1.0 },
+
   // ---------------- odd zombies (newer list, round 3, I2) ----------------
   // How often a zombie is one of the odd ones, and which kind (relative
   // weights): a deformed face, its own head carried in its hand (the head

@@ -2034,13 +2034,13 @@ button.pg-tile:hover, button.pg-tile:focus-visible, button.pg-tile.pad-focus { b
 .start-logo span { color: #6bff7a; }
 .start-hero { position: relative; display: flex; justify-content: center; width: min(94vw, 1150px); min-height: 0; }
 .start-hero img { position: relative; display: block; max-width: 100%; max-height: 50vh; width: auto; height: auto;
-  filter: drop-shadow(0 0 9px rgba(90,255,140,0.42)) drop-shadow(0 0 30px rgba(60,220,110,0.22)); animation: start-breathe 7s ease-in-out infinite; }
-@keyframes start-breathe { 50% { transform: scale(1.012); filter: drop-shadow(0 0 13px rgba(110,255,160,0.6)) drop-shadow(0 0 42px rgba(60,220,110,0.32)); } }
-.start-glow { position: absolute; left: 8%; right: 8%; top: 18%; bottom: -6%; background: radial-gradient(ellipse 50% 55% at 50% 60%, rgba(70,230,120,0.24), transparent 72%); filter: blur(12px); pointer-events: none; }
+  filter: drop-shadow(0 0 9px rgba(110,200,255,0.42)) drop-shadow(0 0 30px rgba(70,150,230,0.22)); animation: start-breathe 7s ease-in-out infinite; }
+@keyframes start-breathe { 50% { transform: scale(1.012); filter: drop-shadow(0 0 13px rgba(140,215,255,0.6)) drop-shadow(0 0 42px rgba(70,150,230,0.32)); } }
+.start-glow { position: absolute; left: 8%; right: 8%; top: 18%; bottom: -6%; background: radial-gradient(ellipse 50% 55% at 50% 60%, rgba(80,170,240,0.24), transparent 72%); filter: blur(12px); pointer-events: none; }
 .start-tap { position: relative; background: none; border: 0; color: #fff; font: inherit; font-weight: 900; font-size: clamp(1.5rem, 5.6vmin, 3.1rem);
   letter-spacing: clamp(2px, 0.6vmin, 6px); cursor: pointer; padding: 4px 22px; border-radius: 14px; animation: start-tap 2.8s ease-in-out infinite; }
-@keyframes start-tap { 0%, 100% { opacity: 0.8; text-shadow: 0 0 8px rgba(120,255,160,0.35), 0 0 24px rgba(80,230,130,0.2); }
-  50% { opacity: 1; text-shadow: 0 0 14px rgba(170,255,195,0.9), 0 0 44px rgba(90,240,140,0.55); } }
+@keyframes start-tap { 0%, 100% { opacity: 0.8; text-shadow: 0 0 8px rgba(140,210,255,0.35), 0 0 24px rgba(90,170,240,0.2); }
+  50% { opacity: 1; text-shadow: 0 0 14px rgba(190,230,255,0.9), 0 0 44px rgba(100,180,250,0.55); } }
 .start-tap:focus { outline: none; }
 .start-tap:focus-visible, .start-tap.pad-focus { box-shadow: 0 0 0 2px rgba(107,255,122,0.55); }
 .start-hint { position: relative; margin-top: -4px; font-size: 0.78rem; letter-spacing: 1.5px; color: rgba(220,240,226,0.55); }

@@ -850,6 +850,23 @@ G.Audio = {
     wl.frequency.value = 0.09; wlg.gain.value = theme === "school" ? 260 : 40; wl.connect(wlg); wlg.connect(af.frequency); wl.start();
     amb.connect(af); af.connect(ag); ag.connect(this.bus.ambient); amb.start();
     L.nodes.push(amb, wl);
+    // (visual series, round 3, L1) the forest round the school: the wind in
+    // its leaves, heard from the side of it nearest the player -- louder by the
+    // fence, faint indoors -- and, now and then, a cricket, an owl or a gust in
+    // the trees from somewhere along its edge (this.forestTick)
+    if (theme === "school" && G.VISUAL && G.VISUAL.forest) {
+      const S = G.VISUAL.forest.sound;
+      const src = ctx.createBufferSource(); src.buffer = this.noiseBuffer(); src.loop = true; src.playbackRate.value = 0.8;
+      const bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 2400; bp.Q.value = 0.5;
+      const hs = ctx.createBiquadFilter(); hs.type = "lowpass"; hs.frequency.value = 5200;
+      const gg = ctx.createGain(); gg.gain.value = 0.0001;
+      const lfo = ctx.createOscillator(), lg = ctx.createGain(); lfo.frequency.value = 0.13; lg.gain.value = 900; lfo.connect(lg); lg.connect(bp.frequency); lfo.start();
+      const pan = this._out("ambient", { x: 0, y: 1.5, z: 0 });
+      pan.refDistance = 6; pan.rolloffFactor = 0.9; pan.maxDistance = 90;
+      src.connect(bp); bp.connect(hs); hs.connect(gg); gg.connect(pan); src.start();
+      L.nodes.push(src, lfo);
+      L.forest = { pan, gain: gg, S, next: ctx.currentTime + 3 };
+    }
     if (theme !== "school") {
       // mains hum: the hospital's fluorescent tubes, the bunker's transformers
       [100, 200].forEach((f, i) => {
@@ -928,6 +945,38 @@ G.Audio = {
     if (now >= L.nextAmb) {
       L.nextAmb = now + 2.5 + Math.random() * 6;
       this._ambientOneShot(L);
+    }
+    if (L.forest) this.forestTick(L, now, game);
+  },
+
+  // (visual series, round 3) the forest's sounds: the bed follows the nearest
+  // edge of the wood; a one-shot comes from a point on the edge near the player
+  forestTick(L, now, game) {
+    const Fo = L.forest, S = Fo.S, Fr = G.Forest;
+    if (!Fr || !Fr.built || !game.yawObject) return;
+    const p = game.yawObject.position, e = Fr.edgePoint(p.x, p.z, this._fv || (this._fv = new THREE.Vector3()));
+    const pn = Fo.pan;
+    if (pn.positionX) { pn.positionX.value = e.x; pn.positionY.value = e.y; pn.positionZ.value = e.z; } else pn.setPosition(e.x, e.y, e.z);
+    const inside = G.Zones && G.Zones.state && G.Zones.state.inside;
+    Fo.gain.gain.setTargetAtTime(S.bed * (inside ? S.indoor : 1), now, 0.6);
+    if (now < Fo.next) return;
+    Fo.next = now + S.gap[0] + Math.random() * (S.gap[1] - S.gap[0]);
+    // somewhere along the edge, within reach (and out in the wood a little)
+    const a = Math.random() * 6.283, r = Math.random() * S.reach;
+    const q = Fr.edgePoint(p.x + Math.cos(a) * r, p.z + Math.sin(a) * r, new THREE.Vector3());
+    q.x += Math.cos(a) * 4; q.z += Math.sin(a) * 4;
+    const k = inside ? S.indoor : 1, pos = { x: q.x, y: 2 + Math.random() * 4, z: q.z }, x = Math.random();
+    if (x < 0.5) {
+      // a cricket: a short train of high chirps
+      const f = 4200 + Math.random() * 900, n = 3 + Math.floor(Math.random() * 4);
+      for (let i = 0; i < n; i++) this.tone({ type: "sine", freq: f, freqEnd: f * 0.96, dur: 0.045, gain: S.cricket * k, bus: "ambient", at: i * 0.09, pos });
+    } else if (x < 0.75) {
+      // an owl: two soft hoots, the second lower and longer
+      this.tone({ type: "sine", freq: 410, freqEnd: 380, dur: 0.38, gain: S.owl * k, attack: 0.08, bus: "ambient", pos, vibrato: { rate: 6, depth: 4 }, rev: 0.5 });
+      this.tone({ type: "sine", freq: 372, freqEnd: 330, dur: 0.7, gain: S.owl * k, attack: 0.1, bus: "ambient", at: 0.5, pos, vibrato: { rate: 5, depth: 5 }, rev: 0.5 });
+    } else {
+      // a gust through the leaves
+      this.noise({ dur: 2.2, filter: "bandpass", freq: 1800, freqEnd: 900, q: 0.6, gain: S.gust * k, attack: 0.7, bus: "ambient", pos });
     }
   },
 

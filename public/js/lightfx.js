@@ -238,6 +238,7 @@
       }
       this.gates();
       this.keycard();
+      this.cine();
       this.important();
       this.lampPosts();
       this.fixtureDecals();
@@ -442,6 +443,19 @@
       l.userData.base = 0;
       this.heroes.keycard = { light: l, f: 0, on: false, mesh: null };
       this.note("floor 3's keycard (while it lies there)", "hero", true);
+    },
+
+    // (visual series, round 3, N) a boss's cutscene, lit like a film: a key
+    // light on it from the camera's side and a cool light behind it that
+    // draws its outline (with its strong rim, G) -- two more lights in the
+    // pool, off until a cutscene plays, then first in line for it
+    cine() {
+      const C = CFG().hero.cine, pri = CFG().tiers.hero.priority + C.priority;
+      const key = this.lit(0, -50, 0, C.key.color, C.key.intensity, C.key.distance, { key: "cineKey", steady: true, priority: pri });
+      const back = this.lit(0, -50, 0, C.back.color, C.back.intensity, C.back.distance, { key: "cineBack", steady: true, priority: pri });
+      key.userData.base = 0; back.userData.base = 0;
+      this.heroes.cine = { key, back, f: 0, on: false };
+      this.note("a boss's cutscene: a key light and a back light on it", "hero", false);
     },
 
     // F1 important, G: what the player can use -- a warm edge that breathes;
@@ -909,6 +923,22 @@
           most = Math.max(most, k);
         });
         h.f = most;
+      }
+      // (round 3, N) a boss's cutscene: the key light between the camera and
+      // the boss, the back light behind it, both following the camera round
+      if (H.cine) {
+        const h = H.cine, CS = G.Cutscene, c = CS && CS.active ? CS.ctx : null, CC = HC.cine;
+        h.on = !!(c && c.b && CS.camera);
+        ease(h, h.on, 3);
+        const k = anchorOf(h.key), bk = anchorOf(h.back);
+        if (h.on) {
+          const b = c.b.pos, cam = CS.camera.position, dx = cam.x - b.x, dz = cam.z - b.z, d = Math.hypot(dx, dz) || 1;
+          const tall = (c.b.rig && c.b.rig.H) || 3, fy = c.F != null ? c.F : b.y;
+          if (k) k.pos.set(b.x + dx / d * CC.keyDist, fy + tall * 0.75, b.z + dz / d * CC.keyDist);
+          if (bk) bk.pos.set(b.x - dx / d * CC.backDist, fy + tall * 1.05, b.z - dz / d * CC.backDist);
+        }
+        if (k) k.base = CC.key.intensity * h.f;
+        if (bk) bk.base = CC.back.intensity * h.f;
       }
       // the hero lamps' own glow, with their light
       this.dyn.forEach((d) => {

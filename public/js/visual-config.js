@@ -209,6 +209,9 @@ G.VISUAL = {
     gate: { color: 0xffb54a, intensity: 1.6, distance: 9, glow: 5.0, seconds: 150 },        // stairs to floors 2 and 3, once they can open
     keycard: { color: 0x7ac8ff, intensity: 1.3, distance: 7, glow: 4.0 },                   // floor 3's keycard while it lies there
     floodlights: { color: 0xdfe8ff, intensity: 2.4, distance: 36, height: 13, glow: 6.0, warmUp: 2.2 },   // the field's, at the boss
+    // (round 3, N) a boss's cutscene: a key light from the camera's side, a cool
+    // back light behind it (metres from the boss); `priority` on top of the hero tier's
+    cine: { key: { color: 0xe6edff, intensity: 2.0, distance: 14 }, back: { color: 0x76a8ff, intensity: 3.2, distance: 12 }, keyDist: 3.5, backDist: 2.6, priority: 4 },
   },
 
   // ---- G: rim light -----------------------------------------------------------------
@@ -256,6 +259,57 @@ G.VISUAL = {
   // post, a tree trunk, the eaves -- goes darker, framing the view (Medium and up)
   framing: { near: 1.6, edge: 0.55, amount: 0.22 },
 
+  // ======================================================================================
+  // Round 3: the forest round the map (L, js/forest.js)
+  // ======================================================================================
+  forest: {
+    seed: 7719,
+    near: 15, mid: 60,                         // the layers' outer edges, in metres past the fence
+    cullPad: 10,                               // a side is drawn while its box, this much bigger, is in view
+    road: 3.5,                                 // half the road out of the gate (no trees on it)
+    // how many of each, per square metre of its layer, at the most (the
+    // quality table below says how much of that is drawn)
+    density: { trees: 0.05, bushes: 0.04, logs: 0.006, grass: 0.22, glow: 0.0045, mid: 0.03 },
+    framing: 0.5,                              // K: the trunks right by the fence, this much darker
+    colors: {
+      bark: 0x2a2119, bark2: 0x33291f, root: 0x271e16, dead: 0x3d362e, log: 0x2e261e, moss: 0x26331c,
+      leaf: [0x1d2e1f, 0x233721, 0x29371d, 0x1a2a20], pine: [0x15241b, 0x182a1e, 0x13211a],
+      bush: [0x1f2d1b, 0x26341d, 0x1c2a1e], grass: [0x4a5530, 0x55573a, 0x3f4c2c], grassRoot: 0x252b18,
+      band: 0x0c131b, card: 0x101a17, rimPaint: 0x3c5470,    // the painted tree lines and cards, their moonlit edge
+    },
+    sway: { trees: 0.55, bushes: 0.18, grass: 1.0 },          // with the grass's wind (js/schooldress.js)
+    rim: { color: 0x6a8cc8, strength: 0.2, power: 2.6, hills: 0.32 },   // G: against the fog
+    // the fog takes the far layers later than the rest (a share of the
+    // distance it sees), so they stay dark shapes against it; everything is
+    // fog by fogEnd metres (the camera sees 200)
+    fog: { mid: 0.72, far: 0.36 },              // mid: the middle layer; far: the tree lines and the hills
+    fogEnd: 176,
+    floor: { color: 0x1c2316, color2: 0x2a2a1b, road: 0x2b2c2c, roadHalf: 3, step: 3, reach: 104, shade: 0.45, plain: 420 },
+    bands: [                                   // the painted tree lines (impostors), out past the middle layer
+      { at: 64, h: 17, tile: 44, tint: 0.9 },
+      { at: 80, h: 22, tile: 52, tint: 1.05 },
+      { at: 98, h: 27, tile: 60, tint: 1.2 },
+    ],
+    hills: { at: 112, h: [16, 44], slope: 10, color: 0x0d1720, ridge: 0x1a2a3a },
+    // the glowing mushrooms and crystals (I, J): their colour and glow, a
+    // light in the pool for a few of them, a pool on the ground for each,
+    // their colour on the floor and the trunks round them
+    glow: {
+      mushroom: 0x4fe6ff, crystal: 0x6ab8ff, mushroomShare: 0.6, k: 2.6,
+      lights: 8, lightGap: 24, lightReach: 6, intensity: 0.8, distance: 7, priority: -2,
+      pool: 3.2, poolK: 1.0, haze: 0.5,
+      spillReach: 4, spillTrunk: 0.22, spillGround: 0.8,
+    },
+    // what is heard from the wood (js/audio.js): the leaves, crickets, an owl
+    sound: { bed: 0.05, gap: [2.2, 6.5], cricket: 0.045, owl: 0.07, gust: 0.06, reach: 40, indoor: 0.3 },
+  },
+
+  // ---- M (round 3): Very High's real reflections in the puddles out of doors --
+  // a cube camera of `size` pixels a side under the puddle nearest the player
+  // (within `reach` metres), seeing `far` metres, one face drawn every `every`
+  // seconds (js/details.js); the other levels mirror the night sky only
+  reflections: { size: 96, far: 90, reach: 30, every: 0.033, depth: 0.05 },
+
   // ---- M: which effect at which graphics level ----------------------------------
   // (rounds 2 and 3 add to this table)
   // round 2: bloom "off" / "half" (half resolution) / "full"; air: the shafts'
@@ -264,17 +318,28 @@ G.VISUAL = {
   // (view: the share of fog.far that is seen -- everything past it plus 8 m
   // is not drawn, js/zones.js -- and fogDensity: how thick the fog is by
   // then; a thinner fog on the short views keeps combat range readable)
+  // round 3: forest -- how much of the wood is drawn: trees (the near
+  // layer's), under (thickets, logs), grass (the tall grass), mid (the middle
+  // layer), cards (the middle layer as flat pictures, impostors, instead of
+  // trees), shadows (the near layer's trees and thickets cast them); the far
+  // tree lines, the hills and the glowing clusters are there at every level;
+  // reflections: the real scene in the puddles out of doors (above)
   quality: {
     //            shadows    height fog  detail  dynamic lights  AO    msaa
     vlow:   { shadows: "off", pbr: false, heightFog: false, detail: false, lights: 3, ao: true, msaa: 0, fxaa: false, hdr: false, view: 0.5, fogDensity: 1.5,
-              bloom: "off", air: false, fogSheets: 0, godRays: false, ssao: 0, raymarch: false },
+              bloom: "off", air: false, fogSheets: 0, godRays: false, ssao: 0, raymarch: false, reflections: false,
+              forest: { trees: 0.3, under: 0.25, grass: 0, mid: 0.7, cards: true, shadows: false } },
     low:    { shadows: "low", pbr: false, heightFog: false, detail: false, lights: 3, ao: true, msaa: 0, fxaa: false, hdr: false, view: 0.56, fogDensity: 1.6,
-              bloom: "off", air: false, fogSheets: 0, godRays: false, ssao: 0, raymarch: false },
+              bloom: "off", air: false, fogSheets: 0, godRays: false, ssao: 0, raymarch: false, reflections: false,
+              forest: { trees: 0.5, under: 0.45, grass: 0.25, mid: 0.85, cards: true, shadows: false } },
     medium: { shadows: "medium", pbr: true, heightFog: true, detail: false, lights: 4, ao: true, msaa: 0, fxaa: false, hdr: true, view: 1, fogDensity: 2.0,
-              bloom: "half", air: true, fogSheets: 10, godRays: false, ssao: 0, raymarch: false },
+              bloom: "half", air: true, fogSheets: 10, godRays: false, ssao: 0, raymarch: false, reflections: false,
+              forest: { trees: 0.6, under: 0.5, grass: 0.3, mid: 0.7, cards: false, shadows: false } },
     high:   { shadows: "csm", pbr: true, heightFog: true, detail: true, lights: 8, ao: true, msaa: 0, fxaa: true, hdr: true, view: 1, fogDensity: 2.0,
-              bloom: "full", air: true, fogSheets: 16, godRays: true, ssao: 0.5, raymarch: false },
+              bloom: "full", air: true, fogSheets: 16, godRays: true, ssao: 0.5, raymarch: false, reflections: false,
+              forest: { trees: 1, under: 1, grass: 0.8, mid: 1, cards: false, shadows: true } },
     vhigh:  { shadows: "csm", pbr: true, heightFog: true, detail: true, lights: 8, ao: true, msaa: 0, fxaa: true, hdr: true, view: 1, fogDensity: 2.0,
-              bloom: "full", air: true, fogSheets: 22, godRays: true, ssao: 1, raymarch: true },
+              bloom: "full", air: true, fogSheets: 22, godRays: true, ssao: 1, raymarch: true, reflections: true,
+              forest: { trees: 1, under: 1, grass: 1, mid: 1, cards: false, shadows: true } },
   },
 };

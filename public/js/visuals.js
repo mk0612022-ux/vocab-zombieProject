@@ -105,7 +105,15 @@
       // (the extras skipped where they are off: branches on a uniform cost nothing)
       "\tfloat vzH = 0.0;",
       "\tif ( vzFogP.y > 0.0 ) vzH = vzFogP.y * exp( - max( vzFogW.y, 0.0 ) / max( vzFogP.z, 0.1 ) );",
+      // (round 3: the forest's far layers -- the fog takes them later, so they
+      // stay shapes against it, and wholly before the camera's far end)
+      "\t#ifdef VZ_FOG_DIST",
+      "\t\tvzX *= VZ_FOG_DIST;",
+      "\t#endif",
       "\tfloat fogFactor = 1.0 - exp( - vzX * vzX * ( 1.0 + vzH ) );",
+      "\t#ifdef VZ_FOG_END",
+      "\t\tfogFactor = max( fogFactor, smoothstep( VZ_FOG_END * 0.82, VZ_FOG_END, fogDepth ) );",
+      "\t#endif",
       "\t#ifdef VZ_FOG_SCALE",
       // (on a short view -- the bunker on Low -- combat range can pass the far plane)
       "\t\tfogFactor *= mix( VZ_FOG_SCALE, 1.0, smoothstep( min( VZ_FOG_RANGE, vzFar * 0.8 ), vzFar, fogDepth ) );",
@@ -1122,7 +1130,10 @@
         const m = o.material;
         if (!m.isMeshStandardMaterial || done.has(m)) return;
         done.add(m);
-        const want = m.userData.vzEnv ? this._env : null;
+        // (round 3, M: the puddles out of doors on Very High mirror the real
+        // scene -- js/details.js's cube camera -- not the night sky)
+        const live = m.userData.vzEnvLive;
+        const want = m.userData.vzEnv ? (live && live.on && live.tex ? live.tex : this._env) : null;
         if (m.envMap !== want) { m.envMap = want; m.needsUpdate = true; }
       });
       this._envK = null;            // (the indoor/outdoor strength, set again next frame)
@@ -1223,6 +1234,8 @@
       this.fog(game, game.level && game.level.theme);
       // (round 2: the shafts and fog sheets in the air picture, or the plain beams)
       if (G.LightFX) G.LightFX.applyQuality(game, q);
+      // (round 3: how much of the forest, which of it casts shadows)
+      if (G.Forest) G.Forest.applyQuality(game, q);
     },
 
     // --------------------------------------------------------- each frame
@@ -1240,6 +1253,8 @@
       if (this._envK !== want) { this._envK = want; (this.levelMats || []).forEach((m) => { if (!m.userData.vzFrom || !m.userData.vzFrom.isMeshPhongMaterial) m.envMapIntensity = want; }); }
       // (round 2: the hero lights, the pools of light, the fog sheets)
       if (G.LightFX) G.LightFX.update(game, dt);
+      // (round 3: the forest's sides, shown from outdoors and up to the fog)
+      if (G.Forest) G.Forest.update(game, dt);
     },
     // (round 2, G) a boss's own material (js/bossmodels.js): per-pixel light,
     // the strong rim, a least light -- one each, as a boss's code tints it

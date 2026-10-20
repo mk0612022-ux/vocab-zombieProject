@@ -96,7 +96,15 @@ G.VisualTest = {
   clearAhead(max) {
     const g = G.Game, yaw = g.yawObject.rotation.y, p = g.yawObject.position;
     const dir = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
-    const w = g.wallDistance ? g.wallDistance(new THREE.Vector3(p.x, p.y - 0.6, p.z), dir, max) : max;
+    let w = g.wallDistance ? g.wallDistance(new THREE.Vector3(p.x, p.y - 0.6, p.z), dir, max) : max;
+    // (visual round 3: a round flies through the fence into the forest now --
+    // the play area's edge is where the view for a zombie ends)
+    const B = g.world && g.world.playBounds;
+    if (B && w != null) {
+      const tx = dir.x > 1e-6 ? (B.x1 - p.x) / dir.x : dir.x < -1e-6 ? (B.x0 - p.x) / dir.x : Infinity;
+      const tz = dir.z > 1e-6 ? (B.z1 - p.z) / dir.z : dir.z < -1e-6 ? (B.z0 - p.z) / dir.z : Infinity;
+      w = Math.min(w, tx + 0.6, tz + 0.6);
+    }
     return Math.min(max, (w == null ? max : w) - 0.9);
   },
   spawnAhead(d, side, label) {

@@ -384,6 +384,9 @@ G.Game = {
     // (visual series, round 2: the hero lights, the warm accents, what glows
     // and what is important -- tagged before the palette and the merge)
     if (G.LightFX) G.LightFX.build(this);
+    // (visual series, round 3: the forest round the school -- its glowing
+    // clusters' lights and pools of light go in with round 2's)
+    if (G.Forest) G.Forest.build(this);
     // (visual series: big boxes cut into pieces, for the corners' AO)
     if (G.Visuals) G.Visuals.beforeBake(this);
     this.paletteCount = G.Perf.paletteize(this.scene, this.world, [this.yawObject]);
@@ -400,9 +403,13 @@ G.Game = {
     // (round 2: the glow, the rims, the baked light spill, the pools of light,
     // the cones, the fog sheets -- before the compile, so none of it hitches later)
     if (G.LightFX) G.LightFX.afterBake(this);
+    // (M: all of the forest shown for the compile -- its shaders made now,
+    // during the load, not the first time a side of it comes into view)
+    if (G.Forest) G.Forest.showAll();
     this.scene.updateMatrixWorld(true);
     try { this.renderer.compile(this.scene, this.camera); } catch (e) { /* best effort */ }
     if (G.Visuals) G.Visuals.afterCompile(this);
+    if (G.Forest) G.Forest.update(this, 0, true);
   },
   startLayoutPreview() {
     if (this.state === "GAMEPLAY" || this.state === "PAUSE") return false;
@@ -604,6 +611,17 @@ G.Game = {
   // `sp`: the spawn point, whose way in (ground, locker, vent, window, desk)
   // the zombie arrives by (js/zombiefx.js)
   spawnZombieAt(type, pos, sp) {
+    // (visual series, round 3, L3: never out in the forest, whoever asks -- a
+    // wave, a boss calling its helpers -- a place past the fence is given up
+    // for one of the level's spawn points, failing that the nearest place
+    // inside; G.inPlayArea is true everywhere on a level with no fence round it)
+    const WM = G.CONFIG.world.spawnMargin;
+    if (pos && !G.inPlayArea(this.world, pos.x, pos.z, WM)) {
+      const alt = G.Spawner && G.Spawner.pickPoint ? G.Spawner.pickPoint(this.world, this.yawObject.position, null) : null;
+      if (alt && alt.pos && G.inPlayArea(this.world, alt.pos.x, alt.pos.z, WM)) { pos = alt.pos.clone(); sp = alt; }
+      else { pos = G.clampToPlay(this.world, pos.clone(), WM); sp = null; }
+      this.outsideSpawns = (this.outsideSpawns || 0) + 1;
+    }
     // Never two on the field with the same word -- or the same MEANING: a
     // player's own word can share its Thai meaning with another in the level
     // (G.CustomVocab warns, but allows it), and two zombies answering one
@@ -1325,6 +1343,9 @@ G.Game = {
   },
 
   spawnDrop(kind, pos) {
+    // (visual series, round 3, L3: a zombie shot against the fence drops its
+    // loot on this side of it, within reach)
+    pos = G.clampToPlay(this.world, pos.clone(), G.CONFIG.world.dropMargin);
     const colors = { money: 0xffdd33, ammo: 0x3388ff, health: 0xff3355, crate: G.RARITY[G.rollRarity()].color };
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.3), new THREE.MeshLambertMaterial({ color: colors[kind] }));
     // Anchored to the local floor height (not always 0) so drops on a raised
@@ -2278,7 +2299,16 @@ G.Game = {
     }
   },
 
+  // (visual series, round 3, L2: every move in steps no longer than
+  // G.CONFIG.world.moveStep -- a Dash's 6 m in a frame or two could otherwise
+  // pass clean through a wall thinner than a step -- and never past the edge
+  // of the play area, whatever moved the player)
   tryMove(dx, dz) {
+    const step = G.CONFIG.world.moveStep, n = Math.max(1, Math.ceil(Math.hypot(dx, dz) / step));
+    for (let i = 0; i < n; i++) this.tryStep(dx / n, dz / n);
+    G.clampToPlay(this.world, this.yawObject.position, 0);
+  },
+  tryStep(dx, dz) {
     const pos = this.yawObject.position;
     const radius = 0.35;
     // Collision height range was a fixed [0.1, 2.6] regardless of the
@@ -2359,6 +2389,8 @@ G.Game = {
       // still coming in (out of the ground, a locker, a vent...): it can be
       // shot but cannot move or bite yet
       if (z.emerge) { G.ZombieFX.step(this, z, dt); continue; }
+      // (visual series, round 3, L3: a blast or a shove never puts one out in the forest)
+      G.clampToPlay(this.world, z.mesh.position, 0.3);
       // (round 3, H) an ability on it: frozen or dazed it stands (a frozen
       // one does not even sway), lost in smoke or drawn to a decoy it walks
       // elsewhere, in a slow field or glue it is slower. None of it hurts.
