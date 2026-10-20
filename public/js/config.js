@@ -323,6 +323,34 @@ G.CONFIG = {
     retryWrong: true,               // a word missed comes back once at the end (it does not count again)
     score: { right: 30, perBox: 10, spell: 20 },
   },
+  // ---------------- the weapon in the hands (overhaul, round 1) ----------------
+  // G.WeaponSM (js/weaponsm.js) and its animation (js/viewmodel.js), in
+  // seconds. Per weight class: light / medium / heavy / very_heavy (and the
+  // knife). docs/overhaul/weapon-state-machine.md has the tables.
+  weaponSM: {
+    fireCancelsReload: true,        // a fresh trigger pull, rounds still in the magazine, before it seats: the reload stops and the gun fires
+    sprintCancelsReload: false,     // breaking into a run goes on reloading (the hands keep working)
+    tacticalScale: 0.85,            // a reload with rounds left (nothing to release) takes this share of the time
+    commitGrace: 0.15,              // the magazine counts as seated this long after its moment at the latest, step or no step
+    loopStopTail: 0.16,             // shell by shell, stopped early with a round chambered: back to the ready in this long
+    sprintOut: { light: 0.10, medium: 0.18, heavy: 0.25, very_heavy: 0.30, melee: 0.06 },   // out of a run to the first shot
+    aimIn: { light: 0.15, medium: 0.22, heavy: 0.30, very_heavy: 0.34, melee: 0.2 },        // hip to aimed, eased in and out
+    aimOutShare: 0.8,               // ...and back down, as a share of that
+    raise: 0.12,                    // a lowered gun brought up to fire
+    lowerUse: 0.45,                 // how long the gun stays down after pressing Use
+    inspect: { light: 2.0, medium: 2.2, heavy: 2.5, very_heavy: 2.7, melee: 1.6 },
+    melee: { hit: 0.10, dur: 0.45 },   // the blade arrives this long into the swing (dur: when the knife has no fireRate)
+    recoverPad: 0.06,               // Recovering lasts the time between shots and this much more
+    queueWindow: 0.35,              // a pull while the gun cannot fire yet (out of a run, coming up) still fires within this
+    // nothing stays in a state longer than it could: past these it is put right (and a warning shows with ?debug=1)
+    watchdog: { firing: 0.1, recoverPad: 0.5, reloadScale: 1.5, reloadPad: 0.5, switchScale: 2, switchPad: 0.3, inspectPad: 0.5, meleePad: 0.3 },
+    // the animation (js/viewmodel.js)
+    flinch: 1,                      // how far a hit knocks the gun (x the Camera Shake setting)
+    lowerPose: { y: -0.2, rx: -0.5, z: 0.06 },      // a lowered gun, from the hip carry
+    recoilCap: { pos: 0.26, rot: 0.5 },             // automatic fire builds up recoil to this and no further
+    recoilReturn: { pos: 16, rot: 11 },             // how fast it settles back (rotation a little slower: the follow-through)
+    aspect: { min: 0.8, max: 1.15 },                // the hip carry moved in on a narrow screen (4:3) and out on a wide one (21:9), x of 16:9
+  },
 };
 
 // ---------------- Level definitions ----------------

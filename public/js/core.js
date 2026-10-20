@@ -97,6 +97,12 @@ G.defaultSave = function () {
       brightness: 1,
       visibilityBoost: false,
       brightnessSet: false,
+      // (overhaul, round 1) the weapon: an empty magazine reloads by itself;
+      // how far a shot kicks the view (Camera Recoil) and how much hits and
+      // blasts shake it (Camera Shake), 0-1 -- the gun's own kick stays
+      autoReload: true,
+      cameraRecoil: 1,
+      cameraShake: 1,
     },
     importedSets: {},             // {id: {name, words:[[en,th],...]}}
     customWords: { level1: [], level2: [], level3: [] },   // words the player added to each level ([[en,th] or [en,th,{definition,...}],...])
@@ -167,6 +173,9 @@ G.normalizeSave = function (data) {
   s.settings.visibilityBoost = !!s.settings.visibilityBoost;
   s.settings.brightnessSet = !!s.settings.brightnessSet;
   s.settings.playOnce = !!s.settings.playOnce;
+  // (overhaul, round 1) a save from before: Auto Reload on, the view's recoil and shake at full
+  s.settings.autoReload = s.settings.autoReload !== false;
+  num("cameraRecoil", 0, 1); num("cameraShake", 0, 1);
   // (round 3, H1) the three languages: one of the four each, the Meaning Language
   // never the Word Language (if a save says so, the meaning goes back to the default)
   const LANGS = ["th", "en", "zh", "fr"];
@@ -452,6 +461,7 @@ G.defaultKeybinds = function () {
   return {
     forward: "KeyW", back: "KeyS", left: "KeyA", right: "KeyD",
     sprint: "ShiftLeft", jump: "Space", reload: "KeyR", interact: "KeyE",
+    inspect: "KeyG",                           // (overhaul, round 1) show the gun off (F is ability 2, V hears the word)
     melee: "Digit1", slot2: "Digit2", slot3: "Digit3", slot4: "Digit4", slot5: "Digit5",
     slot6: "Digit6", slot7: "Digit7",          // the slots the Extra Weapon Slot perk adds
     ability1: "KeyQ", ability2: "KeyF", ability3: "KeyC", ability4: "KeyX",   // round 3: the bosses' rewards

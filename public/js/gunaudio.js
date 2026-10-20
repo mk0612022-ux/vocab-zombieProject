@@ -323,30 +323,44 @@
     },
 
     // ---- weapon switch: the old one goes away, the new one comes up --------
-    swap(from, to, dur) {
+    // (overhaul, round 1) a switch is two sounds, each on its own step of the
+    // switch (G.WeaponSM): the old gun put away as it starts down...
+    holster(from) {
       const A = G.Audio;
       if (!A.ctx) return;
-      const pf = from ? this.profile(from) : null, pt = this.profile(to);
-      const half = Math.max(0.12, (dur || 0.45) * 0.5);
+      const pf = from ? this.profile(from) : null;
       A.noise({ dur: 0.14, filter: "lowpass", freq: 800, gain: 0.05 });                                  // cloth
       if (pf && pf.tech) A.tone({ type: "sine", freq: 900, freqEnd: 200, dur: 0.2, gain: 0.04 });            // powers down
       else if (pf && pf.arch !== "melee") A.noise({ dur: 0.03, freq: 1500 * pf.mechPitch, q: 2, gain: 0.05, at: 0.05 });
-      // and up
+    },
+    // ...and the new one drawn, at the bottom of the dip as it starts up
+    draw(to) {
+      const A = G.Audio;
+      if (!A.ctx || !to) return;
+      const pt = this.profile(to);
       if (pt.arch === "melee") {
-        A.noise({ dur: 0.24, filter: "highpass", freq: 4000, freqEnd: 7500, gain: 0.08, at: half, attack: 0.03 });   // shing
-        A.tone({ type: "sine", freq: 2600, dur: 0.18, gain: 0.03, at: half + 0.15 });
+        A.noise({ dur: 0.24, filter: "highpass", freq: 4000, freqEnd: 7500, gain: 0.08, at: 0.05, attack: 0.03 });   // shing
+        A.tone({ type: "sine", freq: 2600, dur: 0.18, gain: 0.03, at: 0.2 });
         return;
       }
-      A.noise({ dur: 0.1, filter: "lowpass", freq: 1000, gain: 0.05, at: half - 0.05 });
+      A.noise({ dur: 0.1, filter: "lowpass", freq: 1000, gain: 0.05 });
       if (pt.tech) {
-        A.tone({ type: "sine", freq: 250, freqEnd: 1400, dur: 0.22, gain: 0.06, at: half });
-        A.tone({ type: "sine", freq: 1760 * pt.mechPitch, dur: 0.05, gain: 0.05, at: half + 0.24 });
+        A.tone({ type: "sine", freq: 250, freqEnd: 1400, dur: 0.22, gain: 0.06, at: 0.05 });
+        A.tone({ type: "sine", freq: 1760 * pt.mechPitch, dur: 0.05, gain: 0.05, at: 0.29 });
       } else {
         const m = pt.mechPitch;
-        A.tone({ type: "square", freq: 1200 * m, dur: 0.02, gain: 0.07, at: half + 0.1, filter: { type: "bandpass", freq: 1900 * m, q: 3 } });
-        if (pt.size < 0.9) A.tone({ type: "sine", freq: 130 * m, dur: 0.07, gain: 0.12, at: half + 0.05 });   // a heavy one lands in the hands
+        A.tone({ type: "square", freq: 1200 * m, dur: 0.02, gain: 0.07, at: 0.15, filter: { type: "bandpass", freq: 1900 * m, q: 3 } });
+        if (pt.size < 0.9) A.tone({ type: "sine", freq: 130 * m, dur: 0.07, gain: 0.12, at: 0.1 });   // a heavy one lands in the hands
         if (pt.arch === "shotgun") this.reload("pump", to);
       }
+    },
+    // a gun shown off (inspect): the hands on it, quietly
+    inspect(def) {
+      const A = G.Audio;
+      if (!A.ctx || !def) return;
+      const p = this.profile(def);
+      A.noise({ dur: 0.18, filter: "lowpass", freq: 700, gain: 0.04 });
+      if (p.arch !== "melee") A.noise({ dur: 0.03, freq: 1300 * p.mechPitch, q: 2, gain: 0.035, at: 0.12 });
     },
 
     // ---- charge weapons: a hum that climbs while the trigger is held ------
@@ -485,4 +499,20 @@
       return t + Math.max(...events.map((e) => e.t)) + 0.4;
     },
   };
+
+  // (overhaul, round 1) the weapon's mechanical sounds come from the weapon
+  // state machine's events (G.Bus): a reload's steps as its markers arrive
+  // (never ahead of the hands, never twice; a cancelled reload sends no
+  // more), a switch's put-away and draw, an inspection
+  const defOf = (id) => (id === "melee" ? G.MELEE_DEF : G.WEAPON_DEFS[id]);
+  if (G.Bus) {
+    G.Bus.on("weapon:reload", (e) => {
+      if (e.phase === "marker" && !e.silent && e.kind !== "end") G.Audio.reloadEvent(e.kind, defOf(e.weaponId));
+    }, "gunaudio");
+    G.Bus.on("weapon:switch", (e) => {
+      if (e.phase === "lower") { G.GunAudio.holster(defOf(e.fromId)); G.GunAudio.chargeStop(); }
+      else if (e.phase === "swap" || (e.phase === "raise" && e.back)) G.GunAudio.draw(defOf(e.toId));
+    }, "gunaudio");
+    G.Bus.on("weapon:inspect", (e) => { if (e.phase === "start") G.GunAudio.inspect(defOf(e.weaponId)); }, "gunaudio");
+  }
 })();

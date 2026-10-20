@@ -125,6 +125,6 @@ input (keyboard/mouse/touch/pad) ──คำขอ──▶ WeaponStateMachine 
 - เสียง: pause → `ctx` ของ Web Audio ยังเดิน แต่ bus Weapons/SFX/Ambient ถูก mute แบบ ramp และ one-shot ที่ผูก instanceId ถูก stop; UI bus ยังทำงาน (รอบ 3)
 
 ## 6. หน้า Lab และ debug
-- `public/js/lab/*.js` (ใหม่) โหลดด้วย loader เล็ก ๆ เฉพาะเมื่อ URL มี `?lab=` หรือ `?debug=1` — ไม่โหลดตอนเล่นปกติ
-- ต้องอยู่ใน `public/` เพื่อให้ทดสอบบน iPad ผ่านเว็บจริงได้ (ของใน `tools/` ไม่ถูก deploy) แต่ไม่อยู่ในรายการ precache ของ service worker
+- `public/js/debug.js` และ `public/js/lab/*.js` (ใหม่) โหลดโดย `G.Game.init` เฉพาะเมื่อ URL มี `?debug=1` หรือ `?lab=` — ไม่โหลดตอนเล่นปกติ (ไม่มี `<script>` ใน index.html)
+- ต้องอยู่ใน `public/` เพื่อให้ทดสอบบน iPad ผ่านเว็บจริงได้ (ของใน `tools/` ไม่ถูก deploy) — อยู่ใน `version.json` ด้วย (ไม่กี่ KB) จึงเปิดแบบ offline ได้ แต่ไม่ถูกโหลดเข้าเกมจนกว่าจะเรียก
 - ต่อยอดของเดิม: `tools/gun-gallery.html` (ดูปืนทุกกระบอก), `tools/playtest-bot.js`, `tools/perf-measure.js`

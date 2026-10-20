@@ -29,9 +29,10 @@ Input / game.js ──requestX()──▶ G.WeaponSM ──เรียก hook 
                                     └──G.Bus.emit("weapon:*")──▶ ViewModel · Audio · FX · HUD · Camera (ฟังอย่างเดียว)
 ```
 
-- คำขอ: `requestFire(held, pressed)`, `requestReload()`, `requestAim(on)`, `requestSwitch(slot)`, `requestInspect()`, `requestMelee()`, `setLowered(reason, on)`, `setDisabled(reason, on)`, `update(dt, ctx)`
-- `ctx` (จาก game.js ทุกเฟรม): `moving`, `speed`, `sprintHeld`, `airborne`, `def`, `ammo {mag, reserve, magSize}`, `fireReady` (cooldown), `modalOpen`
-- Hook ที่ game.js ให้ (gameplay = source of truth): `doFire(shotId)`, `doMelee(hitId)`, `commitReload(reloadId, rounds)`, `swapModel(toSlot)`
+- คำขอ (ที่ทำจริงในรอบ 1): `requestFire({pressed, held, auto, charge})`, `prepareFire()` (ปืนชาร์จ), `burstRound(charge)`, `requestReload()` → `true` / `"full"` / `false`, `requestSwitch()` (หลัง game.js เปลี่ยน `player.currentSlot`), `requestInspect()`, `input({moving, sprinting, aimHeld, fireHeld})` ทุกเฟรม, `setLowered(reason, on, secs)`, `setDisabled(reason, on)`, `tick(dt)` ทุกเฟรม (นาฬิกา: รีโหลด สลับ inspect มีด คิวยิง watchdog)
+- มีดใช้ `requestFire` เหมือนปืน (ช่อง 0) — ไม่มี quick-melee ในเกมเดิม
+- Host ที่ game.js ให้ (`G.Game.weaponHost()`, gameplay = source of truth): `selected()`, `ammo(id)`, `weight(id)`, `family(id)`, `cooldownReady()`, `fireInterval(id)`, `doFire(shotId, charge, inBurst)` → `G.Game.shoot()`, `dryFire()`, `startMelee()`, `doMelee()` → `meleeAttack()`, `planReload(id, kind, missing)` → `G.ViewModel.planReload`, `commitReload(reloadId, id, "full"|1)`, `reloadSpeed()` (Quick Hands), `spellReload(id)` / `spellBusy()`, `switchDur(from, to)`, `swapModel()`, `stopSprint()`, `autoReload()`, `emit()` → `G.Bus`, `warn()` → debug overlay
+- ฟิลด์เดิมที่โค้ดเก่าและชุดทดสอบอ่าน ยังใช้ได้โดยอ่านจาก state machine: `player.reloading`, `G.Game.reloadState`, `weaponAnim.switchT / switchDur / pendingRebuild` (ตั้ง `reloading = false` / `reloadState = null` = ยกเลิกรีโหลด, ตั้ง `switchT = 0` = จบการสลับทันที)
 - state machine **ไม่เก็บกระสุนเอง** — อ่านจาก `player.ammo` ทุกครั้ง
 - ค่าทั้งหมดใน `G.CONFIG.weaponSM` (config.js)
 
@@ -66,7 +67,7 @@ Input / game.js ──requestX()──▶ G.WeaponSM ──เรียก hook 
 | **Recovering** | หลังยิง | Firing (ยิงต่อ), ท่าพื้น (cooldown หมด + recoil < เกณฑ์), Reloading, Switching, Melee | recovery curve; ปืนออโต้ recoil สะสมมีเพดาน | — | — | — | — | cooldown + 0.5 วิ |
 | **Reloading** | คำขอรีโหลด หรือยิงตอนแม็กหมด (Auto Reload) + แม็กไม่เต็ม + สำรอง > 0 | ท่าพื้น/Aiming (จบ), ยกเลิกตามตาราง §6 | keyframe ตาม style + phase (§5) ผสมท่าวิ่งได้ | marker ของ `reloadId` เท่านั้น | แถบความคืบหน้าจาก timer gameplay, ammo อัปเดตหลัง commit | `reloadId` ใหม่ทุกครั้ง, รีโหลดซ้อนไม่ได้ | commit fallback (§5) | `dur × 1.5 + 0.5 วิ` |
 | **Inspecting** | ปุ่ม inspect (ค่าเริ่มต้น **G**), อยู่ในท่าพื้นที่ไม่วิ่ง | ท่าพื้น (จบ), **ทุก action ยกเลิกทันที** | หมุนโชว์ปืน 2.2 วิ ต่อตระกูล | เสียงผ้า/กลไกเบา (ผูก `inspectId`) | — | ไม่เข้าซ้ำระหว่างเล่น | — | 3 วิ |
-| **Lowered** | กด E โต้ตอบ, อ่าน note, modal แบบ freeze, ช่วงพักระหว่างเวฟ (ร้านเปิด) | ท่าพื้น (เหตุผลหมด), Firing (ยกขึ้น 0.12 วิ ก่อน) | ลดปืนลงนุ่ม ยกกลับเร็ว | — | — | ใช้ชุด reason (หลายเหตุพร้อมกันได้) | — | ตรวจ reason ทุกเฟรม |
+| **Lowered** | กด E โต้ตอบ (0.45 วิ), หน้าต่างคำถามที่หยุดโลก (freeze: คำถามประตู/บอส ฯลฯ — ปืนลดลงนุ่ม ๆ ระหว่างตอบ) · หน้าต่างแบบ pause (note, crate, ร้าน) หยุดทุกอย่างรวมถึงปืน · ช่วงพักระหว่างเวฟในเกมนี้คือ quiz/ร้าน (หน้าต่างอยู่แล้ว) | ท่าพื้น (เหตุผลหมด), Firing (ยกขึ้น 0.12 วิ ก่อน) | ลดปืนลงนุ่ม ยกกลับเร็ว | — | — | ใช้ชุด reason (หลายเหตุพร้อมกันได้) | — | ตรวจ reason ทุกเฟรม |
 | **Switching** | คำขอสลับช่องที่ต่างจากปัจจุบันและมีของ | ท่าพื้นของปืนใหม่ | ลด (ครึ่งแรก) → เปลี่ยนโมเดลที่จุดต่ำสุด → ยก (`FEEL.switchDur` เดิม: 0.40/0.46/0.56/0.66, มีด 0.34) | holster/draw ผูก `switchId` | ช่องที่เลือกเปลี่ยนทันทีเมื่อขอ | กดรัวจำเฉพาะช่องสุดท้าย (ถ้ายังไม่ถึงจุดเปลี่ยนโมเดล = เปลี่ยนเป้าหมาย, ถ้าเลยแล้ว = ต่อคิว 1 ช่อง) | ไม่มี marker = เปลี่ยนโมเดลตามเวลา | `switchDur × 2 + 0.3 วิ` |
 | **Melee** | ยิงขณะถือมีด (ช่อง 0) | ท่าพื้น | ง้าง → ฟัน (ท่าเดิม) | swish ที่ start, hit ที่ marker `hit` | — | `meleeId`, `hit` ครั้งเดียว | hit-frame fallback ตามเวลา | `fireRate + 0.3 วิ` |
 | **Disabled** | ตาย, cutscene บอส, เปลี่ยนด่าน, loading, Game Over | ท่าพื้น (reset ทั้งหมด) เมื่อ reason หมด | ซ่อน viewmodel | หยุดทุกเสียง/VFX ของปืน | — | ชุด reason | — | ตรวจ reason ทุกเฟรม |
@@ -142,4 +143,5 @@ Input / game.js ──requestX()──▶ G.WeaponSM ──เรียก hook 
 - `tools/overhaul/wsm-test.js`: ทุก transition ในตาราง §4 + ตาราง §6 (ทั้งก่อนและหลัง commit)
 - **fuzz** 10,000 คำขอสุ่ม (ยิง, รีโหลด, เล็ง, สลับ, inspect, มีด, pause, modal, ตาย, dt สุ่ม 0–0.25 วิ) แล้วยืนยัน invariant: ไม่ค้างเกิน watchdog, กระสุนไม่ติดลบและไม่เกินแม็ก, กระสุนรวม (แม็ก + สำรอง) ไม่เพิ่มขึ้นเอง, commit ≤ 1 ต่อ reloadId
 - รันในเบราว์เซอร์ (`/tools/overhaul/test.html`) — **เครื่องนี้ไม่มี Node** ไฟล์เดียวกันรัน `node tools/overhaul/wsm-test.js` ได้ทันทีเมื่อติดตั้ง Node
+- `tools/round21-test.js` (`G.Round21Test`): ทดสอบในเกมจริง — ยิง/sprint-out/รีโหลดทั้งสามแบบ/ตารางยกเลิก/หน้าต่างคำถาม/pause/Game Over/สลับรัว/มีด hit frame/inspect/Lowered/cutscene/การตั้งค่า/ตำแหน่งปืน 4 อัตราส่วน/HUD ammo ตรงกับเกมทุกเฟรม/watchdog + รัน wsm-test ในหน้าเกม
 - ชุด `tools/round1..20-test.js` เดิมต้องผ่านทั้งหมด

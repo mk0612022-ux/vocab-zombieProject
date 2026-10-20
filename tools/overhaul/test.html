@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WSM Tests</title>
+<style>
+  :root { --bg: #f6f7f8; --fg: #16181b; --ok: #1a7f37; --bad: #c4232f; --muted: #6b7178; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #121417; --fg: #e8eaed; --ok: #4ade80; --bad: #f87171; --muted: #9aa0a6; } }
+  :root[data-theme="dark"] { --bg: #121417; --fg: #e8eaed; --ok: #4ade80; --bad: #f87171; --muted: #9aa0a6; }
+  body { background: var(--bg); color: var(--fg); font: 14px/1.5 system-ui, sans-serif; margin: 0; padding: 16px; }
+  h1 { font-size: 18px; margin: 0 0 8px; }
+  #sum { font-weight: 600; margin-bottom: 12px; }
+  li { list-style: none; padding: 2px 0; }
+  .ok { color: var(--ok); } .bad { color: var(--bad); } .info { color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+<!-- Dev-only (not shipped): the Weapon State Machine's unit and fuzz tests in a
+     browser. Open http://localhost:8080/tools/overhaul/test.html (serve-lan.ps1). -->
+<h1>Weapon State Machine</h1>
+<div id="sum">running...</div>
+<ul id="out"></ul>
+<script src="/js/config.js"></script>
+<script src="/js/weaponsm.js"></script>
+<script src="/tools/overhaul/wsm-test.js"></script>
+<script>
+  const r = G.WsmTest.run();
+  window.__wsm = r;
+  document.getElementById("sum").textContent = r.pass + " / " + r.total + " passed";
+  document.getElementById("sum").className = r.fail.length ? "bad" : "ok";
+  const ul = document.getElementById("out");
+  r.results.forEach((x) => {
+    const li = document.createElement("li");
+    li.className = x.pass ? "ok" : "bad";
+    li.textContent = (x.pass ? "✓ " : "✗ ") + x.name;
+    if (!x.pass && x.info) { const s = document.createElement("div"); s.className = "info"; s.textContent = x.info; li.appendChild(s); }
+    ul.appendChild(li);
+  });
+</script>
+</body>
+</html>

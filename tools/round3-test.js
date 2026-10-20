@@ -93,7 +93,17 @@ G.Round3Test = (function () {
     // (visual series: Low has a moon shadow now, drawn again whenever the player
     // moves -- as every teleport here does -- and every 4th frame otherwise; its
     // draw calls are counted apart, G.Visuals.shadowCalls: this is the view's)
-    const view = (k, x, y, z, yaw) => { P.set(x, y, z); g.yawObject.rotation.y = yaw; g.scene.updateMatrixWorld(true); Z.update(g, true); g.renderFrame(); counts[k] = g.renderer.info.render.calls - ((G.Visuals && G.Visuals.shadowCalls) || 0); };
+    // (overhaul, round 1: the world's own -- the gun and arms in the hands are
+    // put away while it counts. Run after another suite, whatever gun that one
+    // left in the hands was counted too (7-9 more), so the result hung on the
+    // order the suites ran in; the gun's cost is the overhaul's round 2's.)
+    const held = [g.weaponViewGroup, G.PlayerBody.armRig && G.PlayerBody.armRig.group].filter(Boolean);
+    const view = (k, x, y, z, yaw) => {
+      const was = held.map((o) => o.visible);
+      held.forEach((o) => { o.visible = false; });
+      P.set(x, y, z); g.yawObject.rotation.y = yaw; g.scene.updateMatrixWorld(true); Z.update(g, true); g.renderFrame(); counts[k] = g.renderer.info.render.calls - ((G.Visuals && G.Visuals.shadowCalls) || 0);
+      held.forEach((o, i) => { o.visible = was[i]; });
+    };
     view("gate", 0, 1.7, 72, 0); view("corridor", 0, 1.7, 0, 0); view("classroom", -9.75, 1.7, 13.5, Math.PI / 2); view("field", -34, 1.7, -32, Math.PI / 2); view("F3", 0, 10.1, -10, 0);
     ok("zones: under 150 draw calls anywhere sampled (low)", Object.values(counts).every((n) => n < 150), JSON.stringify(counts));
     return counts;

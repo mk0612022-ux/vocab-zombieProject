@@ -40,7 +40,7 @@ window.G = window.G || {};
     { id: "account", icon: "👤", art: "custom-card" },
     { id: "about", icon: "ℹ️", art: "school-card" },
   ];
-  const ACTIONS = ["forward", "back", "left", "right", "sprint", "jump", "reload", "interact", "melee", "slot2", "slot3", "slot4", "slot5", "slot6", "slot7",
+  const ACTIONS = ["forward", "back", "left", "right", "sprint", "jump", "reload", "inspect", "interact", "melee", "slot2", "slot3", "slot4", "slot5", "slot6", "slot7",
     "ability1", "ability2", "ability3", "ability4", "replay", "thaiHint", "pause"];
   // (round 3) a language's name in itself: G.Lang.NAMES (js/wordbank.js)
 
@@ -136,6 +136,7 @@ window.G = window.G || {};
         + row({ id: "set-campstyle", name: T("settings.campStyle"), ctl: seg("set-campstyle", style, ["adaptive", "classic", "custom"].map((v) => [v, T("camp.style." + v)]), inRun), desc: T("settings.campStyleDesc"), locked: inRun })
         + row({ id: "set-campclue", name: T("learn.clueHead"), ctl: seg("set-campclue", clue, Object.keys(G.Learn.CLUES).map((c) => [c, T("learn.clue." + c)]), inRun), desc: null, locked: inRun, hidden: style !== "custom" })
         + row({ id: "set-campanswer", name: T("learn.answerHead"), ctl: seg("set-campanswer", answer, Object.keys(G.Learn.ANSWERS).map((a) => [a, T("learn.answer." + a)]), inRun), desc: null, locked: inRun, hidden: style !== "custom" })
+        + row({ id: "set-autoreload", name: T("settings.autoReload"), ctl: toggle("set-autoreload", s.autoReload !== false), desc: T("settings.autoReloadDesc") })
         + row({ id: "set-spellreload", name: T("settings.spellReload"), ctl: toggle("set-spellreload", !!s.spellReload), desc: T("settings.spellReloadDesc") })
         + row({ id: "set-highlight", name: T("settings.highlightTarget"), ctl: toggle("set-highlight", !!s.highlightTarget), desc: T("settings.highlightDesc") })
         + row({ id: "set-cluethai", name: T("settings.clueThaiName"), ctl: seg("set-cluethai", s.clueThai || "auto", [["auto", T("settings.clueThaiAutoShort")], ["always", T("settings.clueThaiAlways")], ["never", T("settings.clueThaiNever")]]), desc: T("settings.clueThaiDesc") })
@@ -181,13 +182,17 @@ window.G = window.G || {};
     },
     accessibility(s) {
       const hb = s.headBob == null ? 1 : s.headBob;
+      const cr = s.cameraRecoil == null ? 1 : s.cameraRecoil, cs = s.cameraShake == null ? 1 : s.cameraShake;
       return row({ id: "set-gamespeed", name: T("settings.gameSpeedName"), ctl: slider("set-gamespeed", s.gameSpeed, 0.5, 1.5, 0.05, times(s.gameSpeed)), desc: T("settings.gameSpeedDesc") })
         + row({ id: "set-fontsize", name: T("settings.fontSize"), ctl: seg("set-fontsize", s.fontSize, [["small", T("settings.fontSmall")], ["medium", T("settings.fontMedium")], ["large", T("settings.fontLarge")]]), desc: T("settings.fontSizeDesc") })
         + row({ id: "set-colorblind", name: T("settings.colorblind"), ctl: toggle("set-colorblind", !!s.colorblindMode), desc: T("settings.colorblindDesc") })
         // (visual series, round 1, E4) the shadows lifted further
         + row({ id: "set-visboost", name: T("settings.visBoost"), ctl: toggle("set-visboost", !!s.visibilityBoost), desc: T("settings.visBoostDesc") })
         + row({ id: "set-headbob", name: T("settings.headBobName"), ctl: slider("set-headbob", hb, 0, 1, 0.05, pct(hb), !!s.headBobOff), desc: T("settings.headBobDesc") })
-        + row({ id: "set-headbob-off", name: T("settings.headBobOff"), ctl: toggle("set-headbob-off", !!s.headBobOff), desc: T("settings.headBobOffDesc") });
+        + row({ id: "set-headbob-off", name: T("settings.headBobOff"), ctl: toggle("set-headbob-off", !!s.headBobOff), desc: T("settings.headBobOffDesc") })
+        // (overhaul, round 1) the view's kick from a shot, and its shake from hits and blasts
+        + row({ id: "set-camrecoil", name: T("settings.camRecoil"), ctl: slider("set-camrecoil", cr, 0, 1, 0.05, pct(cr)), desc: T("settings.camRecoilDesc") })
+        + row({ id: "set-camshake", name: T("settings.camShake"), ctl: slider("set-camshake", cs, 0, 1, 0.05, pct(cs)), desc: T("settings.camShakeDesc") });
     },
     account() {
       const a = G.Account.state();
@@ -231,6 +236,9 @@ window.G = window.G || {};
         "set-campclue": (v) => { this.setStyle({ clue: v }); },
         "set-campanswer": (v) => { this.setStyle({ answer: v }); },
         "set-spellreload": (v) => { s.spellReload = v; },                         // (from the next reload on)
+        "set-autoreload": (v) => { s.autoReload = v; },
+        "set-camrecoil": (v) => { s.cameraRecoil = v; return pct(v); },
+        "set-camshake": (v) => { s.cameraShake = v; return pct(v); },
         "set-highlight": (v) => {
           s.highlightTarget = v;
           if (G.Game.zombies) G.Game.zombies.forEach((z) => { if (z.alive) { z._label = null; z.setTarget(z.isTarget); } });

@@ -1548,6 +1548,20 @@ G.STRINGS = {
     "settings.fontSizeDesc": "The size of the text in menus and windows.",
     "settings.colorblindDesc": "Adds a letter to each weapon rarity, not just its colour.",
     "settings.headBobName": "Camera bob", "settings.headBobDesc": "How much the view moves as you walk and run.",
+    // (overhaul, round 1) the weapon: settings, the inspect key, the weapon
+    // families, the debug overlay (?debug=1) and the Weapon Lab (?lab=weapons)
+    "key.inspect": "Inspect weapon",
+    "settings.autoReload": "Auto Reload", "settings.autoReloadDesc": "An empty magazine reloads by itself when you have spare rounds.",
+    "settings.camRecoil": "Camera recoil", "settings.camRecoilDesc": "How far each shot kicks the view. The gun in your hands still kicks.",
+    "settings.camShake": "Camera shake", "settings.camShakeDesc": "How much hits, blasts and boss stomps shake the view.",
+    "family.pistol": "Pistol", "family.revolver": "Revolver", "family.smg": "SMG", "family.rifle": "Rifle", "family.shotgun_pump": "Pump shotgun",
+    "family.shotgun_semi": "Semi-auto shotgun", "family.sniper_bolt": "Bolt-action sniper", "family.lmg": "LMG", "family.special": "Special", "family.knife": "Knife",
+    "debug.title": "Debug", "debug.state": "Weapon: {s} ({t} s)", "debug.held": "In hand: {h} · chosen: {c}", "debug.reload": "Reload: {k} {t}/{d} s {c}",
+    "debug.committed": "committed", "debug.noReload": "Reload: —", "debug.aim": "Aim {a} · sprint-out {s} s", "debug.events": "Last events",
+    "debug.warnings": "Warnings: {n}", "debug.frame": "{ms} ms · {fps} FPS · {calls} draw calls", "debug.check": "Check: {r}", "debug.ok": "OK",
+    "lab.title": "Weapon Lab", "lab.loading": "Opening the Weapon Lab…", "lab.weapon": "Weapon", "lab.fire": "Fire", "lab.hold": "Hold trigger",
+    "lab.reloadTac": "Reload (rounds left)", "lab.reloadEmpty": "Reload (empty)", "lab.switch": "Switch", "lab.inspect": "Inspect", "lab.aim": "Aim",
+    "lab.lower": "Use (lower)", "lab.run": "Run", "lab.speed": "Speed", "lab.ammo": "Endless ammo", "lab.help": "Click the view to look around; Esc frees the mouse.",
     "settings.headBobOffDesc": "Stops the bob and sway completely (helps with motion sickness).",
     // Account (accounts themselves: round 4)
     "settings.notSignedIn": "Not signed in · progress on this device only",

@@ -3,7 +3,8 @@
 // ------------------------------------------------------------
 // Standard mapping (Xbox names; PlayStation in brackets):
 //   in play    left stick move, right stick look (read in game.js)
-//              RT fire, LT aim, A jump, L3 sprint, X reload, Y use,
+//              RT fire, LT aim, A jump, L3 sprint, X reload (inspect when
+//              the magazine is full), Y use,
 //              B knife, LB / RB previous / next weapon, View hear the word,
 //              R3 the Thai of an English clue (a helper),
 //              Menu pause, D-pad up / right / down / left the four abilities
@@ -61,7 +62,7 @@ G.Pad = {
       I.padJump = now[B.A];
       if (edge(B.L3)) I.padSprint = !I.padSprint;
       if (Math.hypot(gp.axes[0] || 0, gp.axes[1] || 0) < 0.2) I.padSprint = false;   // stick let go: sprint off
-      if (edge(B.X)) g.reload();
+      if (edge(B.X) && g.reload() === "full") g.inspect();   // (overhaul, round 1: a full magazine: inspect)
       if (edge(B.Y)) g.doInteract();
       if (edge(B.B)) g.switchSlot(0);
       if (edge(B.LB)) G.Loadout.cycle(g, -1);

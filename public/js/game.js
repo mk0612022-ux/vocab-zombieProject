@@ -36,7 +36,15 @@ G.Game = {
   stamina: 100, maxStamina: 100, staminaExhausted: false, // category I
   // category E: weapon switch / reload / recoil animation state
   weaponAnim: { switchT: 0, switchDur: 0.42, pendingRebuild: false, recoilPos: 0, recoilRot: 0 },
-  reloadState: null, // the reload routine in progress: { id, plan, t, next } (see reload())
+  // (overhaul, round 1) the weapon in the hands: G.WeaponSM (js/weaponsm.js)
+  // owns what it is doing -- firing, reloading, switching, inspecting, the
+  // knife -- made fresh for every run (beginRun). Input and gameplay ask it.
+  wsm: null,
+  aimP: 0,           // how far into the aim (0-1, eased into aimT by the gun's weight)
+  // the reload in progress, if any ({ id, plan, t, next, ... }): the machine's;
+  // read here by the older code and the test suites, and setting it to null stops it
+  get reloadState() { const R = this.wsm && this.wsm.rl; return R && R.plan ? R : null; },
+  set reloadState(v) { if (!v && this.wsm) this.wsm.cancelReload("external"); },
   recoilRecover: 0,
   lastFrameTime: 0,
   fpsSmoothed: 60,
@@ -77,6 +85,13 @@ G.Game = {
     G.UI.showScreen("screen-mainmenu");
     G.UI.el("hud-fps-counter").classList.toggle("hidden", !G.save.settings.showFpsCounter);
     requestAnimationFrame((t) => this.loop(t));
+    // (overhaul, round 1) the debug overlay (?debug=1) and the labs
+    // (?lab=weapons): fetched only when the address asks for them
+    if (/[?&](debug=1|lab=)/.test(location.search)) {
+      const s = document.createElement("script");
+      s.src = "js/debug.js";
+      document.head.appendChild(s);
+    }
   },
 
   setupThree() {
@@ -295,8 +310,16 @@ G.Game = {
       // perks ({id: level}, see js/perks.js) belong to the run, like the money
       perks: {}, moveSpeedMult: 1, armorPct: 0, comboShield: null, secondLifeUsed: false,
       combo: 0, comboTimer: 0, wasHitThisLevel: false,
-      fireCooldown: 0, reloading: false,
+      fireCooldown: 0,
     };
+    // (overhaul, round 1) the weapon's state machine for this run; `reloading`
+    // is its answer (a reload in progress), and false stops one
+    this.wsm = G.WeaponSM.create(this.weaponHost(), G.CONFIG.weaponSM);
+    Object.defineProperty(this.player, "reloading", {
+      get: () => !!(this.wsm && this.wsm.rl),
+      set: (v) => { if (!v && this.wsm) this.wsm.cancelReload("external"); },
+      configurable: true,
+    });
     G.PerkBag.reset();
     G.Loadout.pending = null;
     this._perkOffer = [];
@@ -329,11 +352,12 @@ G.Game = {
     this._onCrateClose = null; this._burst = null; this._chargeT = 0;
     this.bossSlow = 1; this.bossRootT = 0; this.bossSedateT = 0; this._shakeT = 0; this._shakeA = 0; this._checkpointDue = false; this._quizDue = false;
     this._mysteryHand = null; this._mysteryPick = null;
-    this.weaponAnim = { switchT: 0, switchDur: 0.42, pendingRebuild: false, recoilPos: 0, recoilRot: 0 };
-    this.reloadState = null;
+    this.weaponAnim = this.makeWeaponAnim();
     this._prevPos = null; this._prevYaw = undefined; this._prevPitch = undefined;
     this._sprintLatch = false; this._prevSprintHeld = false;
+    this.aimP = 0; this._flinchHp = undefined;
     G.ViewModel.reset();
+    G.ViewModel.setVisible(true);
     G.HeadBob.reset(this);
     this.recoilRecover = 0;
     this.camera.fov = this.baseFov;
@@ -742,13 +766,81 @@ G.Game = {
     const id = this.currentWeaponId();
     return id === "melee" ? { dmg: 1, rate: 1, mag: 1 } : this.player.weaponLevels[id];
   },
+  // The slot chosen changes at once (the HUD shows it); the gun in the hands
+  // follows -- lowered, swapped, raised -- by G.WeaponSM, which also stops a
+  // reload in progress. Pressed again and again, only the last one counts.
   switchSlot(slot) {
     if (slot === this.player.currentSlot) return;
-    if (slot === 0) { this.cancelReload(); this.player.currentSlot = 0; return; }
-    const idx = slot - 1;
-    // switching away abandons a reload (see cancelReload)
-    if (this.player.gunSlots[idx]) { this.cancelReload(); this.player.currentSlot = slot; }
+    if (slot !== 0 && !this.player.gunSlots[slot - 1]) return;
+    this.player.currentSlot = slot;
+    if (this.wsm) this.wsm.requestSwitch();
   },
+  // (overhaul, round 1) what G.WeaponSM asks of the game: the ammunition, the
+  // shot itself, the reload's plan and its commit, the model -- gameplay stays
+  // here, the rules there
+  weaponHost() {
+    const g = this;
+    const defOf = (id) => (id === "melee" ? G.MELEE_DEF : G.WEAPON_DEFS[id]);
+    return {
+      selected: () => g.currentWeaponId(),
+      ammo: (id) => {
+        const d = G.WEAPON_DEFS[id], a = g.player && g.player.ammo[id];
+        if (id === "melee" || !d || !a) return null;
+        const l = g.player.weaponLevels[id];
+        return { mag: a.mag, reserve: a.reserve, magSize: Math.round(d.magSize * ((l && l.mag) || 1)) };
+      },
+      weight: (id) => G.ViewModel.weightKey(defOf(id)),
+      family: (id) => G.ViewModel.family(defOf(id)),
+      cooldownReady: () => g.player.fireCooldown <= 0,
+      fireInterval: (id) => {
+        if (id === "melee") return G.MELEE_DEF.fireRate / 1000;
+        const d = G.WEAPON_DEFS[id], l = g.player.weaponLevels[id];
+        return d ? (d.fireRate / 1000) / ((l && l.rate) || 1) : 0.1;
+      },
+      doFire: (shotId, charge, inBurst) => g.shoot(charge, inBurst, shotId),
+      dryFire: () => G.Audio.sfx("empty"),
+      startMelee: () => {
+        g.player.fireCooldown = G.MELEE_DEF.fireRate / 1000;
+        G.Audio.noise({ dur: 0.16, freq: 1800, freqEnd: 600, q: 0.8, gain: 0.18 });   // blade swish
+      },
+      doMelee: () => g.meleeAttack(G.MELEE_DEF),
+      planReload: (id, kind, missing) => G.ViewModel.planReload(G.WEAPON_DEFS[id], missing, kind),
+      commitReload: (reloadId, id, n) => g.commitReload(id, n),
+      reloadSpeed: () => 1 + (G.Perks.val("quick_hands") || 0) / 100,
+      // (vocabulary series, round 2, D2) Spell to Reload: a word first -- the
+      // whole magazine for the right spelling, half for a wrong one
+      spellReload: (id) => {
+        if (!G.SpellReload || !G.SpellReload.enabled(g) || G.SpellReload.busy) return false;
+        g._burst = null;
+        G.SpellReload.open(g, (result) => g.finishSpellReload(id, result));
+        return true;
+      },
+      spellBusy: () => !!(G.SpellReload && G.SpellReload.busy),
+      // a heavy gun takes longer to put away and to bring up (Quick Hands speeds it, in the machine)
+      switchDur: (from, to) => (G.ViewModel.switchDuration(defOf(from)) + G.ViewModel.switchDuration(defOf(to))) / 2,
+      swapModel: () => g.buildWeaponViewModel(),
+      // a trigger pull ends a run: sprint held stays ignored until it is let go
+      stopSprint: () => { g._sprintLatch = true; },
+      autoReload: () => G.save.settings.autoReload !== false,
+      emit: (type, p) => G.Bus.emit(type, p),
+      warn: (text) => { if (G.Debug) G.Debug.warn(text); },
+    };
+  },
+  // weaponAnim's switch fields, read by older code and the tests, answered by
+  // the machine (setting switchT to 0 finishes a switch at once)
+  makeWeaponAnim() {
+    const g = this;
+    return {
+      recoilPos: 0, recoilRot: 0,
+      get switchT() { const S = g.wsm && g.wsm.sw; return S ? Math.max(0, S.dur - S.t) : 0; },
+      set switchT(v) { if (v <= 0 && g.wsm) g.wsm.finishSwitch(); },
+      get switchDur() { const S = g.wsm && g.wsm.sw; return S ? S.dur : 0.42; },
+      set switchDur(v) { /* the machine's */ },
+      get pendingRebuild() { const S = g.wsm && g.wsm.sw; return !!(S && !S.swapped); },
+      set pendingRebuild(v) { /* the machine's */ },
+    };
+  },
+  inspect() { return this.wsm ? this.wsm.requestInspect() : false; },
   buildWeaponViewModel() {
     if (this.weaponViewGroup) { this.camera.remove(this.weaponViewGroup); G.disposeObject3D(this.weaponViewGroup); }
     const def = this.currentWeaponDef();
@@ -809,83 +901,55 @@ G.Game = {
   // four guns were held -- the slot-5 gun vanished whenever a new one came.
   acquireWeapon(weaponId, opts) { return G.Loadout.offer(this, weaponId, opts || { source: "crate" }); },
 
-  reload() {
-    const id = this.currentWeaponId();
-    if (id === "melee") return;
-    const ammo = this.player.ammo[id];
-    const def = G.WEAPON_DEFS[id];
-    const lvl = this.player.weaponLevels[id];
-    const magSize = Math.round(def.magSize * lvl.mag);
-    if (this.player.reloading || ammo.mag >= magSize || ammo.reserve <= 0) return;
-    if (this.weaponAnim.switchT > 0) return;               // not in the middle of a swap
-    // (vocabulary series, round 2, D2) Spell to Reload: a word first -- the
-    // whole magazine for the right spelling, half for a wrong one
-    if (G.SpellReload && G.SpellReload.enabled(this)) {
-      if (G.SpellReload.busy) return;
-      this._burst = null;
-      G.SpellReload.open(this, (result) => this.finishSpellReload(id, result));
-      return;
-    }
-    // Animation pass A3: a reload is a routine with steps, planned per weapon
-    // type by G.ViewModel. Its events drive the gameplay: ammo goes in when
-    // the fresh magazine seats (or shell by shell for a tube-fed shotgun),
-    // so a reload abandoned before that point refills nothing.
-    const missing = Math.min(magSize - ammo.mag, ammo.reserve);
-    this.player.reloading = true;
-    this.reloadState = { id, plan: G.ViewModel.planReload(def, missing), t: 0, next: 0 };
-    // A reload is a reason to stop running: held sprint is ignored until it
-    // is released, and pressing it again abandons the reload.
-    this._sprintLatch = true;
-    G.Audio.reloadEvent("start", def);
-  },
+  // Asks for a reload. Animation pass A3 made it a routine with steps, planned
+  // per weapon type by G.ViewModel; the overhaul hands it to G.WeaponSM: a
+  // tactical one (rounds left) or an empty one (the slide or bolt let go),
+  // or shell by shell. Ammo goes in once, when the fresh magazine seats (or
+  // a shell at a time), so a reload abandoned before that refills nothing.
+  // -> true (started), "full" (nothing to do), or false
+  reload() { return this.wsm ? this.wsm.requestReload() : false; },
   finishSpellReload(id, result) {
     const ammo = this.player.ammo[id], def = G.WEAPON_DEFS[id];
-    if (!ammo || !def || this.state !== "GAMEPLAY") return;
+    if (!ammo || !def || this.state !== "GAMEPLAY") { if (this.wsm) this.wsm.endSpell(); return; }
     const magSize = Math.round(def.magSize * this.player.weaponLevels[id].mag);
     const goal = result === "full" ? magSize : Math.max(ammo.mag, Math.ceil(magSize * G.CONFIG.spell.reloadWrongShare));
     const add = Math.max(0, Math.min(goal - ammo.mag, ammo.reserve));
     ammo.mag += add; ammo.reserve -= add;
     G.Audio.reloadEvent("in", def);
     G.Audio.reloadEvent("slap", def);
+    if (this.wsm) this.wsm.endSpell();
   },
-  cancelReload() {
-    if (!this.player.reloading) return;
-    this.player.reloading = false;
-    this.reloadState = null;
-    G.ViewModel.cancelReload();
-  },
-  onReloadEvent(kind, R) {
-    const def = G.WEAPON_DEFS[R.id];
-    const ammo = this.player.ammo[R.id];
-    const lvl = this.player.weaponLevels[R.id];
-    if (ammo && def) {
-      const magSize = Math.round(def.magSize * lvl.mag);
-      if (kind === "in") {
-        const need = Math.min(magSize - ammo.mag, ammo.reserve);
-        ammo.mag += need; ammo.reserve -= need;
-      } else if (kind === "shell" && ammo.mag < magSize && ammo.reserve > 0) {
-        ammo.mag++; ammo.reserve--;
-      }
-    }
-    G.Audio.reloadEvent(kind, def);
+  cancelReload() { if (this.wsm) this.wsm.cancelReload("external"); },
+  // the reload's commit (G.WeaponSM, once a reload): the whole magazine, or one shell
+  commitReload(id, n) {
+    const def = G.WEAPON_DEFS[id], ammo = this.player.ammo[id], lvl = this.player.weaponLevels[id];
+    if (!def || !ammo) return 0;
+    const magSize = Math.round(def.magSize * ((lvl && lvl.mag) || 1));
+    const add = n === "full" ? Math.max(0, Math.min(magSize - ammo.mag, ammo.reserve)) : (ammo.mag < magSize && ammo.reserve > 0 ? 1 : 0);
+    ammo.mag += add; ammo.reserve -= add;
+    return add;
   },
 
   // ---------------- Shooting ----------------
-  // `chargeFrac` (0-1) comes from a charge weapon's held trigger; `inBurst`
-  // marks the follow-up rounds of a burst, which ignore the between-shot
-  // cooldown because the burst has its own, much shorter one.
+  // A trigger pull, asked of G.WeaponSM (which knows whether the gun can fire:
+  // a swap, a reload, out of a run...). `chargeFrac` (0-1) comes from a charge
+  // weapon's held trigger; `inBurst` marks the follow-up rounds of a burst,
+  // which ignore the between-shot cooldown -- the burst has its own.
   fireWeapon(chargeFrac, inBurst) {
+    if (!this.wsm) return false;
+    if (inBurst) return this.wsm.burstRound(chargeFrac);
     const def = this.currentWeaponDef();
-    if ((this.player.fireCooldown > 0 && !inBurst) || this.player.reloading) return;
+    return this.wsm.requestFire({ pressed: true, held: true, auto: !!def.auto || def.id === "melee", charge: chargeFrac });
+  },
+  // The round itself -- gameplay, once G.WeaponSM has said yes: one out of
+  // the magazine, the rays, the damage, the kick. -> false: nothing fired
+  shoot(chargeFrac, inBurst) {
     const id = this.currentWeaponId();
-    if (id === "melee") {
-      this.meleeAttack(def); this.player.fireCooldown = def.fireRate / 1000;
-      G.Audio.noise({ dur: 0.16, freq: 1800, freqEnd: 600, q: 0.8, gain: 0.18 });   // blade swish
-      return;
-    }
+    if (id === "melee") return false;
+    const def = G.WEAPON_DEFS[id];
     const ammo = this.player.ammo[id];
     const lvl = this.player.weaponLevels[id];
-    if (ammo.mag <= 0) { this._burst = null; G.Audio.sfx("empty"); this.reload(); return; }
+    if (!def || !ammo || ammo.mag <= 0) { this._burst = null; return false; }
     // Last Round: the final round(s) of a magazine hit three times as hard
     const lastRound = G.Perks.has("last_round") && ammo.mag <= G.Perks.val("last_round");
     ammo.mag--;
@@ -923,7 +987,9 @@ G.Game = {
       if (this.raycastShoot(origin, d, dmg, def.pierce, def)) anyHit = true;
     }
     if (anyHit) G.UI.showHitmarker();
-    if (ammo.mag <= 0 && ammo.reserve > 0) { this._burst = null; this.reload(); }
+    // (the magazine empty: no more of a burst; the reload is G.WeaponSM's)
+    if (ammo.mag <= 0) this._burst = null;
+    return true;
   },
 
   // Category N: pierce is a COUNT now, not a flag -- a bolt that passes
@@ -1074,8 +1140,10 @@ G.Game = {
       toZ.normalize();
       if (toZ.dot(dir) > 0.7 && dist < bestDist) { best = z; bestDist = dist; }
     }
-    if (best) { G.UI.showHitmarker(); this.damageZombie(best, def.damage, best.mesh.position, { dir: dir.clone(), head: false }); }
-    else if (G.Bosses.melee(this, origin, dir, def)) G.UI.showHitmarker();
+    // (overhaul, round 1: called at the swing's hit frame, by G.WeaponSM)
+    if (best) { G.UI.showHitmarker(); this.damageZombie(best, def.damage, best.mesh.position, { dir: dir.clone(), head: false }); return true; }
+    if (G.Bosses.melee(this, origin, dir, def)) { G.UI.showHitmarker(); return true; }
+    return false;
   },
 
   // Category E3: a real kick -- the gun punches back and tilts up, the view
@@ -1083,21 +1151,24 @@ G.Game = {
   // (the old version nudged the model 6cm for 60ms and that was it). Strength
   // scales with each weapon's own `recoil`, so a Meteor Detention throws the
   // gun far harder than a Scrap Spitter.
+  // (overhaul, round 1) the weapon's kick and the view's are separate: the
+  // view's follows the Camera Recoil setting (0 = off), the gun's does not.
+  // Automatic fire builds the gun's up to a cap (G.CONFIG.weaponSM.recoilCap).
   recoilKick(def) {
     const strength = (def && def.recoil) || Math.min(2.2, 0.35 + (def ? def.damage : 20) / 45);
-    const a = this.weaponAnim;
-    a.recoilPos = Math.min(0.26, a.recoilPos + 0.05 + strength * 0.055);
-    a.recoilRot = Math.min(0.5, a.recoilRot + 0.05 + strength * 0.075);
-    const kick = strength * 0.013;
+    const a = this.weaponAnim, cap = G.CONFIG.weaponSM.recoilCap;
+    a.recoilPos = Math.min(cap.pos, a.recoilPos + 0.05 + strength * 0.055);
+    a.recoilRot = Math.min(cap.rot, a.recoilRot + 0.05 + strength * 0.075);
+    const cr = G.save.settings.cameraRecoil;
+    const kick = strength * 0.013 * (cr == null ? 1 : cr);
     this.pitchObject.rotation.x += kick; // view punches upward...
     this.recoilRecover += kick;          // ...and is pulled back down over the next moments
   },
   updateWeaponAnim(dt) {
-    const a = this.weaponAnim;
-    // recoil spring
-    const springed = Math.exp(-16 * dt);
-    a.recoilPos *= springed;
-    a.recoilRot *= springed;
+    const a = this.weaponAnim, R = G.CONFIG.weaponSM.recoilReturn;
+    // the kick settles back -- the tilt a little slower than the push (the follow-through)
+    a.recoilPos *= Math.exp(-R.pos * dt);
+    a.recoilRot *= Math.exp(-R.rot * dt);
     if (a.recoilPos < 0.0005) a.recoilPos = 0;
     if (a.recoilRot < 0.0005) a.recoilRot = 0;
     if (this.recoilRecover > 0) {
@@ -1105,17 +1176,18 @@ G.Game = {
       this.pitchObject.rotation.x -= back;
       this.recoilRecover -= back;
     }
-    // weapon switch: the old gun goes down and out of frame, the model is
-    // swapped at the bottom, the new one comes up (poses in G.ViewModel)
-    if (a.switchT > 0) {
-      a.switchT = Math.max(0, a.switchT - dt);
-      const p = 1 - a.switchT / a.switchDur;
-      if (p >= 0.5 && a.pendingRebuild) { a.pendingRebuild = false; this.buildWeaponViewModel(); }
-    }
+    // (the weapon switch -- lower, swap at the bottom, raise -- is G.WeaponSM's now)
   },
-  switchProgress() {
-    const a = this.weaponAnim;
-    return a.switchT > 0 ? 1 - a.switchT / a.switchDur : null;
+  switchProgress() { return this.wsm ? this.wsm.switchProgress() : null; },
+  // a hit taken: the gun flinches, and the view a little (both by the Camera Shake setting)
+  onPlayerHurt(frac) {
+    const cs = G.save.settings.cameraShake;
+    const k = Math.min(1, frac * 8) * G.CONFIG.weaponSM.flinch * (cs == null ? 1 : cs);
+    if (k <= 0.01) return;
+    G.ViewModel.flinch(k);
+    this.pitchObject.rotation.x += 0.012 * k;
+    this.recoilRecover += 0.012 * k;
+    if (G.Bus) G.Bus.emit("player:hurt", { frac });
   },
 
   // a round off a zombie that has to be spelt: sparks, and now and then the reminder
@@ -1467,7 +1539,9 @@ G.Game = {
   },
   // The view shakes (a boss landing, a roar); gentler with head bob off.
   shake(a, d) {
-    const k = G.save.settings.headBobOff ? 0.3 : 1;
+    // (overhaul, round 1: and the Camera Shake setting, 0 = none)
+    const cs = G.save.settings.cameraShake;
+    const k = (G.save.settings.headBobOff ? 0.3 : 1) * (cs == null ? 1 : cs);
     this._shakeA = Math.max(this._shakeA || 0, a * k);
     this._shakeT = Math.max(this._shakeT || 0, d);
   },
@@ -1779,6 +1853,7 @@ G.Game = {
   onGameOver() {
     // (a study session ends with its own results, not the game-over screen)
     if (this.mode === "study" && G.Study) { G.Study.finish(this, "died"); return; }
+    if (this.wsm) this.wsm.setDisabled("end", true);   // (overhaul, round 1) the gun put away, everything stopped
     this.state = "GAME_OVER";
     if (G.Cutscene) G.Cutscene.stop();
     G.Audio.bossMusic(false);
@@ -1804,6 +1879,7 @@ G.Game = {
     G.UI.showScreen("screen-gameover");
   },
   onVictory() {
+    if (this.wsm) this.wsm.setDisabled("end", true);
     this.state = "VICTORY";
     G.Modal.reset();
     G.Input.exitPointerLock();
@@ -1857,7 +1933,8 @@ G.Game = {
   // ---------------- Update loop ----------------
   update(dt) {
     const realDt = dt;
-    dt *= G.save.settings.gameSpeed;
+    // (timeScale: the Weapon Lab's slow motion, ?lab=weapons)
+    dt *= G.save.settings.gameSpeed * (this.timeScale || 1);
     if (this.state === "SHOP") {
       // the shop's clock is real time (not the game speed), and it waits
       // while any other window is open on top of it -- the gun-slot choice,
@@ -1879,6 +1956,13 @@ G.Game = {
     // the end-of-wave quiz keeps its own clock while everything else is paused
     if (G.Quiz.active) G.Quiz.update(realDt);
     if (this.state !== "GAMEPLAY" || this.paused) return;
+    // (overhaul, round 1) the gun is put away for a boss's cutscene, and
+    // lowered while a question window holds the world (a reload waits)
+    if (this.wsm) {
+      const cut = !!(G.Cutscene && G.Cutscene.active), frozen = G.Modal.freezesWorld();
+      if (cut !== !!this.wsm.disabled.cutscene) this.wsm.setDisabled("cutscene", cut);
+      if (frozen !== !!this.wsm.lowered.modal) this.wsm.setLowered("modal", frozen);
+    }
     // a boss's cutscene has the whole frame: the world stands still, nobody
     // is hurt, and it runs in real seconds whatever the game speed
     if (G.Cutscene.active) { G.Cutscene.update(this, realDt); return; }
@@ -1992,6 +2076,8 @@ G.Game = {
     G.updateSparks(this.scene, this.world, dt);
     this.updateChallengeTimer(dt);
     if (this.state !== "GAMEPLAY") return;   // a wrong answer can end the run
+    // (overhaul, round 1) the gun lowers behind the question; its clock waits
+    this.poseWeapon(dt, {});
     G.UI.updateHud(this.buildHudState());
   },
 
@@ -2138,13 +2224,11 @@ G.Game = {
     // while stamina remains, and only actually drains while you're moving --
     // holding the key while standing still costs nothing.
     const sprintHeld = (G.Input.mode === "desktop" && G.Input.isDown("sprint")) || G.Input.touchSprint || G.Input.padSprint;
-    // Animation pass A3: a fresh press of sprint abandons a reload in progress
-    // (the magazine never goes in, so no ammo is added). A sprint that was
-    // already held when the reload began is ignored until it is released.
-    const sprintPressed = sprintHeld && !this._prevSprintHeld;
+    // (overhaul, round 1) running no longer abandons a reload: the hands go
+    // on working at a run (G.CONFIG.weaponSM.sprintCancelsReload). A trigger
+    // pull ends a run: sprint held then is ignored until it is let go.
     this._prevSprintHeld = sprintHeld;
     if (!sprintHeld) this._sprintLatch = false;
-    if (sprintPressed && this.player.reloading && len > 0.05) { this.cancelReload(); this._sprintLatch = false; }
     const wantSprint = sprintHeld && !this._sprintLatch;
     // A3: at exactly 0 stamina the old check (stamina > 0) flipped back on the
     // very next frame, because the non-sprint branch regenerates -- so holding
@@ -2202,12 +2286,19 @@ G.Game = {
     // Aim Down Sights (category H): right mouse button held narrows the FOV
     // and pulls the weapon toward center, blended over time (not an instant
     // snap) so it reads as a deliberate aim rather than a jump-cut.
+    // (overhaul, round 1) G.WeaponSM says when it may: never at a run, in a
+    // swap or a reload -- held through a reload, it aims the moment that ends.
+    // The time it takes follows the gun's weight (G.CONFIG.weaponSM.aimIn),
+    // eased in and out.
     const def = this.currentWeaponDef();
-    const wantAim = (G.Input.aimDown || G.Input.padAim) && def.id !== "melee" && !this.challenge;
-    const aimSpeed = 10;
-    this.aimT += ((wantAim ? 1 : 0) - this.aimT) * Math.min(1, aimSpeed * dt);
-    if (Math.abs(this.aimT) < 0.002) this.aimT = 0;
-    if (Math.abs(this.aimT - 1) < 0.002) this.aimT = 1;
+    const aimInput = (G.Input.aimDown || G.Input.padAim) && def.id !== "melee" && !this.challenge;
+    // (a run answered only by spelling has no trigger: the words are the shots)
+    const rawFire = !this.challenge && !feetHeld && !(this.learn && !this.learn.shoots) && ((G.Input.mode === "desktop" && G.Input.mouseDown) || G.Input.touchFire || G.Input.padFire);
+    if (this.wsm) this.wsm.input({ moving: len > 0.05, sprinting, aimHeld: aimInput, fireHeld: rawFire });
+    const wantAim = aimInput && (!this.wsm || this.wsm.aimActive);
+    const WC = G.CONFIG.weaponSM, aimIn = WC.aimIn[G.ViewModel.weightKey(def)] || 0.22;
+    this.aimP = Math.max(0, Math.min(1, (this.aimP || 0) + (wantAim ? dt / aimIn : -dt / (aimIn * WC.aimOutShare))));
+    this.aimT = G.Anim.easeInOutCubic(this.aimP);
     // Category N: a sniper's `scope` is its own aimed FOV, well past the
     // general ADS zoom, and it draws a scope overlay once fully shouldered.
     const aimedFov = def.scope || this.aimFov;
@@ -2235,8 +2326,6 @@ G.Game = {
     const lookYaw = dYaw / dt, lookPitch = this._prevPitch === undefined ? 0 : (pitchNow - this._prevPitch) / dt;
     this._prevYaw = yawNow; this._prevPitch = pitchNow;
     const airborne = this.velocityY !== 0;
-    // (a run answered only by spelling has no trigger: the words are the shots)
-    const rawFire = !this.challenge && !feetHeld && !(this.learn && !this.learn.shoots) && ((G.Input.mode === "desktop" && G.Input.mouseDown) || G.Input.touchFire || G.Input.padFire);
 
     G.PlayerBody.stepGait(dt, vel, yawNow, airborne);
     // the camera rides the same gait (animation pass B), before the gun so
@@ -2244,40 +2333,32 @@ G.Game = {
     G.HeadBob.update({ dt, rig: this, aimT: this.aimT, lookYaw, vel, yaw: yawNow,
       weightKey: G.ViewModel.weightKey(def), airborne });
     this.applyShake(dt);
-    G.ViewModel.update({
-      dt, def, aimT: this.aimT, sprinting, firing: rawFire, lookYaw, lookPitch, airborne,
-      recoilPos: a.recoilPos, recoilRot: a.recoilRot, switchP: this.switchProgress(),
-      reload: this.player.reloading ? this.reloadState : null, vel, yaw: yawNow,
-    });
-    G.PlayerBody.update({ dt, airborne, sprinting, weightKey: G.ViewModel.weightKey(def), aimT: this.aimT, lookYaw });
-
-    // A shotgun being loaded shell by shell can be fired as soon as it holds
-    // one: the trigger abandons the rest of the reload.
-    if (rawFire && this.player.reloading && this.reloadState && this.reloadState.plan.style === "shotgun"
-      && this.player.ammo[this.reloadState.id] && this.player.ammo[this.reloadState.id].mag > 0) this.cancelReload();
+    this.poseWeapon(dt, { def, sprinting, firing: rawFire, lookYaw, lookPitch, airborne, vel, yaw: yawNow });
 
     // fire input (suppressed while a word-challenge popup wants the click for
-    // its answer buttons, while a weapon swap is still in progress, and until
-    // the gun has come down out of the sprint carry -- pulling the trigger is
-    // what brings it down)
-    const sprintCarry = G.ViewModel.S && G.ViewModel.S.sprintW > 0.25;
-    const wantFire = rawFire && this.weaponAnim.switchT <= 0 && !sprintCarry;
+    // its answer buttons). (overhaul, round 1) G.WeaponSM decides the rest:
+    // nothing in a swap; out of a run, the shot waits for the sprint-out;
+    // during a reload a fresh pull with rounds left stops it and fires (shell
+    // by shell: after the shell in the hand); an inspection just stops.
+    const edge = this._fireEdge, W = this.wsm;
 
     // Category N: a charge weapon winds up while the trigger is held and fires
     // on release, with damage scaling from 1x to its charge multiplier.
     if (def.charge) {
-      if (wantFire) {
+      if (edge && W) W.prepareFire();
+      if (rawFire && W && W.canFire()) {
         this._chargeT = Math.min(def.charge.time, (this._chargeT || 0) + dt);
         G.GunAudio.chargeUpdate(def, this._chargeT / def.charge.time);   // the hum climbs
       } else if (this._chargeT > 0) {
         const frac = this._chargeT / def.charge.time;
         this._chargeT = 0;
         G.GunAudio.chargeStop();
-        if (frac > 0.12) this.fireWeapon(frac);
+        // let go: it fires; cut off (a swap, a window): the charge is lost
+        if (!rawFire && frac > 0.12) this.fireWeapon(frac);
       }
     } else {
       this._chargeT = 0;
-      if (wantFire && (def.auto || def.id === "melee" || this._fireEdge)) this.fireWeapon();
+      if (W && (rawFire || edge)) W.requestFire({ pressed: edge, held: rawFire, auto: !!def.auto || def.id === "melee" });
     }
     this._fireEdge = false;
 
@@ -2287,7 +2368,8 @@ G.Game = {
       else {
         this._burst.timer -= dt;
         if (this._burst.timer <= 0) {
-          this.fireWeapon(this._burst.charge, true);
+          // (the machine says no -- a swap, a window -- and the burst is over)
+          if (!this.fireWeapon(this._burst.charge, true)) this._burst = null;
           // fireWeapon drops the burst itself when the magazine runs dry
           // mid-burst; carrying on used to throw here (found by the bot)
           if (!this._burst) return;
@@ -2297,6 +2379,21 @@ G.Game = {
         }
       }
     }
+  },
+
+  // The gun and the arms posed for this frame (js/viewmodel.js does the gun,
+  // js/playerbody.js the arms reaching for it). The pose is the model's own
+  // gun -- in a swap still the old one until it is out of sight.
+  poseWeapon(dt, o) {
+    const a = this.weaponAnim, def = G.ViewModel.def || o.def || this.currentWeaponDef();
+    const wk = G.ViewModel.weightKey(def);
+    G.ViewModel.update({
+      dt, def, aimT: this.aimT, sprinting: !!o.sprinting, firing: !!o.firing, lookYaw: o.lookYaw || 0, lookPitch: o.lookPitch || 0,
+      airborne: !!o.airborne, recoilPos: a.recoilPos, recoilRot: a.recoilRot, switchP: this.switchProgress(),
+      reload: this.reloadState, vel: o.vel || null, yaw: o.yaw !== undefined ? o.yaw : this.yawObject.rotation.y,
+      sm: this.wsm ? this.wsm.view() : null, stamina: this.maxStamina ? this.stamina / this.maxStamina : 1, aspect: this.camera ? this.camera.aspect : 16 / 9,
+    });
+    G.PlayerBody.update({ dt, airborne: !!o.airborne, sprinting: !!o.sprinting, weightKey: wk, aimT: this.aimT, lookYaw: o.lookYaw || 0 });
   },
 
   // (visual series, round 3, L2: every move in steps no longer than
@@ -2328,42 +2425,17 @@ G.Game = {
     if (!blockedZ) pos.z += dz;
   },
 
+  // (overhaul, round 1) the weapon's clock: G.WeaponSM moves the reload along
+  // (its steps put the rounds in), the switch (the model swapped at the
+  // bottom of the dip), an inspection, the knife's swing. Quick Hands speeds
+  // reloads and switches, in the machine.
   updateShooting(dt) {
     this.player.fireCooldown = Math.max(0, this.player.fireCooldown - dt);
-    // the reload routine: its events (magazine seated, a shell pushed in) are
-    // what actually move ammo -- see reload() and onReloadEvent()
-    const R = this.reloadState;
-    // Quick Hands: the whole reload routine (and its animation, which reads
-    // R.t) plays faster
-    const hands = 1 + (G.Perks.val("quick_hands") || 0) / 100;
-    if (this.player.reloading && R) {
-      R.t += dt * hands;
-      const evs = R.plan.events;
-      while (R.next < evs.length && evs[R.next].t <= R.t) this.onReloadEvent(evs[R.next++].kind, R);
-      if (R.t >= R.plan.dur) { this.player.reloading = false; this.reloadState = null; }
-    } else if (this.player.reloading) this.player.reloading = false;
-    // Category E1: a swap no longer snaps the new model in instantly -- the
-    // old gun drops out of frame, the model is swapped at the bottom of that
-    // dip, and the new one rises into place (firing is locked out until it's
-    // finished, see the wantFire gate in updatePlayerMovement).
-    if (this._lastWeaponId !== this.currentWeaponId()) {
-      const first = !this.weaponViewGroup;
-      this._lastWeaponId = this.currentWeaponId();
-      if (first) { this.buildWeaponViewModel(); }
-      else {
-        // a heavy gun takes longer to put away and to bring up
-        const from = G.ViewModel.def, to = this.currentWeaponDef();
-        this.weaponAnim.switchDur = (G.ViewModel.switchDuration(from) + G.ViewModel.switchDuration(to)) / 2 / hands;
-        this.weaponAnim.switchT = this.weaponAnim.switchDur;
-        this.weaponAnim.pendingRebuild = true;
-        // the old gun put away, the new one drawn -- each with its own sound
-        G.GunAudio.swap(from, to, this.weaponAnim.switchDur);
-        G.GunAudio.chargeStop();
-        this.cancelReload();
-      }
-    } else if (!this.weaponViewGroup) {
-      this.buildWeaponViewModel();
-    }
+    if (this.wsm) this.wsm.tick(dt);
+    // a hit taken (from anything: a bite, a trap, a boss) makes the gun flinch
+    const hp = this.player.hp;
+    if (this._flinchHp !== undefined && hp < this._flinchHp - 0.5) this.onPlayerHurt((this._flinchHp - hp) / this.player.maxHp);
+    this._flinchHp = hp;
   },
 
   updateZombies(dt) {
@@ -2632,9 +2704,13 @@ G.Game = {
   doInteract() {
     if (this.challenge) return;
     const found = this._lookedAtInteractable;
+    // (overhaul, round 1) a hand free for it: the gun dips a moment (not in
+    // the middle of a reload or a swap; the trigger brings it straight back)
+    const useHand = () => { if (this.wsm) this.wsm.setLowered("use", true, G.CONFIG.weaponSM.lowerUse); };
     // (set only when nothing in view has a use -- see updateInteractRay)
-    if (this._nearFloorGun) { G.Loadout.pickUp(this, this._nearFloorGun); return; }
+    if (this._nearFloorGun) { useHand(); G.Loadout.pickUp(this, this._nearFloorGun); return; }
     if (!found) return;
+    useHand();
     if (found.kind === "door") {
       if (found.ref.opened) return;
       this.startWordChallenge(G.T("challenge.door"), () => this.clearBlockingObstacle(found.ref, "opened"), () => {});
@@ -3195,6 +3271,7 @@ G.onKeyDown = function (e) {
     if (e.code === kb.pause) { Game.pause(); return; }
     if (G.Cutscene && G.Cutscene.active) return;       // a boss arriving: only pause
     if (e.code === kb.reload) { Game.reload(); return; }
+    if (kb.inspect && e.code === kb.inspect) { if (!e.repeat) Game.inspect(); return; }   // (overhaul, round 1)
     if (e.code === kb.interact) { Game.doInteract(); return; }
     if (e.code === kb.melee) { Game.switchSlot(0); return; }
     // slot2..slot7: the four gun slots, and the two Extra Weapon Slot adds
@@ -3231,7 +3308,8 @@ G.onPausePress = function () {
   if (Game.state === "GAMEPLAY" && !G.Modal.pausesAll()) Game.pause();
   else if (Game.state === "PAUSE") Game.resume();
 };
-G.onReloadPress = function () { if (G.Game.playing()) G.Game.reload(); };
+// (overhaul, round 1: with a full magazine the touch button shows the gun off instead)
+G.onReloadPress = function () { if (G.Game.playing() && G.Game.reload() === "full") G.Game.inspect(); };
 // The mouse was unlocked by something other than one of our windows: Escape
 // (the browser takes that key for itself), alt-tab, a system dialog. That is
 // the player stepping away, so pause. Windows free the mouse through

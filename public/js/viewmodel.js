@@ -19,9 +19,21 @@
 //                   launcher -- with a real magazine that comes out, falls
 //                   and lands, and a new one fetched from the belt
 //
-// The reload's TIMING lives in G.Game (it is gameplay: ammo only refills
-// when the new magazine seats), built from planReload() below so the
-// animation and the ammo can never disagree.
+// The reload's TIMING lives in gameplay -- G.WeaponSM (js/weaponsm.js), with
+// G.Game putting the rounds in when the new magazine seats -- built from
+// planReload() below, so the animation and the ammo can never disagree.
+//
+// (overhaul, round 1) the machine's state, in layers over the base pose:
+//   reload          tactical (rounds left: shorter, nothing to release) or
+//                   empty (the slide or bolt let go at the end)
+//   inspect         the gun turned in the hands to show one side, then the
+//                   other; any action ends it
+//   lowered         dipped while a hand is busy (Use) or a question is open
+//   knife           a wind-up and a cut, the blade arriving at the hit frame
+//   flinch          a hit taken knocks it (x the Camera Shake setting)
+//   breathing       heavier when the stamina is low
+//   the screen      the hip carry moved in on a narrow screen, out on a wide one
+//   hidden          put away while the machine is Disabled (death, a cutscene)
 // ===================================================================
 G.ViewModel = {
   group: null, def: null,
@@ -55,6 +67,14 @@ G.ViewModel = {
     return G.weightClass(def).key;
   },
   switchDuration(def) { return this.FEEL[this.weightKey(def)].switchDur; },
+  // (overhaul, round 1) the weapon families of docs/overhaul/weapon-state-machine.md,
+  // from the archetypes: what the animation, the sounds and the effects go by
+  family(def) {
+    if (!def || def.id === "melee") return "knife";
+    const arch = G.WEAPON_ARCHETYPES[def.archetype] ? def.archetype : G.inferArchetype(def);
+    return { pistol: "pistol", smg: "smg", rifle: "rifle", lmg: "lmg", shotgun: def.auto ? "shotgun_semi" : "shotgun_pump",
+      sniper: "sniper_bolt" }[arch] || "special";
+  },
 
   reset() {
     this.S = {
@@ -64,12 +84,30 @@ G.ViewModel = {
       inX: new G.Anim.Spring(), inZ: new G.Anim.Spring(), land: new G.Anim.Spring(),
       bump: new G.Anim.Spring(),
       prevVel: new THREE.Vector3(), wasAir: false,
+      // (overhaul, round 1) the machine's layers
+      lowW: 0, inspW: 0, inspU: 0, melW: 0, melU: 0, melHit: 0.2,
+      flinchX: new G.Anim.Spring(), flinchZ: new G.Anim.Spring(), breath: 0,
     };
     this.t = 0;
+  },
+  // put away (the machine Disabled: death, a cutscene) or shown again
+  visible: true,
+  setVisible(on) {
+    this.visible = !!on;
+    if (this.group) this.group.visible = this.visible;
+    if (G.PlayerBody && G.PlayerBody.armRig) G.PlayerBody.armRig.group.visible = this.visible;
+    if (!on && this.S) this.S.lowW = 1;     // (it comes back up from below)
+  },
+  // a hit taken: a knock up and to one side that springs back
+  flinch(k) {
+    if (!this.S) this.reset();
+    this.S.flinchX.v += (Math.random() < 0.5 ? -1 : 1) * 1.6 * k;
+    this.S.flinchZ.v += 2.2 * k;
   },
 
   onWeaponBuilt(group, def) {
     this.group = group; this.def = def;
+    group.visible = this.visible !== false;
     if (!this.S) this.reset();
     const P = (group.userData.parts) || {};
     // remember each moving part's rest pose
@@ -89,37 +127,58 @@ G.ViewModel = {
   },
   SHELL: { lead: 0.28, tail: 0.38 },
 
+  // the shell-by-shell tail with nothing to rack (a round already chambered)
+  SHELL_TAIL_NO_PUMP: 0.18,
+
   // What a reload of this gun, `missing` rounds short, looks like in time.
-  // Returns { style, dur, events: [{ t, kind }] } with t in seconds.
-  planReload(def, missing) {
+  // Returns { style, dur, events: [{ t, kind }], keys } with t in seconds.
+  // (overhaul, round 1) `kind`: "tactical" -- rounds left in the magazine:
+  // no slide or bolt to let go, and the rest a little quicker
+  // (G.CONFIG.weaponSM.tacticalScale) -- or "empty"; shell by shell, the
+  // pump at the end only when it started empty.
+  planReload(def, missing, kind) {
     const group = this.group;
     const style = (group && group.userData.reloadStyle) || "rifle";
     const base = (def.reloadTime || 1500) / 1000;
+    const tactical = kind === "tactical";
     if (style === "shotgun") {
       // one shell at a time: the reload is as long as the shells it takes
       const shellT = Math.max(0.2, (base - 0.55) / Math.max(1, def.magSize));
       const n = Math.max(1, missing);
-      const dur = this.SHELL.lead + n * shellT + this.SHELL.tail;
+      const pump = !tactical;
+      const tail = pump ? this.SHELL.tail : this.SHELL_TAIL_NO_PUMP;
+      const dur = this.SHELL.lead + n * shellT + tail;
       const events = [];
       for (let i = 0; i < n; i++) events.push({ t: this.SHELL.lead + (i + 0.5) * shellT, kind: "shell" });
-      events.push({ t: dur - this.SHELL.tail + 0.2, kind: "pump" });
-      return { style, dur, shellT, shells: n, events };
+      if (pump) events.push({ t: dur - tail + 0.2, kind: "pump" });
+      return { style, dur, shellT, shells: n, events, tail, pump };
     }
-    const k = this.STYLES[style] || this.STYLES.rifle;
-    const events = Object.keys(k).map((kind) => ({ t: k[kind] * base, kind }));
+    let k = this.STYLES[style] || this.STYLES.rifle;
+    let dur = base;
+    if (tactical) {
+      // the release step goes; what is left spreads over the shorter time
+      const t2 = {};
+      Object.keys(k).forEach((s) => { if (s !== "bolt") t2[s] = Math.min(0.93, k[s] / 0.88); });
+      k = t2;
+      dur = base * G.CONFIG.weaponSM.tacticalScale;
+    }
+    const events = Object.keys(k).map((s) => ({ t: k[s] * dur, kind: s }));
     events.sort((a, b) => a.t - b.t);
-    return { style, dur: base, events };
+    return { style, dur, events, keys: k };
   },
 
   // ================= per-frame =================
   // ctx: { dt, def, aimT, sprinting, firing, lookYaw, lookPitch (rad/s),
   //        airborne, recoilPos, recoilRot, switchP (0..1 or null),
-  //        reload: G.Game.reloadState or null, vel (world, m/s), yaw }
+  //        reload: G.Game.reloadState or null, vel (world, m/s), yaw,
+  //        sm: G.WeaponSM view() (overhaul, round 1), stamina (0-1), aspect }
   update(ctx) {
     const g = this.group;
     if (!g) return;
     if (!this.S) this.reset();
     const S = this.S, A = G.Anim, dt = Math.max(1e-4, ctx.dt);
+    const WC = G.CONFIG.weaponSM;
+    const sm = ctx.sm || {};
     this.t += dt;
     const def = ctx.def;
     const wk = this.weightKey(def);
@@ -128,8 +187,11 @@ G.ViewModel = {
     const gait = G.PlayerBody.gait || { phase: 0, moveW: 0, runW: 0, bob: 0, sway: 0 };
 
     // ---- state weights (all eased, ~0.15-0.25 s) ----
-    const wantSprint = ctx.sprinting && !ctx.firing && !ctx.reload && ctx.switchP == null;
-    S.sprintW = A.approach(S.sprintW, wantSprint ? 1 : 0, dt, wantSprint ? 0.26 : 0.14);
+    // (overhaul, round 1: a reload goes on at a run -- the carry only leans a
+    // little toward the sprint pose, so the hands' work stays in view)
+    const busy = ctx.firing || ctx.switchP != null || sm.inspectP != null || sm.meleeP != null;
+    const sprintTo = ctx.sprinting && !busy ? (ctx.reload ? 0.3 : 1) : 0;
+    S.sprintW = A.approach(S.sprintW, sprintTo, dt, sprintTo > S.sprintW ? 0.26 : 0.14);
     S.moveW = gait.moveW;
     S.air = A.approach(S.air, ctx.airborne ? 1 : 0, dt, 0.12);
     const aim = ctx.aimT || 0;
@@ -138,20 +200,29 @@ G.ViewModel = {
     // The hip carry sits a little higher and nearer than the old one, so the
     // firing hand on the grip is in frame (it used to sit below the screen);
     // the aimed pose below is unchanged.
+    // (overhaul, round 1) The vertical field of view is fixed, so on a
+    // narrower screen (an iPad's 4:3) the same carry sits nearer the edge and
+    // on a wider one (21:9) nearer the middle: it is moved in or out to keep
+    // its place on the screen.
+    const ak = Math.max(WC.aspect.min, Math.min(WC.aspect.max, (ctx.aspect || 16 / 9) / (16 / 9)));
     const sp = this.SPRINT[wk];
     const sw = A.smooth(S.sprintW);
     const HIP = this.HIP_LIFT;
-    let px = hold.x + sp.x * sw, py = hold.y - hold.sag + HIP.y + sp.y * sw, pz = hold.z + HIP.z + sp.z * sw;
+    let px = hold.x * ak + sp.x * sw, py = hold.y - hold.sag + HIP.y + sp.y * sw, pz = hold.z + HIP.z + sp.z * sw;
     let rx = hold.rx + sp.rx * sw, ry = -0.06 + sp.ry * sw, rz = hold.rz + sp.rz * sw;
     // aim-down-sights pulls it to the centre line (same end pose as before)
     px += (0.04 - px) * aim; py += (hold.y + 0.02 - py) * aim; pz += (hold.z + 0.1 - pz) * aim;
     rx *= 1 - aim; ry *= 1 - aim; rz *= 1 - aim;
 
     // ---- idle: breathing and a slow drift, damped out when moving or aiming ----
+    // (overhaul, round 1: deeper and quicker breaths when the stamina is low)
+    const tired = Math.max(0, 1 - (ctx.stamina == null ? 1 : ctx.stamina) / 0.5);
+    S.breath += dt * 1.75 * (1 + 0.7 * tired);
+    const deep = 1 + 1.6 * tired * tired;
     const still = (1 - S.moveW) * (1 - aim * 0.75);
-    const breath = Math.sin(this.t * 1.75);
-    py += breath * 0.0045 * still;
-    rx += Math.sin(this.t * 1.75 - 0.6) * 0.007 * still;
+    const breath = Math.sin(S.breath);
+    py += breath * 0.0045 * deep * still;
+    rx += Math.sin(S.breath - 0.6) * 0.007 * deep * still;
     px += A.wobble(this.t * 0.6, 1) * 0.0025 * still;
     rz += A.wobble(this.t * 0.5, 4) * 0.006 * still;
 
@@ -206,6 +277,45 @@ G.ViewModel = {
     // impulses from the reload (a slap, a bolt going home)
     S.bump.step(0, dt, 6, 0.35);
     py += S.bump.x * 0.02; rx += S.bump.x * 0.05;
+    // (overhaul, round 1) a hit taken: knocked, then back
+    S.flinchX.step(0, dt, 5, 0.45); S.flinchZ.step(0, dt, 5, 0.5);
+    rz += S.flinchX.x * 0.06; px += S.flinchX.x * 0.012; rx += S.flinchZ.x * 0.05; pz += S.flinchZ.x * 0.015;
+
+    // ---- (overhaul, round 1) inspecting: one side, then the other ----
+    if (sm.inspectP != null) { S.inspU = sm.inspectP; S.inspW = 1; }
+    else S.inspW = A.approach(S.inspW, 0, dt, 0.09);     // any action: let go at once, eased
+    if (S.inspW > 0.001) {
+      const u = S.inspU, w = S.inspW;
+      const heavy = wk === "heavy" || wk === "very_heavy" ? 0.7 : 1;
+      const up = A.smooth(A.seg(u, 0, 0.16)), b = A.smooth(A.seg(u, 0.16, 0.48)), c = A.smooth(A.seg(u, 0.52, 0.82));
+      const home = 1 - A.smooth(A.seg(u, 0.84, 1));
+      const k = up * home * w;
+      // brought in and up toward the middle of the view...
+      px += -0.11 * k; py += 0.07 * k; pz += 0.06 * k;
+      // ...turned to show its left side, then across to its right and tipped to look along the top
+      ry += (0.62 * b - 1.12 * c) * heavy * home * w;
+      rz += (-0.28 * b + 0.42 * c) * heavy * home * w;
+      rx += (0.12 * b - 0.3 * c) * heavy * home * w;
+    }
+
+    // ---- (overhaul, round 1) the knife: wind-up, then the cut at the hit frame ----
+    if (sm.meleeP != null) { S.melU = sm.meleeP; S.melHit = sm.meleeHitP || 0.2; S.melW = 1; }
+    else S.melW = A.approach(S.melW, 0, dt, 0.08);
+    if (S.melW > 0.001) {
+      const u = S.melU, h = S.melHit, w = S.melW;
+      const wind = A.smooth(A.seg(u, 0, h * 0.85)) * (1 - A.easeInQuad(A.seg(u, h * 0.85, h)));
+      const cut = A.easeOutCubic(A.seg(u, h * 0.55, h + 0.12)) * (1 - A.smooth(A.seg(u, 0.5, 1)));
+      px += (0.07 * wind - 0.24 * cut) * w; py += (0.05 * wind - 0.07 * cut) * w; pz += (-0.04 * wind - 0.06 * cut) * w;
+      ry += (0.35 * wind - 0.85 * cut) * w; rz += (-0.6 * wind + 0.75 * cut) * w; rx += (-0.2 * wind + 0.25 * cut) * w;
+    }
+
+    // ---- (overhaul, round 1) lowered (Use, a question open) and put away ----
+    const down = sm.lowered || sm.disabled ? 1 : 0;
+    S.lowW = A.approach(S.lowW, down, dt, down ? 0.12 : 0.06);
+    if (S.lowW > 0.001) {
+      const L = WC.lowerPose, lw = A.smooth(Math.min(1, S.lowW));
+      py += L.y * lw; rx += L.rx * lw; pz += L.z * lw;
+    }
 
     // ---- weapon switch: lower out of frame, raise, grip, settle ----
     let leftOff = 0;
@@ -223,7 +333,7 @@ G.ViewModel = {
 
     // ---- reload pose ----
     let rl = null;
-    if (ctx.reload && g.userData.reloadStyle) {
+    if (ctx.reload && ctx.reload.plan && g.userData.reloadStyle) {
       rl = this.reloadPose(ctx.reload);
       S.lastRl = rl; S.rlW = 1;
     } else if (S.rlW > 0) {
@@ -276,8 +386,9 @@ G.ViewModel = {
 
     if (R.plan.style === "shotgun") return this.shotgunPose(R, out);
 
-    const u = R.t / R.plan.dur;
-    const k = this.STYLES[R.plan.style] || this.STYLES.rifle;
+    const u = Math.min(1, R.t / R.plan.dur);
+    // (the plan's own keys: a tactical reload has no release step)
+    const k = R.plan.keys || this.STYLES[R.plan.style] || this.STYLES.rifle;
     // big guns are tipped less far -- they are hauled, not flipped
     const heavy = R.plan.style === "launcher" || R.plan.style === "belt" ? 0.85 : 1;
 
@@ -331,7 +442,7 @@ G.ViewModel = {
     R._leftCam = out.left;   // the fresh magazine rides on this hand
 
     // right hand: stays on the grip, except to work a bolt action
-    if (R.plan.style === "bolt") {
+    if (R.plan.style === "bolt" && k.bolt) {
       const grip = toCam(An.grip);
       const bh = (dx, dy, dz) => toCam(An.bolt.clone().add(V(0.08 + dx, dy, dz)));
       out.right = this.path([[0, grip], [k.bolt - 0.1, grip], [k.bolt - 0.06, bh(0, 0, 0)], [k.bolt - 0.03, bh(0, 0.05, 0)],
@@ -403,10 +514,13 @@ G.ViewModel = {
     const g = this.group, A = G.Anim, An = g.userData.anchors, P = g.userData.parts || {};
     const V = (x, y, z) => new THREE.Vector3(x, y, z);
     const toCam = (v) => v.clone().applyMatrix4(g.matrix);
-    const { lead, tail } = this.SHELL;
+    const lead = this.SHELL.lead, tail = R.plan.tail || this.SHELL.tail;
     const t = R.t, dur = R.plan.dur, shellT = R.plan.shellT;
+    // (overhaul, round 1) stopped early with a round chambered: back to the
+    // ready from wherever the hand was, no rack
+    const quit = R.stopT != null && !R.empty && R.endAt != null ? A.smooth(A.seg(t, R.stopT, R.endAt)) : 0;
     // roll the loading port toward the support hand for the whole routine
-    const roll = A.smooth(A.seg(t, 0, lead)) * (1 - A.smooth(A.seg(t, dur - tail * 0.6, dur)));
+    const roll = A.smooth(A.seg(t, 0, lead)) * (1 - A.smooth(A.seg(t, dur - tail * 0.6, dur))) * (1 - quit);
     // muzzle well up and rolled, so the loading port underneath faces the eye
     out.gun.rz = -0.75 * roll; out.gun.rx = 0.62 * roll; out.gun.y = 0.06 * roll; out.gun.x = -0.15 * roll; out.gun.z = 0.1 * roll;
     const fore = toCam(An.fore), port = toCam(An.port), belt = this.BELT.clone();
@@ -421,6 +535,10 @@ G.ViewModel = {
       else left = port.clone().lerp(belt, A.easeInOutCubic((u - 0.55) / 0.45));
       this._shellVisible = u < 0.5;
       if (u >= 0.5 && u < 0.56) this.S.bump.v += 0.05;
+    } else if (R.plan.pump === false) {
+      // (overhaul, round 1) a round still chambered: nothing to rack, the hand goes back
+      this._shellVisible = false;
+      left = belt.clone().lerp(fore, A.easeInOutCubic(A.seg(t, dur - tail, dur)));
     } else {
       // rack it: to the pump, pull back, push forward
       const u = (t - (dur - tail)) / tail;
@@ -434,6 +552,7 @@ G.ViewModel = {
       if (u > 0.62 && !R._pumped) { R._pumped = true; this.S.bump.v += 1.5; }
     }
     if (t >= lead && t < dur - tail) { /* shells are drawn by the hand */ } else this._shellVisible = false;
+    if (quit > 0) { left = left.clone().lerp(fore, quit); if (quit > 0.5) this._shellVisible = false; }
     out.left = left;
     return out;
   },
@@ -514,3 +633,6 @@ G.ViewModel = {
   },
   clearProps() { this.props.forEach((p) => this.disposeProp(p)); this.props = []; },
 };
+
+// (overhaul, round 1) put away and shown again by the weapon state machine
+if (G.Bus) G.Bus.on("weapon:visible", (e) => G.ViewModel.setVisible(e.on), "viewmodel");

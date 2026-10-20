@@ -221,7 +221,8 @@ G.Audio = {
     this.noise({ dur: big ? 1.2 : 0.7, filter: "lowpass", freq: 900, freqEnd: 90, gain: 0.8, pos, rev: 0.8 });
   },
   // Animation pass A3: reload sounds are triggered by the reload routine's
-  // own steps (G.Game.onReloadEvent), so each click lands on the frame the
+  // own steps (the overhaul: G.WeaponSM's markers on G.Bus, heard in
+  // js/gunaudio.js), so each click lands on the frame the
   // hand does the thing -- whatever the weapon type and however long it is.
   // ...and each gun's reload clicks at its own pitch and material (pass C).
   reloadEvent(kind, def) {
