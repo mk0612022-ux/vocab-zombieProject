@@ -267,6 +267,7 @@ G.VISUAL = {
     near: 15, mid: 60,                         // the layers' outer edges, in metres past the fence
     cullPad: 10,                               // a side is drawn while its box, this much bigger, is in view
     road: 3.5,                                 // half the road out of the gate (no trees on it)
+    gateClearing: [9, 12],                     // no trees this far either side of it, this far out of the gate
     // how many of each, per square metre of its layer, at the most (the
     // quality table below says how much of that is drawn)
     density: { trees: 0.05, bushes: 0.04, logs: 0.006, grass: 0.22, glow: 0.0045, mid: 0.03 },

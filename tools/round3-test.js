@@ -44,7 +44,10 @@ G.Round3Test = (function () {
     let outdoor = (C.x1 - C.x0) * (C.z1 - C.z0);
     w.footprint.forEach((f) => { outdoor -= (f.maxX - f.minX) * (f.maxZ - f.minZ); });
     ok("campus: 10x the old yard", outdoor >= yardOld * 10, Math.round(outdoor) + " m2 vs " + yardOld);
-    const fence = w.colliders.filter((c) => (c.max.x - c.min.x > 50 && c.max.z - c.min.z < 1) || (c.max.z - c.min.z > 50 && c.max.x - c.min.x < 1));
+    // (visual series, round 3: the fence's sealed line is a wall a few metres
+    // thick now, reaching out into the forest -- G.CONFIG.world.fenceWall)
+    const thin = ((G.CONFIG.world && G.CONFIG.world.fenceWall) || 0) + 1;
+    const fence = w.colliders.filter((c) => (c.max.x - c.min.x > 50 && c.max.z - c.min.z < thin) || (c.max.z - c.min.z > 50 && c.max.x - c.min.x < thin));
     ok("campus: fenced on every side", fence.length >= 4, fence.length);
     const L = (k) => (w.landmarks || []).find((l) => l.key === k);
     ok("three salas", ["SALA_FRONT", "SALA_FIELD", "SALA_GARDEN"].every(L));

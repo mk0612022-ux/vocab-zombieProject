@@ -452,8 +452,10 @@
       // trees near the fence: four kinds, not too close together
       const trunks = [];
       const clear = (x, z, r) => !trunks.some((t) => Math.abs(t.x - x) < r && Math.abs(t.z - z) < r && Math.hypot(t.x - x, t.z - z) < r);
+      // (a clearing where the road leaves the gate: no crown hangs over it)
+      const gateClear = (x, z) => z > this.rect.z1 && z < this.rect.z1 + F.gateClearing[1] && Math.abs(x) < F.gateClearing[0];
       band(0.9, N, D.trees, (x, z, d) => {
-        if (road(x, z, 1.5) || !clear(x, z, 2.4)) return false;
+        if (road(x, z, 1.5) || gateClear(x, z) || !clear(x, z, 2.4)) return false;
         const r = R(), kind = r < 0.3 ? "leafy" : r < 0.48 ? "leafy2" : r < 0.72 ? "dead" : "pine";
         trunks.push({ x, z });
         return put(kind, x, z, d, { s: 0.8 + R() * 0.5 });

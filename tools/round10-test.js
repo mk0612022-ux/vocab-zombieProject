@@ -155,7 +155,10 @@ G.Round10Test = (function () {
     // (of what the quality draws)
     const frac = (d) => (d.mesh.count || 0) / (d.max * d.qk / P.MAXK);
     ok("I1: all of it close by", near.length && near.every((d) => frac(d) > 0.95 && d.mesh.visible && !d.far.visible), near.map(frac).join(","));
-    ok("I1: a fifth or less far off, in its cheaper tufts", far.length && far.every((d) => frac(d) <= 0.21 && d.far.visible && !d.mesh.visible), far.slice(0, 4).map(frac).join(","));
+    // (visual series, round 2: a chunk wholly past the fog is not drawn at all)
+    const fog = G.Game && G.Game.scene && G.Game.scene.fog, past = fog && fog.far ? fog.far + 6 : Infinity;
+    const gone = (d) => dist(d) > past && d.mesh.count === 0 && !d.mesh.visible && !d.far.visible;
+    ok("I1: a fifth or less far off, in its cheaper tufts (none past the fog)", far.length && far.every((d) => gone(d) || (frac(d) <= 0.21 && d.far.visible && !d.mesh.visible)), far.slice(0, 4).map((d) => frac(d).toFixed(2) + (gone(d) ? "/fog" : "")).join(","));
     ok("I1: nothing drawn twice", chunks.every((d) => !(d.mesh.visible && d.far.visible)));
     const hi = near.reduce((s, d) => s + d.mesh.count, 0);
     G.save.settings.graphicsQuality = "vlow"; g.applyGraphicsQuality();
