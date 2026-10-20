@@ -6,11 +6,26 @@
 // build step and nothing extra to download. Each of the 85 guns has its own
 // shot, reload and draw sound, built in js/gunaudio.js.
 //
-// Four buses, each with its own saved volume (J4):
-//   sfx      guns, zombies, footsteps, doors, pickups, warnings
-//   music    per-level score, with a tense mode for bosses and late waves
-//   ambient  per-theme background bed (wind, hum, machinery, drips)
-//   speech   word pronunciation, via the browser's SpeechSynthesis
+// (overhaul, round 3) The mixer:
+//   Master -> compressor -> limiter -> a soft ceiling (no sample past -1 dBFS) -> out
+//     music     per-level score, a tense mode for bosses and late waves
+//     weapons   the player's guns, reloads, switches (its own EQ)
+//     sfx       zombies, impacts, footsteps, doors, pickups, warnings
+//     ambient   per-theme background bed (wind, hum, machinery, drips)
+//     ui        menus, answers, the shop's clock -- still heard when paused
+//     reverb    the room (js/acoustics.js), silenced with the game
+//   speech      word pronunciation, via the browser's SpeechSynthesis
+// Each bus: its volume (Settings), then a gain the game moves -- paused, the
+// game's sounds stop and the music steps back; a boss's warning, a cutscene
+// or a question ducks the music and the ambience.
+//
+// A "voice" is one sound as the player hears it (a shot, a footstep, a
+// growl), however many oscillators it takes. Each kind has a limit
+// (G.CONFIG.audio.limits) and all of them together one per graphics level;
+// past it the least important gives way (then the farthest, then the
+// oldest). A voice can be tagged -- a reload's sounds carry its id, so a
+// cancelled reload stops them -- and everything the game was playing stops
+// on death and on leaving a level.
 //
 // Browsers (iOS Safari above all) refuse to start an AudioContext until the
 // user has touched or clicked, so nothing is created until the first gesture.
@@ -18,10 +33,16 @@
 G.Audio = {
   ctx: null,
   bus: {},
+  mod: {},
   _noise: null,
-  _voices: 0,
-  MAX_VOICES: 64,
   _level: null,
+  live: [],                         // the voices playing (see _voiceFor)
+  _cur: null,                       // the voice the next tone/noise belongs to (group())
+  _duck: {},                        // reasons the music is ducked: reason -> until (ctx time) or Infinity
+  paused: false,
+  // the kinds of voice, and where they go
+  GAME_CATS: ["weapons", "impact", "zombie", "steps", "sfx"],
+  UI_SFX: ["correct", "wrong", "tick", "shop_warn", "purchase", "pickup", "pickup_key", "unlock", "update", "switch", "regen", "deny", "lowammo"],
 
   init() {
     // (A5) every kind of gesture, for as long as the page lives: iOS Safari
@@ -60,19 +81,10 @@ G.Audio = {
     if (!AC) return;
     this.ctx = new AC();
     const ctx = this.ctx;
-    // a gentle limiter on the master, so a boss fight plus a launcher plus
-    // six growls cannot clip into distortion
-    const comp = ctx.createDynamicsCompressor();
-    comp.threshold.value = -14; comp.knee.value = 12; comp.ratio.value = 6;
-    comp.attack.value = 0.004; comp.release.value = 0.2;
-    comp.connect(ctx.destination);
-    ["sfx", "music", "ambient"].forEach((k) => {
-      const g = ctx.createGain();
-      g.connect(comp);
-      this.bus[k] = g;
-    });
+    this.buildMixer();
     this.applyVolumes();
-    G.GunAudio && G.GunAudio.ensureReverb();
+    if (G.Acoustics) G.Acoustics.init();
+    if (G.GunAudio && G.GunAudio.warm) G.GunAudio.warm();
     // iOS: a silent one-sample buffer played inside the gesture is what
     // actually opens the output
     const b = ctx.createBuffer(1, 1, 22050);
@@ -86,19 +98,183 @@ G.Audio = {
     if (this._pendingLevel) { const t = this._pendingLevel; this._pendingLevel = null; this.startLevel(t); }
   },
 
+  // ---------------- the mixer (overhaul, round 3) ----------------
+  BUSES: ["music", "weapons", "sfx", "ambient", "ui", "reverb"],
+  buildMixer() {
+    const ctx = this.ctx, A = G.CONFIG.audio;
+    const dyn = (o) => { const c = ctx.createDynamicsCompressor(); ["threshold", "knee", "ratio", "attack", "release"].forEach((k) => { c[k].value = o[k]; }); return c; };
+    this.master = ctx.createGain();
+    const comp = dyn(A.compressor), lim = dyn(A.limiter);
+    this.meter = ctx.createAnalyser(); this.meter.fftSize = 1024;
+    // the ceiling: linear up to the knee, then a tanh bend that never passes ceilingDb
+    const clip = ctx.createWaveShaper(), n = 2049, top = Math.pow(10, A.ceilingDb / 20), kn = A.ceilingKnee, curve = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      const x = (i / (n - 1)) * 2 - 1, ax = Math.abs(x);
+      curve[i] = ax <= kn ? x : Math.sign(x) * (kn + (top - kn) * Math.tanh((ax - kn) / (top - kn)));
+    }
+    clip.curve = curve; clip.oversample = "none";
+    this.master.connect(comp); comp.connect(lim); lim.connect(clip); clip.connect(this.meter); this.meter.connect(ctx.destination);
+    this.BUSES.forEach((k) => {
+      const v = ctx.createGain(), m = ctx.createGain();
+      v.connect(m); m.connect(this.master);
+      this.bus[k] = v; this.mod[k] = m;
+    });
+    // the weapons' own EQ: no rumble, less mud, the top end tamed
+    const E = A.weaponsEQ, hp = ctx.createBiquadFilter(), mud = ctx.createBiquadFilter(), sh = ctx.createBiquadFilter();
+    hp.type = "highpass"; hp.frequency.value = E.highpass; hp.Q.value = 0.7;
+    mud.type = "peaking"; mud.frequency.value = E.mudFreq; mud.Q.value = 1; mud.gain.value = E.mudGain;
+    sh.type = "highshelf"; sh.frequency.value = E.shelfFreq; sh.gain.value = E.shelfGain;
+    const w = this.bus.weapons;
+    w.disconnect(); w.connect(hp); hp.connect(mud); mud.connect(sh); sh.connect(this.mod.weapons);
+    this.bus.reverb.gain.value = 1;
+    // what the room hears (js/acoustics.js takes it from here)
+    this.revIn = ctx.createGain();
+  },
   vol(k) {
     const s = G.save && G.save.settings;
     if (!s) return 0.7;
-    const map = { sfx: s.sfxVolume, music: s.musicVolume, ambient: s.ambientVolume, speech: s.speechVolume };
+    const map = { sfx: s.sfxVolume, music: s.musicVolume, ambient: s.ambientVolume, speech: s.speechVolume,
+      master: s.masterVolume, weapons: s.weaponsVolume, ui: s.uiVolume };
     const v = map[k];
-    return Number.isFinite(v) ? v : 0.7;
+    return Number.isFinite(v) ? v : (k === "master" ? 1 : 0.7);
   },
   applyVolumes() {
     if (!this.ctx) return;
+    const t = this.ctx.currentTime, B = G.CONFIG.audio.busGain;
+    ["music", "weapons", "sfx", "ambient", "ui"].forEach((k) => this.bus[k].gain.setTargetAtTime(this.vol(k) * B[k], t, 0.05));
+    this.master.gain.setTargetAtTime(this.vol("master"), t, 0.05);
+  },
+  // the gains the game moves: paused (its sounds stop, the music steps back),
+  // ducked (music and ambience under a boss's warning, a cutscene, a question)
+  db: (d) => Math.pow(10, d / 20),
+  applyMods() {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime, A = G.CONFIG.audio;
+    const now = t;
+    Object.keys(this._duck).forEach((r) => { if (this._duck[r] !== Infinity && this._duck[r] < now) delete this._duck[r]; });
+    const ducked = Object.keys(this._duck).length > 0;
+    const was = this._wasDucked;
+    this._wasDucked = ducked;
+    const tc = (sec) => sec / 3;                    // (setTargetAtTime reaches ~95% in 3 time constants)
+    const duckT = tc(ducked ? A.duck.attack : A.duck.release);
+    const game = this.paused ? 0 : 1;
+    ["weapons", "sfx", "reverb"].forEach((k) => this.mod[k].gain.setTargetAtTime(game, t, 0.03));
+    this.mod.ambient.gain.setTargetAtTime(this.paused ? 0 : (ducked ? this.db(A.duck.ambient) : 1), t, ducked !== was ? duckT : 0.03);
+    this.mod.music.gain.setTargetAtTime((this.paused ? this.db(A.pauseMusic) : 1) * (ducked ? this.db(A.duck.music) : 1), t, ducked !== was ? duckT : 0.05);
+    this.mod.ui.gain.setTargetAtTime(1, t, 0.03);
+  },
+  setPaused(on) {
+    on = !!on;
+    if (on === this.paused) return;
+    this.paused = on;
+    this.applyMods();
+  },
+  // reason on (for `secs`, or until taken off) / off
+  duck(reason, on, secs) {
+    if (!this.ctx) return;
+    if (on) this._duck[reason] = secs ? this.ctx.currentTime + secs : Infinity;
+    else delete this._duck[reason];
+    this.applyMods();
+  },
+  // (Settings) a short sound on one fader's bus -- heard from the pause menu
+  // too: a paused bus is let up for the moment it plays
+  testBus(k) {
+    this.unlock();
+    if (!this.ctx) return;
+    const m = this.mod[k], t = this.ctx.currentTime;
+    if (this.paused && m) {
+      m.gain.cancelScheduledValues(t); m.gain.setValueAtTime(1, t);
+      clearTimeout(this._testT); this._testT = setTimeout(() => this.applyMods(), 1600);
+    }
+    switch (k) {
+      case "master": this.sfx("pickup"); break;
+      case "music": [523.3, 659.3, 784].forEach((f, i) => this.tone({ type: "triangle", freq: f, dur: 0.55, gain: 0.12, at: i * 0.13, bus: "music", filter: { type: "lowpass", freq: 2200 } })); break;
+      case "weapons": if (G.GunAudio) G.GunAudio.shot(G.WEAPON_DEFS.pistol, {}); break;
+      case "sfx": this.zombie("growl", "normal", null); break;
+      case "ambient": this.noise({ dur: 1.4, filter: "bandpass", freq: 700, freqEnd: 350, gain: 0.12, bus: "ambient", attack: 0.4 }); break;
+      case "ui": this.sfx("correct"); break;
+      case "speech": if (G.Lang) this.speak(G.Lang.sample()); break;
+    }
+  },
+  // the master's loudest sample just now, in dBFS (the Sound Lab, the stress test)
+  peakDb() {
+    if (!this.meter) return -Infinity;
+    const b = this._mb || (this._mb = new Float32Array(this.meter.fftSize));
+    this.meter.getFloatTimeDomainData(b);
+    let m = 0; for (let i = 0; i < b.length; i++) { const a = Math.abs(b[i]); if (a > m) m = a; }
+    return m > 0 ? 20 * Math.log10(m) : -Infinity;
+  },
+
+  // ---------------- voices ----------------
+  tier() { return (G.save && G.save.settings.graphicsQuality) || "medium"; },
+  // A voice for a sound about to start (o: { cat, prio 1-4 | true, pos, tag }),
+  // or null: no room for it. prio true (0, the old "always heard": a warning,
+  // an answer) never waits -- it takes the place of the least important one,
+  // so even these stay inside the limits.
+  _voiceFor(o, dur) {
+    const ctx = this.ctx, A = G.CONFIG.audio;
+    const cat = o.cat || (o.bus === "music" ? "music" : o.bus === "ambient" ? "ambient" : o.bus === "ui" ? "ui" : "sfx");
+    const prio = o.prio === true ? 0 : (o.prio || (cat === "ui" ? 1 : cat === "ambient" ? 3 : 2));
+    const now = ctx.currentTime;
+    this.purge(now);
+    const V = { cat, prio, pos: o.pos || null, tag: o.tag || null, t0: now, end: now + (o.at || 0) + (dur || 0.3), nodes: [], gains: [], occ: null };
+    if (cat === "music") { this.live.push(V); return V; }
+    const dist = (v) => (v.pos && this._lp ? Math.hypot(v.pos.x - this._lp.x, v.pos.y - this._lp.y, v.pos.z - this._lp.z) : 0);
+    // the one that gives way: least important, then farthest, then oldest
+    const victim = (list) => list.reduce((a, b) => (!a || b.prio > a.prio || (b.prio === a.prio && (dist(b) > dist(a) || (dist(b) === dist(a) && b.t0 < a.t0))) ? b : a), null);
+    const same = this.live.filter((v) => v.cat === cat);
+    const lim = A.limits[cat] || 8, tot = A.total[this.tier()] || 24;
+    const make = (list) => {
+      const w = victim(list);
+      if (!w || w.prio < prio || (prio > 0 && w.prio === prio && dist(w) < dist(V))) return false;    // nothing less important to stop
+      this.stopVoice(w);
+      return true;
+    };
+    if (same.length >= lim && !make(same)) return null;
+    const all = this.live.filter((v) => v.cat !== "music");
+    if (all.length >= tot && !make(all)) return null;
+    this.live.push(V);
+    return V;
+  },
+  purge(now) {
+    if (this.live.length) this.live = this.live.filter((v) => v.end > now - 0.05 && !v.dead);
+  },
+  stopVoice(v) {
+    if (!v || v.dead) return;
+    v.dead = true;
     const t = this.ctx.currentTime;
-    this.bus.sfx.gain.setTargetAtTime(this.vol("sfx") * 0.9, t, 0.05);
-    this.bus.music.gain.setTargetAtTime(this.vol("music") * 0.42, t, 0.05);
-    this.bus.ambient.gain.setTargetAtTime(this.vol("ambient") * 0.55, t, 0.05);
+    v.gains.forEach((g) => { try { g.gain.cancelScheduledValues(t); g.gain.setTargetAtTime(0.0001, t, 0.012); } catch (e) { /* gone */ } });
+    v.nodes.forEach((n) => { try { n.stop(t + 0.08); } catch (e) { /* not started or stopped */ } });
+    this.live = this.live.filter((x) => x !== v);
+  },
+  // everything with this tag (a reload that was cancelled)
+  stopTag(tag) { if (this.ctx) this.live.filter((v) => v.tag === tag).forEach((v) => this.stopVoice(v)); },
+  // everything the game was playing (death, leaving a level) -- not the music, the ambience or the menus
+  stopAll(cats) {
+    if (!this.ctx) return;
+    const set = cats || this.GAME_CATS;
+    this.live.filter((v) => set.includes(v.cat)).forEach((v) => this.stopVoice(v));
+    if (G.GunAudio && G.GunAudio.chargeStop) G.GunAudio.chargeStop();
+    // (the crowd's bed is the level's own loop: down to nothing until the next hordeTick)
+    const H = this._level && this._level.horde;
+    if (H) { H.out.gain.cancelScheduledValues(this.ctx.currentTime); H.out.gain.setTargetAtTime(0.0001, this.ctx.currentTime, 0.08); }
+  },
+  // one sound made of several tones and noises: they share one voice
+  group(o, fn) {
+    if (!this.ctx) return null;
+    if (this._cur) { fn(); return this._cur; }
+    const V = this._voiceFor(o, o.dur || 0.5);
+    if (!V) return null;
+    this._cur = V;
+    try { fn(); } finally { this._cur = null; }
+    return V;
+  },
+  counts() {
+    if (!this.ctx) return {};
+    this.purge(this.ctx.currentTime);
+    const c = { total: 0 };
+    this.live.forEach((v) => { c[v.cat] = (c[v.cat] || 0) + 1; if (v.cat !== "music") c.total++; });
+    return c;
   },
 
   // ---------------- primitives ----------------
@@ -114,34 +290,54 @@ G.Audio = {
 
   // Where a sound ends up: straight onto a bus, or through a panner placed
   // in the world so it is heard from the direction it came from.
-  _out(bus, pos) {
+  // (overhaul, round 3) A sound in the world goes through its voice's own
+  // chain -- a low-pass and a gain that muffle it when a wall is in the way
+  // (occlusion, G.Audio.update), then the panner: HRTF for the nearest few
+  // on High and Ultra, equal-power for the rest. Every tone and noise of one
+  // voice shares the chain.
+  _out(bus, pos, V) {
     const ctx = this.ctx;
     const dest = this.bus[bus] || this.bus.sfx;
     if (!pos) return dest;
+    if (V && V.occ && V.occ.dest === dest) return V.occ.in;
     const p = ctx.createPanner();
-    p.panningModel = "equalpower";
+    p.panningModel = V && this.useHrtf(pos) ? "HRTF" : "equalpower";
     p.distanceModel = "inverse";
     p.refDistance = 2.2; p.rolloffFactor = 1.3; p.maxDistance = 45;
     if (p.positionX) { p.positionX.value = pos.x; p.positionY.value = pos.y; p.positionZ.value = pos.z; }
     else p.setPosition(pos.x, pos.y, pos.z);
-    p.connect(dest);
-    return p;
+    // (no voice: a long loop of its own -- the forest's bed, a boss's move --
+    // that moves this panner itself; it is only placed)
+    if (!V) { p.connect(dest); return p; }
+    const lp = ctx.createBiquadFilter(), og = ctx.createGain();
+    lp.type = "lowpass"; lp.frequency.value = 20000; lp.Q.value = 0.5;
+    lp.connect(og); og.connect(p); p.connect(dest);
+    const chain = { in: lp, lp, gain: og, panner: p, dest, hrtf: p.panningModel === "HRTF", occluded: false };
+    V.occ = chain;
+    // (a sound starting behind a wall starts muffled)
+    if (this.occludedAt(pos)) this.setOccluded(chain, true, true);
+    return lp;
   },
-
-  // Caps simultaneous one-shots so a firefight cannot flood the graph. Music,
-  // ambience and anything marked `prio` (the warnings, answer feedback, key
-  // pickups) are exempt -- a dropped heartbeat is worse than a dropped shot.
-  _voiceGuard(dur, o) {
-    if (this._forcePrio || (o && (o.prio || o.bus === "music" || o.bus === "ambient"))) return true;
-    if (this._voices >= this.MAX_VOICES) return false;
-    this._voices++;
-    setTimeout(() => { this._voices = Math.max(0, this._voices - 1); }, (dur + 0.1) * 1000);
-    return true;
+  // HRTF for a sound close by while there is room for one more (High: 4, Ultra: 8)
+  useHrtf(pos) {
+    const A = G.CONFIG.audio, n = A.hrtf[this.tier()] || 0;
+    if (!n || !this._lp) return false;
+    if (Math.hypot(pos.x - this._lp.x, pos.y - this._lp.y, pos.z - this._lp.z) > A.hrtfRange) return false;
+    return this.live.filter((v) => v.occ && v.occ.hrtf).length < n;
+  },
+  setOccluded(chain, on, now) {
+    if (!chain || chain.occluded === on) return;
+    chain.occluded = on;
+    const t = this.ctx.currentTime, O = G.CONFIG.audio.occluded, tc = now ? 0.001 : O.time / 3;
+    chain.lp.frequency.setTargetAtTime(on ? O.lowpass : 20000, t, tc);
+    chain.gain.gain.setTargetAtTime(on ? this.db(O.gainDb) : 1, t, tc);
   },
 
   tone(o) {
     const ctx = this.ctx;
-    if (!ctx || !this._voiceGuard(o.dur, o)) return;
+    if (!ctx) return;
+    const V = this._cur || this._voiceFor(o, (o.at || 0) + o.dur);
+    if (!V) return;
     const t = ctx.currentTime + (o.at || 0);
     const osc = ctx.createOscillator();
     osc.type = o.type || "sine";
@@ -158,6 +354,7 @@ G.Audio = {
       const lfo = ctx.createOscillator(), lg = ctx.createGain();
       lfo.frequency.value = o.vibrato.rate; lg.gain.value = o.vibrato.depth;
       lfo.connect(lg); lg.connect(osc.frequency); lfo.start(t); lfo.stop(t + o.dur + 0.05);
+      V.nodes.push(lfo);
     }
     if (o.filter) {
       const f = ctx.createBiquadFilter();
@@ -165,14 +362,20 @@ G.Audio = {
       node.connect(f); node = f;
     }
     node.connect(g);
-    g.connect(this._out(o.bus || "sfx", o.pos));
+    g.connect(this._out(o.bus || this.busOf(V), o.pos || V.pos, V));
     if (o.rev && this.revIn) { const sg = ctx.createGain(); sg.gain.value = o.rev; g.connect(sg); sg.connect(this.revIn); }
     osc.start(t); osc.stop(t + o.dur + 0.05);
+    V.nodes.push(osc); V.gains.push(g);
+    V.end = Math.max(V.end, t + o.dur + 0.05);
   },
+  // a voice's own bus by its kind
+  busOf(V) { return V.cat === "weapons" ? "weapons" : V.cat === "ui" ? "ui" : V.cat === "ambient" ? "ambient" : V.cat === "music" ? "music" : "sfx"; },
 
   noise(o) {
     const ctx = this.ctx;
-    if (!ctx || !this._voiceGuard(o.dur, o)) return;
+    if (!ctx) return;
+    const V = this._cur || this._voiceFor(o, (o.at || 0) + o.dur);
+    if (!V) return;
     const t = ctx.currentTime + (o.at || 0);
     const src = ctx.createBufferSource();
     src.buffer = this.noiseBuffer();
@@ -186,18 +389,40 @@ G.Audio = {
     g.gain.setValueAtTime(0.0001, t);
     g.gain.exponentialRampToValueAtTime(Math.max(0.0002, o.gain || 0.3), t + (o.attack || 0.004));
     g.gain.exponentialRampToValueAtTime(0.0001, t + o.dur);
-    src.connect(f); f.connect(g); g.connect(this._out(o.bus || "sfx", o.pos));
+    src.connect(f); f.connect(g); g.connect(this._out(o.bus || this.busOf(V), o.pos || V.pos, V));
     if (o.rev && this.revIn) { const sg = ctx.createGain(); sg.gain.value = o.rev; g.connect(sg); sg.connect(this.revIn); }
     src.start(t, Math.random() * 1.5); src.stop(t + o.dur + 0.05);
+    V.nodes.push(src); V.gains.push(g);
+    V.end = Math.max(V.end, t + o.dur + 0.05);
+  },
+  // a rendered sound (js/gunaudio.js, the sound bank's files): one buffer, one voice
+  // o: { cat, prio, pos, tag, bus, gain, rate, rev, at }
+  buffer(buf, o) {
+    const ctx = this.ctx;
+    if (!ctx || !buf) return null;
+    const dur = buf.duration / (o.rate || 1);
+    const V = this._cur || this._voiceFor(o, (o.at || 0) + dur);
+    if (!V) return null;
+    const t = ctx.currentTime + (o.at || 0);
+    const src = ctx.createBufferSource(), g = ctx.createGain();
+    src.buffer = buf; src.playbackRate.value = o.rate || 1;
+    g.gain.value = o.gain == null ? 1 : o.gain;
+    src.connect(g); g.connect(this._out(o.bus || this.busOf(V), o.pos || V.pos, V));
+    if (o.rev && this.revIn) { const sg = ctx.createGain(); sg.gain.value = o.rev; g.connect(sg); sg.connect(this.revIn); }
+    src.start(t);
+    V.nodes.push(src); V.gains.push(g);
+    V.end = Math.max(V.end, t + dur + 0.02);
+    return V;
   },
 
   // ---------------- listener ----------------
   updateListener(camera) {
     const ctx = this.ctx;
     if (!ctx || !camera) return;
-    const p = new THREE.Vector3(), f = new THREE.Vector3(), u = new THREE.Vector3(0, 1, 0);
+    const p = this._lp || (this._lp = new THREE.Vector3()), f = new THREE.Vector3(), u = new THREE.Vector3(0, 1, 0);
     camera.getWorldPosition(p);
     camera.getWorldDirection(f);
+    this._lf = f;
     const L = ctx.listener;
     if (L.positionX) {
       L.positionX.value = p.x; L.positionY.value = p.y; L.positionZ.value = p.z;
@@ -214,11 +439,15 @@ G.Audio = {
   // chargeFrac: how far a charge weapon was wound up (0..1), if it is one.
   gunshot(def, chargeFrac) {
     if (!this.ctx || !def) return;
-    G.GunAudio.shot(def, { charge: chargeFrac });
+    G.GunAudio.shot(def, { charge: def.charge ? (chargeFrac || 0) : null });
   },
   explosion(pos, big) {
-    this.tone({ type: "sine", freq: big ? 60 : 85, freqEnd: 24, dur: big ? 1.0 : 0.6, gain: 0.9, pos, rev: 0.6 });
-    this.noise({ dur: big ? 1.2 : 0.7, filter: "lowpass", freq: 900, freqEnd: 90, gain: 0.8, pos, rev: 0.8 });
+    if (!this.ctx) return;
+    this.group({ cat: "sfx", prio: 1, pos, dur: 1.3 }, () => {
+      this.tone({ type: "sine", freq: big ? 60 : 85, freqEnd: 24, dur: big ? 1.0 : 0.6, gain: 0.9, pos, rev: 0.6 });
+      this.noise({ dur: big ? 1.2 : 0.7, filter: "lowpass", freq: 900, freqEnd: 90, gain: 0.8, pos, rev: 0.8 });
+    });
+    if (G.Captions) G.Captions.heard("explosion", pos);
   },
   // Animation pass A3: reload sounds are triggered by the reload routine's
   // own steps (the overhaul: G.WeaponSM's markers on G.Bus, heard in
@@ -237,16 +466,31 @@ G.Audio = {
 
   // ---------------- everything else in J1 ----------------
   PRIORITY_SFX: ["heartbeat", "breath", "behind", "correct", "wrong", "pickup_key", "unlock", "purchase", "shop_warn", "tick"],
+  // (overhaul, round 3) one voice a sound: the menus' and answers' on the UI
+  // bus (still heard when paused), the warnings never dropped, the dry click
+  // and the rest the game's
   sfx(name, o) {
     if (!this.ctx) return;
     o = o || {};
-    // everything in the switch runs synchronously, so a flag is enough
-    this._forcePrio = this.PRIORITY_SFX.includes(name);
-    try { this._sfx(name, o); } finally { this._forcePrio = false; }
+    const ui = this.UI_SFX.includes(name);
+    const cat = name === "empty" ? "weapons" : ui ? "ui" : "sfx";
+    const prio = this.PRIORITY_SFX.includes(name) ? true : ui ? 1 : 2;
+    this.group({ cat, prio, pos: o.pos || null, dur: 0.8 }, () => this._sfx(name, o));
+    if (G.Captions) G.Captions.heard("sfx:" + name, o.pos || null);
   },
   _sfx(name, o) {
     switch (name) {
       case "empty": this.tone({ type: "square", freq: 1800, dur: 0.025, gain: 0.08, filter: { type: "bandpass", freq: 2500, q: 4 } }); break;
+      // (round 3) no spare rounds to load: a short, low refusal
+      case "deny":
+        this.tone({ type: "square", freq: 220, freqEnd: 170, dur: 0.09, gain: 0.07, filter: { type: "lowpass", freq: 1200 } });
+        this.tone({ type: "square", freq: 170, dur: 0.08, gain: 0.06, at: 0.11, filter: { type: "lowpass", freq: 1000 } });
+        break;
+      // (round 3) the magazine running low: one soft tick, once
+      case "lowammo":
+        this.tone({ type: "triangle", freq: 1320, dur: 0.05, gain: 0.05 });
+        this.tone({ type: "triangle", freq: 990, dur: 0.06, gain: 0.04, at: 0.07 });
+        break;
       case "switch":
         this.noise({ dur: 0.14, freq: 700, q: 0.5, gain: 0.12 });
         this.tone({ type: "square", freq: 950, dur: 0.03, gain: 0.08, at: 0.16, filter: { type: "bandpass", freq: 1800, q: 3 } });
@@ -377,6 +621,7 @@ G.Audio = {
     this.tone({ type: "triangle", freq: (heavy ? 46 : 62) * v, dur: len, gain: heavy ? 0.07 : 0.05, attack: 0.06,
       vibrato: { rate: 17 * v, depth: 5 }, filter: { type: "lowpass", freq: 320 }, pos });
     if (open) this.noise({ dur: 0.04, freq: 2300 * v, q: 3, gain: 0.05, pos });   // the latch
+    if (G.Captions && pos) G.Captions.heard("door", pos);
   },
   // The end of the travel: shut is a soft thump against the jamb (or the other
   // panel), open a light knock on the stop, and a door that ran into somebody
@@ -397,18 +642,85 @@ G.Audio = {
     }
   },
 
-  footstep(surface, running) {
+  // (overhaul, round 3) A footstep on what is underfoot (js/surface.js):
+  // concrete, tile, wood, grass, dirt (and carpet), water, metal. Running is
+  // heavier and a touch brighter than walking; `land` is the drop after a
+  // jump. o: { pos (a zombie's), heavy (a big one), gain }
+  footstep(surface, running, o) {
     if (!this.ctx) return;
-    const g = running ? 1.25 : 1;
-    if (surface === "grass") {
-      this.noise({ dur: 0.12, filter: "lowpass", freq: 900 + Math.random() * 300, gain: 0.12 * g });
-    } else if (surface === "metal") {
-      this.noise({ dur: 0.07, freq: 2600, q: 3, gain: 0.12 * g });
-      this.tone({ type: "triangle", freq: 420 + Math.random() * 60, dur: 0.18, gain: 0.05 * g });
-    } else {
-      this.noise({ dur: 0.06, freq: 1700 + Math.random() * 400, q: 1.4, gain: 0.13 * g });
-      this.tone({ type: "sine", freq: 120, freqEnd: 70, dur: 0.05, gain: 0.08 * g });
-    }
+    o = o || {};
+    const g = (running ? 1.25 : 1) * (o.gain || 1) * (o.land ? 1.6 : 1), r = () => 0.92 + Math.random() * 0.16, low = o.heavy ? 0.7 : 1;
+    const pos = o.pos || null;
+    this.group({ cat: "steps", prio: pos ? 3 : 2, pos, dur: 0.3 }, () => {
+      switch (surface) {
+        case "grass":
+          this.noise({ dur: 0.13, filter: "lowpass", freq: (900 + Math.random() * 300) * low, gain: 0.12 * g });
+          this.noise({ dur: 0.06, filter: "highpass", freq: 3200, gain: 0.025 * g, at: 0.02 });     // the blades
+          break;
+        case "dirt":
+          this.noise({ dur: 0.1, filter: "lowpass", freq: 650 * r() * low, gain: 0.13 * g });
+          this.noise({ dur: 0.05, freq: 1800 * r(), q: 1, gain: 0.03 * g, at: 0.015 });               // grit
+          break;
+        case "water":
+          this.noise({ dur: 0.16, freq: 1100 * r(), q: 0.8, gain: 0.1 * g });
+          this.tone({ type: "sine", freq: 520 * r(), freqEnd: 260, dur: 0.07, gain: 0.04 * g, at: 0.03 });   // the splash
+          this.noise({ dur: 0.2, filter: "highpass", freq: 3500, gain: 0.03 * g, at: 0.04 });
+          break;
+        case "metal":
+          this.noise({ dur: 0.07, freq: 2600 * r(), q: 3, gain: 0.12 * g });
+          this.tone({ type: "triangle", freq: (420 + Math.random() * 60) * low, dur: 0.18, gain: 0.05 * g });
+          break;
+        case "wood":
+          this.tone({ type: "sine", freq: 170 * r() * low, freqEnd: 95, dur: 0.07, gain: 0.11 * g });
+          this.noise({ dur: 0.05, freq: 900 * r(), q: 1.6, gain: 0.08 * g });
+          break;
+        case "concrete":
+          this.noise({ dur: 0.055, freq: 1300 * r(), q: 1.1, gain: 0.12 * g });
+          this.tone({ type: "sine", freq: 105 * low, freqEnd: 60, dur: 0.05, gain: 0.08 * g });
+          this.noise({ dur: 0.03, filter: "highpass", freq: 4200, gain: 0.02 * g, at: 0.01 });      // grit
+          break;
+        default:      // tile: a crisper click
+          this.noise({ dur: 0.06, freq: (1700 + Math.random() * 400) * low, q: 1.4, gain: 0.13 * g });
+          this.tone({ type: "sine", freq: 120 * low, freqEnd: 70, dur: 0.05, gain: 0.08 * g });
+      }
+      if (o.land) this.tone({ type: "sine", freq: 80, freqEnd: 45, dur: 0.12, gain: 0.12 * (o.gain || 1) });   // the body coming down
+    });
+  },
+  // (overhaul, round 3) A round landing (js/fx.js): by what it hit, from where
+  // it hit -- a crack and grit off stone, a knock off wood, a ping off metal,
+  // a tinkle off glass, a thud in earth, a splash. Pellets share one voice.
+  impact(surface, pos, o) {
+    if (!this.ctx || !pos) return;
+    o = o || {};
+    const g = o.pellet ? 0.55 : 1, r = () => 0.9 + Math.random() * 0.2;
+    this.group({ cat: "impact", prio: 2, pos, dur: 0.4 }, () => {
+      switch (surface) {
+        case "metal":
+          this.tone({ type: "triangle", freq: 2400 * r(), freqEnd: 1700, dur: 0.14, gain: 0.07 * g, filter: { type: "bandpass", freq: 2600, q: 6 } });
+          this.noise({ dur: 0.03, filter: "highpass", freq: 4000, gain: 0.08 * g });
+          break;
+        case "wood":
+          this.tone({ type: "sine", freq: 260 * r(), freqEnd: 140, dur: 0.06, gain: 0.12 * g });
+          this.noise({ dur: 0.05, freq: 1200 * r(), q: 1.4, gain: 0.08 * g });
+          break;
+        case "glass":
+          for (let i = 0; i < 3; i++) this.noise({ dur: 0.07, filter: "highpass", freq: (4200 + i * 900) * r(), gain: 0.05 * g, at: i * 0.025 });
+          break;
+        case "grass": case "dirt":
+          this.noise({ dur: 0.09, filter: "lowpass", freq: 700 * r(), gain: 0.1 * g });
+          break;
+        case "water":
+          this.noise({ dur: 0.18, freq: 1400 * r(), q: 0.8, gain: 0.08 * g });
+          this.tone({ type: "sine", freq: 700 * r(), freqEnd: 300, dur: 0.06, gain: 0.04 * g });
+          break;
+        case "flesh":
+          this.noise({ dur: 0.07, filter: "lowpass", freq: 600 * r(), gain: 0.12 * g });
+          break;
+        default:      // concrete, tile: a sharp crack and grit falling
+          this.noise({ dur: 0.04, freq: 2600 * r(), q: 1.2, gain: 0.1 * g });
+          this.noise({ dur: 0.16, filter: "highpass", freq: 3800, gain: 0.025 * g, at: 0.03 });
+      }
+    });
   },
 
   // Zombie voices differ by type: pitch, roughness and length all change,
@@ -421,6 +733,11 @@ G.Audio = {
   },
   zombie(kind, type, pos) {
     if (!this.ctx) return;
+    // (overhaul, round 3) one voice each; a death or a hurt is more important than a growl
+    this.group({ cat: "zombie", prio: kind === "growl" ? 3 : 2, pos, dur: 1.4 }, () => this._zombie(kind, type, pos));
+    if (G.Captions && kind === "growl") G.Captions.heard("zombie:growl", pos);
+  },
+  _zombie(kind, type, pos) {
     const v = this.ZOMBIE_VOICE[type] || this.ZOMBIE_VOICE.normal;
     const f = v.f * (0.9 + Math.random() * 0.2);
     if (kind === "growl") {
@@ -447,6 +764,11 @@ G.Audio = {
     v = v || { f: 60, rough: 12, len: 1.6 };
     o = o || {};
     const pos = o.pos, f = v.f;
+    // (overhaul, round 3) a boss's warning: the music and the ambience step back under it, and it is captioned
+    if (kind === "roar" || kind === "shriek") {
+      this.duck("boss", true, (kind === "roar" ? v.len * 1.3 : 1.3) + 0.3);
+      if (G.Captions) G.Captions.heard("boss:" + kind, pos);
+    }
     if (kind === "roar") {
       [1, 1.5, 0.5].forEach((m, i) => this.tone({ type: "sawtooth", freq: f * m, freqEnd: f * m * 0.7, dur: v.len * 1.3, gain: i ? 0.2 : 0.4,
         vibrato: { rate: 6 + i * 3, depth: v.rough * m }, filter: { type: "lowpass", freq: 900 + f * 3 }, attack: 0.12, pos, rev: 0.6, prio: true }));
@@ -881,6 +1203,12 @@ G.Audio = {
   stopLevel() {
     this._bossMusic = null;
     this.cineBed(false);
+    // (overhaul, round 3) nothing of the level's goes on ringing: its sounds stop, the ducks and the pause lift
+    this.stopAll();
+    this._duck = {};
+    if (G.Captions) G.Captions.clear();
+    this.paused = false;
+    this.applyMods();
     const L = this._level;
     if (!L || !this.ctx) { this._level = null; return; }
     const t = this.ctx.currentTime;
@@ -912,8 +1240,12 @@ G.Audio = {
   update(dt, game) {
     const ctx = this.ctx, L = this._level;
     if (!ctx || !L) return;
-    G.GunAudio.updateEnv(dt, game);
     this.updateListener(game.camera);
+    // (overhaul, round 3) the room (reverb), walls in the way, the crowd, the ducking's end
+    if (G.Acoustics) G.Acoustics.update(dt, game);
+    this.occlusionTick(dt, game);
+    this.hordeTick(dt, game);
+    this.duckTick();
     const now = ctx.currentTime;
     // tension: the last wave or two (a boss has music of its own)
     const bossOn = !!this._bossMusic;
@@ -948,6 +1280,77 @@ G.Audio = {
       this._ambientOneShot(L);
     }
     if (L.forest) this.forestTick(L, now, game);
+  },
+
+  // (overhaul, round 3) a timed duck that has run out lets the music back up
+  // (only on the change: the release keeps its own pace)
+  duckTick() {
+    const now = this.ctx.currentTime;
+    let gone = false;
+    Object.keys(this._duck).forEach((r) => { if (this._duck[r] !== Infinity && this._duck[r] < now) { delete this._duck[r]; gone = true; } });
+    if (gone && !Object.keys(this._duck).length) this.applyMods();
+  },
+  // A wall between the player and a sound muffles it: a ray from the ear to
+  // the nearest few sounds, a few times a second (G.CONFIG.audio.occlusion
+  // by graphics level), against the walls and the shut doors; the change is
+  // eased in over ~0.2 s so passing a doorway never cuts a sound off.
+  occludedAt(pos) {
+    const g = G.Game, O = G.CONFIG.audio.occlusion[this.tier()];
+    if (!O || !O[0] || !g || !g.world || !this._lp) return false;
+    const d = this._od || (this._od = new THREE.Vector3());
+    d.set(pos.x - this._lp.x, pos.y - this._lp.y, pos.z - this._lp.z);
+    const len = d.length();
+    if (len < 1.2) return false;
+    d.multiplyScalar(1 / len);
+    return g.wallDistance(this._lp, d, len) < len - 0.35;
+  },
+  occlusionTick(dt) {
+    const O = G.CONFIG.audio.occlusion[this.tier()];
+    if (!O || !O[0] || !this._lp) return;
+    this._occT = (this._occT || 0) - dt;
+    if (this._occT > 0) return;
+    this._occT = 1 / O[0];
+    this.purge(this.ctx.currentTime);
+    const lp = this._lp;
+    const near = this.live.filter((v) => v.occ && v.pos)
+      .map((v) => ({ v, d: Math.hypot(v.pos.x - lp.x, v.pos.y - lp.y, v.pos.z - lp.z) }))
+      .sort((a, b) => a.d - b.d).slice(0, O[1]);
+    near.forEach(({ v }) => this.setOccluded(v.occ, this.occludedAt(v.pos)));
+  },
+  // The crowd: past the few zombies whose own steps and voices are heard, a
+  // bed of moaning and shuffling that thickens with how many are close --
+  // from where they mostly are
+  hordeTick(dt, game) {
+    const ctx = this.ctx, H = G.CONFIG.audio.horde, L = this._level;
+    if (!L || !game || !game.zombies || !this._lp) return;
+    if (!L.horde) {
+      const out = ctx.createGain(); out.gain.value = 0.0001;
+      const pan = ctx.createPanner(); pan.panningModel = "equalpower"; pan.distanceModel = "inverse"; pan.refDistance = 4; pan.rolloffFactor = 0.6; pan.maxDistance = 60;
+      const src = ctx.createBufferSource(); src.buffer = this.noiseBuffer(); src.loop = true; src.playbackRate.value = 0.7;
+      const lp = ctx.createBiquadFilter(); lp.type = "bandpass"; lp.frequency.value = 380; lp.Q.value = 0.7;
+      const o1 = ctx.createOscillator(), o1g = ctx.createGain(), o1f = ctx.createBiquadFilter();
+      o1.type = "sawtooth"; o1.frequency.value = 84; o1g.gain.value = 0.18; o1f.type = "bandpass"; o1f.frequency.value = 520; o1f.Q.value = 1.2;
+      const lfo = ctx.createOscillator(), lg = ctx.createGain(); lfo.frequency.value = 0.31; lg.gain.value = 16; lfo.connect(lg); lg.connect(o1.frequency);
+      src.connect(lp); lp.connect(out); o1.connect(o1f); o1f.connect(o1g); o1g.connect(out);
+      out.connect(pan); pan.connect(this.bus.sfx);
+      src.start(); o1.start(); lfo.start();
+      L.nodes.push(src, o1, lfo);
+      L.horde = { out, pan };
+    }
+    const lp = this._lp;
+    let n = 0, cx = 0, cz = 0;
+    for (const z of game.zombies) {
+      if (!z.alive || z.type === "boss" || !z.mesh) continue;
+      const p = z.mesh.position, d = Math.hypot(p.x - lp.x, p.z - lp.z);
+      if (d > H.range) continue;
+      n++; cx += p.x; cz += p.z;
+    }
+    const k = Math.min(1, n / H.full);
+    L.horde.out.gain.setTargetAtTime(Math.max(0.0001, k * H.gain), ctx.currentTime, 0.4);
+    if (n) {
+      const P = L.horde.pan, x = cx / n, z = cz / n;
+      if (P.positionX) { P.positionX.setTargetAtTime(x, ctx.currentTime, 0.3); P.positionY.value = 1.4; P.positionZ.setTargetAtTime(z, ctx.currentTime, 0.3); } else P.setPosition(x, 1.4, z);
+    }
   },
 
   // (visual series, round 3) the forest's sounds: the bed follows the nearest

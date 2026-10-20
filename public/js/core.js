@@ -63,6 +63,12 @@ G.defaultSave = function () {
       sfxVolume: 0.8,
       ambientVolume: 0.6,         // category J4
       speechVolume: 0.9,
+      // (overhaul, round 3) the mixer's other faders: the whole game, the
+      // player's guns, the menus and answers; what is heard said in words
+      masterVolume: 1,
+      weaponsVolume: 0.8,
+      uiVolume: 0.8,
+      captions: false,
       speechMode: "after",        // off | after (read the word once answered) | before (read the new target aloud)
       shopTime: 45,               // seconds in the shop between waves: 30 | 45 | 60 | 0 (no limit, wait for Ready)
       hudScale: {},               // {all, hp, stamina, ...}: HUD sizes, 1 when absent (js/hudcfg.js)
@@ -178,6 +184,14 @@ G.normalizeSave = function (data) {
   // (overhaul, round 1) a save from before: Auto Reload on, the view's recoil and shake at full
   s.settings.autoReload = s.settings.autoReload !== false;
   num("cameraRecoil", 0, 1); num("cameraShake", 0, 1); num("muzzleFlash", 0, 1);
+  // (overhaul, round 3) a save from before the Master, Weapons and UI faders:
+  // the guns and the menus start where the old Sound Effects fader was (they
+  // were on it), the Master at full; captions off
+  const was = data.settings || {};
+  ["weaponsVolume", "uiVolume"].forEach((k) => { if (!(k in was)) s.settings[k] = Number.isFinite(Number(was.sfxVolume)) ? Number(was.sfxVolume) : def.settings[k]; });
+  num("masterVolume", 0, 1); num("weaponsVolume", 0, 1); num("uiVolume", 0, 1);
+  num("musicVolume", 0, 1); num("sfxVolume", 0, 1); num("ambientVolume", 0, 1); num("speechVolume", 0, 1);
+  s.settings.captions = !!s.settings.captions;
   // (round 3, H1) the three languages: one of the four each, the Meaning Language
   // never the Word Language (if a save says so, the meaning goes back to the default)
   const LANGS = ["th", "en", "zh", "fr"];

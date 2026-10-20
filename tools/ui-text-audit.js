@@ -235,6 +235,16 @@ G.UIAudit = {
       }
       await step("hud hint perk + combo", () => { Game.player.perks.perk_hint = 1; Game.player.combo = 12; UI.updateHud(Game.buildHudState()); });
       await step("hud overtime", () => { Game.wave = Game.level.waves + 1; UI.updateHud(Game.buildHudState()); Game.wave = 1; });
+      // (overhaul, round 3) the line over the crosshair, and three captions (the longest names)
+      await step("hud: no spare ammo + captions", () => {
+        UI.hudNote(T("hud.noReserve"), 30);
+        const C = G.Captions, keep = C.force;
+        C.force = true; C.clear();
+        const names = Object.values(C.KEYS).filter((n, i, a) => a.indexOf(n) === i).sort((a, b) => T("cap." + b).length - T("cap." + a).length).slice(0, 3);
+        names.forEach((n, i) => C.show(n, C.ARROWS[i * 3]));
+        C.force = keep;
+      });
+      UI.hudNote(null); if (G.Captions) G.Captions.clear();
       await step("challenge door", () => Game.startWordChallenge(T("challenge.door"), () => {}, () => {}));
       await step("challenge (answered)", () => Game.answerChallenge(0));
       // (vocabulary series, round 3: a wrong answer shows the word until Continue)

@@ -97,3 +97,57 @@ Voice limit ต่อหมวด (ค่าเริ่มต้น): ปืน
 - Captions: event ที่มี `caption` key → `G.T("cap.<key>")` 4 ภาษา + ลูกศรทิศจากมุมแหล่งเสียงเทียบกล้อง, ค่าตั้ง Subtitles/Captions (ปิดเป็นค่าเริ่มต้น)
 - Sound Lab (`?lab=sound`): ทุก event / ทุกปืน / ทุก zone + peak meter (AnalyserNode บน Master)
 - สคริปต์วัด peak/RMS ทุกกระบอก (OfflineAudioContext) รันใน Sound Lab และรายงานในสรุปรอบ 3
+
+## 7. ที่สร้างจริงในรอบ 3 (as-built)
+
+**Mixer** (`audio.js` `buildMixer`)
+```
+Master → Compressor (−14 dB, 6:1) → Limiter (−1.5 dB, 20:1, attack 1 ms) → Ceiling (WaveShaper: ตรงถึง 0.6 แล้วโค้ง tanh ไม่เกิน −1 dBFS) → Analyser (มิเตอร์) → ลำโพง
+  bus ละ 2 gain: vol (ค่าตั้ง × busGain) → mod (เกมขยับ: pause / duck)
+  music · weapons (+EQ: highpass 45 Hz, −2 dB ที่ 250 Hz, highshelf −3 dB ที่ 9 kHz) · sfx · ambient · ui · reverb (ขากลับของ js/acoustics.js)
+```
+- เพิ่ม Ceiling เพราะ DynamicsCompressor ของเบราว์เซอร์ใส่ make-up gain เอง limiter อย่างเดียวจึงคุม peak −1 dBFS ไม่ได้แน่นอน
+- Pause (`state === "PAUSE"`): weapons/sfx/ambient/reverb → 0, music −6 dB, ui เต็ม · Duck: `boss` (roar/shriek ของบอส ตามความยาวเสียง), `question` (หน้าต่างคำถาม/ควิซ/หน้าต่างที่หยุดโลก), `cutscene` — music −6 dB, ambient −4 dB, attack 0.1 s, release 0.8 s
+- ค่าตั้งใหม่: Master, Weapons, UI (+ เดิม Music, SFX, Ambient, Speech) ทุกตัวมีปุ่มเสียงทดสอบบน bus ของตัวเอง (เล่นได้แม้ตอน pause) + Captions (ปิดเป็นค่าเริ่มต้น) · save เก่า: Weapons/UI เริ่มที่ค่า SFX เดิม, Master 100%
+
+**Voices** (`_voiceFor`) หมวด: weapons 6 · impact 8 · zombie 6 · steps 6 · ui 4 · ambient 4 · sfx 10 · รวมตาม tier 16/20/24/32/40 (music ไม่นับ)
+- เต็มแล้ว: ตัวสำคัญน้อยสุด → ไกลสุด → เก่าสุด หลีกทาง · เสียงเตือน/คำตอบ (`PRIORITY_SFX`, prio 0) ไม่เคยรอ แต่ **นับอยู่ในเพดาน** (แทนที่ตัวสำคัญน้อยสุด)
+- tag: รีโหลด `reload:<reloadId>`, สลับ `switch:<switchId>`, inspect `inspect:<inspectId>` — cancel หยุดทั้งชุดทันที · `stopAll()` ตอนตาย/ชนะ/ออกด่าน (+ horde bed เงียบ)
+
+**Event → เสียง ที่ต่อแล้ว**
+| Event | ทำงาน |
+|---|---|
+| `weapon:fire` | `GunAudio.shot` — 1 ครั้งต่อ `shotId` (เอาการเรียกตรงใน `shoot()` ออก), buffer pre-render 2/3/4/6/6 variant, ห้ามซ้ำติดกัน, pitch ±3%, ±1 dB, tail สดตามห้อง, far echo (Ultra) |
+| `weapon:dryfire` | `sfx("empty")` (weapons) |
+| low ammo | `sfx("lowammo")` ครั้งเดียวเมื่อแม็กลงถึง 25% |
+| `weapon:noreserve` | `sfx("deny")` + ข้อความ "No spare ammo" (4 ภาษา) เหนือ crosshair |
+| `weapon:reload` marker | เสียงตาม kind (start, out, grab, in, slap, bolt, cover, shell, pump, end→done) ตามตระกูล/กระบอก — **จาก marker เท่านั้น**; `cancel` → `stopTag` |
+| `weapon:switch` lower / swap | holster / draw + เริ่ม pre-render ปืนที่กำลังจะถือ |
+| `weapon:inspect` | start → เสียง, end/cancel → หยุด |
+| `G.FX.impact` | `Audio.impact(surface)` 9 แบบ, ลูกซองเล่น ~2 เม็ดต่อนัด |
+| ฝีเท้าผู้เล่น | `G.Surface.floor` (ไม้ในห้องสมุด, กระเบื้องทางเดิน, หญ้าลาน, น้ำในแอ่ง, พรม→ dirt นุ่ม) + เสียงลงพื้นหลังกระโดด/ตก |
+| ฝีเท้าซอมบี้ | 3 ตัวใกล้สุดใน 12 m (crawler ไม่มี), ก้าวตามความเร็ว, บอสหนัก |
+| horde bed | loop เดียว gain ตามจำนวนซอมบี้ใน 15 m (เต็มที่ 10 ตัว) จากจุดศูนย์กลางของฝูง |
+
+**ยังไม่ทำ / เลื่อน**: `ui:hover/select/back` (รอบ 5 เมนูใหม่), เสียงเล็ง `weapon:aim`, `zombie:attack/special` (รอบ 4 ซอมบี้ 10 ชนิด), ambient one-shot ที่ไม่มีตำแหน่ง (ยังไม่ได้วางในโลก), ไฟล์เสียง CC0 (bank พร้อมรับ `files` + `G.SOUND_CREDITS` ว่าง)
+
+**Zones** (`acoustics.js` `zoneAt`): `YARD*`/ไม่มี region → outdoor · `C\d` → corridor (บังเกอร์: underground) · `ENTRY/BOSS/GAL/LANDING/STAIR` → hall (บังเกอร์: warehouse) · ห้องสมุด/โรงอาหาร/โรงยิม → hall · ห้องอื่น ≤ 200 m² → room (ห้องเรียน ~163 m²) ใหญ่กว่า → hall · บังเกอร์: > 150 m² warehouse, < 45 m² room, นอกนั้น underground
+
+**Occlusion / HRTF**: ray ผ่าน `G.Game.wallDistance` (ผนัง ประตูที่ปิด เฟอร์นิเจอร์) — เสียงที่ถูกบัง lowpass 900 Hz + −6 dB ปรับใน ~0.2 s · HRTF เฉพาะ High (4) / Ultra (8) ในระยะ 9 m · Low/Very Low ไม่ยิง ray
+
+**วัดเสียงปืน** (Sound Lab "Measure every gun", RMS 150 ms แรก ณ ระดับที่เล่นจริง, High) — ทุกกระบอกถูกปรับเข้าใกล้ค่ากลางของตระกูล ±1.5 dB
+
+| ตระกูล | ปืน | ค่ากลาง (dB RMS) | ช่วงก่อนปรับ | ช่วงหลังปรับ | peak ดิบสูงสุด |
+|---|---|---|---|---|---|
+| pistol | 7 | −28.0 | 2.2 dB | 2.2 dB | −6.0 |
+| smg | 8 | −30.9 | 4.3 | 2.9 | −7.3 |
+| rifle | 11 | −26.1 | 2.6 | 2.2 | −3.0 |
+| lmg | 11 | −24.9 | 5.8 | 3.0 | −3.0 |
+| shotgun_pump | 10 | −17.2 | 2.1 | 1.9 | −0.5 |
+| shotgun_semi | 1 | −15.4 | 0 | 0 | +1.5 |
+| sniper_bolt | 7 | −15.6 | 2.6 | 2.2 | +3.4 |
+| special | 30 | −18.7 | 18.6 | 3.0 | +3.7 |
+
+(peak ดิบ = buffer ก่อน gain ต่อกระบอกและก่อน Master — peak ที่ลำโพงจริงวัดจาก stress test ด้านล่าง)
+
+**Stress test** (`?debug=1` → ปุ่ม Stress: ซอมบี้ 30 ตัว, ยิงค้าง, ระเบิดทุก 1.2 s, High): peak สูงสุดที่ Master −3.1 ถึง −4.8 dBFS (0 เฟรมคลิป), voice สูงสุด 24–27/32, ไม่มีหมวดไหนเกินเพดาน · ตาย/ออกด่าน: เสียงเกมเหลือ 0

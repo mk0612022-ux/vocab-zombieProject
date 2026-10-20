@@ -228,6 +228,9 @@
   <div class="hud-resume-hint hidden" id="hud-resume-hint" data-i18n="hud.resume"></div>
 
   <div class="hud-crosshair" id="hud-crosshair"></div>
+  <!-- (overhaul, round 3) a short line over the crosshair ("No spare ammo"), and the captions of what is heard -->
+  <div class="hud-note hidden" id="hud-note" role="status" aria-live="polite"></div>
+  <div class="hud-captions" id="hud-captions" aria-live="polite"></div>
   <!-- category N: sniper scope overlay and charge-weapon wind-up meter -->
   <div class="hud-scope hidden" id="hud-scope"><div class="hud-scope-ring"></div><div class="hud-scope-h"></div><div class="hud-scope-v"></div></div>
   <div class="hud-charge hidden" id="hud-charge"><div class="hud-charge-fill" id="hud-charge-fill"></div></div>
@@ -818,6 +821,9 @@ window.addEventListener("load", function () {
 <script defer src="js/notes.js"></script>
 <script defer src="js/minimap.js"></script>
 <script defer src="js/audio.js"></script>
+<script defer src="js/acoustics.js"></script>
+<script defer src="js/captions.js"></script>
+<script defer src="js/data/soundbank.js"></script>
 <script defer src="js/gunaudio.js"></script>
 <script defer src="js/perf.js"></script>
 <script defer src="js/zones.js"></script>

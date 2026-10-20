@@ -241,7 +241,9 @@ G.Round16Test = (function () {
     const second = document.activeElement;
     ok("F keys: right into the rows, down to the next", first && first.closest('[data-row="set-quality"]') && second && second.id === "set-render", (first && first.textContent) + " -> " + (second && second.id));
     $("set-cat-audio").click(); $("set-cat-audio").focus();
-    key("ArrowRight"); key("ArrowDown"); key("ArrowDown"); key("ArrowDown"); key("ArrowDown");
+    // (down to Read Words Aloud, row by row: the overhaul's round 3 put more faders above it)
+    key("ArrowRight");
+    for (let i = 0; i < 15 && !(document.activeElement && document.activeElement.closest("#set-speechmode")); i++) key("ArrowDown");
     const segFocus = document.activeElement && document.activeElement.closest("#set-speechmode");
     const sm0 = S().speechMode;
     key("ArrowRight");

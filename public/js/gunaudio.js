@@ -22,6 +22,13 @@
 // repeats one sample.
 // Reloads and draws use the same profile: a heavier gun clicks lower, an
 // energy weapon powers down and up instead of clacking.
+// (overhaul, round 3) A shot is drawn ahead into 2-6 buffers (by graphics
+// level) with an OfflineAudioContext and only picked from as it fires: never
+// the same twice running, +-3% pitch, +-1 dB. Each family's guns are brought
+// within 1.5 dB of its median loudness (measureAll: the Sound Lab). The room
+// is the reverb of js/acoustics.js. Everything here is heard from G.Bus:
+// weapon:fire (the shot), the reload's markers (each one a voice tagged with
+// the reload -- a cancel stops them), the switch, the inspect.
 // ===================================================================
 (function () {
   function seedRng(str) {
@@ -160,52 +167,60 @@
     none: () => {},
   };
 
-  // ---- where the player is: the reverb --------------------------------------
-  // wet: send level into the room; sec: length; bright: 0 dark .. 1 bright;
-  // early: first reflections [delay s, level]
-  const ENV = {
-    room: { sec: 0.55, bright: 0.55, wet: 0.3, early: [[0.011, 0.5], [0.019, 0.35], [0.028, 0.25]], tail: 0.25 },
-    corridor: { sec: 1.0, bright: 0.45, wet: 0.36, early: [0.018, 0.036, 0.054, 0.072, 0.09].map((t, i) => [t, 0.42 * Math.pow(0.72, i)]), tail: 0.45 },
-    hall: { sec: 2.2, bright: 0.28, wet: 0.44, early: [[0.03, 0.3], [0.047, 0.24], [0.071, 0.2], [0.11, 0.14]], tail: 0.7 },
-    outdoor: { sec: 0.7, bright: 0.3, wet: 0.13, early: [[0.17, 0.35], [0.31, 0.16]], sparse: true, tail: 1.0 },
-  };
-  function makeIR(ctx, e) {
-    const rate = ctx.sampleRate, len = Math.floor(rate * e.sec);
-    const buf = ctx.createBuffer(2, len, rate);
-    for (let c = 0; c < 2; c++) {
-      const d = buf.getChannelData(c);
-      let lp = 0;
-      for (let i = 0; i < len; i++) {
-        const t = i / len;
-        // a diffuse tail that dies away; outdoors it is only a whisper
-        const env = Math.pow(1 - t, 2.2) * (e.sparse ? 0.25 : 1);
-        lp += ((Math.random() * 2 - 1) - lp) * e.bright;
-        d[i] = lp * env * 0.5;
-      }
-      (e.early || []).forEach(([dt, g]) => {
-        const i = Math.floor((dt + (c ? 0.0021 : 0)) * rate);
-        if (i < len) d[i] += g * (c ? 0.85 : 1);
-      });
-      // unit energy: the send and wet levels then mean what they say (the
-      // node's own normalising made every room nearly dry)
-      let en = 0;
-      for (let i = 0; i < len; i++) en += d[i] * d[i];
-      const sc = 1 / Math.sqrt(en || 1);
-      for (let i = 0; i < len; i++) d[i] *= sc;
-    }
-    return buf;
+  // (overhaul, round 3) the big guns' own rolling echo, by the space they are
+  // fired in (the reverb itself is js/acoustics.js)
+  const TAIL = { room: 0.25, corridor: 0.45, underground: 0.55, hall: 0.7, warehouse: 0.85, outdoor: 1.0 };
+
+  // ---- the layers on any context: the game's, or an offline one ------------
+  // A synthesiser with G.Audio's tone()/noise() on a context of its own (an
+  // OfflineAudioContext), so a shot can be drawn once into a buffer.
+  function offlineSynth(ctx, dest, noiseBuf) {
+    return {
+      tone(o) {
+        const t = o.at || 0, osc = ctx.createOscillator(), g = ctx.createGain();
+        osc.type = o.type || "sine";
+        osc.frequency.setValueAtTime(o.freq, t);
+        if (o.freqEnd) osc.frequency.exponentialRampToValueAtTime(Math.max(20, o.freqEnd), t + o.dur);
+        if (o.detune) osc.detune.value = o.detune;
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(Math.max(0.0002, o.gain || 0.3), t + (o.attack || 0.005));
+        g.gain.exponentialRampToValueAtTime(0.0001, t + o.dur);
+        let node = osc;
+        if (o.vibrato) { const lfo = ctx.createOscillator(), lg = ctx.createGain(); lfo.frequency.value = o.vibrato.rate; lg.gain.value = o.vibrato.depth; lfo.connect(lg); lg.connect(osc.frequency); lfo.start(t); lfo.stop(t + o.dur + 0.05); }
+        if (o.filter) { const f = ctx.createBiquadFilter(); f.type = o.filter.type; f.frequency.value = o.filter.freq; f.Q.value = o.filter.q || 1; node.connect(f); node = f; }
+        node.connect(g); g.connect(dest);
+        osc.start(t); osc.stop(t + o.dur + 0.05);
+      },
+      noise(o) {
+        const t = o.at || 0, src = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+        src.buffer = noiseBuf; src.playbackRate.value = o.rate || 1;
+        f.type = o.filter || "bandpass";
+        f.frequency.setValueAtTime(o.freq || 1500, t);
+        if (o.freqEnd) f.frequency.exponentialRampToValueAtTime(Math.max(30, o.freqEnd), t + o.dur);
+        f.Q.value = o.q || 0.8;
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(Math.max(0.0002, o.gain || 0.3), t + (o.attack || 0.004));
+        g.gain.exponentialRampToValueAtTime(0.0001, t + o.dur);
+        src.connect(f); f.connect(g); g.connect(dest);
+        src.start(t, Math.random() * 1.5); src.stop(t + o.dur + 0.05);
+      },
+    };
   }
-  function envForRegion(name) {
-    if (!name || /^YARD/.test(name)) return "outdoor";
-    if (/^C\d/.test(name)) return "corridor";
-    if (/^(ENTRY|BOSS|GAL|LANDING|STAIR)/.test(name)) return "hall";
-    return "room";
+  // the root-mean-square and the peak of a buffer, in dBFS
+  function levels(buf) {
+    const d = buf.getChannelData(0);
+    let s = 0, pk = 0;
+    for (let i = 0; i < d.length; i++) { const a = Math.abs(d[i]); s += d[i] * d[i]; if (a > pk) pk = a; }
+    // (the RMS of the loud part: the first 150 ms, where a shot is)
+    const n = Math.min(d.length, Math.floor(buf.sampleRate * 0.15));
+    let s2 = 0; for (let i = 0; i < n; i++) s2 += d[i] * d[i];
+    return { rms: 10 * Math.log10(s2 / Math.max(1, n) || 1e-12), peak: 20 * Math.log10(pk || 1e-9), all: 10 * Math.log10(s / d.length || 1e-12) };
   }
+  const db = (d) => Math.pow(10, d / 20);
+  const median = (a) => { const s = a.slice().sort((x, y) => x - y); return s.length ? s[Math.floor(s.length / 2)] : 0; };
 
   G.GunAudio = {
     _prof: {},
-    env: null,
-    _rev: {},
 
     profile(def) {
       if (!def) def = G.WEAPON_DEFS.pistol;
@@ -257,20 +272,53 @@
       return [p.arch, v(p.crack, "f"), v(p.body, "f0"), v(p.body, "dur"), v(p.nbody, "lp"), p.rev, p.ring ? p.ring.f : 0, p.flavors.length, p.mech].map((x) => typeof x === "number" ? x.toFixed(3) : x).join("/");
     },
 
+    // (overhaul, round 3) A shot: a buffer drawn ahead (render(), below) --
+    // one of its variants, never the same twice running, +-3% in pitch and
+    // +-1 dB, brought level with its family -- sent to the room's reverb (and
+    // the far echo on Ultra), with the big guns' rolling tail live on top.
+    // Before its buffers are ready a gun is synthesised live, as before.
+    // o: { charge (0-1), shotId (the event's: one sound a shot) }
     shot(def, o) {
       const A = G.Audio;
       if (!A.ctx || !def) return;
       o = o || {};
-      const p = this.profile(def);
-      const k = 0.96 + Math.random() * 0.08;                  // +-4% per shot
+      if (o.shotId != null) { if (this._lastShot === o.shotId) return; this._lastShot = o.shotId; }
+      const p = this.profile(def), C = G.CONFIG.audio;
       const s = (o.charge != null ? 0.55 + 0.65 * o.charge : 1) * p.gain * 0.85;
-      // a fast automatic lays every other round down lighter (no snap, ring,
-      // sub or signature): at 14 rounds a second the full stack of layers
-      // would crowd everything else out of the voice budget
+      const R = this.cache.get(def.id);
+      if (R && R.buffers.length) {
+        R.last = performance.now();
+        let v = Math.floor(Math.random() * R.buffers.length);
+        if (R.buffers.length > 1 && v === R.prev) v = (v + 1 + Math.floor(Math.random() * (R.buffers.length - 1))) % R.buffers.length;
+        R.prev = v;
+        const rate = 1 + (Math.random() * 2 - 1) * C.gunPitch, gain = s * R.norm * db((Math.random() * 2 - 1) * C.gunGainDb);
+        const V = A.buffer(R.buffers[v], { cat: "weapons", prio: 1, rate, gain, rev: p.rev * 0.8, tag: "shot" });
+        if (V) {
+          const far = G.Acoustics && G.Acoustics.distant();
+          if (far) { const sg = A.ctx.createGain(); sg.gain.value = 0.6 * s; V.gains[V.gains.length - 1].connect(sg); sg.connect(far); }
+          if (p.tail) A.group({ cat: "weapons", prio: 1 }, () => this.tailLayer(A, p, s));
+        }
+        this.stats.played++;
+        return;
+      }
+      this.stats.live++;
+      // (still drawing its buffers: live, one voice for all its layers)
+      A.group({ cat: "weapons", prio: 1, dur: 1.2, tag: "shot" }, () => this.layers(A, def, p, 0.96 + Math.random() * 0.08, s, this.liteShot(def), p.rev));
+      this.prepare([def.id]);
+    },
+    // a fast automatic lays every other round down lighter when it is synthesised live
+    liteShot(def) {
       const rapid = def.auto && def.fireRate < 130;
       this._n = (this._n || 0) + 1;
-      const lite = rapid && this._n % 2 === 1;
-      const r = p.rev;
+      return rapid && this._n % 2 === 1;
+    },
+    tailLayer(A, p, s) {
+      const zone = (G.Acoustics && G.Acoustics.zone) || "room";
+      A.noise({ dur: p.tail.dur, filter: "lowpass", freq: p.tail.lp, freqEnd: p.tail.lpEnd, gain: p.tail.g * s * (TAIL[zone] || 0.3), attack: 0.03, at: 0.03 });
+    },
+    // the layers of a shot, on any synthesiser (A: G.Audio live, or an offline one);
+    // k: its pitch, s: its level, r: its reverb send (0 offline: the room is added live)
+    layers(A, def, p, k, s, lite, r) {
       if (p.crack) A.noise({ dur: p.crack.dur, freq: p.crack.f * k, q: p.crack.q, gain: p.crack.g * s, rev: r * 0.5 });
       if (p.snap && !lite) A.noise({ dur: p.snap.dur, filter: "highpass", freq: p.snap.f * k, gain: p.snap.g * s, rev: r * 0.4 });
       if (p.body) A.tone({ type: p.body.type, freq: p.body.f0 * k, freqEnd: p.body.f1 * k, dur: p.body.dur, gain: p.body.g * s, rev: r,
@@ -280,15 +328,119 @@
       if (p.zap) A.tone({ type: "sine", freq: p.zap.f0 * k, freqEnd: p.zap.f1 * k, dur: p.zap.dur, gain: p.zap.g * s, rev: r });
       if (p.whoosh) A.noise({ dur: p.whoosh.dur, freq: p.whoosh.f0 * k, freqEnd: p.whoosh.f1 * k, q: 0.6, gain: p.whoosh.g * s, attack: 0.03, rev: r });
       if (p.ring && !lite) A.tone({ type: "triangle", freq: p.ring.f * k, dur: p.ring.dur, gain: p.ring.g, filter: { type: "bandpass", freq: p.ring.f * k, q: 8 }, rev: r });
-      // the big guns' own rolling echo, strongest outdoors where nothing
-      // else answers
-      if (p.tail) A.noise({ dur: p.tail.dur, filter: "lowpass", freq: p.tail.lp, freqEnd: p.tail.lpEnd, gain: p.tail.g * s * ENV[this.env || "room"].tail, attack: 0.03, at: 0.03 });
+      // (the big guns' rolling echo: live, by the room -- tailLayer)
+      if (p.tail && A === G.Audio) this.tailLayer(A, p, s);
       (MECH[p.mech] || MECH.none)(A, p, k);
       if (!lite) p.flavors.forEach((fn) => fn(A, k, s, r));
     },
 
+    // ---- (overhaul, round 3) shots drawn ahead ---------------------------------
+    // A gun's shot is drawn into buffers once (OfflineAudioContext), 2-6
+    // variants by graphics level, in the background: the guns in hand when a
+    // level starts and any gun the moment it comes to hand. A shot then only
+    // picks a buffer -- far cheaper for automatic fire and on an iPad. The
+    // last G.CONFIG.audio.gunCache guns are kept.
+    cache: new Map(),
+    family: {},                      // family -> median loudness (dB), measured over all its guns
+    queue: [], busy: false,
+    stats: { played: 0, live: 0, rendered: 0, renderMs: 0 },
+    prepare(ids) {
+      if (!G.Audio.ctx || !(window.OfflineAudioContext || window.webkitOfflineAudioContext)) return;
+      ids.forEach((id) => { if (id && id !== "melee" && G.WEAPON_DEFS[id] && !this.cache.has(id) && !this.queue.includes(id)) this.queue.push(id); });
+      this.pump();
+    },
+    pump() {
+      if (this.busy || !this.queue.length) return;
+      const id = this.queue.shift();
+      this.busy = true;
+      this.render(G.WEAPON_DEFS[id]).catch(() => null).then(() => { this.busy = false; setTimeout(() => this.pump(), 0); });
+    },
+    // draw one variant of a shot: k its pitch
+    async renderOne(def, k) {
+      const A = G.Audio, ctx = A.ctx, OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+      const rate = ctx.sampleRate, len = Math.floor(rate * 1.9);
+      const off = new OAC(1, len, rate);
+      const S = offlineSynth(off, off.destination, A.noiseBuffer());
+      this.layers(S, def, this.profile(def), k, 1, false, 0);
+      const raw = await off.startRendering();
+      // trimmed after the last sound worth hearing (-70 dB)
+      const d = raw.getChannelData(0);
+      let end = d.length - 1;
+      while (end > 0 && Math.abs(d[end]) < 3e-4) end--;
+      const out = ctx.createBuffer(1, Math.min(d.length, end + Math.floor(rate * 0.02)), rate);
+      out.getChannelData(0).set(d.subarray(0, out.length));
+      return out;
+    },
+    async render(def) {
+      if (!def || this.cache.has(def.id)) return;
+      const t0 = performance.now(), C = G.CONFIG.audio;
+      const n = C.gunVariants[G.Audio.tier()] || 4;
+      if (this._variants == null) this._variants = n;
+      const ks = [1, 0.985, 1.015, 0.97, 1.03, 0.993].slice(0, n);
+      const buffers = [];
+      for (const k of ks) buffers.push(await this.renderOne(def, k));
+      const lv = levels(buffers[0]), heard = this.heardDb(def, lv);
+      const fam = await this.familyLevel(def);
+      // brought within familySpreadDb of its family's loudness
+      const diff = heard - fam, spread = C.familySpreadDb;
+      const corr = Math.abs(diff) > spread ? -(diff - Math.sign(diff) * spread) : 0;
+      this.cache.set(def.id, { buffers, norm: db(corr), rms: heard, peak: lv.peak, corr, last: performance.now(), prev: -1 });
+      this.stats.rendered++;
+      this.stats.renderMs += performance.now() - t0;
+      this.evict();
+    },
+    // how loud a shot is as it is played: the drawn buffer's RMS (its first
+    // 150 ms) plus the gun's own level (profile gain, as shot() plays it)
+    heardDb(def, lv) { return lv.rms + 20 * Math.log10(Math.max(1e-6, this.profile(def).gain * 0.85)); },
+    // a family's loudness: every gun of it drawn once and measured (once)
+    async familyLevel(def) {
+      const fam = G.ViewModel.family(def);
+      if (this.family[fam] != null) return this.family[fam];
+      const all = Object.values(G.WEAPON_DEFS).filter((d) => G.ViewModel.family(d) === fam);
+      const rms = [];
+      for (const d of all) rms.push(this.heardDb(d, levels(await this.renderOne(d, 1))));
+      this.family[fam] = median(rms);
+      return this.family[fam];
+    },
+    evict() {
+      const max = G.CONFIG.audio.gunCache, held = new Set((G.Game.player && G.Game.player.gunSlots) || []);
+      if (this.cache.size <= max) return;
+      const old = [...this.cache.entries()].filter(([id]) => !held.has(id)).sort((a, b) => a[1].last - b[1].last);
+      while (this.cache.size > max && old.length) this.cache.delete(old.shift()[0]);
+    },
+    // (the graphics level changed: the variants are drawn again, if their count did)
+    retune() {
+      const n = G.CONFIG.audio.gunVariants[G.Audio.tier()] || 4;
+      if (n === this._variants) return;
+      this._variants = n;
+      this.cache.clear();
+      this.prepare((G.Game.player && G.Game.player.gunSlots) || []);
+    },
+    // measure every gun (the Sound Lab, the report): peak and RMS, the family's spread
+    async measureAll(onStep) {
+      const out = [];
+      const all = Object.values(G.WEAPON_DEFS);
+      for (const d of all) {
+        if (onStep) onStep(out.length, all.length);
+        const b = await this.renderOne(d, 1), lv = levels(b), fam = G.ViewModel.family(d);
+        const famDb = await this.familyLevel(d);
+        const heard = this.heardDb(d, lv), diff = heard - famDb, spread = G.CONFIG.audio.familySpreadDb;
+        const corr = Math.abs(diff) > spread ? -(diff - Math.sign(diff) * spread) : 0;
+        out.push({ id: d.id, family: fam, peak: +lv.peak.toFixed(1), rms: +heard.toFixed(1), after: +(heard + corr).toFixed(1), famDb: +famDb.toFixed(1) });
+      }
+      return out;
+    },
+    warm() { /* (the context is up: the guns in hand are queued by the game) */ },
+
+    // (overhaul, round 3) each mechanical sound is one voice on the weapons
+    // bus, tagged with what it belongs to -- a cancelled reload stops its own
+    reload(kind, def, tag) { if (G.Audio.ctx) G.Audio.group({ cat: "weapons", prio: 2, dur: 0.5, tag: tag || null }, () => this._reload(kind, def)); },
+    holster(from, tag) { if (G.Audio.ctx) G.Audio.group({ cat: "weapons", prio: 2, dur: 0.3, tag: tag || null }, () => this._holster(from)); },
+    draw(to, tag) { if (G.Audio.ctx) G.Audio.group({ cat: "weapons", prio: 2, dur: 0.6, tag: tag || null }, () => this._draw(to)); },
+    inspect(def, tag) { if (G.Audio.ctx) G.Audio.group({ cat: "weapons", prio: 3, dur: 0.3, tag: tag || null }, () => this._inspect(def)); },
+
     // ---- reload steps (triggered by the reload animation's own events) ----
-    reload(kind, def) {
+    _reload(kind, def) {
       const A = G.Audio;
       if (!A.ctx) return;
       const p = this.profile(def);
@@ -318,6 +470,8 @@
           else { A.noise({ dur: 0.04, freq: 1800 * m, gain: 0.08 }); click(1400, 0.06, 0.03); }
           break;
         case "pump": A.noise({ dur: 0.07, freq: 1000 * m, gain: 0.12 }); A.noise({ dur: 0.07, freq: 1300 * m, gain: 0.13, at: 0.13 }); click(700, 0.1, 0.19); break;
+        // (overhaul, round 3) the reload done: a short settle of the hands on the gun
+        case "done": A.noise({ dur: 0.08, filter: "lowpass", freq: 900 * m, gain: 0.045 }); if (!tech) click(1700, 0.035, 0.03); break;
         case "land": A.tone({ type: "triangle", freq: (tech ? 700 : 520) * m + Math.random() * 120, dur: 0.06, gain: 0.05 }); break;   // spent magazine hits the floor
       }
     },
@@ -325,7 +479,7 @@
     // ---- weapon switch: the old one goes away, the new one comes up --------
     // (overhaul, round 1) a switch is two sounds, each on its own step of the
     // switch (G.WeaponSM): the old gun put away as it starts down...
-    holster(from) {
+    _holster(from) {
       const A = G.Audio;
       if (!A.ctx) return;
       const pf = from ? this.profile(from) : null;
@@ -334,7 +488,7 @@
       else if (pf && pf.arch !== "melee") A.noise({ dur: 0.03, freq: 1500 * pf.mechPitch, q: 2, gain: 0.05, at: 0.05 });
     },
     // ...and the new one drawn, at the bottom of the dip as it starts up
-    draw(to) {
+    _draw(to) {
       const A = G.Audio;
       if (!A.ctx || !to) return;
       const pt = this.profile(to);
@@ -351,11 +505,11 @@
         const m = pt.mechPitch;
         A.tone({ type: "square", freq: 1200 * m, dur: 0.02, gain: 0.07, at: 0.15, filter: { type: "bandpass", freq: 1900 * m, q: 3 } });
         if (pt.size < 0.9) A.tone({ type: "sine", freq: 130 * m, dur: 0.07, gain: 0.12, at: 0.1 });   // a heavy one lands in the hands
-        if (pt.arch === "shotgun") this.reload("pump", to);
+        if (pt.arch === "shotgun") this._reload("pump", to);
       }
     },
     // a gun shown off (inspect): the hands on it, quietly
-    inspect(def) {
+    _inspect(def) {
       const A = G.Audio;
       if (!A.ctx || !def) return;
       const p = this.profile(def);
@@ -375,7 +529,7 @@
         h = this._hum = { o1: ctx.createOscillator(), o2: ctx.createOscillator(), lp: ctx.createBiquadFilter(), g: ctx.createGain() };
         h.o1.type = "sawtooth"; h.o2.type = "sine"; h.lp.type = "lowpass";
         h.g.gain.value = 0.0001;
-        h.o1.connect(h.lp); h.o2.connect(h.lp); h.lp.connect(h.g); h.g.connect(A.bus.sfx);
+        h.o1.connect(h.lp); h.o2.connect(h.lp); h.lp.connect(h.g); h.g.connect(A.bus.weapons);
         h.o1.start(); h.o2.start();
         const reap = () => {
           if (this._hum !== h) return;
@@ -400,52 +554,10 @@
       h.g.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.03);
     },
 
-    // ---- the reverb that makes the tail -----------------------------------
-    ensureReverb() {
-      const A = G.Audio, ctx = A.ctx;
-      if (!ctx || A.revIn) return;
-      A.revIn = ctx.createGain();
-      this.setEnv("room");
-    },
-    setEnv(kind) {
-      const A = G.Audio, ctx = A.ctx;
-      if (!ctx || !ENV[kind]) return;
-      if (!A.revIn) { this.ensureReverb(); if (this.env === kind) return; }
-      if (kind === this.env) return;
-      const first = !this.env;
-      this.env = kind;
-      const now = ctx.currentTime;
-      let r = this._rev[kind];
-      if (!r) {
-        r = this._rev[kind] = { conv: ctx.createConvolver(), g: ctx.createGain(), linked: false };
-        r.conv.normalize = false;
-        r.conv.buffer = makeIR(ctx, ENV[kind]);
-        r.g.gain.value = 0;
-        r.conv.connect(r.g); r.g.connect(A.bus.sfx);
-      }
-      if (!r.linked) { A.revIn.connect(r.conv); r.linked = true; }
-      // walking from one space into another crossfades; the first one is simply there
-      if (first) r.g.gain.value = ENV[kind].wet;
-      else r.g.gain.setTargetAtTime(ENV[kind].wet, now, 0.25);
-      // the others fade, then come off the graph so they cost nothing
-      Object.keys(this._rev).forEach((k2) => {
-        if (k2 === kind) return;
-        const o = this._rev[k2];
-        o.g.gain.setTargetAtTime(0, now, 0.25);
-        setTimeout(() => {
-          if (this.env !== k2 && o.linked) { try { A.revIn.disconnect(o.conv); } catch (e) { /* not linked */ } o.linked = false; }
-        }, 2500);
-      });
-    },
-    // called from G.Audio.update: where is the player standing?
-    _envT: 0,
-    updateEnv(dt, game) {
-      this._envT -= dt;
-      if (this._envT > 0 || !game.world) return;
-      this._envT = 0.25;
-      const p = game.yawObject.position;
-      this.setEnv(envForRegion(G.getRegionAt(game.world, p.x, p.z, p.y - 1.7)));
-    },
+    // ---- the reverb: js/acoustics.js (overhaul, round 3) ---------------------
+    // (kept for older callers: a space by name)
+    setEnv(kind) { if (G.Acoustics) G.Acoustics.setZone(kind); },
+    get env() { return G.Acoustics ? G.Acoustics.zone : null; },
 
     // ---- "Listen" (sound test) in the weapon log -------------------------------
     // A few rounds the way the gun fires them, then its reload.
@@ -453,8 +565,8 @@
       const A = G.Audio;
       A.unlock();
       if (!A.ctx || !def) return 0;
-      this.ensureReverb();
       this.setEnv("room");
+      this.prepare([def.id]);
       (this._previewTimers || []).forEach(clearTimeout);
       const T = this._previewTimers = [];
       const at = (sec, fn) => T.push(setTimeout(fn, sec * 1000));
@@ -504,15 +616,35 @@
   // state machine's events (G.Bus): a reload's steps as its markers arrive
   // (never ahead of the hands, never twice; a cancelled reload sends no
   // more), a switch's put-away and draw, an inspection
+  // (overhaul, round 3) and the shot itself: one sound a shot (its shot id),
+  // the low-ammo tick once as the magazine crosses a quarter, the refusal when
+  // there is nothing left to load; a cancelled reload's sounds stop at once
   const defOf = (id) => (id === "melee" ? G.MELEE_DEF : G.WEAPON_DEFS[id]);
   if (G.Bus) {
+    G.Bus.on("weapon:fire", (e) => {
+      const def = defOf(e.weaponId);
+      G.GunAudio.shot(def, { charge: def && def.charge ? (e.charge || 0) : null, shotId: e.shotId });
+      const g = G.Game, a = g && g.player && g.player.ammo[e.weaponId], l = g && g.player && g.player.weaponLevels[e.weaponId];
+      if (a && def && l) {
+        const thr = Math.floor(Math.round(def.magSize * (l.mag || 1)) * G.CONFIG.audio.lowAmmoShare);
+        if (a.mag === thr && thr > 0) G.Audio.sfx("lowammo");
+      }
+    }, "gunaudio");
+    G.Bus.on("weapon:noreserve", () => {
+      G.Audio.sfx("deny");
+      if (G.UI && G.UI.hudNote) G.UI.hudNote(G.T("hud.noReserve"));
+    }, "gunaudio");
     G.Bus.on("weapon:reload", (e) => {
-      if (e.phase === "marker" && !e.silent && e.kind !== "end") G.Audio.reloadEvent(e.kind, defOf(e.weaponId));
+      if (e.phase === "marker" && !e.silent) G.GunAudio.reload(e.kind === "end" ? "done" : e.kind, defOf(e.weaponId), "reload:" + e.reloadId);
+      else if (e.phase === "cancel") G.Audio.stopTag("reload:" + e.reloadId);
     }, "gunaudio");
     G.Bus.on("weapon:switch", (e) => {
-      if (e.phase === "lower") { G.GunAudio.holster(defOf(e.fromId)); G.GunAudio.chargeStop(); }
-      else if (e.phase === "swap" || (e.phase === "raise" && e.back)) G.GunAudio.draw(defOf(e.toId));
+      if (e.phase === "lower") { G.GunAudio.holster(defOf(e.fromId), "switch:" + e.switchId); G.GunAudio.chargeStop(); G.GunAudio.prepare([e.toId]); }
+      else if (e.phase === "swap" || (e.phase === "raise" && e.back)) G.GunAudio.draw(defOf(e.toId), "switch:" + e.switchId);
     }, "gunaudio");
-    G.Bus.on("weapon:inspect", (e) => { if (e.phase === "start") G.GunAudio.inspect(defOf(e.weaponId)); }, "gunaudio");
+    G.Bus.on("weapon:inspect", (e) => {
+      if (e.phase === "start") G.GunAudio.inspect(defOf(e.weaponId), "inspect:" + e.inspectId);
+      else G.Audio.stopTag("inspect:" + e.inspectId);
+    }, "gunaudio");
   }
 })();

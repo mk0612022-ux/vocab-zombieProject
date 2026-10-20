@@ -185,6 +185,7 @@ G.Game = {
       if (G.Visuals) G.Visuals.applyQuality(this, q);
       if (G.FX) G.FX.applyQuality(this);             // (overhaul, round 2: the effects' budget)
     }
+    if (G.GunAudio && G.Audio.ctx) G.GunAudio.retune();   // (overhaul, round 3: the shots' variants by level)
   },
 
   // ---------------- Top-level navigation ----------------
@@ -404,6 +405,7 @@ G.Game = {
     document.body.classList.toggle("study-run", this.mode === "study");
     if (this.mode === "study" && G.Study) G.Study.beginRun(this);
     if (restoring) G.Checkpoint.apply(this, restoring);   // wave 10's state: the next wave is 11
+    if (G.GunAudio) G.GunAudio.prepare(this.player.gunSlots);   // (overhaul, round 3: the guns in hand, drawn ahead)
     this.startWave();
     if (G.Input.mode === "desktop") G.Input.requestPointerLock();
   },
@@ -972,7 +974,7 @@ G.Game = {
     // Last Round: the final round(s) of a magazine hit three times as hard
     const lastRound = G.Perks.has("last_round") && ammo.mag <= G.Perks.val("last_round");
     ammo.mag--;
-    G.Audio.gunshot(def, chargeFrac);
+    // (overhaul, round 3: the shot's sound comes from its weapon:fire event -- js/gunaudio.js)
     G.Tutorial.onShot();
     if (!inBurst) this.player.fireCooldown = (def.fireRate / 1000) / lvl.rate;
     // Category N: a burst weapon looses the rest of its rounds on a timer.
@@ -1919,6 +1921,7 @@ G.Game = {
     this.state = "GAME_OVER";
     if (G.Cutscene) G.Cutscene.stop();
     G.Audio.bossMusic(false);
+    G.Audio.stopAll();                                 // (overhaul, round 3: nothing of the fight rings on)
     G.UI.setBossBar(false);
     G.Modal.reset();
     G.Input.exitPointerLock();
@@ -1942,6 +1945,7 @@ G.Game = {
   },
   onVictory() {
     if (this.wsm) this.wsm.setDisabled("end", true);
+    G.Audio.stopAll();                                 // (overhaul, round 3)
     this.state = "VICTORY";
     G.Modal.reset();
     G.Input.exitPointerLock();
@@ -1997,6 +2001,17 @@ G.Game = {
     const realDt = dt;
     // (timeScale: the Weapon Lab's slow motion, ?lab=weapons)
     dt *= G.save.settings.gameSpeed * (this.timeScale || 1);
+    // (overhaul, round 3) the sound follows the game's state: paused, the
+    // game's sounds stop (the menus' still play) and the music steps back; a
+    // question or a boss's cutscene ducks the music and the ambience
+    if (G.Audio.ctx) {
+      const A = G.Audio, inRun = this.state === "GAMEPLAY";
+      A.setPaused(this.state === "PAUSE");
+      const q = inRun && !!(this.paused || G.Modal.freezesWorld() || G.Quiz.active);
+      if (q !== !!A._duck.question) A.duck("question", q);
+      const cut = inRun && !!(G.Cutscene && G.Cutscene.active);
+      if (cut !== !!A._duck.cutscene) A.duck("cutscene", cut);
+    }
     if (this.state === "SHOP") {
       // the shop's clock is real time (not the game speed), and it waits
       // while any other window is open on top of it -- the gun-slot choice,
@@ -2345,7 +2360,11 @@ G.Game = {
     if (jumpPressed && this.yawObject.position.y <= baseEyeY + 0.01 && this.velocityY === 0) this.velocityY = PC.jumpSpeed;
     this.velocityY -= 9.8 * dt;
     this.yawObject.position.y += this.velocityY * dt;
-    if (this.yawObject.position.y < baseEyeY) { this.yawObject.position.y = baseEyeY; this.velocityY = 0; }
+    if (this.yawObject.position.y < baseEyeY) {
+      // (overhaul, round 3) a jump or a drop comes down with a thud on what is underfoot
+      if (this.velocityY < -3 && G.Audio.ctx) { const p = this.yawObject.position; G.Audio.footstep(G.Surface.floor(this.world, p.x, p.z, baseEyeY - 1.7), false, { land: true }); }
+      this.yawObject.position.y = baseEyeY; this.velocityY = 0;
+    }
 
     // Aim Down Sights (category H): right mouse button held narrows the FOV
     // and pulls the weapon toward center, blended over time (not an instant
@@ -3056,13 +3075,33 @@ G.Game = {
     this._lastStepPos = { x: p.x, z: p.z };
     // one per foot plant, as reported by the gait (animation pass A2), so the
     // sound lands exactly when the foot on screen does
+    // (overhaul, round 3: the floor's own surface -- js/surface.js)
     const steps = G.PlayerBody.takeSteps();
     if (steps.length && moving > 0.6 && this.velocityY === 0) {
       const running = G.PlayerBody.gait.runW > 0.5;
-      const region = G.getRegionAt(this.world, p.x, p.z, p.y - 1.7);
-      const surface = this.level.theme === "bunker" ? "metal" : /^YARD/.test(region || "") ? "grass" : "tile";
-      A.footstep(surface, running);
+      A.footstep(G.Surface.floor(this.world, p.x, p.z, p.y - 1.7), running);
     }
+    // (overhaul, round 3) the zombies' own steps: only the nearest few, each
+    // at its own stride; the rest are the crowd's bed (G.Audio.hordeTick)
+    const AC = G.CONFIG.audio, near = [];
+    for (const z of this.zombies) {
+      if (!z.alive || !z.mesh) continue;
+      const zp = z.mesh.position, d = Math.hypot(zp.x - p.x, zp.z - p.z);
+      const last = z._stepAt || (z._stepAt = { x: zp.x, z: zp.z });
+      z._stepV = Math.hypot(zp.x - last.x, zp.z - last.z) / Math.max(dt, 1e-4);
+      last.x = zp.x; last.z = zp.z;
+      if (d < AC.stepRange && z.type !== "crawler") near.push({ z, d });
+    }
+    near.sort((a, b) => a.d - b.d);
+    near.slice(0, AC.zombieSteps).forEach(({ z }) => {
+      if (z._stepV < 0.3) return;
+      z._stepT = (z._stepT || 0) - dt;
+      if (z._stepT > 0) return;
+      const big = z.type === "boss";
+      z._stepT = (big ? 1.4 : z.type === "fast" ? 0.95 : 0.8) / Math.max(0.6, z._stepV);
+      const zp = z.mesh.position;
+      A.footstep(G.Surface.floor(this.world, zp.x, zp.z, zp.y), z._stepV > 3, { pos: zp.clone().setY(zp.y + 0.1), heavy: big, gain: big ? 1.6 : 0.85 });
+    });
 
     // warning 1: heartbeat under 30% health, quickening as it drops
     const hpFrac = this.player.hp / this.player.maxHp;

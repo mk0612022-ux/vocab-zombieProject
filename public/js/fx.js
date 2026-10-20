@@ -302,7 +302,10 @@ G.FX = (function () {
   // hit: { point, normal, surface, decal (allowed), moving (a door: no hole) }
   function impact(hit) {
     const g = G.Game;
-    if (!P.d || !hit || !hit.point) return;
+    if (!hit || !hit.point) return;
+    // (overhaul, round 3) and its sound, by what it hit (a shotgun's pellets: about two a shot)
+    if (G.Audio && G.Audio.ctx && (!hit.pellet || Math.random() < (hit.share || 1))) G.Audio.impact(hit.surface, hit.point.clone(), { pellet: !!hit.pellet });
+    if (!P.d) return;
     const cam = g && g.camera;
     if (cam) { cam.getWorldPosition(tmp2); if (tmp2.distanceTo(hit.point) > C().impact.maxDistance) return; }
     const S = C().impact.surfaces[hit.surface] || C().impact.surfaces.concrete;

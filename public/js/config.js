@@ -420,6 +420,60 @@ G.CONFIG = {
     },
     decal: { size: [0.07, 0.11], fade: 0.4, offset: 0.004 },
   },
+  // ---------------- the sound (overhaul, round 3) ----------------
+  // js/audio.js (the mixer, the voices), js/acoustics.js (the rooms' reverb),
+  // js/gunaudio.js (the guns, pre-rendered), js/data/soundbank.js (what each
+  // event plays). Levels in dB are as the spec gives them.
+  audio: {
+    // the mix: what each bus is at 100% of its slider
+    busGain: { music: 0.42, weapons: 0.9, sfx: 0.9, ambient: 0.55, ui: 0.8 },
+    // the master: a gentle compressor, then a limiter so nothing clips (peak about -1 dBFS)
+    compressor: { threshold: -14, knee: 12, ratio: 6, attack: 0.004, release: 0.2 },
+    limiter: { threshold: -1.5, knee: 0, ratio: 20, attack: 0.001, release: 0.08 },
+    // ...and after it a soft ceiling (a WaveShaper): the browser's compressors add
+    // their own make-up gain, so the last word on the peak is this -- straight
+    // up to `knee`, then bending to never pass `ceilingDb`
+    ceilingDb: -1, ceilingKnee: 0.6,
+    // the weapons bus: rumble below 45 Hz off, a touch less mud at 250 Hz, the top end tamed
+    weaponsEQ: { highpass: 45, mudFreq: 250, mudGain: -2, shelfFreq: 9000, shelfGain: -3 },
+    // a boss's warning, a cutscene, a question window: music and ambience step back
+    duck: { music: -6, ambient: -4, attack: 0.1, release: 0.8 },
+    pauseMusic: -6,                 // paused: the music this much quieter (the game's sounds stop)
+    // voices playing at once, by kind; past it the least important (then the farthest, then the oldest) gives way
+    limits: { weapons: 6, impact: 8, zombie: 6, steps: 6, ui: 4, ambient: 4, sfx: 10 },
+    total: { vlow: 16, low: 20, medium: 24, high: 32, vhigh: 40 },
+    // the guns: drawn once ahead (OfflineAudioContext), so a shot only picks a buffer
+    gunVariants: { vlow: 2, low: 3, medium: 4, high: 6, vhigh: 6 },
+    gunCache: 12,                   // guns kept rendered (the ones in hand and the last ones used)
+    gunPitch: 0.03,                 // +- a shot's pitch (and length) around its variant
+    gunGainDb: 1,                   // +- a shot's level
+    familySpreadDb: 1.5,            // guns of one family are brought within this of their family's loudness
+    lowAmmoShare: 0.25,             // the low-ammo tick, once, when the magazine falls to this share
+    // spatial: HRTF for the nearest few on High and Ultra; occlusion: a wall in the way muffles
+    hrtf: { vlow: 0, low: 0, medium: 0, high: 4, vhigh: 8 },
+    hrtfRange: 9,
+    occlusion: { vlow: [0, 0], low: [0, 0], medium: [4, 4], high: [8, 8], vhigh: [10, 12] },   // [checks a second, sources]
+    occluded: { lowpass: 900, gainDb: -6, time: 0.2 },
+    // the rooms (js/acoustics.js): procedural impulse responses, crossfaded A/B
+    reverbMode: { vlow: "off", low: "delay", medium: "short", high: "full", vhigh: "full+" },
+    shortMax: 1.2,                  // Medium: no impulse longer than this
+    crossfade: 0.6,
+    zones: {
+      corridor: { rt60: 1.0, predelay: 0.012, bright: 0.5, wet: 0.36, early: 5, spacing: 0.018 },
+      underground: { rt60: 1.5, predelay: 0.018, bright: 0.35, wet: 0.42, early: 6, spacing: 0.022 },
+      room: { rt60: 0.5, predelay: 0.006, bright: 0.6, wet: 0.28, early: 3, spacing: 0.009 },
+      hall: { rt60: 2.2, predelay: 0.025, bright: 0.3, wet: 0.44, early: 4, spacing: 0.024 },
+      warehouse: { rt60: 2.8, predelay: 0.035, bright: 0.28, wet: 0.46, early: 4, spacing: 0.03 },
+      outdoor: { rt60: 0.7, predelay: 0.06, bright: 0.3, wet: 0.13, early: 2, spacing: 0.14, sparse: true },
+    },
+    smallRoom: 200,                 // m2: a room up to this is a small one (a classroom is ~163), bigger a large interior
+    distant: { delay: 0.32, lowpass: 900, gain: 0.18 },      // Ultra: the far echo of a shot out of doors and in big spaces
+    // footsteps and the crowd
+    zombieSteps: 3,                 // the nearest few zombies' own footsteps (the rest: the horde bed)
+    stepRange: 12,
+    horde: { range: 15, full: 10, gain: 0.32 },   // the bed's level at `full` zombies within range
+    captions: { max: 3, life: 2.6, growlRange: 10, growlEvery: 4 },
+  },
 };
 
 // ---------------- Level definitions ----------------

@@ -1053,6 +1053,18 @@ G.UI = {
     el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash");
     this._bossHintT = setTimeout(() => el.classList.add("hidden"), Math.max(1, secs || 4) * 1000);
   },
+  // (overhaul, round 3) a short line over the crosshair -- "No spare ammo" --
+  // gone after secs; the same line again only flashes
+  hudNote(text, secs) {
+    const el = this.el("hud-note");
+    if (!el) return;
+    clearTimeout(this._hudNoteT);
+    if (!text) { el.classList.add("hidden"); return; }
+    if (el.textContent !== text) el.textContent = text;
+    el.classList.remove("hidden");
+    el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash");
+    this._hudNoteT = setTimeout(() => el.classList.add("hidden"), (secs || 1.6) * 1000);
+  },
   // Desktop, mid-game, no window open and still no pointer lock: the browser
   // refused to re-lock (a question timed out, the shop timer ran out -- no
   // click or key behind them) or the player alt-tabbed back. Say so, rather

@@ -102,11 +102,16 @@ window.G = window.G || {};
         + row({ id: "set-safearea", name: T("settings.safeArea"), ctl: seg("set-safearea", s.safeArea, [["auto", T("settings.safeAuto")], ["manual", T("settings.safeManual")]]), desc: T("settings.safeAreaDesc") })
         + row({ id: "set-safemargin", name: T("settings.safeMargin"), ctl: slider("set-safemargin", s.safeMargin, 0, 60, 2, s.safeMargin + " px"), desc: T("settings.safeMarginDesc"), hidden: !manual });
     },
+    // (overhaul, round 3) a fader for each bus of the mixer, each with a test
+    // sound played on its own bus (js/audio.js testBus), and the captions
+    VOLS: ["masterVolume", "musicVolume", "weaponsVolume", "sfxVolume", "ambientVolume", "uiVolume", "speechVolume"],
     audio(s) {
-      return ["sfxVolume", "musicVolume", "ambientVolume", "speechVolume"].map((k) => {
+      return this.VOLS.map((k) => {
         const v = s[k] == null ? 0.7 : s[k];
-        return row({ id: "set-" + k, name: T("settings.vol." + k), ctl: slider("set-" + k, v, 0, 1, 0.05, pct(v)).replace("<input ", `<input class="set-vol" data-key="${k}" `), desc: T("settings.volDesc." + k) });
+        const test = `<button class="btn set-btn set-vtest" id="btn-vtest-${k}" type="button" data-key="${k}" aria-label="${esc(T("settings.volTest"))}" title="${esc(T("settings.volTest"))}">▶</button>`;
+        return row({ id: "set-" + k, name: T("settings.vol." + k), ctl: `<span class="set-btns">${slider("set-" + k, v, 0, 1, 0.05, pct(v)).replace("<input ", `<input class="set-vol" data-key="${k}" `)}${test}</span>`, desc: T("settings.volDesc." + k) });
       }).join("")
+        + row({ id: "set-captions", name: T("settings.captions"), ctl: toggle("set-captions", !!s.captions), desc: T("settings.captionsDesc") })
         + row({ id: "set-speechmode", name: T("settings.speechMode"), ctl: seg("set-speechmode", s.speechMode || "after", [["after", T("settings.speechAfterShort")], ["before", T("settings.speechBeforeShort")], ["off", T("settings.speechOff")]]), desc: T("settings.speechModeDesc") })
         + row({ id: "set-accent", name: T("settings.accent"), ctl: seg("set-accent", s.accent || "british", ["mixed", "british", "american", "australian"].map((a) => [a, T("settings.accent." + a)])), desc: "", descId: "set-accent-note" })
         + row({ id: "set-speechspeed", name: T("settings.speechSpeed"), ctl: seg("set-speechspeed", s.speechSpeed || "normal", [["normal", T("settings.speedNormal")], ["slow", T("settings.speedSlow")]]), desc: T("settings.speechSpeedDesc") })
@@ -264,9 +269,11 @@ window.G = window.G || {};
         // (visual series, round 1, E4) seen at once, in a run or behind the menu
         "set-brightness": (v) => { s.brightness = v; s.brightnessSet = true; if (G.Visuals && G.Visuals.ready) G.Visuals.applyGrade(G.Visuals.theme); return pct(v); },
         "set-visboost": (v) => { s.visibilityBoost = v; if (G.Visuals && G.Visuals.ready) G.Visuals.applyGrade(G.Visuals.theme); },
+        // (overhaul, round 3) the captions of what is heard
+        "set-captions": (v) => { s.captions = v; if (!v && G.Captions) G.Captions.clear(); },
       };
       // the volumes: heard as they move
-      ["sfxVolume", "musicVolume", "ambientVolume", "speechVolume"].forEach((k) => {
+      this.VOLS.forEach((k) => {
         H["set-" + k] = (v) => { s[k] = v; G.Audio.applyVolumes(); return pct(v); };
       });
       // segmented choices
@@ -285,7 +292,8 @@ window.G = window.G || {};
         inp.onchange = () => {
           save();
           // (a test sound at the new volume)
-          if (inp.id === "set-sfxVolume") { G.Audio.unlock(); G.Audio.sfx("pickup"); }
+          // (overhaul, round 3: on its own bus -- the words only from their button)
+          if (inp.dataset.key && inp.dataset.key !== "speechVolume") G.Audio.testBus(inp.dataset.key.replace("Volume", ""));
         };
       });
       // switches
@@ -297,6 +305,8 @@ window.G = window.G || {};
       click("btn-hudcfg", () => G.HudCfg.openEditor());
       click("btn-touchcfg", () => G.TouchCfg.openEditor());
       click("btn-speech-test", () => { G.Audio.unlock(); G.Audio.speak(G.Lang.sample()); });
+      // (overhaul, round 3) each fader's test sound, on its own bus
+      wrap.querySelectorAll(".set-vtest").forEach((b) => { b.onclick = () => G.Audio.testBus(b.dataset.key.replace("Volume", "")); });
       click("btn-lang-swap", () => { if (!inRun) this.setLangs({ word: G.Lang.meaning(), meaning: G.Lang.word() }); });
       click("btn-reset-keybinds", () => { s.keybinds = G.defaultKeybinds(); save(); this.render(); });
       wrap.querySelectorAll(".keybind-btn").forEach((b) => { b.onclick = () => { b.textContent = "..."; G.Input.rebindingAction = b.dataset.action; }; });
