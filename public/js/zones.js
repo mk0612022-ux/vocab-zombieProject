@@ -144,7 +144,9 @@ G.Zones = {
       b.setFromObject(o);
       if (b.isEmpty()) return;
       const meshes = [];
-      o.traverse((c) => { if (c.isMesh || c.isPoints || c.isLine) meshes.push(c); });
+      // (a sprite inside a group too -- a note's halo -- or it was drawn from
+      // anywhere; the sky's own sprites, the moon and the clouds, are left be)
+      o.traverse((c) => { if (c.isMesh || c.isPoints || c.isLine || (c.isSprite && c !== o)) meshes.push(c); });
       if (!meshes.length) return;
       const zone = o.userData.zone || this.keyOfBox(world, b);
       const it = { obj: o, meshes, box: b.clone(), zone, on: true, cls: zone[0] };

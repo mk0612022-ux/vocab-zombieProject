@@ -482,6 +482,17 @@
       this.q = G.save.settings.graphicsQuality;
       this._lutDefs = lutDefs;
       G.Post.init(r);
+      // (an InstancedMesh with no instances left -- a pool not yet used, grass
+      // thinned to nothing -- still has its program and uniforms set up in
+      // three.js r128, though nothing is drawn: skipped, here and in the
+      // shadow maps, which go through the same function)
+      if (!r._vzRbd) {
+        const rbd = r._vzRbd = r.renderBufferDirect;
+        r.renderBufferDirect = function (camera, scene, geometry, material, object, group) {
+          if (object && object.isInstancedMesh && object.count === 0) return;
+          return rbd.apply(this, arguments);
+        };
+      }
       this.ready = true;
     },
 

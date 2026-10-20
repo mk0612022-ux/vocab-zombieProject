@@ -525,11 +525,17 @@
       const T = world.dressThin || (world.dressThin = { x: 1e9, z: 1e9 });
       if (!force && Math.abs(at.x - T.x) + Math.abs(at.z - T.z) < 0.75) return;
       T.x = at.x; T.z = at.z;
+      // (visual series, round 3: a chunk wholly past the fog cannot be seen --
+      // not drawn at all, as js/zones.js does for the rest of the level)
+      const fog = G.Game && G.Game.scene && G.Game.scene.fog, past = fog && fog.far ? fog.far + 6 : Infinity;
       (world.dressDetails || []).forEach((dd) => {
-        if (!dd.thin || dd.qk == null) return;
+        if (dd.qk == null || !dd.mesh.geometry.boundingBox) return;
         const b = dd.mesh.geometry.boundingBox;
         const d = Math.hypot(Math.max(b.min.x - at.x, 0, at.x - b.max.x), Math.max(b.min.z - at.z, 0, at.z - b.max.z));
-        const n = Math.round(dd.max * dd.qk / MAXK * farK(d));
+        // (what does not thin -- the leaves, the paper, the vines -- is only
+        // left out past the fog)
+        if (!dd.thin) { const n = dd.mesh.isPoints ? dd.mesh.geometry.drawRange.count : dd.mesh.count; dd.mesh.visible = n > 0 && d <= past; return; }
+        const n = d > past ? 0 : Math.round(dd.max * dd.qk / MAXK * farK(d));
         const near = !dd.far || d < (world.dressLod != null ? world.dressLod : LOD_D);
         dd.mesh.count = n; dd.mesh.visible = n > 0 && near;
         if (dd.far) { dd.far.count = n; dd.far.visible = n > 0 && !near; }
