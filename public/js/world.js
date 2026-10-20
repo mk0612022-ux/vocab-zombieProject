@@ -708,6 +708,9 @@ G.buildLevelScene = function (scene, level, quality) {
   // An unshaded "glowing" sign/light box (exit signs, warning labels, LED strips).
   function addGlowBox(x, y, z, w, h, d, color, ry) {
     const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshBasicMaterial({ color }));
+    // (visual series, round 2: a sign glows -- over 1.0 in the HDR picture,
+    // js/lightfx.js; a lamp or an important thing is re-tagged there)
+    m.material.userData.vzGlow = "sign";
     m.position.set(x, y, z);
     if (ry) m.rotation.y = ry;
     scene.add(m);
@@ -1236,9 +1239,9 @@ G.buildLevelScene = function (scene, level, quality) {
       scene.add(shutter);
       const shutterCollider = new THREE.Box3().setFromObject(shutter);
       world.colliders.push(shutterCollider);
-      addGlowBox(0, 3.75, Z1 + 0.15, SX * 2 + 0.3, 0.14, 0.26, 0xffcc33);
+      const strip = addGlowBox(0, 3.75, Z1 + 0.15, SX * 2 + 0.3, 0.14, 0.26, 0xffcc33);
       world.secondFloor = {
-        unlocked: false, barrierMesh: shutter, barrierCollider: shutterCollider,
+        unlocked: false, barrierMesh: shutter, barrierCollider: shutterCollider, strip,
         killsNeeded: cfg.upperKills || 20, countMode: "correct", room: { cx: 0, cz: 0 }, floorY: F2,
         cratePositions: [new THREE.Vector3(-4, F2 + 0.3, ENTRY.cz - 2), new THREE.Vector3(EX, F2 + 0.3, cfg.rows[0].cz)],
       };

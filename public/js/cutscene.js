@@ -426,6 +426,8 @@
         ].join("\n"),
       }));
       const ring = new THREE.Mesh(new THREE.TorusGeometry(1, 0.05, 8, 48), new THREE.MeshBasicMaterial({ color: 0xc27aff }));
+      // (visual series, round 2, I: the portal's rim glows -- the bloom takes it)
+      if (G.VISUAL && G.VISUAL.tiers) ring.material.color.multiplyScalar(G.VISUAL.tiers.hero.glow * 0.6);
       const g = new THREE.Group();
       g.add(disc); g.add(ring);
       g.position.set(pc.x, c.F + 3.3, pc.z);

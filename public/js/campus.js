@@ -675,7 +675,9 @@
         P.box(scene, 0.22, 4.6, 0.22, post, x, 2.3, z);
         P.box(scene, 0.9, 0.26, 0.5, post, x, 4.6, z);
         S.col(x - 0.16, 0, z - 0.16, x + 0.16, 4.6, z + 0.16);
-        if (lit) { api.addGlowBox(x, 4.44, z, 0.62, 0.06, 0.36, 0xffd9a0); const l = api.addLight(x, 4.3, z, 0xffcf96, 0.8, 2.4); l.distance = 15; }
+        // (visual series, round 2: the head glows as a lamp; its light gets a
+        // cone and a pool on the ground -- js/lightfx.js)
+        if (lit) { const head = api.addGlowBox(x, 4.44, z, 0.62, 0.06, 0.36, 0xffd9a0); head.material.userData.vzGlow = "lamp"; const l = api.addLight(x, 4.3, z, 0xffcf96, 0.8, 2.4); l.distance = 15; l.userData.lampKind = "post"; }
         else P.box(scene, 0.62, 0.06, 0.36, P.lam(0x2a2a28), x, 4.44, z);
         world.perches.push({ x, y: 4.75, z, yaw: 0 });
       });

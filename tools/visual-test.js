@@ -4,7 +4,9 @@
 //   dark      the share of near-black pixels (luminance under 10 of 255),
 //             leaving out the corners the vignette darkens
 //   zombies   how a zombie stands out from what is behind it at combat range
-//             (the frame with it against the same frame without it)
+//             (the frame with it against the same frame without it); from
+//             visual round 2 on also over its body alone (body*: the pixels
+//             it marks in the HDR picture, without the glow round its eyes)
 //   labels    the contrast of a word against its plate where the plate lies
 //             on the brightest part of the picture behind it (WCAG ratio)
 //   fps       the frame cost at each spot with a crowd about (G.PerfMeasure's
@@ -126,6 +128,9 @@ G.VisualTest = {
     if (zb) { zb.speed = 0; zb.mesh.rotation.y = g.yawObject.rotation.y; zb.mesh.traverse((o) => { o.castShadow = false; }); }
     this.render();
     const fg = this.grab(320);
+    // (visual series round 2 on: the zombie's own pixels, as it marks them in
+    // the HDR picture's alpha -- its body alone, without the glow round its eyes)
+    const body = this.zombieMask();
     this.clear();
     // per pixel too: a zombie of light and dark parts can average out to the
     // background's brightness and still stand out everywhere -- `visible` is
@@ -145,8 +150,45 @@ G.VisualTest = {
     if (!n) return { dist, px: 0, ratio: 0, visible: 0 };
     lz /= n; lb /= n;
     per.sort((x, y) => x - y);
-    return { dist, px: n, zombieLum: +lz.toFixed(4), backLum: +lb.toFixed(4), ratio: +this.ratio(lz, lb).toFixed(2),
+    const row = { dist, px: n, zombieLum: +lz.toFixed(4), backLum: +lb.toFixed(4), ratio: +this.ratio(lz, lb).toFixed(2),
       visible: +(vis / n * 100).toFixed(1), medianPx: +per[Math.floor(per.length / 2)].toFixed(2) };
+    if (body) {
+      const bp = [];
+      let bv = 0;
+      for (let i = 0; i < fg.data.length; i += 4) {
+        if (!body[i / 4]) continue;
+        const r = this.ratio(this.rel(fg.data[i], fg.data[i + 1], fg.data[i + 2]), this.rel(bg.data[i], bg.data[i + 1], bg.data[i + 2]));
+        bp.push(r);
+        if (r >= 1.5) bv++;
+      }
+      bp.sort((x, y) => x - y);
+      if (bp.length) Object.assign(row, { bodyPx: bp.length, bodyVisible: +(bv / bp.length * 100).toFixed(1), bodyMedian: +bp[Math.floor(bp.length / 2)].toFixed(2) });
+    }
+    return row;
+  },
+  // which pixels of the last frame a zombie marked (alpha under 0.75 in the
+  // HDR picture), at grab(320)'s size; null before the mark existed
+  zombieMask() {
+    const V = G.Visuals, u = V && V.compMat && V.compMat.uniforms;
+    if (!u || !u.uZom || !u.tScene.value) return null;
+    const r = G.Game.renderer;
+    if (!this._mq) {
+      const m = new THREE.ShaderMaterial({
+        uniforms: { t: { value: null } },
+        vertexShader: "varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4( position.xy, 0.0, 1.0 ); }",
+        fragmentShader: "uniform sampler2D t; varying vec2 vUv; void main() { gl_FragColor = vec4( vec3( 1.0 - step( 0.75, texture2D( t, vUv ).a ) ), 1.0 ); }",
+        depthTest: false, depthWrite: false,
+      });
+      const s = new THREE.Scene();
+      s.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), m));
+      this._mq = { m, s, cam: new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1) };
+    }
+    this._mq.m.uniforms.t.value = u.tScene.value;
+    r.setRenderTarget(null);
+    r.render(this._mq.s, this._mq.cam);
+    const img = this.grab(320), out = new Uint8Array(img.w * img.h);
+    for (let i = 0; i < out.length; i++) out[i] = img.data[i * 4] > 127 ? 1 : 0;
+    return out;
   },
   // a word over a zombie at `dist`: its text against its plate over the
   // brightest of what lies behind the label (the frame without the label)
@@ -207,8 +249,10 @@ G.VisualTest = {
           this.place(s);
           for (let i = 0; i < 24; i++) { g._vtUpd.call(g, 1 / 60); this.place(s); }
           this.render();
-          if (opts.pictures !== false) await this.post(prefix + "_" + q + "_" + s[0], g.renderer.domElement);
+          // (measured before the picture is posted: once the page has waited, a
+          // browser that composited the frame meanwhile has cleared the canvas)
           const row = Object.assign({ quality: q, spot: s[0] }, this.darkStats(this.grab(320)));
+          if (opts.pictures !== false) { this.render(); await this.post(prefix + "_" + q + "_" + s[0], g.renderer.domElement); }
           // the same view with a line of zombies and their words (E1, E2)
           if (opts.crowd && opts.pictures !== false) {
             const far = Math.max(6, this.clearAhead(24));

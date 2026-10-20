@@ -161,10 +161,15 @@ G.Round18Test = (function () {
       const a = out(), b = out(), A = new Uint8Array(W * H * 4), B = new Uint8Array(W * H * 4);
       const vig = u.uVig.value, dit = u.uDither.value;
       u.uVig.value = 0; u.uDither.value = 0; u.tScene.value = src.texture;
+      // (round 2: the composite's other inputs -- bloom, the air, the rays, the
+      // AO, the framing -- off for the comparison: only the film is compared)
+      const keep = u.uAirK ? [u.uAirK.value, u.uBloomK.value, u.uGodCol.value.clone(), u.uAOK.value, u.uFogVK.value, u.uFrame.value.w] : null;
+      if (keep) { u.uAirK.value = 0; u.uBloomK.value = 0; u.uGodCol.value.setRGB(0, 0, 0); u.uAOK.value = 0; u.uFogVK.value = 0; u.uFrame.value.w = 0; }
       r.setRenderTarget(a); r.render(VZ.compScene, VZ.ortho); r.readRenderTargetPixels(a, 0, 0, W, H, A);
       r.setRenderTarget(b); r.render(sc2, VZ.ortho); r.readRenderTargetPixels(b, 0, 0, W, H, B);
       r.setRenderTarget(null);
       u.uVig.value = vig; u.uDither.value = dit;
+      if (keep) { u.uAirK.value = keep[0]; u.uBloomK.value = keep[1]; u.uGodCol.value.copy(keep[2]); u.uAOK.value = keep[3]; u.uFogVK.value = keep[4]; u.uFrame.value.w = keep[5]; }
       const hist = new Array(256).fill(0); let sum = 0, n = 0;
       for (let i = 0; i < A.length; i += 4) for (let k = 0; k < 3; k++) { const d = Math.abs(A[i + k] - B[i + k]); hist[d]++; sum += d; n++; }
       let acc = 0, p99 = 0; for (let d = 0; d < 256; d++) { acc += hist[d]; if (acc >= n * 0.99) { p99 = d; break; } }

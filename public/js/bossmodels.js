@@ -93,7 +93,11 @@
     return m;
   }
   function bake(rig) {
-    const SH = { lambert: new THREE.MeshLambertMaterial({ vertexColors: true }), basic: new THREE.MeshBasicMaterial({ vertexColors: true }) };
+    // (visual series, round 2, G: a boss's lit parts take the strong rim --
+    // its own material each, as the boss's code tints it: js/bosses.js)
+    const lit = G.Visuals && G.Visuals.ready && G.Visuals.bossMaterial ? G.Visuals.bossMaterial() : new THREE.MeshLambertMaterial({ vertexColors: true });
+    const SH = { lambert: lit, basic: new THREE.MeshBasicMaterial({ vertexColors: true }) };
+    if (G.Visuals && G.Visuals.ready) SH.basic.userData.vzMark = true;     // (kept clear of the haze, as a zombie is)
     rig.shared = SH;
     const hold = new Set(rig.keep.concat(rig.hitboxes).concat(rig.joints));
     [rig.root].concat(rig.joints).forEach((j) => {

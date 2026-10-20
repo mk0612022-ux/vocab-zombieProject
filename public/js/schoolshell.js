@@ -249,12 +249,13 @@
             const fx = s * X;
             // (kept, so a zombie spawn that comes in by a window can take one
             // over and break it -- js/zombiefx.js)
-            const win = { x: fx, z, base, s, region: reg.name, meshes: [], curtains: [], real: true };
+            const win = { x: fx, z, base, s, region: reg.name, meshes: [], curtains: [], real: true, behind: null };
             [[0, 0.7, 1.6, 0.08], [0, -0.7, 1.6, 0.08], [-0.76, 0, 0.08, 1.45], [0.76, 0, 0.08, 1.45], [0, 0, 0.05, 1.3]].forEach(([dz2, dy, w, h]) => win.meshes.push(P.box(scene, 0.07, h, w, frame, fx - s * 0.035, y + dy, z + dz2)));
             win.meshes.push(P.box(scene, 0.22, 0.06, 1.8, sill, fx - s * 0.11, y - 0.76, z));
             // the dark room behind it, for the view from outside
             const dark = P.box(scene, 0.9, O.head - O.sill + 0.2, O.w + 0.2, behind[lightOf(reg.name)] || behind.off, fx - s * 0.47, base + (O.sill + O.head) / 2, z);
             dark.userData.zone = "Y";
+            win.behind = dark;              // (visual series, round 2: a few are lit warm from inside -- js/lightfx.js)
             // the glass (js/glass.js) at the middle of the wall
             world.realWindows.push({ x: s * (X + 0.2), z, base, s, y0: base + O.sill, y1: base + O.head, w: O.w, region: reg.name, win });
             if (!world.windowRooms.includes(reg.name)) world.windowRooms.push(reg.name);

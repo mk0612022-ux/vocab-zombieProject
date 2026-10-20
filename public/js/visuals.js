@@ -50,6 +50,7 @@
     vzIndoor: { value: new THREE.Vector2(1, 1) },               // moon, sky kept indoors
     vzDetailMap: { value: null },
     vzDetailP: { value: new THREE.Vector4(0, 0, 1, 0.85) },     // albedo, normal, per metre, from roughness
+    vzPulse: { value: 1 },                                       // (round 2) an important thing's rim, breathing (js/lightfx.js)
   };
 
   // ---------------------------------------------------------- shader chunks
@@ -201,8 +202,11 @@
     THREE.Material.prototype.customProgramCacheKey = function () {
       const ud = this.userData || {};
       let k = "vz";
-      if (ud.vzRim) k += "|r" + ud.vzRim.color.getHexString() + ud.vzRim.power;
-      if (ud.vzMinLight) k += "|m" + ud.vzMinLight.getHexString();
+      if (ud.vzRim) k += "|r" + col(ud.vzRim.color).getHexString() + ud.vzRim.power + (ud.vzRim.outdoor ? "o" : "") + (ud.vzRim.pulse ? "p" : "");
+      if (ud.vzMinLight) k += "|m" + col(ud.vzMinLight).getHexString();
+      if (ud.vzSpill) k += "|s";
+      if (ud.vzMark && !this.transparent) k += "|z";
+      else if (this.alphaTest > 0 && !this.transparent) k += "|a";
       if (ud.vzDetail && G.Visuals && G.Visuals.cfgQ().detail) k += "|d";
       if (this._vzObc) k += "|" + this._vzObc.toString();
       return k;
@@ -263,11 +267,13 @@
     "}",
   ].join("\n");
   // (the table: VZ_LUT_N steps a channel, the blue steps laid out as tiles,
-  // VZ_LUT_T to a row -- 64 steps make a 512 x 512 texture. A colour goes in
-  // through sqrt( c / ( 1 + c ) ): every brightness the HDR frame holds fits,
+  // VZ_LUT_T to a row -- 64 steps make a 512 x 512 texture. It is looked up
+  // with x, the scene's value squared -- a cheap step towards linear light,
+  // where the bloom, the light in the air and the rays are added (round 2) --
+  // through sqrt( x / ( 1 + x ) ): every brightness the HDR frame holds fits,
   // with more steps for the dark ones)
   const LUT_GLSL = [
-    "vec3 vzLutIn( vec3 c ) { return sqrt( max( c, 0.0 ) / ( 1.0 + max( c, 0.0 ) ) ); }",
+    "vec3 vzLutIn( vec3 x ) { return sqrt( max( x, 0.0 ) / ( 1.0 + max( x, 0.0 ) ) ); }",
     "vec3 vzLutOut( vec3 s ) { s = min( s * s, 0.9995 ); return s / ( 1.0 - s ); }",
   ].join("\n");
   const LUT_FRAG = [
@@ -277,13 +283,34 @@
     "  vec2 f = floor( gl_FragCoord.xy );",
     "  vec2 t = floor( ( f + 0.5 ) / VZ_LUT_N );",
     "  vec3 s = vec3( f - t * VZ_LUT_N, t.y * VZ_LUT_T + t.x );",
-    "  gl_FragColor = vec4( vzFilm( vzLutOut( s / ( VZ_LUT_N - 1.0 ) ) ), 1.0 );",
+    "  gl_FragColor = vec4( vzFilm( sqrt( vzLutOut( s / ( VZ_LUT_N - 1.0 ) ) ) ), 1.0 );",
     "}",
   ].join("\n");
   const COMPOSITE_FRAG = [
     "uniform sampler2D tScene; uniform sampler2D tLut;",
     "uniform vec2 uRes;",
     "uniform float uVig; uniform float uVigStart; uniform float uDither; uniform float uTime;",
+    // (round 2: what js/post.js made this frame -- each compiled in only at the
+    // graphics levels that have it; the strengths can be set to 0 by the tests)
+    "#ifdef VZ_DEPTH",
+    "uniform sampler2D tDepth; uniform vec2 uCam; uniform float uDR; uniform vec4 uFrame; uniform float uZom;",
+    "float vzViewZ( float d ) { float z = clamp( ( d - uDR ) / ( 1.0 - uDR ), 0.0, 1.0 ) * 2.0 - 1.0; return 2.0 * uCam.x * uCam.y / ( uCam.y + uCam.x - z * ( uCam.y - uCam.x ) ); }",
+    "#endif",
+    "#ifdef VZ_AIR",
+    "uniform sampler2D tAir; uniform float uAirK;",
+    "#endif",
+    "#ifdef VZ_BLOOM",
+    "uniform sampler2D tBloom; uniform float uBloomK;",
+    "#endif",
+    "#ifdef VZ_GOD",
+    "uniform sampler2D tGod; uniform vec3 uGodCol;",
+    "#endif",
+    "#ifdef VZ_AO",
+    "uniform sampler2D tAO; uniform float uAOK;",
+    "#endif",
+    "#ifdef VZ_FOGV",
+    "uniform sampler2D tFogV; uniform float uFogVK;",
+    "#endif",
     "varying vec2 vUv;",
     LUT_GLSL,
     "vec3 vzLut( vec3 c ) {",
@@ -316,10 +343,47 @@
     "void main() {",
     // (FXAA compiled in only where it is on: High and up)
     "  #ifdef VZ_FXAA",
-    "  vec3 d = vzLut( vzFxaa( vUv ) );",
+    "  vec3 c = max( vzFxaa( vUv ), 0.0 );",
     "  #else",
-    "  vec3 d = vzLut( texture2D( tScene, vUv ).rgb );",
+    "  vec3 c = max( texture2D( tScene, vUv ).rgb, 0.0 );",
     "  #endif",
+    "  #ifdef VZ_DEPTH",
+    // (the gun in hand is drawn in front of the world's depth range; a
+    // zombie marks its pixels with alpha 0.5 -- kept clear of the haze, E2)
+    "  float dz = texture2D( tDepth, vUv ).r;",
+    "  float gun = step( dz, uDR - 1e-5 ), sky = step( 0.99999, dz );",
+    "  float zom = ( 1.0 - step( 0.75, texture2D( tScene, vUv ).a ) ) * uZom;",
+    "  #endif",
+    // H: the light in the air -- shafts added, fog sheets laid over
+    "  #ifdef VZ_AIR",
+    "  vec4 air = texture2D( tAir, vUv ) * uAirK * ( 1.0 - zom );",
+    "  c = c * ( 1.0 - clamp( air.a, 0.0, 1.0 ) ) + air.rgb;",
+    "  #endif",
+    "  vec3 x = c * c;",
+    "  #ifdef VZ_AO",
+    "  x *= mix( 1.0, texture2D( tAO, vUv ).r, uAOK * ( 1.0 - gun ) * ( 1.0 - sky ) * ( 1.0 - zom ) );",
+    "  #endif",
+    "  #ifdef VZ_FOGV",
+    "  vec4 fv = texture2D( tFogV, vUv );",
+    "  x = mix( x, x * fv.a + fv.rgb, uFogVK * ( 1.0 - zom ) );",
+    "  #endif",
+    // I: bloom; H: the rays from the moon (fainter over the gun)
+    "  #ifdef VZ_BLOOM",
+    "  x += texture2D( tBloom, vUv ).rgb * uBloomK;",
+    "  #endif",
+    "  #ifdef VZ_GOD",
+    "  x += texture2D( tGod, vUv ).rgb * uGodCol * ( 1.0 - 0.7 * gun ) * ( 1.0 - zom );",
+    "  #endif",
+    // K: what is right in front of the camera at the picture's edges goes
+    // darker, framing the view
+    "  #ifdef VZ_DEPTH",
+    "  if ( uFrame.w > 0.0 && gun < 0.5 ) {",
+    "    vec2 e = abs( vUv * 2.0 - 1.0 );",
+    "    float edge = smoothstep( uFrame.y, 1.0, max( e.x, e.y ) );",
+    "    x *= 1.0 - uFrame.z * uFrame.w * edge * ( 1.0 - smoothstep( uFrame.x * 0.5, uFrame.x, vzViewZ( dz ) ) );",
+    "  }",
+    "  #endif",
+    "  vec3 d = vzLut( x );",
     "  vec2 p = vUv * 2.0 - 1.0;",
     "  float r = length( p ) / 1.41421;",
     "  d *= 1.0 - uVig * smoothstep( uVigStart, 1.0, r );",
@@ -359,12 +423,19 @@
       this.shadowCalls = 0;
       SM.render = (lights, scene, camera) => {
         const c0 = r.info.render.calls;
+        // (round 2: shadow maps in the full depth range, whatever the frame's)
+        if (this._dr) this.gl.depthRange(0, 1);
         drawShadows.call(SM, this._skip.size ? lights.filter((l) => !this._skip.has(l)) : lights, scene, camera);
+        if (this._dr) this.gl.depthRange(G.Post.DR, 1);
         this.shadowCalls += r.info.render.calls - c0;
       };
       const gl = r.getContext();
       this.hdr = r.capabilities.isWebGL2 ? !!(gl.getExtension("EXT_color_buffer_float") || gl.getExtension("EXT_color_buffer_half_float"))
         : !!(gl.getExtension("OES_texture_half_float") && gl.getExtension("EXT_color_buffer_half_float"));
+      // (round 2: the scene's depth as a texture, for the light in the air, the
+      // rays, the AO and the framing -- WebGL2, or WebGL1 with the extension)
+      this.depthOK = r.capabilities.isWebGL2 || !!gl.getExtension("WEBGL_depth_texture");
+      this.gl = gl;
       this.ortho = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
       // the film's colour table, and what fills it (the grade's uniforms are
       // shared: applyGrade sets them, the table is filled again before the next frame)
@@ -382,6 +453,11 @@
           uMidTint: { value: new THREE.Color() }, uMidAmt: { value: 0 }, uHighTint: { value: new THREE.Color() }, uHighAmt: { value: 0 },
           uSat: { value: 1 }, uWarmKeep: { value: 1 }, uContrast: { value: 1 },
           uVig: { value: 0 }, uVigStart: { value: 0.55 }, uDither: { value: 1 }, uTime: { value: 0 },
+          // (round 2: js/post.js; the depth ones are its shared uniforms)
+          tDepth: G.Post.DU.tDepth, uCam: G.Post.DU.uCam, uDR: G.Post.DU.uDR, uFrame: { value: new THREE.Vector4() }, uZom: { value: 0.8 },
+          tAir: { value: null }, uAirK: { value: 1 }, tBloom: { value: null }, uBloomK: { value: 0 },
+          tGod: { value: null }, uGodCol: { value: new THREE.Color() }, tAO: { value: null }, uAOK: { value: 1 },
+          tFogV: { value: null }, uFogVK: { value: 1 },
         },
         defines: Object.assign({}, lutDefs),
         vertexShader: VERT,
@@ -404,6 +480,8 @@
       this.detailTexture();
       this.applyGrade(null);
       this.q = G.save.settings.graphicsQuality;
+      this._lutDefs = lutDefs;
+      G.Post.init(r);
       this.ready = true;
     },
 
@@ -466,23 +544,48 @@
     },
 
     // --------------------------------------------------------- the frame
+    // (round 2) does this graphics level read the scene's depth -- for the
+    // light in the air, the rays, the AO, the framing? Only with the HDR picture
+    wantsDepth(Q) {
+      Q = Q || this.cfgQ();
+      return !!(this.depthOK && this.hdr && Q.hdr !== false && (Q.air || Q.godRays || Q.ssao || Q.raymarch));
+    },
     target(r) {
       const s = r.getDrawingBufferSize(this._sz || (this._sz = new THREE.Vector2()));
       const w = Math.max(1, s.x | 0), h = Math.max(1, s.y | 0);
       const msaa = r.capabilities.isWebGL2 ? Math.min(this.cfgQ().msaa || 0, r.capabilities.maxSamples || 0) : 0;
       const hdr = this.hdr && this.cfgQ().hdr !== false;           // (8-bit on the lowest levels: half the memory traffic)
-      const key = w + "x" + h + "@" + msaa + (hdr ? "h" : "b");
+      const depth = msaa === 0 && this.wantsDepth();
+      const key = w + "x" + h + "@" + msaa + (hdr ? "h" : "b") + (depth ? "d" : "");
       if (this._rt && this._rtKey === key) return this._rt;
-      if (this._rt) this._rt.dispose();
+      if (this._rt) { if (this._rt.depthTexture) this._rt.depthTexture.dispose(); this._rt.dispose(); }
       const opts = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat,
         type: hdr ? THREE.HalfFloatType : THREE.UnsignedByteType, depthBuffer: true, stencilBuffer: false };
       let rt;
       if (msaa > 0 && THREE.WebGLMultisampleRenderTarget) { rt = new THREE.WebGLMultisampleRenderTarget(w, h, opts); rt.samples = msaa; }
       else rt = new THREE.WebGLRenderTarget(w, h, opts);
       rt.texture.generateMipmaps = false;
+      // (24-bit: three.js makes an UnsignedInt depth texture DEPTH_COMPONENT24 on WebGL2)
+      if (depth) { rt.depthTexture = new THREE.DepthTexture(w, h); rt.depthTexture.type = THREE.UnsignedIntType; rt.depthTexture.format = THREE.DepthFormat; }
       this._rt = rt; this._rtKey = key;
       this.compMat.uniforms.uRes.value.set(w, h);
       return rt;
+    },
+    // the composite's parts for a graphics level (each a define: only what is
+    // on is compiled in)
+    compDefines(Q, deep, bloom) {
+      const defs = Object.assign({}, this._lutDefs);
+      if (Q.fxaa) defs.VZ_FXAA = 1;
+      if (deep) {
+        defs.VZ_DEPTH = 1;
+        if (Q.air) defs.VZ_AIR = 1;
+        if (Q.ssao) defs.VZ_AO = 1;
+        if (Q.godRays) defs.VZ_GOD = 1;
+        if (Q.raymarch) defs.VZ_FOGV = 1;
+      }
+      if (bloom) defs.VZ_BLOOM = 1;
+      const dk = Object.keys(defs).sort().join(",");
+      if (dk !== this._compKey) { this._compKey = dk; this.compMat.defines = defs; this.compMat.needsUpdate = true; }
     },
     render(game) {
       const r = game.renderer, sc = game.scene;
@@ -502,10 +605,17 @@
       if (near && !dueNear) this._skip.add(near);
       if (far && !dueFar) this._skip.add(far);
       this._shadowDirty = false; this._farDirty = false;
+      const Q = this.cfgQ(), gl = this.gl;
       const rt = this.target(r);
+      const deep = !!rt.depthTexture;
       if (this._lutDirty) this.bakeLut(r);
       r.setRenderTarget(rt);
       r.autoClear = true;
+      // (round 2: with the depth as a texture, the world goes into depth
+      // 0.01 - 1 and the gun in hand into 0 - 0.01 -- in front of everything,
+      // with no clear between them, so the one texture holds both. The shadow
+      // maps are drawn in the full range: js/visuals.js init)
+      if (deep) { this._dr = true; gl.depthRange(G.Post.DR, 1); }
       r.render(sc, cam);
       // (the passes after the first: every matrix is up to date already --
       // updating the level's two thousand objects again cost a millisecond each)
@@ -519,19 +629,28 @@
         if (vm.fov !== cam.fov || vm.aspect !== cam.aspect) { vm.fov = cam.fov; vm.aspect = cam.aspect; vm.updateProjectionMatrix(); }
         vm.matrixAutoUpdate = false;
         r.autoClear = false;
-        r.clearDepth();
+        if (deep) gl.depthRange(0, G.Post.DR); else r.clearDepth();
         const bg = sc.background;
         sc.background = null;
         r.shadowMap.needsUpdate = false;
         r.render(sc, vm);
         sc.background = bg;
       }
+      if (deep) { gl.depthRange(0, 1); this._dr = false; }
+      // (round 2: bloom, the light in the air, the rays, the AO -- js/post.js)
+      cam.updateMatrixWorld();
+      const po = G.Post.run(game, rt, cam, Q);
       // the film, onto the screen
       r.setRenderTarget(null);
       const u = this.compMat.uniforms;
       u.tScene.value = rt.texture;
-      const fx = !!this.cfgQ().fxaa, D = this.compMat.defines;
-      if (fx !== !!D.VZ_FXAA) { if (fx) D.VZ_FXAA = 1; else delete D.VZ_FXAA; this.compMat.needsUpdate = true; }
+      this.compDefines(Q, deep, !!po.bloom);
+      u.tAir.value = po.air; u.tBloom.value = po.bloom; u.uBloomK.value = CFG().bloom.strength;
+      u.tGod.value = po.god; if (po.god) u.uGodCol.value.setHex(CFG().godRays.color); else u.uGodCol.value.setRGB(0, 0, 0);
+      u.tAO.value = po.ao; u.tFogV.value = po.fogv;
+      const Fr = CFG().framing;
+      u.uFrame.value.set(Fr.near, Fr.edge, Fr.amount, deep ? 1 : 0);
+      u.uZom.value = CFG().zombies.clearOfAir != null ? CFG().zombies.clearOfAir : 0.8;
       u.uTime.value = (this.frame % 997) * 0.37;
       r.autoClear = false;
       r.render(this.compScene, this.ortho);
@@ -565,21 +684,58 @@
       if (mat.isMeshLambertMaterial && mat.side === THREE.DoubleSide) {
         f = f.replace("( gl_FrontFacing ) ? vIndirectFront : vIndirectBack", "vIndirectFront").replace("( gl_FrontFacing ) ? vLightFront : vLightBack", "vLightFront");
       }
-      if (ud.vzRim || ud.vzMinLight) {
+      let v = shader.vertexShader;
+      const perPixel = mat.isMeshStandardMaterial || mat.isMeshPhongMaterial, lambert = mat.isMeshLambertMaterial;
+      if (ud.vzRim || ud.vzMinLight || ud.vzSpill) {
         const add = [];
         if (ud.vzMinLight) add.push("reflectedLight.indirectDiffuse += diffuseColor.rgb * " + vec3(ud.vzMinLight) + ";");
         if (ud.vzRim) {
           // the rim: brightest at the silhouette, a little stronger on the
-          // side the moon is on
-          add.push("{ float vzF = pow( 1.0 - saturate( dot( normal, geometry.viewDir ) ), " + num(ud.vzRim.power) + " );");
-          add.push("  float vzM = 0.55;");
-          add.push("  #if NUM_DIR_LIGHTS > 0");
-          add.push("  vzM = 0.45 + 0.55 * saturate( dot( normal, directionalLights[ 0 ].direction ) * 0.5 + 0.6 );");
-          add.push("  #endif");
-          add.push("  reflectedLight.directDiffuse += " + vec3(ud.vzRim.color) + " * vzF * vzM; }");
+          // side the moon is on. (round 2: `outdoor` -- the buildings' faint
+          // one, out of doors only; `pulse` -- an important thing's, breathing
+          // slowly with G.Visuals.U.vzPulse)
+          const R = ud.vzRim, extra = (R.outdoor ? " * vzOut" : "") + (R.pulse ? " * vzPulse" : "");
+          if (R.pulse) f = "uniform float vzPulse;\n" + f;
+          if (perPixel) {
+            add.push("{ float vzF = pow( 1.0 - saturate( dot( normal, geometry.viewDir ) ), " + num(R.power) + " );");
+            add.push("  float vzM = 0.55;");
+            add.push("  #if NUM_DIR_LIGHTS > 0");
+            add.push("  vzM = 0.45 + 0.55 * saturate( dot( normal, directionalLights[ 0 ].direction ) * 0.5 + 0.6 );");
+            add.push("  #endif");
+            add.push("  reflectedLight.directDiffuse += " + vec3(R.color) + " * vzF * vzM" + extra + "; }");
+          } else if (lambert && typeof v === "string") {
+            // (lit per vertex: the rim per vertex too, the same way)
+            v = "varying vec3 vVzRim;\n" + v.replace("#include <lights_lambert_vertex>", [
+              "#include <lights_lambert_vertex>",
+              "{ vec3 vzN = normalize( transformedNormal ), vzV = normalize( -mvPosition.xyz );",
+              "  float vzF = pow( 1.0 - saturate( abs( dot( vzN, vzV ) ) ), " + num(R.power) + " );",
+              "  float vzM = 0.55;",
+              "  #if NUM_DIR_LIGHTS > 0",
+              "  vzM = 0.45 + 0.55 * saturate( dot( vzN, directionalLights[ 0 ].direction ) * 0.5 + 0.6 );",
+              "  #endif",
+              "  vVzRim = " + vec3(R.color) + " * vzF * vzM" + (R.outdoor ? " * vzOut" : "") + "; }",
+            ].join("\n"));
+            f = "varying vec3 vVzRim;\n" + f;
+            add.push("reflectedLight.directDiffuse += vVzRim" + (R.pulse ? " * vzPulse" : "") + ";");
+          }
+        }
+        // (round 2, J: the light the lamps that never move spill round them,
+        // baked into the vertices when the level loads -- js/lightfx.js)
+        if (ud.vzSpill && typeof v === "string") {
+          v = "attribute vec3 vzSpill;\nvarying vec3 vVzSpill;\n" + v.replace("#include <begin_vertex>", "#include <begin_vertex>\nvVzSpill = vzSpill * " + num(CFG().spill.max) + ";");
+          f = "varying vec3 vVzSpill;\n" + f;
+          add.push("reflectedLight.indirectDiffuse += diffuseColor.rgb * vVzSpill;");
         }
         f = f.replace("#include <aomap_fragment>", "#include <aomap_fragment>\n" + add.join("\n"));
       }
+      if (typeof v === "string") shader.vertexShader = v;
+      // (round 2: a zombie marks its pixels in the HDR picture's alpha, so the
+      // composite keeps the haze in the air, the SSAO and the rays off it)
+      // (never a see-through one: its alpha is what it is blended by)
+      // (and a cut-out one -- a leaf, a paper -- keeps a whole alpha, its soft
+      // edge never mistaken for a zombie)
+      if (ud.vzMark && !mat.transparent) f = f.replace("gl_FragColor = vec4( outgoingLight, diffuseColor.a );", "gl_FragColor = vec4( outgoingLight, 0.5 );");
+      else if (mat.alphaTest > 0 && !mat.transparent) f = f.replace("gl_FragColor = vec4( outgoingLight, diffuseColor.a );", "gl_FragColor = vec4( outgoingLight, 1.0 );");
       if (ud.vzDetail && this.cfgQ().detail) {
         f = "uniform sampler2D vzDetailMap;\nuniform vec4 vzDetailP;\n" + f;
         f = f.replace("#include <normal_fragment_maps>", [
@@ -676,11 +832,13 @@
         m.userData.shared = true;
         m.userData.vzRim = { color: new THREE.Color(rim).multiplyScalar(strength), power: Z.rimPower };
         m.userData.vzMinLight = new THREE.Color(Z.minLight);
+        m.userData.vzMark = true;     // (round 2: its pixels marked, kept clear of the haze -- inject, the composite)
         m.defines = Object.assign({}, m.defines, { VZ_FOG_SCALE: num(F.zombieScale), VZ_FOG_RANGE: num(F.combatRange) });
         return m;
       };
       G.ZOMBIE_MATS.lambert = mk(Z.rim, Z.rimStrength);
       G.ZOMBIE_MATS_BOSS = mk(Z.bossRim, Z.bossRimStrength);
+      if (G.ZOMBIE_MATS.basic) G.ZOMBIE_MATS.basic.userData.vzMark = true;
     },
     // the gun and the arms in hand: per-pixel light, metal where it is dark,
     // the rim, a least light
@@ -916,7 +1074,11 @@
     afterCompile(game) {
       if (this._pre && this._pre.parent) this._pre.parent.remove(this._pre);
       this._pre = null;
+      // (the composite as this graphics level has it, and js/post.js's passes)
+      const Q = this.cfgQ();
+      this.compDefines(Q, this.wantsDepth(Q), Q.bloom && Q.bloom !== "off" && this.hdr && Q.hdr !== false);
       try { game.renderer.compile(this.compScene, this.ortho); } catch (e) { /* best effort */ }
+      G.Post.compile();
     },
     // the night sky as an environment map: what metal, glass and wet floors reflect
     environment(game, theme) {
@@ -1048,6 +1210,8 @@
       // (the window glass is made again for the new level: its reflection too)
       this.assignEnv(game.scene);
       this.fog(game, game.level && game.level.theme);
+      // (round 2: the shafts and fog sheets in the air picture, or the plain beams)
+      if (G.LightFX) G.LightFX.applyQuality(game, q);
     },
 
     // --------------------------------------------------------- each frame
@@ -1063,11 +1227,27 @@
       const S = CFG().school, inside = G.Sky && G.Sky.indoors;
       const want = inside ? S.envIndoor : S.envOutdoor;
       if (this._envK !== want) { this._envK = want; (this.levelMats || []).forEach((m) => { if (!m.userData.vzFrom || !m.userData.vzFrom.isMeshPhongMaterial) m.envMapIntensity = want; }); }
+      // (round 2: the hero lights, the pools of light, the fog sheets)
+      if (G.LightFX) G.LightFX.update(game, dt);
+    },
+    // (round 2, G) a boss's own material (js/bossmodels.js): per-pixel light,
+    // the strong rim, a least light -- one each, as a boss's code tints it
+    bossMaterial() {
+      const Z = CFG().zombies, F = CFG().fog, M = CFG().materials.zombie;
+      const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: M.roughness, metalness: M.metalness });
+      m.userData.vzRim = { color: new THREE.Color(Z.bossRim).multiplyScalar(Z.bossRimStrength), power: Z.rimPower };
+      m.userData.vzMinLight = new THREE.Color(Z.minLight);
+      m.userData.vzMark = true;
+      m.defines = Object.assign({}, m.defines, { VZ_FOG_SCALE: num(F.zombieScale), VZ_FOG_RANGE: num(F.combatRange) });
+      return m;
     },
   };
 
   function num(x) { const s = String(+x); return s.indexOf(".") < 0 && s.indexOf("e") < 0 ? s + ".0" : s; }
-  function vec3(c) { return "vec3( " + num(c.r) + ", " + num(c.g) + ", " + num(c.b) + " )"; }
+  // (a colour in userData: a THREE.Color -- or, once three.js has cloned the
+  // material and its userData through JSON, the number it was turned into)
+  function col(c) { return c && c.isColor ? c : new THREE.Color(typeof c === "number" ? c : c && c.r != null ? (c.r * 255 << 16 | c.g * 255 << 8 | c.b * 255) : 0xffffff); }
+  function vec3(c) { c = col(c); return "vec3( " + num(c.r) + ", " + num(c.g) + ", " + num(c.b) + " )"; }
 
   patchChunks();
   hookMaterials();
@@ -1076,6 +1256,8 @@
   if (G.THEME_PALETTES && G.THEME_PALETTES.school && G.VISUAL) {
     const P = G.THEME_PALETTES.school;
     P.fog = G.VISUAL.palette.fog; P.fogNear = G.VISUAL.fog.near; P.fogFar = G.VISUAL.fog.far;
+    // (round 2, F2/F3: the rooms' lights are cool; warm is kept for the few places that need it)
+    if (G.VISUAL.lighting && G.VISUAL.lighting.roomLight) P.roomLight = G.VISUAL.lighting.roomLight.slice();
   }
   // the dynamic lights by graphics level (J: a fixed number each, never changed while playing)
   if (G.Perf && G.VISUAL) Object.keys(G.VISUAL.quality).forEach((q) => { G.Perf.LIGHT_POOL[q] = G.VISUAL.quality[q].lights; });

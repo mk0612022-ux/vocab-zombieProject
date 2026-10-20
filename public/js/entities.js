@@ -764,6 +764,9 @@ function addZombieFace(head, type, skinMat, variation, odd) {
   const f = ZOMBIE_FACE[type] || ZOMBIE_FACE.normal;
   const v = variation || G.randomZombieVariation();
   const eyeMat = new THREE.MeshBasicMaterial({ color: f.eyeColor });
+  // (visual series, round 2, I: the eyes glow -- over 1.0 in the HDR picture,
+  // kept through the merge into vertex colours)
+  if (G.VISUAL && G.VISUAL.lighting) eyeMat.color.multiplyScalar(G.VISUAL.lighting.eyes);
   const eyeSize = f.eyeSize * v.eyeSizeMult;
   // (I2, a deformed face: one eye swollen big and high, the other shrunk,
   // low and set wide)

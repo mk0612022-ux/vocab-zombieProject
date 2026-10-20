@@ -381,6 +381,9 @@ G.Game = {
   // are simply not drawn. Then every shader is compiled now, during the load,
   // instead of as a hitch the first time each material comes into view.
   prepareScene() {
+    // (visual series, round 2: the hero lights, the warm accents, what glows
+    // and what is important -- tagged before the palette and the merge)
+    if (G.LightFX) G.LightFX.build(this);
     // (visual series: big boxes cut into pieces, for the corners' AO)
     if (G.Visuals) G.Visuals.beforeBake(this);
     this.paletteCount = G.Perf.paletteize(this.scene, this.world, [this.yawObject]);
@@ -394,6 +397,9 @@ G.Game = {
     // (visual series: the baked surfaces' materials, the night-sky reflection,
     // the level's lights, fog and shadows)
     if (G.Visuals) G.Visuals.afterBake(this);
+    // (round 2: the glow, the rims, the baked light spill, the pools of light,
+    // the cones, the fog sheets -- before the compile, so none of it hitches later)
+    if (G.LightFX) G.LightFX.afterBake(this);
     this.scene.updateMatrixWorld(true);
     try { this.renderer.compile(this.scene, this.camera); } catch (e) { /* best effort */ }
     if (G.Visuals) G.Visuals.afterCompile(this);
@@ -1326,6 +1332,7 @@ G.Game = {
     const baseY = G.getFloorHeightAt(this.world, pos.x, pos.z, pos.y !== undefined ? pos.y : undefined);
     mesh.position.set(pos.x, baseY + 0.3, pos.z);
     this.scene.add(mesh);
+    if (G.LightFX) G.LightFX.drop(mesh);          // (visual series, round 2: something to pick up -- the important tier)
     const rarity = kind === "crate" ? G.rollRarity() : null;
     this.drops.push({ kind, mesh, rarity, t: 0, baseY });
   },

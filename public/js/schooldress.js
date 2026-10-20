@@ -1365,7 +1365,11 @@
       }
 
       // ---- ceiling tubes that match each light: lit, failing, or dead -------
-      const tubeOn = basic(0xf2eee0), tubeOff = lam(0x3b3c3a), housing = lam(0x9a9a96);
+      // (visual series, round 2: a lit tube glows -- its own material, over 1.0
+      // in the HDR picture: js/lightfx.js; cool, as the rooms' light is now)
+      const VL = G.VISUAL && G.VISUAL.lighting;
+      const tubeOn = VL ? new THREE.MeshBasicMaterial({ color: VL.tubeColor }) : basic(0xf2eee0), tubeOff = lam(0x3b3c3a), housing = lam(0x9a9a96);
+      if (VL) tubeOn.userData.vzGlow = "tube";
       const spotsOf = (f) => (f.w > 8 ? 2 : Math.max(1, Math.round(f.d / 4.5)));
       // dead tubes still to place, and how many must still come down so the
       // building always has at least three (a 35% chance each left it at two now and then)
@@ -1373,7 +1377,7 @@
       const fallTarget = Math.min(3, deadLeft);
       (world.fixtures || []).forEach((f) => {
         let mat = f.mode === "off" ? tubeOff : tubeOn;
-        if (f.mode === "flicker" && f.light) { mat = new THREE.MeshBasicMaterial({ color: 0xf2eee0 }); f.light.userData.glow = mat; }
+        if (f.mode === "flicker" && f.light) { mat = new THREE.MeshBasicMaterial({ color: VL ? VL.tubeColor : 0xf2eee0 }); f.light.userData.glow = mat; }
         const y = f.baseY + 3.37;
         const spots = f.w > 8 ? [[-f.w * 0.22, -f.d * 0.18], [f.w * 0.22, f.d * 0.18]]
           : Array.from({ length: Math.max(1, Math.round(f.d / 4.5)) }, (_, i) => [0, (i - (Math.max(1, Math.round(f.d / 4.5)) - 1) / 2) * 4.2]);

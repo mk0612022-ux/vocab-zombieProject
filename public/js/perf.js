@@ -58,6 +58,23 @@ G.Perf = {
       const m = o.material, g = o.geometry;
       if (!g || !g.index || !g.attributes.position || !m || m.map || m.transparent || m.vertexColors || m.side !== THREE.FrontSide) return;
       if (m === P.PAL.lit || m === P.PAL.unlit || m === P.PAL.litMetal) return;
+      // (visual series, round 2: what glows goes over 1.0 in the HDR picture,
+      // which the palette's texels cannot hold -- so it takes the palette's
+      // colours through a glow material of its kind, one per kind, whose own
+      // colour js/lightfx.js pushes over 1.0: every sign in a cell is still
+      // one draw call)
+      if (m.userData && m.userData.vzGlow) {
+        if (!m.isMeshBasicMaterial || m.map) return;
+        if (P.PAL.n >= P.PAL.size * P.PAL.size - 1 && P.PAL.idx[m.color.getHex()] == null) return;   // the palette is full
+        if (seenGeo.has(g)) o.geometry = g.clone();
+        seenGeo.add(o.geometry);
+        P.mk(o.geometry, P.basic(m.color.getHex()));              // (the UVs only)
+        const kind = m.userData.vzGlow, GP = P.PAL.glow || (P.PAL.glow = {});
+        if (!GP[kind]) { GP[kind] = new THREE.MeshBasicMaterial({ map: P.PAL.tex, color: 0xffffff }); GP[kind].userData.vzGlow = kind; }
+        o.material = GP[kind];
+        n++;
+        return;
+      }
       const lit = m.isMeshLambertMaterial, basic = m.isMeshBasicMaterial;
       if (!lit && !basic) return;
       if (lit && m.emissive && m.emissive.getHex() !== 0) return;
@@ -103,7 +120,8 @@ G.Perf = {
     const imgIds = new Map();
     const imgId = (t) => { const k = t.image || t; if (!imgIds.has(k)) imgIds.set(k, imgIds.size + 1); return imgIds.get(k); };
     // (visual series: the palette's metal material stays apart -- only it reflects the sky)
-    const matKey = (m) => [m.type, m.color ? m.color.getHex() : 0, m.map ? "img" + imgId(m.map) : "", m.transparent ? 1 : 0, m.opacity, m.side, m.userData && m.userData.vzMetal ? "metal" : ""].join("|");
+    // (round 2: and a glowing one with its own kind of glow -- js/lightfx.js)
+    const matKey = (m) => [m.type, m.color ? m.color.getHex() : 0, m.map ? "img" + imgId(m.map) : "", m.transparent ? 1 : 0, m.opacity, m.side, m.userData && m.userData.vzMetal ? "metal" : "", m.userData && m.userData.vzGlow ? "glow:" + m.userData.vzGlow : ""].join("|");
     const candidates = [];
     scene.traverse((o) => {
       if (!o.isMesh || o.isInstancedMesh || skip.has(o)) return;
@@ -115,6 +133,7 @@ G.Perf = {
     });
     // (visual series: the solid things the corners' AO looks for)
     const occ = G.Visuals && G.Visuals.ready && G.Visuals.cfgQ().ao ? G.Visuals.occluders(candidates) : null;
+    if (G.Visuals) G.Visuals._occ = occ;          // (round 2: the baked light spill reuses it -- js/lightfx.js -- then lets it go)
     const aoT0 = performance.now();
     const tmp = new THREE.Vector3();
     let meshesBefore = 0;
@@ -342,9 +361,13 @@ G.Perf = {
     (world.lights || []).forEach((l) => {
       l.updateMatrixWorld(true);
       const p = new THREE.Vector3(); l.getWorldPosition(p);
+      // (visual series, round 2: `priority` -- its tier's head start when the
+      // pool picks the nearest (js/lightfx.js); `key` -- a hero light that
+      // js/lightfx.js turns on and off by setting `base`)
       anchors.push({ pos: p, color: l.color.clone(), base: l.userData.base != null ? l.userData.base : l.intensity,
         distance: l.distance || 13, phase: l.userData.phase || Math.random() * 10, speed: l.userData.speed || 1.4, intensity: 0,
-        mode: l.userData.mode || null, glow: l.userData.glow || null, glowBase: l.userData.glow ? l.userData.glow.color.clone() : null });
+        mode: l.userData.mode || null, glow: l.userData.glow || null, glowBase: l.userData.glow ? l.userData.glow.color.clone() : null,
+        priority: l.userData.priority || 0, key: l.userData.key || null, steady: !!l.userData.steady, src: l });
       if (l.parent) l.parent.remove(l);
     });
     this.anchors = anchors;
@@ -382,6 +405,8 @@ G.Perf = {
     for (const a of A) {
       let mult = 0.88 + 0.12 * Math.sin(tSec * a.speed + a.phase);
       if (Math.sin(tSec * 1.7 + a.phase * 3) > 0.985) mult *= 0.35;
+      // (round 2: a hero light holds still -- its own flicker is js/lightfx.js's)
+      if (a.steady) mult = 1;
       // a failing tube (pass D3): stutters, dips and now and then dies for a
       // moment -- its fixture on the ceiling goes with it
       if (a.mode === "flicker") {
@@ -393,7 +418,9 @@ G.Perf = {
       const dx = a.pos.x - camPos.x, dy = (a.pos.y - camPos.y) * 1.6, dz = a.pos.z - camPos.z;
       const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
       const facing = camDir ? (dx * camDir.x + dz * camDir.z) / (d || 1) : 0;
-      a.score = d - facing * 6;
+      // (round 2: a light that is off never takes a slot; a higher tier wins
+      // over a nearer, lower one -- G.VISUAL.tiers.*.priority)
+      a.score = a.base > 0 ? d - facing * 6 - (a.priority || 0) : Infinity;
     }
     // partial selection of the best N -- cheaper than sorting all fifty
     const n = this.pool.length;
