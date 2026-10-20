@@ -1521,6 +1521,8 @@ G.STRINGS.zh = {
     "settings.colorblindDesc": "为每种武器稀有度加上字母标识，而不只靠颜色。",
     "settings.headBobName": "镜头晃动", "settings.headBobDesc": "走路和奔跑时视角晃动的程度。",
     "key.inspect": "检视武器",
+    "settings.muzzleFlash": "枪口闪光", "settings.muzzleFlashDesc": "每次射击的闪光有多亮。0% 时没有照明，只在枪口留下淡淡的闪光。",
+    "debug.fx": "特效：粒子 {p}/{pb} · 弹孔 {d}/{db} · 弹壳 {s}",
     "settings.autoReload": "自动换弹", "settings.autoReloadDesc": "弹匣打空后，若有备用弹药会自动换弹。",
     "settings.camRecoil": "镜头后坐力", "settings.camRecoilDesc": "每次射击视角上跳的幅度。手中的枪仍会后坐。",
     "settings.camShake": "镜头震动", "settings.camShakeDesc": "被击中、爆炸和首领重踏时视角震动的程度。",

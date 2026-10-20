@@ -182,7 +182,7 @@ window.G = window.G || {};
     },
     accessibility(s) {
       const hb = s.headBob == null ? 1 : s.headBob;
-      const cr = s.cameraRecoil == null ? 1 : s.cameraRecoil, cs = s.cameraShake == null ? 1 : s.cameraShake;
+      const cr = s.cameraRecoil == null ? 1 : s.cameraRecoil, cs = s.cameraShake == null ? 1 : s.cameraShake, mf = s.muzzleFlash == null ? 1 : s.muzzleFlash;
       return row({ id: "set-gamespeed", name: T("settings.gameSpeedName"), ctl: slider("set-gamespeed", s.gameSpeed, 0.5, 1.5, 0.05, times(s.gameSpeed)), desc: T("settings.gameSpeedDesc") })
         + row({ id: "set-fontsize", name: T("settings.fontSize"), ctl: seg("set-fontsize", s.fontSize, [["small", T("settings.fontSmall")], ["medium", T("settings.fontMedium")], ["large", T("settings.fontLarge")]]), desc: T("settings.fontSizeDesc") })
         + row({ id: "set-colorblind", name: T("settings.colorblind"), ctl: toggle("set-colorblind", !!s.colorblindMode), desc: T("settings.colorblindDesc") })
@@ -192,7 +192,9 @@ window.G = window.G || {};
         + row({ id: "set-headbob-off", name: T("settings.headBobOff"), ctl: toggle("set-headbob-off", !!s.headBobOff), desc: T("settings.headBobOffDesc") })
         // (overhaul, round 1) the view's kick from a shot, and its shake from hits and blasts
         + row({ id: "set-camrecoil", name: T("settings.camRecoil"), ctl: slider("set-camrecoil", cr, 0, 1, 0.05, pct(cr)), desc: T("settings.camRecoilDesc") })
-        + row({ id: "set-camshake", name: T("settings.camShake"), ctl: slider("set-camshake", cs, 0, 1, 0.05, pct(cs)), desc: T("settings.camShakeDesc") });
+        + row({ id: "set-camshake", name: T("settings.camShake"), ctl: slider("set-camshake", cs, 0, 1, 0.05, pct(cs)), desc: T("settings.camShakeDesc") })
+        // (overhaul, round 2) how bright a shot's flash is
+        + row({ id: "set-muzzleflash", name: T("settings.muzzleFlash"), ctl: slider("set-muzzleflash", mf, 0, 1, 0.05, pct(mf)), desc: T("settings.muzzleFlashDesc") });
     },
     account() {
       const a = G.Account.state();
@@ -239,6 +241,7 @@ window.G = window.G || {};
         "set-autoreload": (v) => { s.autoReload = v; },
         "set-camrecoil": (v) => { s.cameraRecoil = v; return pct(v); },
         "set-camshake": (v) => { s.cameraShake = v; return pct(v); },
+        "set-muzzleflash": (v) => { s.muzzleFlash = v; return pct(v); },
         "set-highlight": (v) => {
           s.highlightTarget = v;
           if (G.Game.zombies) G.Game.zombies.forEach((z) => { if (z.alive) { z._label = null; z.setTarget(z.isTarget); } });

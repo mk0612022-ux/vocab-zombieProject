@@ -95,6 +95,8 @@ G.Debug = {
     });
     const r = g && g.renderer;
     L.push(esc(T("debug.frame", { ms: this.frameMs.toFixed(1), fps: Math.round(1000 / Math.max(1, this.frameMs)), calls: r ? r.info.render.calls : 0 })));
+    // (round 2) the weapon's effects against their budget for this graphics level
+    if (G.FX) { const f = G.FX.stats(); L.push(esc(T("debug.fx", { p: f.particles, pb: f.particleBudget, d: f.decals, db: f.decalBudget, s: f.shells }))); }
     if (this.warnings.length) {
       L.push(`<span class="bad">${esc(T("debug.warnings", { n: this.warnings.reduce((a, w) => a + w.n, 0) }))}</span>`);
       this.warnings.slice(-3).forEach((w) => L.push(`<span class="bad">  ${esc(w.text)}${w.n > 1 ? " ×" + w.n : ""}</span>`));

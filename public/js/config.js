@@ -351,6 +351,75 @@ G.CONFIG = {
     recoilReturn: { pos: 16, rot: 11 },             // how fast it settles back (rotation a little slower: the follow-through)
     aspect: { min: 0.8, max: 1.15 },                // the hip carry moved in on a narrow screen (4:3) and out on a wide one (21:9), x of 16:9
   },
+  // ---------------- the weapon's looks and effects (overhaul, round 2) ----------------
+  // js/gunskin.js (the guns' surfaces), js/fx.js (flash, smoke, shells, impacts,
+  // bullet holes), js/surface.js (what a round hit). Per graphics level:
+  // vlow / low / medium / high / vhigh (= Very Low ... Ultra).
+  fx: {
+    gunSkin: {
+      texel: 0.006,                 // metres a texel on a part (16 px tiles)
+      // lum: the tile's brightness (x the part's own colour; 1.25 = unchanged), noise:
+      // pixel to pixel; rough / metal: the surface; scratches, dust and worn edges
+      // catch the light differently (lighter, smoother, more metal)
+      surfaces: {
+        matte: { lum: 1.2, noise: 0.08, rough: 0.55, metal: 0.65, scratches: 3, scratchLum: 0.14, scratchRough: 0.32, scratchMetal: 0.9, dust: 0.25, wear: 0.4, edgeLum: 0.12, edgeRough: 0.35, edgeMetal: 0.9 },
+        worn: { lum: 1.2, noise: 0.12, rough: 0.42, metal: 0.8, scratches: 5, scratchLum: 0.18, scratchRough: 0.25, scratchMetal: 0.95, dust: 0.3, wear: 0.7, edgeLum: 0.2, edgeRough: 0.22, edgeMetal: 0.95 },
+        bare: { lum: 1.25, noise: 0.09, rough: 0.3, metal: 0.92, scratches: 6, scratchLum: 0.14, scratchRough: 0.18, scratchMetal: 1, dust: 0.15, wear: 0.5, edgeLum: 0.12, edgeRough: 0.2, edgeMetal: 1 },
+        polymer: { lum: 1.25, noise: 0.06, rough: 0.68, metal: 0.02, scratches: 2, scratchLum: 0.1, scratchRough: 0.5, scratchMetal: 0.1, dust: 0.35, wear: 0.35, edgeLum: 0.1, edgeRough: 0.45, edgeMetal: 0.45 },
+        grip: { lum: 1.25, noise: 0.05, rough: 0.9, metal: 0, scratches: 0, scratchLum: 0, scratchRough: 0.9, scratchMetal: 0, dust: 0.2, wear: 0.15, edgeLum: 0.06, edgeRough: 0.8, edgeMetal: 0 },
+      },
+      aoReach: 0.004, aoStep: 0.17, aoMin: 0.6,     // where parts meet: darker by aoStep for each part within aoReach
+      handReach: 0.055, handShade: 0.8,             // ...and under the hands
+    },
+    // the muzzle flash: a quick sprite at the muzzle (40-60 ms), its shape and
+    // size by family, 4 variants turned at random; a light from the fixed
+    // pool lights what is near (never a new light). Fast guns (over rpmFast)
+    // flash their light at half strength. x the Muzzle Flash setting.
+    flash: {
+      ms: [40, 60], variants: 4, rpmFast: 600, fastLight: 0.5, minSprite: 0.2,
+      light: { color: 0xffc86b, intensity: 3, distance: 5 },
+      // light on: per graphics level, every n-th shot (0 = never)
+      lightEvery: { vlow: 0, low: 2, medium: 1, high: 1, vhigh: 1 },
+      family: {
+        pistol: { w: 0.11, h: 0.11, color: 0xffd27a }, smg: { w: 0.13, h: 0.12, color: 0xffcf73 },
+        rifle: { w: 0.15, h: 0.17, color: 0xffc766 }, lmg: { w: 0.17, h: 0.19, color: 0xffc35e },
+        shotgun_pump: { w: 0.24, h: 0.15, color: 0xffb95a }, shotgun_semi: { w: 0.22, h: 0.14, color: 0xffbd5e },
+        sniper_bolt: { w: 0.2, h: 0.2, color: 0xffc766 }, special: { w: 0.18, h: 0.18, color: 0xff9a4d },
+        knife: { w: 0, h: 0, color: 0 },
+      },
+    },
+    // smoke from the muzzle: a puff a shot (every n-th for a fast gun), rising and fading
+    smoke: { life: 0.9, size: [0.1, 0.45], rise: 0.35, alpha: 0.32, everyFast: 3, centerFade: 0.14, color: 0xb8bcc2 },
+    // brass: thrown out to the right, a pool of them, in game time
+    shells: { pool: 32, life: 1.1, color: 0xd9b24a, off: ["vlow", "low"] },
+    // the budget per graphics level: particles alive at once (all the
+    // weapon's effects together) and bullet holes on the walls (0 = none)
+    budget: {
+      vlow: { particles: 60, decals: 0, decalLife: 0, smoke: false },
+      low: { particles: 120, decals: 24, decalLife: 8, smoke: true },
+      medium: { particles: 250, decals: 48, decalLife: 12, smoke: true },
+      high: { particles: 500, decals: 96, decalLife: 18, smoke: true },
+      vhigh: { particles: 900, decals: 160, decalLife: 25, smoke: true },
+    },
+    // what a round throws off each surface: n pieces, their colours, size, speed;
+    // decal: the bullet hole's kind (null: none); a shotgun's pellets make at
+    // most pelletDecals holes and their pieces are shared out
+    impact: {
+      pelletDecals: 3, maxDistance: 45, life: [0.35, 0.8], gravity: 9,
+      surfaces: {
+        concrete: { n: 6, colors: [0x8b8f94, 0x6f7378, 0xa9adb2], size: [0.015, 0.035], speed: 2.2, decal: "hole", dust: 0x9aa0a6 },
+        tile: { n: 5, colors: [0xdfe3e6, 0xc3c9cd, 0x9aa3a8], size: [0.012, 0.03], speed: 2.4, decal: "crack", dust: 0xd8dde0 },
+        wood: { n: 5, colors: [0x8a5a35, 0x6e4426, 0xb07a4b], size: [0.01, 0.05], speed: 2, decal: "splinter", dust: 0x9b7653 },
+        metal: { n: 7, colors: [0xfff1b0, 0xffc861, 0xff9a3d], size: [0.008, 0.016], speed: 3.6, decal: "dent", spark: true },
+        glass: { n: 6, colors: [0xcfe9ff, 0xa9d4f5, 0xffffff], size: [0.01, 0.03], speed: 2.6, decal: null },
+        grass: { n: 4, colors: [0x5f8f3a, 0x4a7a2c, 0x7aa64a], size: [0.01, 0.04], speed: 1.6, decal: null },
+        dirt: { n: 6, colors: [0x6b5236, 0x523f2a, 0x7d6448], size: [0.012, 0.035], speed: 1.8, decal: null, dust: 0x7d6448 },
+        water: { n: 6, colors: [0x9ec7e8, 0xd6ecff, 0x7aa9cf], size: [0.01, 0.03], speed: 2.4, decal: null },
+        flesh: { n: 4, colors: [0x7a1c1c, 0x5c1414, 0x8a2a2a], size: [0.012, 0.03], speed: 1.8, decal: null },
+      },
+    },
+    decal: { size: [0.07, 0.11], fade: 0.4, offset: 0.004 },
+  },
 };
 
 // ---------------- Level definitions ----------------

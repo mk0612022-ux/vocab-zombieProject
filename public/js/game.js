@@ -125,6 +125,17 @@ G.Game = {
     this.vmCamera.layers.set(1);
     this.renderer.info.autoReset = false;          // two passes a frame: count both
     if (G.PlayerBody.armRig) {
+      // (overhaul, round 2) each bone of each arm -- upper arm, forearm and
+      // cuff, the hand and its fingers, the shell it can carry -- one mesh in
+      // its own colours: 6 draw calls for the arms where there were 12
+      if (G.Perf && G.Perf.mergeLocalColored) {
+        const shared = { lambert: new THREE.MeshLambertMaterial({ vertexColors: true }), basic: new THREE.MeshBasicMaterial({ vertexColors: true }) };
+        [G.PlayerBody.armRig.right, G.PlayerBody.armRig.left].forEach((arm) => {
+          [arm.upper, arm.fore].forEach((b) => G.Perf.mergeLocalColored(b, [], shared));
+          G.Perf.mergeLocalColored(arm.hand, [arm.shell], shared);
+          G.Perf.mergeLocalColored(arm.shell, [], shared);
+        });
+      }
       this.toViewmodelLayer(G.PlayerBody.armRig.group);
       // where a sleeve crosses the gun at a shallow angle the two surfaces are
       // at nearly the same depth and fought over a thin line of pixels; a
@@ -172,6 +183,7 @@ G.Game = {
       if (G.SchoolWear) G.SchoolWear.applyQuality(this, q);
       // (visual series: shadows, cascades, the light pool, the grain on stone)
       if (G.Visuals) G.Visuals.applyQuality(this, q);
+      if (G.FX) G.FX.applyQuality(this);             // (overhaul, round 2: the effects' budget)
     }
   },
 
@@ -291,6 +303,9 @@ G.Game = {
     if (G.Sky) G.Sky.build(this);                 // the moon, its light and its beams
     if (G.Glass) G.Glass.build(this);             // the panes in the real windows
     this.prepareScene();
+    // (overhaul, round 2) the weapon's effects: their pools, made now (after
+    // the bake, which must not take them) and compiled now, not on the first shot
+    if (G.FX) { G.FX.init(this); if (this.renderer.compile) this.renderer.compile(this.scene, this.camera); }
     if (G.Minimap) G.Minimap.init(this);
     this.yawObject.position.set(this.world.spawn.x, 1.7, this.world.spawn.z);
     this.pitchObject.rotation.x = 0;
@@ -471,6 +486,7 @@ G.Game = {
     this.renderFrame();
   },
   teardownLevel() {
+    if (G.FX) G.FX.detach();                       // (overhaul, round 2: its pools outlive the scene)
     if (G.Audio) G.Audio.stopLevel();
     if (G.ViewModel) G.ViewModel.clearProps();
     // pooled objects live in the scene; take them out before it is disposed
@@ -856,6 +872,8 @@ G.Game = {
     // (right up against the 0.1 near-clip plane), which is why it rendered
     // as a huge, indistinct, wrongly-pointed blob instead of a small held gun.
     this.weaponViewGroup = mesh;
+    // (overhaul, round 2) the muzzle flash, hidden at the muzzle until a shot
+    if (G.FX && def.id !== "melee") G.FX.attachFlash(mesh, def);
     this.camera.add(mesh);
     this.toViewmodelLayer(mesh);
   },
@@ -863,6 +881,7 @@ G.Game = {
   toViewmodelLayer(root) {
     // (visual series: lit per pixel like the world, with the rim)
     if (G.Visuals) G.Visuals.viewmodel(root);
+    if (G.GunSkin) G.GunSkin.forViewmodel(root);          // (overhaul, round 2: the gun's own surfaces, lit as the viewmodel)
     root.traverse((o) => { o.layers.set(1); if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; } });
   },
   // every light lights both passes
@@ -970,12 +989,15 @@ G.Game = {
     this.camera.getWorldDirection(dir);
     const origin = new THREE.Vector3();
     this.camera.getWorldPosition(origin);
-    G.spawnMuzzleFlash(this.scene, origin.clone().addScaledVector(dir, 0.6), G.save.settings.graphicsQuality);
+    // (overhaul, round 2: the flash, its light, smoke and brass come from the
+    // "weapon:fire" event -- js/fx.js; the old two are kept for without it)
+    if (!G.FX) G.spawnMuzzleFlash(this.scene, origin.clone().addScaledVector(dir, 0.6), G.save.settings.graphicsQuality);
     if (G.Details) G.Details.onShot(origin);          // the crows hear it
     this.recoilKick(def);
-    G.spawnShellEject(this.scene, this.camera, G.save.settings.graphicsQuality);
+    if (!G.FX) G.spawnShellEject(this.scene, this.camera, G.save.settings.graphicsQuality);
 
     const shots = def.pellets || 1;
+    this._shotHoles = 0;                              // (a shotgun's pellets: only so many bullet holes a shot)
     let anyHit = false;
     for (let i = 0; i < shots; i++) {
       // Per-weapon spread: a tight combat shotgun and a wide scattergun are
@@ -1000,6 +1022,7 @@ G.Game = {
     // through any number of walls -- and up through the ceiling into zombies
     // on the floor above, which the player cannot even see.
     const wallAt = this.world ? this.wallDistance(origin, dir, 60) : 60;
+    const wallCol = this._wallCol, wallFloor = this._wallFloor;
     this.raycaster.set(origin, dir);
     this.raycaster.far = wallAt;
     this.raycaster.camera = this.camera;
@@ -1055,6 +1078,8 @@ G.Game = {
     }
     // Round 3 (H): a window pane on the way breaks, and the round goes on
     if (G.Glass) G.Glass.onShot(origin, dir, stopAt);
+    // (overhaul, round 2) nobody stopped it: where it landed (an explosive's blast covers that)
+    if (stopAt === wallAt && !(def && def.splash)) this.shotImpact(origin, dir, wallAt, wallCol, wallFloor, def);
     // A missed explosive still goes off where it lands -- on the wall it hit,
     // not forty units beyond it.
     if (def && def.splash && !hitAny) {
@@ -1082,11 +1107,14 @@ G.Game = {
     const hit = this._wallHit || (this._wallHit = new THREE.Vector3());
     ray.origin.copy(origin); ray.direction.copy(dir);
     let best = far;
+    // (overhaul, round 2: what stopped it -- a collider, or a raised floor --
+    // for the impact's surface; read straight after the call)
+    this._wallCol = null; this._wallFloor = false;
     for (const c of G.ColGrid.alongRay(this.world, origin, dir, far, this._rayCols || (this._rayCols = []))) {
       // (a real window's opening stops walking, not rounds: js/glass.js)
       if (c.passShots || c.containsPoint(origin) || !ray.intersectBox(c, hit)) continue;
       const d = hit.distanceTo(origin);
-      if (d < best) best = d;
+      if (d < best) { best = d; this._wallCol = c; }
     }
     if (Math.abs(dir.y) > 1e-4) {
       for (const hz of this.world.heightZones) {
@@ -1094,10 +1122,44 @@ G.Game = {
         const k = (hz.height - origin.y) / dir.y;
         if (k <= 0 || k >= best) continue;
         const x = origin.x + dir.x * k, z = origin.z + dir.z * k;
-        if (x >= hz.minX && x <= hz.maxX && z >= hz.minZ && z <= hz.maxZ) best = k;
+        if (x >= hz.minX && x <= hz.maxX && z >= hz.minZ && z <= hz.maxZ) { best = k; this._wallCol = null; this._wallFloor = true; }
       }
     }
     return best;
+  },
+  // (overhaul, round 2) Where a round that hit no one landed: the wall or
+  // thing that stopped it, or the floor if that comes first -- chips and a
+  // bullet hole by what it is made of (js/surface.js, js/fx.js). Looks only:
+  // the round's path is the gameplay's, as before.
+  shotImpact(origin, dir, wallAt, col, floorHit, def) {
+    if (!G.FX || !this.world) return;
+    let t = wallAt < 59.9 ? wallAt : Infinity, normal = null, surface = null, moving = false;
+    // the ground under the player, if the round goes down into it first
+    if (dir.y < -0.02) {
+      const fy = G.getFloorHeightAt(this.world, origin.x, origin.z, origin.y - 1.7);
+      const k = (fy - origin.y) / dir.y;
+      if (k > 0 && k < t) { t = k; floorHit = true; col = null; }
+    }
+    if (!Number.isFinite(t)) return;
+    const p = origin.clone().addScaledVector(dir, t);
+    if (floorHit) { normal = new THREE.Vector3(0, dir.y < 0 ? 1 : -1, 0); surface = dir.y < 0 ? G.Surface.floor(this.world, p.x, p.z, p.y) : G.Surface.wall(this.world, null, p); }
+    else {
+      // the face of the box it went into
+      normal = new THREE.Vector3();
+      if (col) {
+        const d = [p.x - col.min.x, col.max.x - p.x, p.y - col.min.y, col.max.y - p.y, p.z - col.min.z, col.max.z - p.z];
+        const i = d.indexOf(Math.min(...d));
+        normal.setComponent(i >> 1, i % 2 ? 1 : -1);
+        moving = !!col.moving;
+      } else normal.copy(dir).negate();
+      surface = G.Surface.wall(this.world, col, p);
+    }
+    const pellets = def && def.pellets ? def.pellets : 1;
+    // (a pellet that hits a door or the grass makes no hole, so it does not use up the shot's few)
+    const S = G.CONFIG.fx.impact.surfaces[surface];
+    const hole = !moving && !!(S && S.decal) && (pellets === 1 || (this._shotHoles || 0) < G.CONFIG.fx.impact.pelletDecals);
+    if (hole && pellets > 1) this._shotHoles = (this._shotHoles || 0) + 1;
+    G.FX.impact({ point: p, normal, surface, moving, decal: hole, pellet: pellets > 1, share: pellets > 1 ? Math.min(1, 2 / pellets) : 1 });
   },
 
   // Category N: splash was declared on five weapons and never implemented --
@@ -2006,6 +2068,7 @@ G.Game = {
     const camDir = new THREE.Vector3(-Math.sin(this.yawObject.rotation.y), 0, -Math.cos(this.yawObject.rotation.y));
     G.Perf.updateLights(this.yawObject.position, camDir, performance.now() / 1000);
     G.Perf.updateSparks(dt);
+    if (G.FX) G.FX.update(dt, this);                 // (overhaul, round 2: flash, smoke, brass, chips, bullet holes)
     G.ViewModel.updateProps(dt, this.world);
     G.Perf.cullZombies(this);
     if (G.Zones) G.Zones.update(this);
@@ -2072,6 +2135,7 @@ G.Game = {
     this.updateSwingProps(dt);
     this.updateAudio(dt);
     G.Perf.updateSparks(dt);
+    if (G.FX) G.FX.hideFlash();
     G.ViewModel.updateProps(dt, this.world);
     G.updateSparks(this.scene, this.world, dt);
     this.updateChallengeTimer(dt);
@@ -3236,6 +3300,11 @@ G.Game = {
     if (this.scene && this.camera) this.renderFrame();
   },
 };
+
+// (the test suites stub G.Game.update while they step a level by hand; the
+// real one is kept here, so one that forgets to put it back cannot leave the
+// next one without it)
+G.Game._update0 = G.Game.update;
 
 // ---------------- Global input event wiring ----------------
 G.onKeyDown = function (e) {

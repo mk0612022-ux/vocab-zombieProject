@@ -1551,6 +1551,8 @@ G.STRINGS = {
     // (overhaul, round 1) the weapon: settings, the inspect key, the weapon
     // families, the debug overlay (?debug=1) and the Weapon Lab (?lab=weapons)
     "key.inspect": "Inspect weapon",
+    "settings.muzzleFlash": "Muzzle flash", "settings.muzzleFlashDesc": "How bright each shot's flash is. At 0% there is no light, only a faint flash at the muzzle.",
+    "debug.fx": "FX: particles {p}/{pb} · bullet holes {d}/{db} · brass {s}",
     "settings.autoReload": "Auto Reload", "settings.autoReloadDesc": "An empty magazine reloads by itself when you have spare rounds.",
     "settings.camRecoil": "Camera recoil", "settings.camRecoilDesc": "How far each shot kicks the view. The gun in your hands still kicks.",
     "settings.camShake": "Camera shake", "settings.camShakeDesc": "How much hits, blasts and boss stomps shake the view.",

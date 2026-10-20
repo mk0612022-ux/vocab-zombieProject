@@ -1521,6 +1521,8 @@ G.STRINGS.fr = {
     "settings.colorblindDesc": "Ajoute une lettre à chaque rareté d'arme, pas seulement sa couleur.",
     "settings.headBobName": "Balancement de caméra", "settings.headBobDesc": "De combien la vue bouge quand vous marchez et courez.",
     "key.inspect": "Inspecter l'arme",
+    "settings.muzzleFlash": "Flash de bouche", "settings.muzzleFlashDesc": "L'éclat de chaque tir. À 0 %, aucune lumière, seulement un léger éclat à la bouche du canon.",
+    "debug.fx": "Effets : particules {p}/{pb} · impacts {d}/{db} · douilles {s}",
     "settings.autoReload": "Rechargement auto", "settings.autoReloadDesc": "Un chargeur vide se recharge tout seul s'il reste des munitions.",
     "settings.camRecoil": "Recul de la caméra", "settings.camRecoilDesc": "De combien chaque tir fait sauter la vue. L'arme en main recule toujours.",
     "settings.camShake": "Tremblement de la caméra", "settings.camShakeDesc": "De combien les coups reçus, les explosions et les boss secouent la vue.",

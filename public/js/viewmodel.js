@@ -584,7 +584,8 @@ G.ViewModel = {
     const c = mag.clone(true);
     // (back on the world layer: once it leaves the hand it is part of the
     // world, and walls hide it again)
-    c.traverse((o) => { o.layers.set(0); if (o.isMesh) { o.geometry = o.geometry.clone(); o.material = o.material.clone(); } });
+    // (its own copy, freed with it: the gun's skin is shared, the copy is not -- overhaul, round 2)
+    c.traverse((o) => { o.layers.set(0); if (o.isMesh) { o.geometry = o.geometry.clone(); o.material = o.material.clone(); o.material.userData.shared = false; } });
     const pos = new THREE.Vector3(), quat = new THREE.Quaternion(), scl = new THREE.Vector3();
     mag.matrixWorld.decompose(pos, quat, scl);
     c.position.copy(pos); c.quaternion.copy(quat); c.scale.copy(scl);

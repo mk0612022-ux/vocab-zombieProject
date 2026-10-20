@@ -932,6 +932,8 @@
     furnish(spec, api) {
       const k = KITS[spec.type];
       if (!k) return;
+      // (overhaul, round 2) what each room is, for what its floor is made of (js/surface.js)
+      if (api.world) (api.world.roomTypeOf || (api.world.roomTypeOf = {}))[spec.key] = spec.type;
       const R = G.makeRng(spec.key.split("").reduce((a, c) => a * 31 + c.charCodeAt(0), 7) >>> 0);
       k(spec, api, R);
     },

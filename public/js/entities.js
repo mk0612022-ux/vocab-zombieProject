@@ -229,6 +229,10 @@ G.buildWeaponModel = function (def) {
     steel: G.makeBoxMat(0x9aa4ad),
     black: G.makeBoxMat(0x191b1f),
   };
+  // (overhaul, round 2) the surface each colour role is made of (js/gunskin.js):
+  // the body by its own colour -- painted polymer if it has one, else metal
+  S.light.userData.skin = "polymer"; S.dark.userData.skin = "grip"; S.mid.userData.skin = "worn";
+  S.steel.userData.skin = "bare"; S.black.userData.skin = "matte";
   const g = new THREE.Group();
   // Parts that move on their own during a reload -- the magazine, the bolt or
   // slide, a shotgun's pump, an LMG's top cover -- are built into sub-groups
@@ -576,10 +580,14 @@ G.holdPose = function (def) {
 };
 G.buildWeaponMesh = function (def) {
   const g = G.buildWeaponModel(def);
+  // (overhaul, round 2) its surfaces -- metal, polymer, a rubber grip, worn
+  // edges, the shadows where parts meet -- and the whole gun one mesh on one
+  // material (+ one for what glows), each moving part one more (js/gunskin.js)
+  if (G.GunSkin) G.GunSkin.apply(g);
   // Category K: ~50 parts become one mesh per colour (the rainbow ring on
   // secret guns spins, so it stays separate). The moving parts -- magazine,
   // bolt, pump, cover -- are merged within themselves and kept apart.
-  if (G.Perf && G.Perf.mergeLocal) {
+  else if (G.Perf && G.Perf.mergeLocal) {
     const moving = Object.values(g.userData.parts || {});
     moving.forEach((p) => G.Perf.mergeLocal(p));
     G.Perf.mergeLocal(g, [g.userData.rainbowTrim].concat(moving));
@@ -605,6 +613,9 @@ G.buildMeleeMesh = function () {
   g.userData.anchors = { grip: new THREE.Vector3(0, -0.1, 0) };
   g.userData.parts = {};
   g.userData.reloadStyle = null;
+  // (overhaul, round 2) a rubber handle, a bare steel blade
+  handle.material.userData.skin = "grip"; blade.material.userData.skin = "bare";
+  if (G.GunSkin) G.GunSkin.apply(g);
   return g;
 };
 

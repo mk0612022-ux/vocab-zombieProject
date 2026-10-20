@@ -30,7 +30,7 @@ G.Round21Test = (function () {
   function start() {
     const g = G.Game;
     // (the real update, wherever an earlier suite kept it while it stubbed its own)
-    realUpd = realUpd || [g._update, g._upd, g._r20, g.update].find((f) => typeof f === "function" && f.toString().length > 500);
+    realUpd = realUpd || [g._update0, g._update, g._upd, g._r20, g.update].find((f) => typeof f === "function" && f.toString().length > 500);
     g.update = realUpd;
     G.save.tutorialDone = true;
     g.startLevel(1);

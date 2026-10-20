@@ -1521,6 +1521,8 @@ G.STRINGS.th = {
     "settings.colorblindDesc": "เพิ่มตัวอักษรกำกับความหายากของอาวุธ ไม่ใช่แค่สี",
     "settings.headBobName": "การโยกของกล้อง", "settings.headBobDesc": "มุมมองขยับมากแค่ไหนเมื่อเดินและวิ่ง",
     "key.inspect": "ตรวจดูอาวุธ",
+    "settings.muzzleFlash": "แสงวาบปากกระบอก", "settings.muzzleFlashDesc": "แสงวาบตอนยิงแต่ละนัดสว่างแค่ไหน ที่ 0% จะไม่มีแสงส่อง เหลือแค่ประกายจาง ๆ ที่ปากกระบอก",
+    "debug.fx": "เอฟเฟกต์: อนุภาค {p}/{pb} · รอยกระสุน {d}/{db} · ปลอก {s}",
     "settings.autoReload": "รีโหลดอัตโนมัติ", "settings.autoReloadDesc": "แม็กหมดแล้วรีโหลดเองเมื่อยังมีกระสุนสำรอง",
     "settings.camRecoil": "แรงดีดของกล้อง", "settings.camRecoilDesc": "มุมมองเด้งขึ้นมากแค่ไหนเมื่อยิงแต่ละนัด ปืนในมือยังดีดเหมือนเดิม",
     "settings.camShake": "การสั่นของกล้อง", "settings.camShakeDesc": "มุมมองสั่นมากแค่ไหนเมื่อโดนตี โดนระเบิด หรือบอสกระแทกพื้น",

@@ -462,6 +462,9 @@ G.buildLevelScene = function (scene, level, quality) {
       leaves: [], colliders: [collider], collider, style: null,
       p: 0, from: 0, to: 0, animT: 1, dur: 0.45, settleT: 0, bashTimer: 0,
     };
+    // (overhaul, round 2) a sliding door: wood at the school, metal elsewhere -- and it moves (no bullet holes)
+    G.Surface.tag(collider, level.theme === "school" ? "wood" : "metal");
+    collider.moving = true;
     world.colliders.push(collider);
     world.roomDoors.push(ref);
     world.interactables.push({ mesh: root, kind: "roomdoor", ref });
@@ -630,6 +633,9 @@ G.buildLevelScene = function (scene, level, quality) {
       lf.mesh = panel;
       lf.collider = new THREE.Box3();
       lf.collider.dynamic = true;          // it rides with the panel (G.ColGrid)
+      // (overhaul, round 2) what a round hitting it finds: wood at the school, metal elsewhere, and no bullet holes
+      G.Surface.tag(lf.collider, level.theme === "school" ? "wood" : "metal");
+      lf.collider.moving = true;
     });
     // the placeholder gives way to one collider per panel, kept on the panel
     const i = world.colliders.indexOf(d.collider);
@@ -2502,12 +2508,12 @@ G.buildLevelScene = function (scene, level, quality) {
         const bin = new THREE.Mesh(new THREE.BoxGeometry(0.9, 1.25, 0.9), binMat);
         bin.position.set(cx, 0.62, cz); bin.rotation.y = G.rng();
         scene.add(bin);
-        world.colliders.push(new THREE.Box3().setFromObject(bin));
+        world.colliders.push(G.Surface.tag(new THREE.Box3().setFromObject(bin), "metal"));
       } else {
         const crate = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.0, 1.1), outMat);
         crate.position.set(cx, 0.5, cz); crate.rotation.y = G.rng();
         scene.add(crate);
-        world.colliders.push(new THREE.Box3().setFromObject(crate));
+        world.colliders.push(G.Surface.tag(new THREE.Box3().setFromObject(crate), "wood"));
         if (G.rng() < 0.6) {
           const top = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.7, 0.7), outMat);
           top.position.set(cx + 0.2, 1.35, cz - 0.15); top.rotation.y = G.rng();

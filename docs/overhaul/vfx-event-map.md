@@ -73,3 +73,13 @@
 ## 7. ตรวจผ่านรอบ 2
 - debug overlay แสดง particle ที่มีชีวิต / งบ, decal / งบ, sprite ที่ใช้, draw calls
 - Weapon Lab ถ่ายภาพทุกตระกูล + ยิงใส่ผนังทุก surface
+
+## 8. ทำจริงในรอบ 2 (ต่างจากแผนตรงไหน)
+- **ผิวปืน** (`js/gunskin.js`): texture pixel 128×16 (5 ผิว: matte, worn, bare, polymer, grip) + texture roughness/metal ชุดเดียวกัน — คูณกับสีเดิมของแต่ละชิ้น (vertex color) สีเอกลักษณ์จึงอยู่ครบ · vertex AO ตรงรอยต่อชิ้นและใต้มือ · ปืนทั้งกระบอกรวมเป็น mesh เดียว + glow + ชิ้นที่ขยับ (เฉลี่ย 4.4 mesh ต่อกระบอก จากเดิม ~9–14)
+- **แขน**: รวมกล่องในกระดูกแต่ละท่อนเป็น mesh เดียว (16 → 8 mesh, วาดจริง 6)
+- **draw calls ที่ประตูระดับ Low**: ปืน + แขน เหลือ +8 (เดิม +17–19) — ทั้งเฟรมต่ำกว่า 150 แล้ว
+- **ควัน**: `THREE.Points` + shader เดียว (1 draw call ทั้งหมด) จางลงใกล้กลางจอใน vertex shader
+- **รอยกระสุน**: InstancedMesh ต่อชนิด 4 ชนิด (hole, crack, splinter, dent) — จางด้วยการหดขนาด (r128 ไม่มี alpha ต่อ instance)
+- **ปลอก**: InstancedMesh pool 32 ใน game time (เลิกสร้าง mesh ใหม่ทุกนัด + rAF)
+- **surfaceType** (`js/surface.js`): พื้นตามชนิดห้อง (`world.roomTypeOf` จาก schoolrooms: ห้องสมุด/ห้องดนตรี = ไม้, ห้องเรียน = tile ฯลฯ), ทางเดิน = tile, สนาม = หญ้า, แอ่งน้ำ = น้ำ, บังเกอร์ = คอนกรีต · ผนัง: tag ที่ประตูเลื่อน (ไม้/โลหะ, `moving` = ไม่มีรอย), ลัง (ไม้), ถังขยะ (โลหะ) — นอกนั้นเดาจากรูปทรง (เสาบาง = โลหะ, ของเตี้ยบนพื้น = เฟอร์นิเจอร์)
+- **ตระกูลจริงจาก `G.ViewModel.family()`**: pistol 7, SMG 8, rifle 11, ลูกซองปั๊ม 10, ลูกซองกึ่งออโต้ 1, สไนเปอร์ 7, LMG 11, special 30 (+ มีด) — ตาราง §3 ของ weapon-state-machine.md นับจาก `def.archetype` ที่ระบุไว้เท่านั้น

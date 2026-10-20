@@ -103,6 +103,8 @@ G.defaultSave = function () {
       autoReload: true,
       cameraRecoil: 1,
       cameraShake: 1,
+      // (overhaul, round 2) the muzzle flash, 0-1: 0 = no light, only a faint flash at the muzzle
+      muzzleFlash: 1,
     },
     importedSets: {},             // {id: {name, words:[[en,th],...]}}
     customWords: { level1: [], level2: [], level3: [] },   // words the player added to each level ([[en,th] or [en,th,{definition,...}],...])
@@ -175,7 +177,7 @@ G.normalizeSave = function (data) {
   s.settings.playOnce = !!s.settings.playOnce;
   // (overhaul, round 1) a save from before: Auto Reload on, the view's recoil and shake at full
   s.settings.autoReload = s.settings.autoReload !== false;
-  num("cameraRecoil", 0, 1); num("cameraShake", 0, 1);
+  num("cameraRecoil", 0, 1); num("cameraShake", 0, 1); num("muzzleFlash", 0, 1);
   // (round 3, H1) the three languages: one of the four each, the Meaning Language
   // never the Word Language (if a save says so, the meaning goes back to the default)
   const LANGS = ["th", "en", "zh", "fr"];
