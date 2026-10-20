@@ -72,7 +72,7 @@ G.WeaponLab = {
     p.currentSlot = 1;
     if (g.wsm) g.wsm.requestSwitch();
     this.cur = id;
-    if (G.UI.refreshTouchSlots) G.UI.refreshTouchSlots();
+    // (the HUD's own frame redraws the slots and the touch buttons)
   },
 
   buildPanel() {
