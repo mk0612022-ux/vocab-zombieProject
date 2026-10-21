@@ -67,7 +67,8 @@ G.UI = {
     if (G.Game && G.Game.zombies) G.Game.zombies.forEach((z) => { if (z.alive) { z._label = null; z.setTarget(z.isTarget); } });
     // the HUD parts that only redraw when their state changes keep their old
     // words: forget what they drew so the next frame writes them again
-    this._hudPerkSig = this._abSig = this._touchSlotSig = this._shopSec = null;
+    this._hudPerkSig = this._abSig = this._shopSec = null;
+    if (G.Hud) { G.Hud.invalidate(); G.Hud.refit(); }
     if (G.Floor3) { G.Floor3._hudSig = null; if (G.Game && G.Floor3.s) G.Floor3.hud(G.Game); }
   },
   setHudVisible(v) {
@@ -92,20 +93,6 @@ G.UI = {
     document.body.classList.toggle("touch-mode", mode === "touch");
     // (the HUD is laid out differently for touch: fit its sizes again)
     if (was !== (mode === "touch") && G.HudCfg) G.HudCfg.refresh();
-  },
-  // On-screen weapon switcher: one button per slot the player actually holds
-  // (knife + up to four guns, six with the Extra Weapon Slot perk), rebuilt
-  // only when the loadout or selection changes so it isn't re-rendered every
-  // frame. Empty slots get no button.
-  refreshTouchSlots(slots, activeIndex) {
-    slots = slots.filter((s) => !s.empty);
-    const wrap = this.el("touch-slots");
-    const sig = slots.length + ":" + activeIndex;
-    if (this._touchSlotSig === sig) return;
-    this._touchSlotSig = sig;
-    wrap.innerHTML = slots.map((s, i) =>
-      `<button class="touch-slot-btn${i === activeIndex ? " active" : ""}${i === 0 ? " icon-btn" : ""}" data-slot="${i}"${i === 0 ? ` data-label="${G.T("touch.knifeLabel")}"` : ""}>${i === 0 ? "🔪" : i + 1}</button>`
-    ).join("");
   },
 
   init() {
@@ -194,7 +181,7 @@ G.UI = {
   },
   refreshSettingsScreen() { if (!this.el("screen-settings").classList.contains("hidden")) this.renderSettings(); },
   renderSettings() {
-    this._hudSlotSig = null;              // the HUD slot row shows the keys set here
+    if (G.Hud) G.Hud.invalidate();        // the HUD slot row shows the keys set here
     G.SettingsUI.render();
   },
   // ---------------- Leaderboard ----------------
@@ -708,42 +695,38 @@ G.UI = {
       </button>`;
     }).join("");
     this.el("inv-slots").querySelectorAll(".inv-slot").forEach((b) => (b.onclick = () => G.Loadout.choose(parseInt(b.dataset.idx, 10))));
+    // (overhaul, round 6) the HUD's slot row over the cards: the slot a card
+    // would give up lights up in it -- the mouse on the card, its focus, a
+    // controller on it -- and a gun's cell chooses too
+    const row = this.el("inv-slotrow");
+    row.innerHTML = G.Hud.slotRowHTML(G.Hud.cellsOf(g));
+    const cards = Array.from(this.el("inv-slots").querySelectorAll(".inv-slot"));
+    const mark = (i) => {
+      row.querySelectorAll(".hud-slot").forEach((c) => c.classList.toggle("replace", i != null && +c.dataset.slot === i + 1));
+      cards.forEach((b) => b.classList.toggle("replace-hl", i != null && +b.dataset.idx === i));
+    };
+    cards.forEach((b) => {
+      const i = parseInt(b.dataset.idx, 10);
+      b.addEventListener("mouseenter", () => mark(i)); b.addEventListener("focus", () => mark(i));
+      b.addEventListener("mouseleave", () => mark(null)); b.addEventListener("blur", () => mark(null));
+    });
+    row.onmouseover = (e) => { const c = e.target.closest(".hud-slot.gun"); mark(c ? +c.dataset.slot - 1 : null); };
+    row.onmouseleave = () => mark(null);
+    row.onclick = (e) => { const c = e.target.closest(".hud-slot.gun"); if (c) G.Loadout.choose(+c.dataset.slot - 1); };
     const keepNote = { wall: "inv.keepWall", shop: "inv.keepWall", mystery: "inv.keepBox", crate: "inv.keepFloor", drop: "inv.keepFloor", floor: "inv.keepStays" }[opts.source] || "inv.keepFloor";
     this.el("inv-note").textContent = T("inv.dropNote", { s: G.Loadout.RETURN_SECONDS }) + " " + T(keepNote);
     this.el("btn-inv-keep").onclick = () => G.Loadout.keep();
   },
 
   // ---------------- HUD update ----------------
-  // Smoothly eases a displayed number toward its real value over real
-  // elapsed wall-clock time (not tied to the game's own dt/FPS cap) --
-  // money/score/HP used to just snap to the new value instantly.
-  _tweenValue(key, target) {
-    // A single bad value used to wedge the HUD for good: NaN never converges
-    // back toward the target, so once it got in, HP/money/score read "NaN"
-    // until the page reloaded.
-    if (!Number.isFinite(target)) target = 0;
-    const now = performance.now();
-    this._tweenState = this._tweenState || {};
-    const prev = this._tweenState[key];
-    const st = prev && Number.isFinite(prev.val) ? prev : { val: target, t: now };
-    const dt = Math.min(0.1, (now - st.t) / 1000);
-    const factor = 1 - Math.exp(-7 * dt);
-    let val = st.val + (target - st.val) * factor;
-    if (Math.abs(target - val) < 0.4) val = target;
-    this._tweenState[key] = { val, t: now };
-    return val;
-  },
+  // The word to find at the top is drawn here; the bottom-centre HUD -- money,
+  // score, health, stamina, the slots, what is in hand, the level's tasks --
+  // and the header over the word are js/hud.js (overhaul, round 6). Every
+  // value is the game's own, exact: a number that eased towards its value
+  // read differently from the state for half a second.
   updateHud(p) {
-    const dispHp = this._tweenValue("hp", p.hp);
-    const dispMoney = this._tweenValue("money", p.money);
-    const dispScore = this._tweenValue("score", p.score);
-    this.el("hud-hp-fill").style.width = Math.max(0, dispHp) + "%";
-    this.el("hud-hp-text").textContent = Math.max(0, Math.round(dispHp));
-    // (D) the bar glows green while health comes back; under 30% the edges
-    // of the screen go red, deeper the lower it gets (the heartbeat is in
-    // game.js updateAudio)
-    const hpBox = this.el("hud-hp-fill").closest(".hud-health");
-    if (hpBox) hpBox.classList.toggle("regen", !!p.regenerating);
+    // under 30% the edges of the screen go red, deeper the lower it gets (the
+    // heartbeat is in game.js updateAudio)
     const low = p.hp > 0 && p.hp < 30 ? (30 - p.hp) / 30 : 0;
     if (low !== this._lowHp) {
       this._lowHp = low;
@@ -751,18 +734,6 @@ G.UI = {
       v.classList.toggle("on", low > 0);
       v.style.setProperty("--low", (0.35 + low * 0.65).toFixed(2));
     }
-    const staminaEl = this.el("hud-stamina-fill");
-    staminaEl.style.width = Math.max(0, p.stamina) + "%";
-    staminaEl.classList.toggle("exhausted", !!p.staminaExhausted);
-    this.el("hud-money").textContent = Math.round(dispMoney);
-    this.el("hud-score").textContent = Math.round(dispScore);
-    this.el("hud-level-wave").textContent = p.levelLabel;
-    this.el("hud-zombies-left").textContent = G.T("hud.zombies", { n: p.zombiesLeft });
-    // Category E: the speed penalty is otherwise invisible, so the HUD names
-    // the weight band of whatever is in hand.
-    this.el("hud-weapon-name").innerHTML = p.weaponName +
-      (p.weightLabel ? ` <span style="color:${p.weightColor};font-size:0.78em">[${p.weightLabel}]</span>` : "");
-    this.el("hud-ammo").textContent = p.isMelee ? G.T("hud.ammoMelee") : `${p.ammoInMag} / ${p.ammoReserve}`;
     // (round 3, H4: a Chinese meaning with its pinyin over it)
     const mr = p.meaningRuby, esc = G.escapeHtml;
     const mHtml = mr && mr.py ? `<ruby>${esc(mr.text)}<rt>${esc(mr.py)}</rt></ruby>${esc(mr.rest || "")}` : null;
@@ -780,7 +751,8 @@ G.UI = {
       if (box) { box.classList.remove("clue-thai", "clue-definition", "clue-cloze", "clue-audio"); box.classList.add("clue-" + kind); }
     }
     // (round 3: the meaning in the Meaning Language; the English clues are English)
-    this.el("hud-meaning").lang = kind === "thai" ? G.Lang.TAG[G.Lang.meaning()] || "th" : "en";
+    const lang = kind === "thai" ? G.Lang.TAG[G.Lang.meaning()] || "th" : "en";
+    if (this.el("hud-meaning").lang !== lang) this.el("hud-meaning").lang = lang;
     const sub = this.el("hud-meaning-sub");
     if (sub.textContent !== (p.clueSub || "") && sub.dataset.text !== (p.clueSub || "")) {
       // (round 3: a Chinese meaning under the definition, with its pinyin)
@@ -789,20 +761,18 @@ G.UI = {
       sub.dataset.text = p.clueSub || "";
       sub.lang = G.Lang.TAG[G.Lang.meaning()] || "th";
     }
-    sub.classList.toggle("hidden", !p.clueSub);
-    // (touch mode puts the stat and weapon panels at the top: a definition or
-    // a sentence is fitted into the gap between them, wrapping, rather than
-    // running under them)
+    if (sub.classList.contains("hidden") !== !p.clueSub) sub.classList.toggle("hidden", !p.clueSub);
+    // (touch: a definition or a sentence is fitted between the pause button
+    // and the minimap, wrapping, rather than running under them)
     const fitSig = innerWidth + "|" + kind + "|" + document.body.classList.contains("touch-mode");
     if (fitSig !== this._clueFitSig) {
       this._clueFitSig = fitSig;
       const box = document.querySelector(".hud-meaning-box");
       let w = "";
       if (box && kind !== "thai" && document.body.classList.contains("touch-mode")) {
-        const l = document.querySelector(".hud-left").getBoundingClientRect();
-        const rights = [document.querySelector(".hud-right"), this.el("hud-minimap")].map((e) => e && e.getBoundingClientRect()).filter((r) => r && r.width);
-        const rLeft = rights.length ? Math.min(...rights.map((r) => r.left)) : innerWidth;
-        const half = Math.min(innerWidth / 2 - l.right, rLeft - innerWidth / 2) - 10;
+        const pz = this.el("touch-pause").getBoundingClientRect(), mm = this.el("hud-minimap").getBoundingClientRect();
+        const lRight = pz.width ? pz.right : 0, rLeft = mm.width ? mm.left : innerWidth;
+        const half = Math.min(innerWidth / 2 - lRight, rLeft - innerWidth / 2) - 10;
         if (half > 90) w = Math.floor(half * 2) + "px";
       }
       if (box) box.style.maxWidth = w;
@@ -818,28 +788,13 @@ G.UI = {
       const lab = document.querySelector(".hud-meaning-label");
       if (lab) lab.textContent = p.meaningLabel;
     }
-    const obj = this.el("hud-objectives");
-    if (p.objectives) {
-      obj.classList.remove("hidden");
-      if (obj.textContent !== p.objectives) obj.textContent = p.objectives;
-      const [d, t] = p.objectives.replace(/[^0-9/]/g, "").split("/").map(Number);
-      obj.classList.toggle("done", d === t);
-    } else obj.classList.add("hidden");
-    // rebuilt only when something in it changes
-    const slotSig = p.slots.map((s) => (s.empty ? "e" : s.active ? "a" : "o")).join("");
-    if (slotSig !== this._hudSlotSig) {
-      this._hudSlotSig = slotSig;
-      const kb = G.save.settings.keybinds;
-      this.el("hud-slots").innerHTML = p.slots.map((s, i) =>
-        `<div class="hud-slot${s.active ? " active" : ""}${s.empty ? " empty" : ""}">${i === 0 ? "K" : G.keyLabel(kb["slot" + (i + 1)])}</div>`).join("");
+    const comboText = this._comboSavedUntil > performance.now() ? G.T("hud.comboSaved", { n: p.combo }) : p.combo > 1 ? G.T("hud.combo", { n: p.combo }) : "";
+    if (comboText !== this._comboText) {
+      this._comboText = comboText;
+      this.el("hud-combo").classList.toggle("hidden", !comboText);
+      if (comboText) this.el("hud-combo").textContent = comboText;
     }
-    if (this._comboSavedUntil > performance.now()) {
-      this.el("hud-combo").classList.remove("hidden");
-      this.el("hud-combo").textContent = G.T("hud.comboSaved", { n: p.combo });
-    } else if (p.combo > 1) { this.el("hud-combo").classList.remove("hidden"); this.el("hud-combo").textContent = G.T("hud.combo", { n: p.combo }); }
-    else this.el("hud-combo").classList.add("hidden");
     if (G.Input.mode === "touch") {
-      this.refreshTouchSlots(p.slots, p.slots.findIndex((s) => s.active));
       // (new series, round 1, E) the reload button fills its ring as the gun reloads
       const f = Math.round((p.reloadFrac || 0) * 50) / 50;
       if (f !== this._reloadRing) {
@@ -849,6 +804,7 @@ G.UI = {
         rb.classList.toggle("reloading", f > 0);
       }
     }
+    G.Hud.update(p);
     this.updateHudPerks();
   },
   noteComboSaved() { this._comboSavedUntil = performance.now() + 1600; },

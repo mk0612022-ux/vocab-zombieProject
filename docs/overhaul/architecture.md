@@ -44,7 +44,7 @@
 | ระบบ | ไฟล์ | หน้าที่ปัจจุบัน | งานนี้ |
 |---|---|---|---|
 | Modal กลาง | `modal.js` (`G.Modal.open/close`, freeze/pause/keys) | = openModal/closeModal ของสเปก | **คง** ใช้ต่อทุกหน้าต่าง |
-| HUD | `ui.js` `updateHud(p)` (อัปเดต DOM เมื่อค่าเปลี่ยน), `game.js` `buildHudState()`, `hudcfg.js` (ขนาด 50–150% ต่อส่วน), `touchcfg.js`, `minimap.js` | HUD มุมซ้าย/ขวาล่าง | **แก้** (รอบ 6): layout กลางล่าง |
+| HUD | `hud.js` (`G.Hud`, รอบ 6: กลุ่มกลางล่าง + แถบหัวกล่องคำถาม), `ui.js` `updateHud(p)` (กล่องคำถาม), `game.js` `buildHudState()`, `hudcfg.js` (ขนาด 50–150% ต่อส่วน + ช่องอาวุธ), `touchcfg.js` (กรอบ HUD ในหน้าแก้ไขปุ่ม + กันวางทับ), `minimap.js` | กลางล่าง: เงิน/คะแนน, แถบเลือด/stamina, แถวช่อง, แผงรายละเอียด | **ใหม่แล้ว** (รอบ 6) |
 | Loading / Main Menu / Lobby | `boot.js`, `mainmenu.js` + `menuscene.js` (รอบ 5: เมนูหลัก 3D แทนหน้า Start), `lobby.js` (carousel + ปุ่มกลับ) | Loading → Main Menu → Lobby | **ใหม่แล้ว** (รอบ 5): Main Menu 3D แทน Start, ไอคอนย้ายมาเมนูหลัก |
 | หน้าเมนูย่อย | `settings.js`, `progress.js`, `vocabcard.js` (Word Log), `journal.js`, `bosscodex.js`, `customvocab.js`, ui.js (leaderboard/achievements/armory/help) | เปิดจากเมนูหลัก (รอบ 5) | **คง** เนื้อหา เปลี่ยนแค่ทางเข้า |
 | คำถาม | `quiz.js` (6 ข้อท้ายเวฟ), `questions.js` (8 แบบ), `spell.js`, `learnmodes.js`, `study.js` (Daily Review), `practice.js`, `clues.js`, `distract.js`, `srs.js`, `game.js` `startWordChallenge` (บอส/ประตู/ชั้น), `abilityui.js` (รวงผึ้ง), `floor3.js` | ตอบแล้วแสดงผลถูก/ผิดสั้น ๆ | **แก้** (รอบ 7): คำอธิบายทุกจุด |
@@ -104,20 +104,24 @@ input (keyboard/mouse/touch/pad) ──คำขอ──▶ WeaponStateMachine 
 - เมนูหลัก/ลอบบี้อ่าน `G.save` (เดิม) และเขียนผ่านฟังก์ชันเดิม + `G.persist()`
 
 ### ความหมายบรรทัด HUD ใหม่ (รอบ 6) จากระบบเดิม
-| บรรทัด | มาจาก |
-|---|---|
-| Savings 0$ | `player.money` (เงินในรอบเล่น) |
-| ★ | `player.score` |
-| แถบเลือด % | `player.hp / player.maxHp` (ปัดขึ้น, 0% เฉพาะตาย) |
-| แถบ stamina | `G.Game.stamina / maxStamina`, หมดแรง = `staminaExhausted` |
-| ช่อง Knife | ช่อง 0 (`currentSlot === 0`, `G.MELEE_DEF`) |
-| ช่อง Pistol, Slot 2… | `player.gunSlots[i]` (เริ่ม 4 กระบอก + perk `extra_slot` ได้ถึง 6) — ช่องว่างจาก `G.Loadout.maxSlots()` |
-| ชื่ออุปกรณ์ / สถานะเขียว | `def.name`, `G.weightClass(def).label` (LIGHT/MEDIUM/HEAVY/VERY HEAVY) |
-| 12/48 | `player.ammo[id].mag / .reserve` |
-| Mission 1/7 (เหลือง) | `G.Objectives.doneCount / list().length` (เดิมแสดง "ภารกิจ d/n") |
-| Floor 3 (เหลือง) | ชั้นที่ยืน (`G.Zones.state.storey`) — ซ่อนในด่านที่ไม่มีหลายชั้น |
-| 0/6 (ฟ้า) | ตัวนับของภารกิจปัจจุบัน (`G.Objectives` รายการที่ยังไม่เสร็จที่มี count) เช่น คะแนนชั้น 3 (`hud-floor3`) |
-| แถบหัวกล่องคำถาม | Wave `wave/level.waves`, Zombies `zombiesLeft` (เดิม), Endless = เลขเวฟ, เวฟบอส = BOSS, ชื่อด่าน (ตัวเล็ก) |
+ทำเสร็จในรอบ 6: `js/hud.js` (`G.Hud`) วาดทุกบรรทัดจาก snapshot `G.Game.buildHudState()` และเขียน DOM เฉพาะค่าที่เปลี่ยน
+
+| บรรทัด | มาจาก | label |
+|---|---|---|
+| Savings 0$ | `player.money` (เงินในรอบเล่น) — ค่าตรงทันที ไม่ไล่ตัวเลข | `hud.savings` |
+| ★ | `player.score` (ตัวเล็กกว่า แถวเดียวกับ Savings) | — |
+| แถบเลือด % | `ceil(hp / maxHp × 100)` แสดง 0% เฉพาะตอนตาย; แถบลดแบบ smooth + damage chip; < 30% = pulse ช้า; regen = เรืองเขียวจาง | `hud.health` (aria) |
+| แถบ stamina | `G.Game.stamina / maxStamina`; หมดแรง (`staminaExhausted`) = สีเทาจนกว่าจะฟื้น | `hud.stamina` (aria) |
+| ช่อง Knife | ช่อง 0 (`currentSlot === 0`) ชื่อสั้นตามภาษา (มีด) | `hud.slotKnife` |
+| ช่อง Pistol | ปืนช่องแรก ถ้าเป็นปืนพกเริ่มต้นใช้ชื่อสั้นตามภาษา (ปืนพก) ถ้าเปลี่ยนเป็นปืนอื่นใช้ชื่อปืนจริง | `hud.slotPistol` |
+| Slot 2… | `player.gunSlots[i]` (ปืนจริง + แถบสีความหายาก) — ช่องว่าง "Slot N" ถึง `G.Loadout.maxSlots()` (4 กระบอก + perk `extra_slot` ได้ถึง 6) ปุ่มลัดจาก keybinds | `hud.slotEmpty` |
+| ชื่ออุปกรณ์ / สถานะเขียว | `def.name`, `G.weightClass(def).label` (LIGHT/MEDIUM/HEAVY/VERY HEAVY); มีด = MELEE | `hud.melee` |
+| 12/48 | `player.ammo[id].mag / .reserve`; ≤ 25% ของแม็กเต็ม = อำพัน; 0 = แดง + RELOAD (หรือ NO AMMO ถ้าสำรองก็หมด); มีด = "—"; แถบรีโหลดบางจาก timer ของ WSM | `hud.reloadNow`, `hud.noAmmo` |
+| Mission 1/7 (เหลือง) | `G.Objectives` ข้อที่เสร็จ / ทั้งหมด (เดิม "ภารกิจ d/n") เขียวเมื่อครบ | `hud.mission` |
+| Floor 3 (เหลือง) | ชั้นที่ยืนจากความสูงเท้าเทียบ `world.storeyY` — ซ่อนในด่านที่ไม่มีหลายชั้น | `hud.floor` |
+| 3F 3/6 (ฟ้า) | ขั้นตอนปลดล็อกชั้น 3 (`js/floor3.js`, `#hud-floor3`) ระหว่างที่ยังไม่เปิด | `f3.hud` |
+| 0/6 (ฟ้า) | ถ้าไม่มีขั้นตอนชั้น 3: เป้าหมายแรกที่ยังไม่เสร็จและมีตัวนับ (คำที่ตอบถูก ห้อง กุญแจ บันทึก บอส — ไม่นับ "รอดครบเวฟ" ที่อยู่บนแถบหัวแล้ว และความแม่นยำที่เป็น %) | `obj.short.*` |
+| แถบหัวกล่องคำถาม | ชื่อด่าน (ตัวเล็ก ซ่อนบนจอแคบ < 600 px — อยู่ในหน้า pause แทน) · Wave `wave/level.waves` (Endless/Daily = เลขเวฟอย่างเดียว, overtime ต่อท้าย) · Zombies left `ที่เหลือ/โควตาเวฟ` (`requiredKills`) · ระหว่างบอส = BOSS · Daily Review/บทเรียน = ความคืบหน้าของ session | `hud.wave*`, `hud.zombiesLeft*`, `hud.bossWave` |
 
 ## 5. เวลาเกม (Game Time)
 - ใหม่: `G.Clock` — `t` (game time วินาที), `dt`, `paused`; เดินเฉพาะตอน `G.Game.state === "GAMEPLAY"` และไม่มี modal แบบ pause

@@ -3,11 +3,11 @@
 // -------------------------------------------------------------------
 // Every part of the HUD has its own size, 50%-150%, and one slider sizes the
 // whole HUD at once: the health and stamina bars, money, score, the wave and
-// zombies left, the weapon and its ammunition, the minimap, the perk and the
-// ability icons, and the word to find. Set in Settings > Adjust HUD Size (or
-// from the touch layout editor), with the real HUD on screen changing as the
-// sliders move; kept in the save (G.save.settings.hudScale), Reset to Default
-// puts them back.
+// zombies left, the weapon and its ammunition, the slot row (overhaul, round
+// 6), the minimap, the perk and the ability icons, and the word to find. Set
+// in Settings > Adjust HUD Size (or from the touch layout editor), with the
+// real HUD on screen changing as the sliders move; kept in the save
+// (G.save.settings.hudScale), Reset to Default puts them back.
 //
 // The parts are sized with CSS zoom, which moves what is round them too, and
 // then checked: none may overlap another or leave the screen -- the safe area
@@ -20,12 +20,13 @@
   const esc = (s) => G.escapeHtml(String(s));
   // each part: what it sizes
   const PARTS = {
-    hp: ".hud-health", stamina: ".hud-stamina", money: ".hud-money-stat", score: ".hud-score-stat",
-    wave: ".hud-wave-stat", weapon: ".hud-right", minimap: "#hud-minimap", perks: "#hud-perks",
+    // (overhaul, round 6: the parts of the bottom-centre HUD, js/hud.js)
+    hp: ".hud-hp", stamina: ".hud-stam", money: ".hud-savings", score: ".hud-score", slots: ".hud-dock .hud-slots",
+    wave: ".hud-head", weapon: ".hud-detail", minimap: "#hud-minimap", perks: "#hud-perks",
     abilities: "#hud-abilities", word: ".hud-meaning-box",
   };
   // the boxes that must not overlap each other or leave the screen
-  const BOXES = [".hud-left", ".hud-right", "#hud-minimap", "#hud-abilities", ".hud-meaning-box"];
+  const BOXES = ["#hud-dock", "#hud-minimap", ".hud-meaning-box"];
 
   G.HudCfg = {
     PARTS: Object.keys(PARTS),
@@ -68,7 +69,11 @@
       if (!G.save) return;
       this.fitK = 1;
       this.apply();
+      // (overhaul, round 6) the bottom HUD laid out at these sizes, checked,
+      // and laid out again at what the check left
+      if (G.Hud) G.Hud.fit();
       this.fit();
+      if (G.Hud && this.fitK < 1) G.Hud.fit();
       if (this._mmSample) this.drawSampleMap();
       if (this.editing) this.renderFit();
     },
@@ -220,7 +225,7 @@
     mark(part, on) {
       document.querySelectorAll(".hudcfg-sel").forEach((el) => el.classList.remove("hudcfg-sel"));
       if (!on) return;
-      const sel = part === "all" ? "#hud .hud-left, #hud .hud-right, #hud-minimap, #hud-abilities, #hud .hud-meaning-box" : PARTS[part];
+      const sel = part === "all" ? "#hud-dock, #hud-minimap, #hud .hud-meaning-box" : PARTS[part];
       document.querySelectorAll(sel).forEach((el) => el.classList.add("hudcfg-sel"));
     },
     renderFit() {

@@ -89,7 +89,7 @@ G.Objectives = {
     return total ? game.correctCount / total : 0;
   },
 
-  // One row per goal: label, progress text, done flag. Used by both the HUD
+  // One row per goal: key, label, progress text, done flag. Used by both the HUD
   // chip and the pause-menu checklist, so the two can never disagree.
   list(game) {
     const s = this.state;
@@ -99,17 +99,17 @@ G.Objectives = {
     const L = !!s.latched;
     const T = G.T;
     const rows = [
-      { label: T("obj.survive", { n: game.level.waves }), value: `${Math.min(game.wave, game.level.waves)} / ${game.level.waves}`, done: game.wave > game.level.waves || (game.wave === game.level.waves && game._finalWaveCleared) },
-      { label: T("obj.correct", { n: c.minCorrect }), value: `${game.correctCount} / ${c.minCorrect}`, done: L || game.correctCount >= c.minCorrect },
-      { label: T("obj.accuracy", { p: Math.round(c.accuracy * 100) }), value: `${Math.round(acc * 100)}%`, done: L || (acc >= c.accuracy && (game.correctCount + game.wrongCount) > 0) },
-      { label: T("obj.explore", { n: s.roomsNeeded }), value: `${s.visited.size} / ${s.roomsNeeded}`, done: s.visited.size >= s.roomsNeeded },
-      { label: T("obj.keys", { n: s.keysTotal }), value: `${s.keysFound} / ${s.keysTotal}`, done: s.keysFound >= s.keysTotal },
+      { key: "survive", label: T("obj.survive", { n: game.level.waves }), value: `${Math.min(game.wave, game.level.waves)} / ${game.level.waves}`, done: game.wave > game.level.waves || (game.wave === game.level.waves && game._finalWaveCleared) },
+      { key: "correct", label: T("obj.correct", { n: c.minCorrect }), value: `${game.correctCount} / ${c.minCorrect}`, done: L || game.correctCount >= c.minCorrect },
+      { key: "accuracy", label: T("obj.accuracy", { p: Math.round(c.accuracy * 100) }), value: `${Math.round(acc * 100)}%`, done: L || (acc >= c.accuracy && (game.correctCount + game.wrongCount) > 0) },
+      { key: "explore", label: T("obj.explore", { n: s.roomsNeeded }), value: `${s.visited.size} / ${s.roomsNeeded}`, done: s.visited.size >= s.roomsNeeded },
+      { key: "keys", label: T("obj.keys", { n: s.keysTotal }), value: `${s.keysFound} / ${s.keysTotal}`, done: s.keysFound >= s.keysTotal },
     ];
     if (c.notes) {
       const read = game.notesReadRun ? game.notesReadRun.size : 0;
-      rows.push({ label: T("obj.notes", { n: c.notes }), value: `${Math.min(read, c.notes)} / ${c.notes}`, done: L || read >= c.notes });
+      rows.push({ key: "notes", label: T("obj.notes", { n: c.notes }), value: `${Math.min(read, c.notes)} / ${c.notes}`, done: L || read >= c.notes });
     }
-    if (c.bosses) rows.push({ label: T("obj.boss", { n: c.bosses }), value: `${Math.min(s.bossesDown, c.bosses)} / ${c.bosses}`, done: s.bossesDown >= c.bosses });
+    if (c.bosses) rows.push({ key: "boss", label: T("obj.boss", { n: c.bosses }), value: `${Math.min(s.bossesDown, c.bosses)} / ${c.bosses}`, done: s.bossesDown >= c.bosses });
     return rows;
   },
 

@@ -145,6 +145,8 @@ G.Round4Test = (function () {
       await until(() => G.UI._currentScreen === "screen-practice-setup", 8000);
       ok("... then opens the mode (practice setup)", G.UI._currentScreen === "screen-practice-setup");
       G.Game.quitToMainMenu();
+      // (a level kept at its checkpoint asks Continue or New Run first -- js/checkpoint.js -- so none here)
+      if (G.Checkpoint) G.Checkpoint.remove(1);
       G.UI.goToMainMenu({ tab: "campaign", select: "school" });
       key("Space");
       // (vocabulary series, round 4, J2: the level's Learning Style first; Enter plays)

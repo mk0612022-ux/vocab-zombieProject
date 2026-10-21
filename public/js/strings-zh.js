@@ -246,11 +246,7 @@ G.STRINGS.zh = {
     "hud.waiting": "等待僵尸……",
     "hud.hintFirst": "  （开头是“{c}”）",
     "hud.hintLen": "  （开头是“{c}”，共 {n} 个字/字母）",
-    "hud.levelWave": "{level} · 第 {wave} 波",
     "hud.overtime": "（加时）",
-    "hud.objectives": "目标 {d}/{n}",
-    "hud.zombies": "僵尸：{n}",
-    "hud.ammoMelee": "∞",
     "hud.fps": "{n} FPS",
     "hud.draws": "{n} 次绘制调用",
     "hud.tris": "{n}k 三角形",
@@ -700,7 +696,6 @@ G.STRINGS.zh = {
     "touchcfg.confirmReset": "将所有位置、大小、不透明度和灵敏度恢复为默认吗？",
     "touchcfg.joystick": "移动摇杆", "touchcfg.fire": "开火按钮（开火）", "touchcfg.ads": "瞄准按钮", "touchcfg.interact": "使用按钮（E）",
     "touchcfg.reload": "换弹按钮（R）", "touchcfg.jump": "跳跃按钮", "touchcfg.sprint": "奔跑按钮", "touchcfg.pause": "暂停按钮",
-    "touchcfg.slots": "武器栏",
 
     // ---- signs and posters in the world ----
     "world.wallWeight": "重量：{w}",
@@ -806,7 +801,7 @@ G.STRINGS.zh = {
     "lobby.tab.training": "训练与自定义",
     "lobby.featured": "推荐",
     "hud.hearShort": "听",
-    "touch.interactLabel": "使用", "touch.reloadLabel": "换弹", "touch.pauseLabel": "暂停", "touch.knifeLabel": "小刀",
+    "touch.interactLabel": "使用", "touch.reloadLabel": "换弹", "touch.pauseLabel": "暂停",
     "touch.fireLabel": "开火", "touch.aimLabel": "瞄准", "touch.jumpLabel": "跳跃", "touch.sprintLabel": "奔跑",
     // (C) Settings: the shop's time between waves
     "settings.shopTime": "波次间的商店时间",
@@ -1497,6 +1492,13 @@ G.STRINGS.zh = {
     "home.sound": "点击 / 轻触以开启声音", "home.rotate": "请横向旋转设备以获得最佳视角",
     "lobby.back": "主菜单",
     "settings.reduceMotion": "减少动态效果", "settings.reduceMotionDesc": "主菜单的镜头保持静止（不摇晃、无视差）。",
+    // (overhaul, round 6) the HUD at the bottom centre (js/hud.js) and its header
+    "hud.savings": "存款", "hud.health": "生命值", "hud.stamina": "体力",
+    "hud.slotEmpty": "栏位 {n}", "hud.slotKnife": "刀", "hud.slotPistol": "手枪", "hud.melee": "近战", "hud.reloadNow": "换弹", "hud.noAmmo": "没有弹药",
+    "hud.mission": "任务 {d}/{n}", "hud.floor": "{n} 楼",
+    "hud.wave": "第 {w} 波", "hud.waveOf": "第 {w}/{n} 波", "hud.zombiesLeft": "剩余僵尸 {n}", "hud.zombiesLeftOf": "剩余僵尸 {n}/{t}", "hud.bossWave": "首领",
+    "obj.short.correct": "单词", "obj.short.explore": "房间", "obj.short.keys": "钥匙", "obj.short.notes": "笔记", "obj.short.boss": "首领",
+    "hudcfg.slots": "武器栏位", "touchcfg.hudZone": "HUD：请勿把按钮放在这里",
     "settings.speechAfterShort": "回答后", "settings.speechBeforeShort": "出现时",
     "settings.speechModeDesc": "回答后再听每个单词（推荐），或新单词一出现就听（更简单）。",
     "settings.speechSpeedDesc": "“慢”以 0.8 倍速播放单词。",

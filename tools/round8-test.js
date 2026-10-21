@@ -361,10 +361,10 @@ G.Round8Test = (function () {
     g.state = "GAMEPLAY"; G.UI.setHudVisible(true); G.UI.showScreen(null);
     const H = G.HudCfg;
     H.reset();
-    ok("F eleven sliders: the whole HUD and ten parts", ["all"].concat(H.PARTS).length === 11 && H.PARTS.includes("hp") && H.PARTS.includes("stamina") && H.PARTS.includes("money") && H.PARTS.includes("minimap"));
+    ok("F twelve sliders: the whole HUD and eleven parts (overhaul, round 6: the slot row too)", ["all"].concat(H.PARTS).length === 12 && H.PARTS.includes("slots") && H.PARTS.includes("hp") && H.PARTS.includes("stamina") && H.PARTS.includes("money") && H.PARTS.includes("minimap"));
     H.set("hp", 1.4);
-    ok("F a part's size", document.querySelector(".hud-health").style.zoom !== "" && Math.abs(parseFloat(document.querySelector(".hud-health").style.zoom) - 1.4 * H.fitK) < 0.01);
-    ok("F ...only that part", document.querySelector(".hud-stamina").style.zoom === "" || Math.abs(parseFloat(document.querySelector(".hud-stamina").style.zoom) - H.fitK) < 0.01);
+    ok("F a part's size", document.querySelector(".hud-hp").style.zoom !== "" && Math.abs(parseFloat(document.querySelector(".hud-hp").style.zoom) - 1.4 * H.fitK) < 0.01);
+    ok("F ...only that part", document.querySelector(".hud-stam").style.zoom === "" || Math.abs(parseFloat(document.querySelector(".hud-stam").style.zoom) - H.fitK) < 0.01);
     H.set("hp", 9); ok("F 150% at most", H.get("hp") === 1.5);
     H.set("hp", 0.1); ok("F 50% at least", H.get("hp") === 0.5);
     ok("F kept in the save", G.save.settings.hudScale.hp === 0.5);
@@ -372,7 +372,7 @@ G.Round8Test = (function () {
     const extra = H.problems().filter((p) => !H._baseline.has(p));
     ok("F everything at 150%: nothing overlaps or leaves the screen (it shrinks to fit)", extra.length === 0, extra.join(",") + " fit " + r1(H.fitK));
     H.reset();
-    ok("F Reset to Default", Object.keys(G.save.settings.hudScale).length === 0 && document.querySelector(".hud-health").style.zoom === "");
+    ok("F Reset to Default", Object.keys(G.save.settings.hudScale).length === 0 && document.querySelector(".hud-hp").style.zoom === "");
     // touch mode: the panels move to the top, where the weapon panel shares a
     // corner with the minimap; the touch buttons count as well
     G.Input.mode = "touch"; G.UI.applyControlMode(); H._baseKey = null; H.reset();
@@ -388,11 +388,11 @@ G.Round8Test = (function () {
     g.pause();
     G.UI._settingsReturn = "screen-pause"; G.UI.renderSettings(); G.UI.showScreen("screen-settings");
     document.getElementById("btn-hudcfg").click();
-    ok("F Settings > Adjust HUD Size: the real HUD and the sliders", H.editing && !document.getElementById("hudcfg-panel").classList.contains("hidden") && !document.getElementById("hud").classList.contains("hidden") && document.querySelectorAll("#hudcfg-rows input[type=range]").length === 11);
+    ok("F Settings > Adjust HUD Size: the real HUD and the sliders", H.editing && !document.getElementById("hudcfg-panel").classList.contains("hidden") && !document.getElementById("hud").classList.contains("hidden") && document.querySelectorAll("#hudcfg-rows input[type=range]").length === 12);   // (overhaul, round 6: and the slot row)
     ok("F a controller works in it", G.Pad.scope() === document.getElementById("hudcfg-panel"));
     const inp = document.querySelector('#hudcfg-rows [data-part="money"] input');
     inp.value = 1.3; inp.dispatchEvent(new Event("input"));
-    ok("F moving a slider sizes the HUD as it goes", Math.abs(H.get("money") - 1.3) < 1e-6 && document.querySelector(".hud-money-stat").style.zoom !== "");
+    ok("F moving a slider sizes the HUD as it goes", Math.abs(H.get("money") - 1.3) < 1e-6 && document.querySelector(".hud-savings").style.zoom !== "");
     key("Escape");
     ok("F Escape closes it, back to Settings", !H.editing && G.UI._currentScreen === "screen-settings");
     // from the touch layout editor too

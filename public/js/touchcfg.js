@@ -13,7 +13,8 @@
 // ===================================================================
 G.TouchCfg = {
   // also the save keys of touchLayout.pos / .scale; names are "touchcfg.<id>"
-  IDS: ["joystick", "fire", "ads", "interact", "reload", "jump", "sprint", "pause", "slots", "abilities"],
+  // (overhaul, round 6: the weapon row is the HUD's own slot row now, not a control to move)
+  IDS: ["joystick", "fire", "ads", "interact", "reload", "jump", "sprint", "pause", "abilities"],
   MIN_SCALE: 0.6, MAX_SCALE: 1.8,
   editing: false,
   _sel: null,
@@ -31,6 +32,9 @@ G.TouchCfg = {
     if (!Number.isFinite(c.opacity)) c.opacity = 1;
     if (!Number.isFinite(c.lookSens)) c.lookSens = 1;
     if (!Number.isFinite(c.btnLookSens)) c.btnLookSens = 1;       // dragging from FIRE / AIM (new series, round 1, D)
+    // (overhaul, round 6: the weapon row went into the HUD -- an older save's place for it is dropped)
+    if (c.pos.slots) delete c.pos.slots;
+    if (c.scale.slots) delete c.scale.slots;
     return c;
   },
 
@@ -67,7 +71,7 @@ G.TouchCfg = {
       const p = c.pos[id];
       if (!p) {
         el.style.left = ""; el.style.top = ""; el.style.right = ""; el.style.bottom = "";
-        if (id === "slots" || id === "abilities") el.style.transform = "";
+        if (id === "abilities") el.style.transform = "";
         return;
       }
       const r = el.getBoundingClientRect();
@@ -76,6 +80,8 @@ G.TouchCfg = {
       if (r.width < 1 || r.height < 1) return;
       this._place(el, id, p.x * W, p.y * H, r.width, r.height);
     });
+    // (overhaul, round 6) the HUD makes its room between the buttons, then keeps them off it
+    if (G.Hud) G.Hud.refit();
   },
 
   _place(el, id, cx, cy, w, h) {
@@ -86,8 +92,28 @@ G.TouchCfg = {
     el.style.top = top + "px";
     el.style.right = "auto";
     el.style.bottom = "auto";
-    // (the two rows are centred with a transform until they are moved)
-    if (id === "slots" || id === "abilities") el.style.transform = "none";
+    // (the ability row is centred with a transform until it is moved)
+    if (id === "abilities") el.style.transform = "none";
+  },
+
+  // (overhaul, round 6) No button on the HUD: one there -- dragged onto it,
+  // or in a layout saved before the HUD moved to the bottom -- goes up above
+  // it, and the layout is kept that way. (A button where the stylesheet puts
+  // it is clear already: the HUD makes its room around those.)
+  keepClear(zone) {
+    if (!zone) return;
+    const c = this.cfg();
+    let moved = false;
+    this.IDS.forEach((id) => { if (c.pos[id] && this.el(id) && this._lift(this.el(id), id, zone)) moved = true; });
+    if (moved && !this._drag && G.persist) G.persist();
+  },
+  _lift(el, id, zone) {
+    const r = el.getBoundingClientRect();
+    if (r.width < 1 || !(r.left < zone.right && zone.left < r.right && r.top < zone.bottom && zone.top < r.bottom)) return false;
+    this._place(el, id, r.left + r.width / 2, zone.top - r.height / 2 - 6, r.width, r.height);
+    const nr = el.getBoundingClientRect();
+    this.cfg().pos[id] = { x: (nr.left + nr.width / 2) / window.innerWidth, y: (nr.top + nr.height / 2) / window.innerHeight };
+    return true;
   },
 
   setScale(id, v) {
@@ -130,12 +156,12 @@ G.TouchCfg = {
     this._previewOwned = G.Game.startLayoutPreview();
     const live = G.Game.state === "GAMEPLAY" || G.Game.state === "PAUSE";
     UI.updateHud(live ? G.Game.buildHudState() : this.sampleHud());
-    // Show the full weapon row so it can be placed even before the player owns
-    // four guns.
-    UI._touchSlotSig = null;
-    UI.refreshTouchSlots([{ active: false }, { active: true }, { active: false }, { active: false }, { active: false }], 1);
-    // ...and all four ability buttons, whatever the run holds (round 3)
+    // all four ability buttons, whatever the run holds (round 3)
     if (UI.refreshTouchAbilities) UI.refreshTouchAbilities(true);
+    // (overhaul, round 6) the HUD's box, outlined: no button may sit on it
+    const dock = document.getElementById("hud-dock");
+    dock.dataset.zone = G.T("touchcfg.hudZone");
+    dock.classList.add("tc-hudzone");
 
     this.apply();
     this.select(null);
@@ -158,7 +184,7 @@ G.TouchCfg = {
     G.persist();
 
     const UI = G.UI;
-    UI._touchSlotSig = null;
+    document.getElementById("hud-dock").classList.remove("tc-hudzone");
     if (UI.refreshTouchAbilities) UI.refreshTouchAbilities(false);
     document.body.classList.toggle("touch-mode", this._prevTouchMode);
     UI.setHudVisible(!this._prevHudHidden);
@@ -174,10 +200,18 @@ G.TouchCfg = {
   },
 
   sampleHud() {
+    const lv = G.getLevel(1), kb = G.save.settings.keybinds, pistol = G.WEAPON_DEFS.pistol, T = G.T;
+    // (overhaul, round 6) the HUD as at the start of a level: the knife, the
+    // pistol in hand, three free slots
+    const cells = [{ kind: "knife", id: "melee", name: T("hud.slotKnife"), key: G.keyLabel(kb.melee), active: false },
+      { kind: "gun", id: "pistol", name: T("hud.slotPistol"), color: "#" + G.RARITY[pistol.rarity].color.toString(16).padStart(6, "0"), key: G.keyLabel(kb.slot2), active: true }]
+      .concat([3, 4, 5].map((s) => ({ kind: "empty", key: G.keyLabel(kb["slot" + s]), active: false })));
     return {
-      hp: 100, stamina: 100, staminaExhausted: false, money: 1500, score: 2400,
-      levelLabel: G.T("hud.levelWave", { level: G.getLevel(1).name, wave: "1/" + G.getLevel(1).waves }), zombiesLeft: 3,
-      weaponName: G.WEAPON_DEFS.pistol.name,
+      hp: 100, stamina: 100, staminaExhausted: false, money: 1500, score: 2400, dead: false,
+      head: { level: lv.name, wave: T("hud.waveOf", { w: 1, n: lv.waves }), left: T("hud.zombiesLeftOf", { n: 3, t: 8 }), boss: false },
+      hand: { name: pistol.name, status: G.weightClass(pistol).label, melee: false, mag: 12, reserve: 48, lowAt: 3, reloading: false, reloadFrac: 0 },
+      mission: { d: 1, n: 7 }, floor: 1, task: { label: T("obj.short.keys"), value: "0/3" }, cells,
+      zombiesLeft: 3, weaponName: pistol.name,
       // a real meaning from the level-1 word list, so the preview shows Thai text at its true width
       ammoInMag: 12, ammoReserve: 48, currentMeaning: G.WORDS_LEVEL_1[0][1],
       slots: [{ active: false }, { active: true }, { active: false }, { active: false }, { active: false }],
@@ -219,6 +253,9 @@ G.TouchCfg = {
       if (!id) return;
       const r = this.el(id).getBoundingClientRect();
       this._drag = { id, dx: e.clientX - (r.left + r.width / 2), dy: e.clientY - (r.top + r.height / 2) };
+      // (overhaul, round 6) the HUD holds still while a button moves, and
+      // the button may not be put down on it
+      if (G.Hud) { G.Hud.freeze(true); this._zone = G.Hud.zone(); }
       try { cap.setPointerCapture(e.pointerId); } catch (err) { /* a synthetic or already-released pointer */ }
     });
     cap.addEventListener("pointermove", (e) => {
@@ -233,8 +270,14 @@ G.TouchCfg = {
         x: (nr.left + nr.width / 2) / window.innerWidth,
         y: (nr.top + nr.height / 2) / window.innerHeight,
       };
+      if (this._zone) this._lift(el, d.id, this._zone);
     });
-    const end = () => { if (this._drag) { this._drag = null; G.persist(); } };
+    const end = () => {
+      if (!this._drag) return;
+      this._drag = null; this._zone = null;
+      if (G.Hud) G.Hud.freeze(false);
+      G.persist();
+    };
     cap.addEventListener("pointerup", end);
     cap.addEventListener("pointercancel", end);
 

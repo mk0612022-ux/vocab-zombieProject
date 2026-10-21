@@ -144,7 +144,7 @@
       game._continues = cp.continues || 0;
       game.wave = (cp.wave || this.AFTER_WAVE + 1) - 1;      // startWave() makes it the saved one
       game._checkpointDue = false;
-      G.UI._tweenState = null;
+      if (G.Hud) G.Hud.reset();
     },
 
     // ---- the screens ----

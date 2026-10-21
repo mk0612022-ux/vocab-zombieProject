@@ -126,9 +126,9 @@ G.Round21Test = (function () {
     const R = g.wsm.rl;
     ok("D tactical: no slide release, quicker than an empty one", !R.plan.events.some((e) => e.kind === "bolt") && R.plan.dur < G.WEAPON_DEFS.pistol.reloadTime / 1000);
     secs(g, R.commitAt - 0.06);
-    ok("D before the magazine seats: nothing added, the HUD as it was", a.mag === 5 && /^5 \//.test(document.getElementById("hud-ammo").textContent));
+    ok("D before the magazine seats: nothing added, the HUD as it was", a.mag === 5 && /^5\//.test(document.getElementById("hud-ammo").textContent));
     secs(g, 0.12);
-    ok("D at magIn: the magazine full, the HUD with it", a.mag === 12 && /^12 \//.test(document.getElementById("hud-ammo").textContent));
+    ok("D at magIn: the magazine full, the HUD with it", a.mag === 12 && /^12\//.test(document.getElementById("hud-ammo").textContent));
     ok("D the HUD's reload ring follows the reload's own clock", g.buildHudState().reloadFrac > 0 && g.buildHudState().reloadFrac < 1);
     secs(g, 1.5);
     const marks = events.filter((e) => e.phase === "marker" && e.reloadId === R.reloadId).map((e) => e.marker);

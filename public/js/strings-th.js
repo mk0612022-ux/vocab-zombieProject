@@ -246,11 +246,7 @@ G.STRINGS.th = {
     "hud.waiting": "รอซอมบี้...",
     "hud.hintFirst": "  (ขึ้นต้นด้วย \"{c}\")",
     "hud.hintLen": "  (ขึ้นต้นด้วย \"{c}\", {n} ตัว)",
-    "hud.levelWave": "{level} · เวฟ {wave}",
     "hud.overtime": " (ต่อเวลา)",
-    "hud.objectives": "ภารกิจ {d}/{n}",
-    "hud.zombies": "ซอมบี้: {n}",
-    "hud.ammoMelee": "∞",
     "hud.fps": "{n} FPS",
     "hud.draws": "{n} draw call",
     "hud.tris": "{n}k สามเหลี่ยม",
@@ -700,7 +696,6 @@ G.STRINGS.th = {
     "touchcfg.confirmReset": "รีเซ็ตตำแหน่ง ขนาด ความทึบ และความไวทั้งหมดเป็นค่าเริ่มต้นหรือไม่?",
     "touchcfg.joystick": "จอยเดิน", "touchcfg.fire": "ปุ่มยิง (ยิง)", "touchcfg.ads": "ปุ่มเล็ง", "touchcfg.interact": "ปุ่มใช้ (E)",
     "touchcfg.reload": "ปุ่มรีโหลด (R)", "touchcfg.jump": "ปุ่มกระโดด", "touchcfg.sprint": "ปุ่มวิ่ง", "touchcfg.pause": "ปุ่มหยุดเกม",
-    "touchcfg.slots": "แถวอาวุธ",
 
     // ---- signs and posters in the world ----
     "world.wallWeight": "น้ำหนัก: {w}",
@@ -806,7 +801,7 @@ G.STRINGS.th = {
     "lobby.tab.training": "ฝึกฝนและกำหนดเอง",
     "lobby.featured": "แนะนำ",
     "hud.hearShort": "ฟัง",
-    "touch.interactLabel": "ใช้", "touch.reloadLabel": "รีโหลด", "touch.pauseLabel": "หยุด", "touch.knifeLabel": "มีด",
+    "touch.interactLabel": "ใช้", "touch.reloadLabel": "รีโหลด", "touch.pauseLabel": "หยุด",
     "touch.fireLabel": "ยิง", "touch.aimLabel": "เล็ง", "touch.jumpLabel": "กระโดด", "touch.sprintLabel": "วิ่ง",
     // (C) Settings: the shop's time between waves
     "settings.shopTime": "เวลาร้านค้าระหว่างเวฟ",
@@ -1497,6 +1492,13 @@ G.STRINGS.th = {
     "home.sound": "คลิก / แตะ เพื่อเปิดเสียง", "home.rotate": "หมุนอุปกรณ์เป็นแนวนอนเพื่อมุมมองที่ดีที่สุด",
     "lobby.back": "เมนูหลัก",
     "settings.reduceMotion": "ลดการเคลื่อนไหว", "settings.reduceMotionDesc": "กล้องในเมนูหลักอยู่นิ่ง (ไม่โยก ไม่มีพารัลแลกซ์)",
+    // (overhaul, round 6) the HUD at the bottom centre (js/hud.js) and its header
+    "hud.savings": "เงินเก็บ", "hud.health": "พลังชีวิต", "hud.stamina": "สแตมินา",
+    "hud.slotEmpty": "ช่อง {n}", "hud.slotKnife": "มีด", "hud.slotPistol": "ปืนพก", "hud.melee": "ประชิด", "hud.reloadNow": "รีโหลด", "hud.noAmmo": "กระสุนหมด",
+    "hud.mission": "ภารกิจ {d}/{n}", "hud.floor": "ชั้น {n}",
+    "hud.wave": "เวฟ {w}", "hud.waveOf": "เวฟ {w}/{n}", "hud.zombiesLeft": "ซอมบี้เหลือ {n}", "hud.zombiesLeftOf": "ซอมบี้เหลือ {n}/{t}", "hud.bossWave": "บอส",
+    "obj.short.correct": "คำ", "obj.short.explore": "ห้อง", "obj.short.keys": "กุญแจ", "obj.short.notes": "บันทึก", "obj.short.boss": "บอส",
+    "hudcfg.slots": "ช่องอาวุธ", "touchcfg.hudZone": "HUD: ห้ามวางปุ่มทับ",
     "settings.speechAfterShort": "หลังตอบ", "settings.speechBeforeShort": "เมื่อปรากฏ",
     "settings.speechModeDesc": "ฟังแต่ละคำหลังตอบแล้ว (แนะนำ) หรือทันทีที่คำใหม่ปรากฏ (ง่ายกว่า)",
     "settings.speechSpeedDesc": "ช้า เล่นคำที่ความเร็ว 0.8 เท่า",

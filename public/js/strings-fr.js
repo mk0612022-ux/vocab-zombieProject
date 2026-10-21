@@ -246,11 +246,7 @@ G.STRINGS.fr = {
     "hud.waiting": "En attente des zombies...",
     "hud.hintFirst": "  (commence par « {c} »)",
     "hud.hintLen": "  (commence par « {c} », {n} lettres)",
-    "hud.levelWave": "{level} · Vague {wave}",
     "hud.overtime": " (prolongation)",
-    "hud.objectives": "Objectifs {d}/{n}",
-    "hud.zombies": "Zombies : {n}",
-    "hud.ammoMelee": "∞",
     "hud.fps": "{n} IPS",
     "hud.draws": "{n} appels de rendu",
     "hud.tris": "{n}k triangles",
@@ -700,7 +696,6 @@ G.STRINGS.fr = {
     "touchcfg.confirmReset": "Remettre par défaut toutes les positions, tailles, opacités et sensibilités ?",
     "touchcfg.joystick": "Joystick de déplacement", "touchcfg.fire": "Bouton de tir (FEU)", "touchcfg.ads": "Bouton de visée", "touchcfg.interact": "Bouton d'action (E)",
     "touchcfg.reload": "Bouton de rechargement (R)", "touchcfg.jump": "Bouton de saut", "touchcfg.sprint": "Bouton de course", "touchcfg.pause": "Bouton pause",
-    "touchcfg.slots": "Rangée d'armes",
 
     // ---- signs and posters in the world ----
     "world.wallWeight": "Poids : {w}",
@@ -806,7 +801,7 @@ G.STRINGS.fr = {
     "lobby.tab.training": "ENTRAÎNEMENT & PERSO",
     "lobby.featured": "À LA UNE",
     "hud.hearShort": "Écouter",
-    "touch.interactLabel": "Utiliser", "touch.reloadLabel": "Recharger", "touch.pauseLabel": "Pause", "touch.knifeLabel": "Couteau",
+    "touch.interactLabel": "Utiliser", "touch.reloadLabel": "Recharger", "touch.pauseLabel": "Pause",
     "touch.fireLabel": "Tirer", "touch.aimLabel": "Viser", "touch.jumpLabel": "Sauter", "touch.sprintLabel": "Courir",
     // (C) Settings: the shop's time between waves
     "settings.shopTime": "Temps de boutique entre les vagues",
@@ -1497,6 +1492,13 @@ G.STRINGS.fr = {
     "home.sound": "Cliquez / touchez pour activer le son", "home.rotate": "Tournez l'appareil à l'horizontale pour une meilleure vue",
     "lobby.back": "Menu principal",
     "settings.reduceMotion": "Réduire les animations", "settings.reduceMotionDesc": "La caméra du menu principal reste immobile (ni balancement ni parallaxe).",
+    // (overhaul, round 6) the HUD at the bottom centre (js/hud.js) and its header
+    "hud.savings": "Économies", "hud.health": "Santé", "hud.stamina": "Endurance",
+    "hud.slotEmpty": "Case {n}", "hud.slotKnife": "Couteau", "hud.slotPistol": "Pistolet", "hud.melee": "Mêlée", "hud.reloadNow": "Recharger", "hud.noAmmo": "Plus de munitions",
+    "hud.mission": "Mission {d}/{n}", "hud.floor": "Étage {n}",
+    "hud.wave": "Vague {w}", "hud.waveOf": "Vague {w}/{n}", "hud.zombiesLeft": "Zombies restants {n}", "hud.zombiesLeftOf": "Zombies restants {n}/{t}", "hud.bossWave": "Boss",
+    "obj.short.correct": "Mots", "obj.short.explore": "Pièces", "obj.short.keys": "Clés", "obj.short.notes": "Notes", "obj.short.boss": "Boss",
+    "hudcfg.slots": "Emplacements d'armes", "touchcfg.hudZone": "HUD : aucun bouton ici",
     "settings.speechAfterShort": "Après la réponse", "settings.speechBeforeShort": "À l'apparition",
     "settings.speechModeDesc": "Entendez chaque mot après y avoir répondu (recommandé), ou dès qu'un nouveau apparaît (plus facile).",
     "settings.speechSpeedDesc": "Lente lit les mots à 0,8 fois leur vitesse.",

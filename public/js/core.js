@@ -843,15 +843,7 @@ G.Input = {
       adsBtn.classList.toggle("active", this.aimDown);
       G.touchFeedback(adsBtn);
     }, { passive: false });
-    // Weapon slots: filled in by G.UI.refreshTouchSlots to match what the
-    // player is actually carrying.
-    document.getElementById("touch-slots").addEventListener("touchstart", (e) => {
-      const btn = e.target.closest("[data-slot]");
-      if (!btn) return;
-      e.preventDefault();
-      G.touchFeedback(btn);
-      G.onSlotPress && G.onSlotPress(parseInt(btn.dataset.slot, 10));
-    }, { passive: false });
+    // (overhaul, round 6: the weapon buttons are the HUD's slot row -- js/hud.js)
     document.getElementById("touch-interact").addEventListener("touchstart", (e) => {
       this.touchInteract = true; e.preventDefault();
       G.touchFeedback(e.currentTarget);

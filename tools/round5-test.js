@@ -122,7 +122,7 @@ G.Round5Test = (function () {
     for (let i = 0; i < 41; i++) g.updateRegen(0.1);                       // to 16.0 s: 4 s of it
     const got = pl.hp - max * 0.5;
     ok("D then 1 HP every 2 seconds", Math.abs(got - 2) < 1e-6, got);
-    ok("D the HUD shows it (green glow)", (() => { G.UI.updateHud(g.buildHudState()); return document.querySelector(".hud-health").classList.contains("regen"); })());
+    ok("D the HUD shows it (green glow)", (() => { G.UI.updateHud(g.buildHudState()); return document.querySelector(".hud-hp").classList.contains("regen"); })());   // (overhaul, round 6: the bar at the bottom centre)
     pl.hp -= 20; g.updateRegen(0.1);
     const after = pl.hp;
     for (let i = 0; i < 110; i++) g.updateRegen(0.1);

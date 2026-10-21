@@ -270,11 +270,7 @@ G.STRINGS = {
     "hud.waiting": "Waiting for zombies...",
     "hud.hintFirst": "  (starts with \"{c}\")",
     "hud.hintLen": "  (starts with \"{c}\", {n} letters)",
-    "hud.levelWave": "{level} · Wave {wave}",
     "hud.overtime": " (overtime)",
-    "hud.objectives": "Objectives {d}/{n}",
-    "hud.zombies": "Zombies: {n}",
-    "hud.ammoMelee": "∞",
     "hud.fps": "{n} FPS",
     "hud.draws": "{n} draw calls",
     "hud.tris": "{n}k tris",
@@ -725,7 +721,6 @@ G.STRINGS = {
     "touchcfg.confirmReset": "Reset every position, size, opacity and sensitivity to default?",
     "touchcfg.joystick": "Move stick", "touchcfg.fire": "Fire button (FIRE)", "touchcfg.ads": "Aim button", "touchcfg.interact": "Use button (E)",
     "touchcfg.reload": "Reload button (R)", "touchcfg.jump": "Jump button", "touchcfg.sprint": "Run button", "touchcfg.pause": "Pause button",
-    "touchcfg.slots": "Weapon row",
 
     // ---- signs and posters in the world ----
     "world.wallWeight": "Weight: {w}",
@@ -832,7 +827,7 @@ G.STRINGS = {
     "lobby.tab.training": "TRAINING & CUSTOM",
     "lobby.featured": "FEATURED",
     "hud.hearShort": "Hear",
-    "touch.interactLabel": "Use", "touch.reloadLabel": "Reload", "touch.pauseLabel": "Pause", "touch.knifeLabel": "Knife",
+    "touch.interactLabel": "Use", "touch.reloadLabel": "Reload", "touch.pauseLabel": "Pause",
     "touch.fireLabel": "Fire", "touch.aimLabel": "Aim", "touch.jumpLabel": "Jump", "touch.sprintLabel": "Run",
     // (C) Settings: the shop's time between waves
     "settings.shopTime": "Shop time between waves",
@@ -1525,6 +1520,13 @@ G.STRINGS = {
     "home.sound": "Click / tap to enable sound", "home.rotate": "Turn your device sideways for the best view",
     "lobby.back": "Main Menu",
     "settings.reduceMotion": "Reduce Motion", "settings.reduceMotionDesc": "Holds the Main Menu's camera still (no sway, no parallax).",
+    // (overhaul, round 6) the HUD at the bottom centre (js/hud.js) and its header
+    "hud.savings": "Savings", "hud.health": "Health", "hud.stamina": "Stamina",
+    "hud.slotEmpty": "Slot {n}", "hud.slotKnife": "Knife", "hud.slotPistol": "Pistol", "hud.melee": "Melee", "hud.reloadNow": "Reload", "hud.noAmmo": "No ammo",
+    "hud.mission": "Mission {d}/{n}", "hud.floor": "Floor {n}",
+    "hud.wave": "Wave {w}", "hud.waveOf": "Wave {w}/{n}", "hud.zombiesLeft": "Zombies left {n}", "hud.zombiesLeftOf": "Zombies left {n}/{t}", "hud.bossWave": "Boss",
+    "obj.short.correct": "Words", "obj.short.explore": "Rooms", "obj.short.keys": "Keys", "obj.short.notes": "Notes", "obj.short.boss": "Bosses",
+    "hudcfg.slots": "Weapon slots", "touchcfg.hudZone": "HUD: keep buttons off",
     "settings.speechAfterShort": "After an answer", "settings.speechBeforeShort": "When it appears",
     "settings.speechModeDesc": "Hear each word after you answer it (recommended), or as soon as a new one appears (easier).",
     "settings.speechSpeedDesc": "Slow plays the words at 0.8 of their speed.",

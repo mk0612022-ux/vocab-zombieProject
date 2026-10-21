@@ -505,8 +505,8 @@ G.Round12Test = (function () {
     $("btn-intro-start").click();
     await wait(50);
     ok("I: ...then the session", G.Game.mode === "study" && G.Game.state === "GAMEPLAY" && !!G.save.learnSeen.intro_keys);
-    ok("I: the spelling bar: bottom centre, not over the HUD panels", (() => {
-      const r = $("hud-spell").getBoundingClientRect(), l = document.querySelector(".hud-left").getBoundingClientRect(), rr = document.querySelector(".hud-right").getBoundingClientRect();
+    ok("I: the spelling bar: bottom centre, not over the HUD (overhaul, round 6: the HUD at the bottom centre)", (() => {
+      const r = $("hud-spell").getBoundingClientRect(), l = $("hud-dock").getBoundingClientRect(), rr = $("hud-meaning").getBoundingClientRect();
       const over = (a, b) => a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
       return Math.abs((r.left + r.right) / 2 - innerWidth / 2) < 4 && !over(r, l) && !over(r, rr);
     })());

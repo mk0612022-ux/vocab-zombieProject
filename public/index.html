@@ -202,6 +202,8 @@
 <div id="hud" class="hud hidden">
   <div class="hud-top">
     <div class="hud-meaning-box">
+      <!-- (overhaul, round 6) the header: the level, the wave, the zombies left -->
+      <div class="hud-head" id="hud-head"><span class="hh-level" id="hud-level-name"></span><span class="hh-wave" id="hud-level-wave"></span><span class="hh-left" id="hud-zombies-left"></span></div>
       <div class="hud-meaning-label" data-i18n="hud.shootMeaning"></div>
       <div class="hud-meaning" id="hud-meaning">-</div>
       <!-- (vocabulary series, round 3, F) the Thai under an English definition, or a button for it -->
@@ -250,27 +252,33 @@
   <div class="hud-damage-flash" id="hud-damage-flash"></div>
   <div class="hud-lowhp" id="hud-lowhp"></div>
 
-  <div class="hud-bottom">
-    <div class="hud-left">
-      <div class="hud-stat hud-health"><span class="hud-icon">❤</span><div class="bar-track"><div class="bar-fill hp-fill" id="hud-hp-fill"></div></div><span id="hud-hp-text">100</span></div>
-      <div class="hud-stat hud-stamina"><span class="hud-icon">⚡</span><div class="bar-track"><div class="bar-fill stamina-fill" id="hud-stamina-fill"></div></div></div>
-      <div class="hud-stat hud-money-stat"><span class="hud-icon">💰</span><span id="hud-money">0</span></div>
-      <div class="hud-stat hud-score-stat"><span class="hud-icon">⭐</span><span id="hud-score">0</span></div>
-      <div class="hud-stat hud-wave-stat"><span id="hud-level-wave"></span></div>
-      <div class="hud-stat hud-wave-stat"><span id="hud-zombies-left"></span></div>
+  <!-- (overhaul, round 6) the HUD, bottom centre (js/hud.js): money and
+       score, health and stamina, a row of slots -- the knife and every gun
+       slot -- and the panel for what is in hand and the level's tasks -->
+  <div class="hud-dock" id="hud-dock">
+    <!-- (round 3, H) the abilities: icon, cooldown ring, key -->
+    <div class="hud-abilities hidden" id="hud-abilities"></div>
+    <div class="hd-top">
+      <span class="hud-savings" id="hud-savings"><span class="hs-label" data-i18n="hud.savings"></span> <b class="hs-val" id="hud-money">0$</b></span>
       <div class="hud-perks hidden" id="hud-perks"></div>
+      <span class="hud-score" id="hud-score-box"><span aria-hidden="true">★</span> <b id="hud-score">0</b></span>
     </div>
-    <div class="hud-right">
-      <div class="hud-weapon-name" id="hud-weapon-name"></div>
-      <div class="hud-ammo" id="hud-ammo"></div>
-      <div class="hud-objectives hidden" id="hud-objectives"></div>
-      <!-- (round 3, I) the third floor's steps, compact -->
-      <div class="hud-floor3 hidden" id="hud-floor3"></div>
-      <div class="hud-slots" id="hud-slots"></div>
+    <div class="hd-bars">
+      <div class="hud-hp" id="hud-hp" role="progressbar" data-i18n-aria="hud.health" aria-valuemin="0" aria-valuemax="100"><i class="hb-chip" id="hud-hp-chip"></i><i class="hb-fill" id="hud-hp-fill"></i><span class="hb-text" id="hud-hp-text">100%</span></div>
+      <div class="hud-stam" id="hud-stam" role="progressbar" data-i18n-aria="hud.stamina" aria-valuemin="0" aria-valuemax="100"><i class="hb-fill" id="hud-stamina-fill"></i></div>
+    </div>
+    <div class="hud-slots" id="hud-slots"></div>
+    <div class="hud-detail" id="hud-detail">
+      <div class="hdt-head"><span class="hdt-name" id="hud-weapon-name"></span><span class="hdt-status" id="hud-weapon-status"></span></div>
+      <div class="hdt-ammo"><span class="hdt-count" id="hud-ammo"></span><span class="hdt-note hidden" id="hud-ammo-note"></span></div>
+      <div class="hdt-reload" id="hud-reload"><i id="hud-reload-fill"></i></div>
+      <div class="hdt-line hdt-mission hidden" id="hud-objectives"></div>
+      <div class="hdt-line hdt-floor hidden" id="hud-floor"></div>
+      <!-- (round 3, I) the third floor's steps, compact; else the task under way -->
+      <div class="hdt-line hdt-task hidden" id="hud-floor3"></div>
+      <div class="hdt-line hdt-task hidden" id="hud-task"></div>
     </div>
   </div>
-  <!-- (round 3, H) the abilities: icon, cooldown ring, key -->
-  <div class="hud-abilities hidden" id="hud-abilities"></div>
   <div class="hud-ability-note hidden" id="hud-ability-note" role="status"></div>
   <!-- (round 3, J) "Checkpoint Saved - Wave 11" -->
   <div class="hud-checkpoint hidden" id="hud-checkpoint" role="status"><span class="cp-ico" aria-hidden="true">💾</span><span class="cp-text"></span></div>
@@ -320,7 +328,6 @@
   <button id="touch-jump" class="touch-btn touch-jump icon-btn" data-i18n-aria="touch.jumpLabel" data-label-key="touch.jumpLabel"><svg class="tb-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 13l7-7 7 7M8 18l4-4 4 4"/></svg></button>
   <button id="touch-sprint" class="touch-btn touch-sprint icon-btn" data-i18n-aria="touch.sprintLabel" data-label-key="touch.sprintLabel"><svg class="tb-ico" viewBox="0 0 24 24" aria-hidden="true"><circle class="fill" cx="15" cy="4" r="2"/><path d="M8.5 9.5l3.5-2 3 2 2 3.5 3 .5M12 7.5l-1.5 6 4 3-1 5M10.5 13.5l-3 4-4-.5M5 9.5h3"/></svg></button>
   <button id="touch-pause" class="touch-btn touch-pause icon-btn" data-i18n-aria="touch.pauseLabel" data-label-key="touch.pauseLabel"><svg class="tb-ico" viewBox="0 0 24 24" aria-hidden="true"><path class="fill" d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/></svg></button>
-  <div id="touch-slots" class="touch-slots"></div>
   <!-- (round 3, H) one button per ability held -->
   <div id="touch-abilities" class="touch-abilities empty"></div>
 </div>
@@ -419,6 +426,8 @@
   <h2 class="screen-title" data-i18n="inv.title"></h2>
   <p class="inv-sub" data-i18n="inv.sub"></p>
   <div class="inv-new" id="inv-new"></div>
+  <!-- (overhaul, round 6) the HUD's slot row: the slot a card would replace lights up in it -->
+  <div class="hud-slots inv-slotrow" id="inv-slotrow"></div>
   <div class="inv-slots" id="inv-slots"></div>
   <p class="inv-note" id="inv-note"></p>
   <div class="row-center"><button class="btn" id="btn-inv-keep" data-pad-back><span data-i18n="inv.keep"></span> <span class="kbd-only">(Esc)</span></button></div>
@@ -650,6 +659,8 @@
 <!-- ===================== PAUSE ===================== -->
 <div id="screen-pause" class="screen hidden">
   <h2 class="screen-title" data-i18n="pause.title"></h2>
+  <!-- (overhaul, round 6) where: the level and the wave (a narrow HUD leaves the level's name out) -->
+  <p class="pause-where" id="pause-where"></p>
   <div class="menu-btns">
     <button class="btn btn-primary" id="btn-resume" data-i18n="pause.resume"></button>
     <div class="pause-checkpoint hidden" id="pause-checkpoint"></div>
@@ -847,6 +858,7 @@ window.addEventListener("load", function () {
 <script defer src="js/campstyle.js"></script>
 <script defer src="js/progress.js"></script>
 <script defer src="js/hudcfg.js"></script>
+<script defer src="js/hud.js"></script>
 <script defer src="js/tips.js"></script>
 <script defer src="js/journal.js"></script>
 <script defer src="js/bosscodex.js"></script>

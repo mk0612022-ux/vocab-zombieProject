@@ -357,7 +357,7 @@ G.Game = {
     this.correctKills = 0;       // zombies shot on the right word (round 3: the third floor wants 50)
     this._continues = 0;         // times this run came back from its checkpoint (J4)
     if (G.Floor3) G.Floor3.reset(this);
-    G.UI._tweenState = null; // reset HUD number tweens so a new run's HUD snaps to 0 instead of counting down from the last run
+    if (G.Hud) G.Hud.reset();   // (overhaul, round 6) nothing of the last run stays on the HUD
     this.zombies.forEach((z) => { this.scene.remove(z.mesh); G.disposeObject3D(z.mesh); });
     this.zombies = [];
     this.drops.forEach((d) => { this.scene.remove(d.mesh); G.disposeObject3D(d.mesh); });
@@ -463,6 +463,11 @@ G.Game = {
     if (this.state === "GAMEPLAY" || this.state === "PAUSE") return false;
     this.teardownLevel();
     this._previewLevel = G.getLevel(1);
+    // (overhaul, round 6: the sky reads the level being built -- before any
+    // run there was none, and the editor opened from Settings threw and left
+    // its preview drawing behind the menus; the level is put back after)
+    this._levelBeforePreview = this.level;
+    this.level = this._previewLevel;
     this.scene = new THREE.Scene();
     this.scene.add(this.yawObject);
     this.world = G.buildLevelScene(this.scene, this._previewLevel, G.save.settings.graphicsQuality);
@@ -486,6 +491,7 @@ G.Game = {
     this.teardownLevel();
     this.scene = null;
     this.world = null;
+    this.level = this._levelBeforePreview || null;
     if (this.renderer) this.renderer.clear();
   },
   // Only the preview needs driving by hand -- during a run the main loop is
@@ -1994,6 +2000,9 @@ G.Game = {
     G.Input.clearHeldInputs();
     G.UI.applyControlMode();
     G.UI.renderPauseObjectives();
+    // (overhaul, round 6) the level and the wave over the menu
+    const where = this.player ? this.buildHudState().head : null;
+    G.UI.el("pause-where").textContent = where ? [where.level, where.wave].filter(Boolean).join(" · ") : "";
     G.UI.renderPausePerks();
     // round 3: the abilities held, the third floor's checklist, the checkpoint
     if (G.UI.renderPauseAbilities) G.UI.renderPauseAbilities();
@@ -2244,23 +2253,49 @@ G.Game = {
     const mp = clueKind === "thai" ? (this.targetPair || (sf && sf.pair)) : null;
     if (mp && G.Lang.showPinyin() && G.Lang.ml(mp) === "zh" && String(meaning).indexOf(mp[1]) === 0) meaningRuby = { text: mp[1], py: G.Lang.pinyin(mp, 1), rest: String(meaning).slice(mp[1].length) };
     const campaign = this.mode === "campaign";
+    // what is still between the player and the end of the wave: the ones
+    // alive plus the rest of the quota still to come (a decoy is not one)
+    const zombiesLeft = this.zombies.filter((z) => !z.decoy).length + (G.Bosses.phase ? 0 : Math.max(0, this.requiredKills - this.spawnedCount));
+    const reloadFrac = this.player.reloading && this.reloadState ? Math.min(1, this.reloadState.t / this.reloadState.plan.dur) : 0;
+    // (overhaul, round 6) the HUD's header: the level, the wave (out of the
+    // level's, in the campaign), the zombies left of the wave's (BOSS while
+    // one is up); a study session says how far it has got instead
+    const T = G.T, boss = !!G.Bosses.phase, study = this.mode === "study" && G.Study;
+    const head = study ? { level: "", wave: G.Study.hudLabel(this), left: T("hud.zombiesLeft", { n: zombiesLeft }), boss: false } : {
+      level: this.level.name,
+      wave: (campaign ? T("hud.waveOf", { w: this.wave, n: this.level.waves }) : T("hud.wave", { w: this.wave })) + (campaign && this.wave > this.level.waves ? T("hud.overtime") : ""),
+      left: boss ? T("hud.bossWave") : this.requiredKills > 0 ? T("hud.zombiesLeftOf", { n: zombiesLeft, t: this.requiredKills }) : T("hud.zombiesLeft", { n: zombiesLeft }),
+      boss,
+    };
+    // what is in hand: name, its weight (or MELEE), the magazine and the rest,
+    // low at a quarter of a full magazine
+    const melee = id === "melee", lvl = !melee && this.player.weaponLevels[id];
+    const hand = {
+      name: def.name, melee, status: melee ? T("hud.melee") : G.weightClass(def).label,
+      mag: ammoInMag, reserve: ammoReserve, lowAt: melee ? 0 : Math.max(1, Math.round(def.magSize * ((lvl && lvl.mag) || 1) * 0.25)),
+      reloading: !!this.player.reloading && !melee, reloadFrac,
+    };
+    // the level's tasks: done of all; the storey (a building with floors);
+    // and the task under way with a count -- the third floor's steps have a
+    // line of their own (js/floor3.js), the first unfinished goal otherwise
+    const rows = G.Objectives.state ? G.Objectives.list(this) : [];
+    const mission = rows.length ? { d: rows.filter((r) => r.done).length, n: rows.length } : null;
+    const Y = this.world && this.world.storeyY, feet = this.yawObject.position.y - 1.7;
+    const floor = Y && Y.length > 1 ? (feet < Y[1] - 1 ? 1 : Y.length < 3 || feet < Y[2] - 1 ? 2 : 3) : null;
+    const f3 = G.Floor3 && G.Floor3.applies(this) && !this.world.thirdFloor.unlocked && campaign;
+    const todo = f3 ? null : rows.find((r) => !r.done && r.key !== "survive" && r.key !== "accuracy" && /\d+\s*\/\s*\d+/.test(r.value));
+    const task = todo ? { label: T("obj.short." + todo.key), value: todo.value.replace(/\s+/g, "") } : null;
     return {
-      hp: (this.player.hp / this.player.maxHp) * 100, stamina: (this.stamina / this.maxStamina) * 100,
+      hp: (this.player.hp / this.player.maxHp) * 100, stamina: (this.stamina / this.maxStamina) * 100, dead: this.player.hp <= 0,
       staminaExhausted: this.staminaExhausted, money: this.player.money, score: this.player.score,
-      levelLabel: this.mode === "study" && G.Study ? G.Study.hudLabel(this) : G.T("hud.levelWave", { level: this.level.name, wave: this.wave + (campaign ? "/" + this.level.waves : "") }) +
-        (campaign && this.wave > this.level.waves ? G.T("hud.overtime") : ""),
-      objectives: G.Objectives.state ? G.T("hud.objectives", { d: G.Objectives.doneCount(this), n: G.Objectives.list(this).length }) : null,
-      // what is still between the player and the end of the wave: the ones
-      // alive plus the rest of the quota still to come (a decoy is not one)
-      zombiesLeft: this.zombies.filter((z) => !z.decoy).length + (G.Bosses.phase ? 0 : Math.max(0, this.requiredKills - this.spawnedCount)), weaponName: def.name,
+      head, hand, mission, floor, task, cells: G.Hud.cellsOf(this),
+      zombiesLeft, weaponName: def.name,
       meaningLabel, clueKind, clueSub, thaiBtn, meaningRuby,
-      isMelee: id === "melee",
-      weightLabel: def.id === "melee" ? null : G.weightClass(def).label,
-      weightColor: def.id === "melee" ? null : G.weightClass(def).color,
+      isMelee: melee,
       ammoInMag, ammoReserve, currentMeaning: meaning, slots, combo: this.player.combo,
       regenerating: !!this.regenerating,
       // (new series, round 1, E: the touch reload button's ring)
-      reloadFrac: this.player.reloading && this.reloadState ? Math.min(1, this.reloadState.t / this.reloadState.plan.dur) : 0,
+      reloadFrac,
     };
   },
 

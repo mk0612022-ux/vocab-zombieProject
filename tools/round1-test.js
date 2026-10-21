@@ -198,6 +198,7 @@ G.Round1Test = (function () {
     const mkZ = (pair, target) => {
       const z = g2.spawnZombieAt("normal", g2.yawObject.position.clone().add(new THREE.Vector3(3, -1.7, 0)));
       z.word = pair[0]; z.meaning = pair[1];
+      z.pair = pair;          // (its stats are this word's, not those of the one it was spawned with)
       if (target) g2.targetPair = [z.word, z.meaning];
       return z;
     };
