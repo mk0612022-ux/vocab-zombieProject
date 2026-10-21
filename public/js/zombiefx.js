@@ -554,11 +554,19 @@ G.ZombieFX = {
     dir.y = 0; if (dir.lengthSq() < 1e-6) dir.set(0, 0, 1); dir.normalize();
     const floorY = G.getFloorHeightAt(game.world, z.mesh.position.x, z.mesh.position.z, z.mesh.position.y);
     const scale = G.ZOMBIE_TYPES[z.type].scale || 1;
-    const d = { z, t: 0, dir, floorY, scale };
+    // (overhaul, round 4) Blood & Gore: Reduced and Off (and a Runt, always)
+    // never knock a head off -- it goes to smoke; Off turns blood to grey dust
+    const gore = G.ZombieFactory ? G.ZombieFactory.gore(z) : "full";
+    const d = { z, t: 0, dir, floorY, scale, gore };
     if (z.type === "boss") d.mode = "topple";
+    // (round 4) a Bloater swells, then bursts (js/zombieai.js burst)
+    else if (z.type === "bloater") { d.mode = "swell"; d.fuse = G.randRange(G.CONFIG.zombies.bloater.fuse[0], G.CONFIG.zombies.bloater.fuse[1]); d.base = z.mesh.scale.x; d.at = performance.now();
+      G.Audio.zombie("swell", z.type, z.mesh.position.clone().setY(z.mesh.position.y + 1), { tag: "swell:" + z.uid });
+      if (G.Captions) G.Captions.heard("zombie:swell", z.mesh.position); }
+    else if (gore !== "full") d.mode = "smoke";
     else if (info.head && z.mesh.userData.neck) d.mode = "decap";
     else d.mode = "shatter";
-    if (d.mode === "shatter") { this.shatter(game.scene, z.mesh, dir, floorY, scale); return; }
+    if (d.mode === "shatter") { this.shatter(game.scene, z.mesh, dir, floorY, scale, 1, gore); return; }
     // which way it falls: along the shot, in the zombie's own frame
     const inv = -z.mesh.rotation.y;
     const lx = dir.x * Math.cos(inv) - dir.z * Math.sin(inv), lz = dir.x * Math.sin(inv) + dir.z * Math.cos(inv);
@@ -612,6 +620,27 @@ G.ZombieFX = {
         fall(ease(d.t / 0.6));
         m.position.y = d.baseY - ease(d.t / 0.6) * 0.15;
         if (d.t >= 1.0) { this.shatter(game.scene, m, d.dir, d.floorY, d.scale, 2); this.dying.splice(i, 1); }
+      } else if (d.mode === "swell") {
+        // (overhaul, round 4) the Bloater swells -- bigger, shaking harder --
+        // for its fuse (0.8-1.2 s, a sound with it), then bursts
+        const k = Math.min(1, d.t / d.fuse), s = d.base * (1 + 0.32 * k * k);
+        m.scale.set(s * (1 + Math.sin(d.t * 40) * 0.03 * k), s, s * (1 + Math.cos(d.t * 37) * 0.03 * k));
+        m.rotation.z = (m.userData.baseLean || 0) + Math.sin(d.t * 31) * 0.05 * k;
+        if (d.t >= d.fuse) {
+          const at = m.position.clone();
+          if (G.Audio.stopTag) G.Audio.stopTag("swell:" + d.z.uid);
+          this.shatter(game.scene, m, d.dir, d.floorY, d.scale * 1.2, 1.7, d.gore);
+          this.puff(at.clone().setY(at.y + 1), 3, 1.4 * d.scale, d.gore === "off" ? [0.6, 0.6, 0.58] : [0.5, 0.56, 0.3]);
+          // (a swell left over a pause into the shop and back bursts harmless)
+          if (G.ZombieAI && performance.now() - d.at < (d.fuse + 1.5) * 1000) G.ZombieAI.burst(game, at);
+          this.dying.splice(i, 1);
+        }
+      } else if (d.mode === "smoke") {
+        // (Blood & Gore Reduced or Off, a Runt) it sags and goes up in smoke
+        const k = ease(d.t / 0.35);
+        m.position.y = d.baseY - 0.25 * d.scale * k;
+        m.scale.setScalar(d.scale * (1 - 0.2 * k));
+        if (d.t >= 0.35) { this.shatter(game.scene, m, d.dir, d.floorY, d.scale, 0.35, d.gore, 2.2); this.dying.splice(i, 1); }
       }
     }
   },
@@ -625,7 +654,9 @@ G.ZombieFX = {
   // Break an object into blocks: each block takes the colour of the part it
   // came from, so a nurse bursts into teal and skin, a soldier into olive.
   // `mult` scales how many (a head is a fraction of a body, the boss twice).
-  shatter(scene, root, dir, floorY, scale, mult) {
+  // (overhaul, round 4: `gore` -- Blood & Gore: a red part's blocks go brown
+  // or grey; `smokeK` more smoke, for a death that goes up in smoke)
+  shatter(scene, root, dir, floorY, scale, mult, gore, smokeK) {
     mult = mult === undefined ? 1 : mult;
     root.updateWorldMatrix(true, true);
     const parts = [];
@@ -634,6 +665,7 @@ G.ZombieFX = {
     const add = (box, color) => {
       box.getSize(s);
       const vol = Math.max(0.0004, s.x * s.y * s.z);
+      if (gore && gore !== "full" && color && color.r > color.g * 1.6 && color.r > color.b * 1.6 && G.ZombieFactory) color = new THREE.Color(G.ZombieFactory.goreColor(color.getHex(), gore));
       parts.push({ box, vol, color });
       total += vol;
     };
@@ -664,7 +696,7 @@ G.ZombieFX = {
       const size = Math.min(0.2 * scale, Math.max(0.05, Math.cbrt(part.vol) * 0.42)) * (0.7 + G.rng() * 0.6);
       pool.emit(p, v, size, part.color, 0.8 + G.rng() * 0.6, floorY);
     }
-    const sm = Math.max(1, Math.round(Q.smoke * Math.min(1.6, mult)));
+    const sm = Math.max(1, Math.round(Q.smoke * Math.min(1.6, mult) * (smokeK || 1)));
     for (let i = 0; i < sm; i++) {
       p.set(G.randRange(whole.min.x, whole.max.x), G.randRange(whole.min.y, whole.max.y), G.randRange(whole.min.z, whole.max.z));
       this.puff(p, 1, (0.85 + G.rng() * 0.6) * Math.sqrt(scale), [0.62, 0.66, 0.58]);

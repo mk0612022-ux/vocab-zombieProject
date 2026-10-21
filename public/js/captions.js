@@ -19,6 +19,8 @@ G.Captions = {
     "sfx:behind": "behind", "sfx:heartbeat": "heartbeat", "sfx:glass_break": "glass", "sfx:shatter": "glass",
     "sfx:emerge_ground": "dig", "sfx:locker_bang": "locker", "sfx:vent_clang": "vent", "sfx:gate_open": "gate",
     "door": "door", "zombie:growl": "growl", "explosion": "explosion", "boss:roar": "roar", "boss:shriek": "shriek",
+    // (overhaul, round 4) the Screamer, the Bloater
+    "zombie:scream": "scream", "zombie:swell": "swell", "zombie:burst": "burst",
   },
   ARROWS: ["↑", "↗", "→", "↘", "↓", "↙", "←", "↖"],
   lines: [],              // { name, el, timer }

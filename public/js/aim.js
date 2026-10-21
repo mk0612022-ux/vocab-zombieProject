@@ -101,7 +101,9 @@ window.G = window.G || {};
         if (p.depth <= 0.1) continue;
         const c = s.userData.canvas || {};
         const fw = c.__fw || 0.6, fh = c.__fh || 0.7;
-        const w = s.scale.x * fw * p.ppu, h = s.scale.y * fh * p.ppu;
+        // (its size in the world: the sprite is inside the zombie's scaled body -- round 4)
+        const ws = z.mesh.scale.y || 1;
+        const w = s.scale.x * ws * fw * p.ppu, h = s.scale.y * ws * fh * p.ppu;
         out.push({ z, x: p.x, y: p.y, w, h, depth: p.depth });
       }
       return out;
@@ -253,11 +255,12 @@ window.G = window.G || {};
         // (visual series, E1) its letters never smaller on screen than
         // G.VISUAL.labels.minPx: a far word grows (up to maxGrow) to stay readable
         const LV = G.VISUAL && G.VISUAL.labels;
-        const textPx = base[1] * (c.__fh || 0.7) * p.ppu;
+        const textPx = base[1] * (z.mesh.scale.y || 1) * (c.__fh || 0.7) * p.ppu;
         const grow = LV && textPx > 0 && textPx < LV.minPx ? Math.min(LV.maxGrow, LV.minPx / textPx) : 1;
         s.scale.set(base[0] * k * grow, base[1] * k * grow, 1);
         if (p.depth <= 0.1) continue;
-        items.push({ z, s, x: p.x, y: p.y, w: base[0] * (c.__fw || 0.6) * p.ppu * grow, h: base[1] * (c.__fh || 0.7) * p.ppu * grow, depth: p.depth, ppu: p.ppu, scale: z.mesh.scale.y || 1 });
+        const ws = z.mesh.scale.y || 1;
+        items.push({ z, s, x: p.x, y: p.y, w: base[0] * ws * (c.__fw || 0.6) * p.ppu * grow, h: base[1] * ws * (c.__fh || 0.7) * p.ppu * grow, depth: p.depth, ppu: p.ppu, scale: ws });
       }
       // (the nearest keep their places; each word tries the place it had
       // last frame first, so nothing shuffles while the view moves)
@@ -305,10 +308,10 @@ window.G = window.G || {};
         // swing sideways with the body into the next word
         tmpA.copy(z._labelBase); z.mesh.localToWorld(tmpA); tmpA.y += z._labelOff;
         it.s.position.copy(z.mesh.worldToLocal(tmpA));
-        if (Math.abs(z._labelOff) > A.leaderMin * it.s.scale.y) {
+        if (Math.abs(z._labelOff) > A.leaderMin * it.s.scale.y * it.scale) {
           // from the bottom (or top) of the word to just above the head
           const sgn = z._labelOff > 0 ? -1 : 1;
-          it.s.getWorldPosition(tmpA); tmpA.y += sgn * it.s.scale.y * 0.32;
+          it.s.getWorldPosition(tmpA); tmpA.y += sgn * it.s.scale.y * it.scale * 0.32;
           tmpB.copy(z._labelBase); z.mesh.localToWorld(tmpB); tmpB.y -= 0.28 * it.scale;
           lines.push(tmpA.x, tmpA.y, tmpA.z, tmpB.x, tmpB.y, tmpB.z);
         }

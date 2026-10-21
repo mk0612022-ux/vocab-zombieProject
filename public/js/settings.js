@@ -199,7 +199,9 @@ window.G = window.G || {};
         + row({ id: "set-camrecoil", name: T("settings.camRecoil"), ctl: slider("set-camrecoil", cr, 0, 1, 0.05, pct(cr)), desc: T("settings.camRecoilDesc") })
         + row({ id: "set-camshake", name: T("settings.camShake"), ctl: slider("set-camshake", cs, 0, 1, 0.05, pct(cs)), desc: T("settings.camShakeDesc") })
         // (overhaul, round 2) how bright a shot's flash is
-        + row({ id: "set-muzzleflash", name: T("settings.muzzleFlash"), ctl: slider("set-muzzleflash", mf, 0, 1, 0.05, pct(mf)), desc: T("settings.muzzleFlashDesc") });
+        + row({ id: "set-muzzleflash", name: T("settings.muzzleFlash"), ctl: slider("set-muzzleflash", mf, 0, 1, 0.05, pct(mf)), desc: T("settings.muzzleFlashDesc") })
+        // (overhaul, round 4) how much blood: Full, Reduced (no heads knocked off), Off (grey dust)
+        + row({ id: "set-gore", name: T("settings.gore"), ctl: seg("set-gore", s.gore || "full", ["full", "reduced", "off"].map((v) => [v, T("settings.gore." + v)])), desc: T("settings.goreDesc") });
     },
     account() {
       const a = G.Account.state();
@@ -247,6 +249,7 @@ window.G = window.G || {};
         "set-camrecoil": (v) => { s.cameraRecoil = v; return pct(v); },
         "set-camshake": (v) => { s.cameraShake = v; return pct(v); },
         "set-muzzleflash": (v) => { s.muzzleFlash = v; return pct(v); },
+        "set-gore": (v) => { s.gore = v; },               // (round 4: zombies made from now on, and every death and hit)
         "set-highlight": (v) => {
           s.highlightTarget = v;
           if (G.Game.zombies) G.Game.zombies.forEach((z) => { if (z.alive) { z._label = null; z.setTarget(z.isTarget); } });

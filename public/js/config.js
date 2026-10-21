@@ -174,7 +174,60 @@ G.CONFIG = {
   // weights): a deformed face, its own head carried in its hand (the head
   // hitbox goes with it), one arm too long, one arm too big. A crawler can
   // only have the face; a boss is never odd. js/entities.js
-  zombieLooks: { oddChance: 0.24, odd: { deformed: 3, headInHand: 1.3, longArm: 1.6, bigArm: 1.6 } },
+  // (overhaul, round 4: a head carried and a long arm are kinds of their own
+  // now -- the Headless and the Reacher -- so only a Shambler is odd, and
+  // only so: a torn face, or one swollen arm)
+  zombieLooks: { oddChance: 0.24, odd: { deformed: 3, bigArm: 1.6 } },
+
+  // ---------------- the ten kinds of zombie (overhaul, round 4) ----------------
+  // js/zombiefactory.js (looks), js/zombieanim.js (how they move),
+  // js/zombieai.js (what they do); docs/overhaul/zombie-concepts.md
+  zombies: {
+    // the wave a kind first comes in; before it, none
+    first: { fast: 3, crawler: 4, bloater: 6, screamer: 7, ironclad: 8, runt: 9, headless: 11, reacher: 12, abomination: 13 },
+    // its share of a wave from then: [at its first wave, at full, the wave it is full]
+    // (the Sprinter's and the Crawler's are G.WAVE_TABLE's own columns)
+    share: {
+      bloater: [0.05, 0.08, 14], screamer: [0.04, 0.06, 15], ironclad: [0.06, 0.1, 16], runt: [0.05, 0.08, 15],
+      headless: [0.05, 0.07, 17], reacher: [0.05, 0.07, 18], abomination: [0.03, 0.05, 20],
+    },
+    // never more than this many of a kind at once
+    maxAlive: { abomination: 1, screamer: 2, bloater: 3, reacher: 3, ironclad: 4 },
+    // at most this many zombies at once, by graphics level (a wave can ask for 14)
+    aliveCap: { vlow: 8, low: 10, medium: 12, high: 14, vhigh: 16 },
+    // no two alive look alike in every part, and a wave's zombies wear at
+    // least this many different outfits (as many as the level has) before any repeats
+    variety: 3,
+    // the bite: a wind-up the player can read, then the strike -- if still in
+    // reach (+ grace); `cooldown` between strikes
+    attack: { reach: 1.1, windup: 0.3, grace: 0.35, cooldown: 1.0 },
+    // per kind: a longer reach, a longer wind-up
+    reach: { reacher: 2.6, abomination: 1.5, runt: 0.9 },
+    windup: { reacher: 0.62, abomination: 0.45, bloater: 0.42, runt: 0.2, fast: 0.22 },
+    // the Bloater: killed, it swells for `fuse` seconds, then bursts -- the
+    // player inside `radius` takes up to `damage` (less further out), the
+    // zombies round it are thrown back and stagger, nobody dies of it
+    bloater: { fuse: [0.8, 1.2], radius: 3, damage: 70, push: 2.4, stagger: 0.9 },
+    // the Screamer: within `range` of the player it rears up for `windup` s
+    // and shrieks -- every zombie within `radius` comes on `boost` times as
+    // fast for `boostTime` s, and up to `call` more of the wave's own come in
+    // at once (never past the wave's count); `cooldown` between shrieks.
+    // Killed while rearing up, the shriek never comes.
+    screamer: { range: [5, 16], windup: 1.0, radius: 20, boost: 1.4, boostTime: 5, cooldown: 14, call: 2, firstDelay: 3 },
+    // the Ironclad: its helmet stops a head shot (each does `helmetDamage` of
+    // a body hit) until `helmetHits` have knocked it off; its vest takes a
+    // share off every body hit
+    ironclad: { helmetHits: 3, helmetDamage: 0.25, vest: 0.7 },
+    // a hit that does not kill: light (a flinch), medium (it staggers back),
+    // heavy (it goes down and gets up) -- by the share of its hit points one
+    // hit took; it can only be knocked down once every `heavyCooldown` s
+    hit: { medium: 0.18, heavy: 0.45, heavyCooldown: 4, staggerTime: 0.45, staggerBack: 0.35, downTime: 1.4 },
+    // the Sprinter and the Runt lose their footing now and then
+    stumble: { chance: 0.1, every: 2, time: 0.55 },
+    // how often a zombie's pose is worked out: every frame within `full` m of
+    // the player, every 2nd frame to `half`, every 4th beyond; off screen not at all
+    lod: { full: 15, half: 30 },
+  },
 
   // ---------------- touch and HUD settings (their limits) ----------------
   touch: { lookDrag: 2.2 },                  // pixels of drag -> turn (x the player's sensitivity)
@@ -752,12 +805,27 @@ Object.assign(G.WEAPON_DEFS, {
 G.MELEE_DEF = { id: "melee", damage: 35, fireRate: 450, range: 2.6 };
 
 // damage values scaled 3.75x to match player HP going 100 -> 375 (same % dmg/hit)
+// (overhaul, round 4) ten kinds -- docs/overhaul/zombie-concepts.md. The ids of
+// the first three stay what saves and checkpoints know: normal is the
+// Shambler, fast the Sprinter, crawler the Crawler. Against the Shambler:
+// hp and speed as the concept sheet sets them; `scale` is the whole body (a
+// Runt's hitboxes are smaller -- its word is not); their own rules are
+// G.CONFIG.zombies.
 G.ZOMBIE_TYPES = {
-  normal:  { hp: 34, speed: 1.7, scale: 1.0, color: 0x4c6b3a, damage: 30, scoreValue: 10 },
-  fast:    { hp: 22, speed: 3.1, scale: 0.85, color: 0x8a6a2a, damage: 23, scoreValue: 16 },
-  crawler: { hp: 26, speed: 1.3, scale: 0.9, color: 0x5c5449, damage: 26, scoreValue: 14 },
-  boss:    { hp: 900, speed: 1.0, scale: 3.0, color: 0x6b1e6b, damage: 83, scoreValue: 500 },
+  normal:      { hp: 34, speed: 1.7, scale: 1.0, color: 0x4c6b3a, damage: 30, scoreValue: 10 },
+  fast:        { hp: 22, speed: 3.1, scale: 0.95, color: 0x8a6a2a, damage: 23, scoreValue: 16 },
+  crawler:     { hp: 27, speed: 1.05, scale: 0.9, color: 0x5c5449, damage: 26, scoreValue: 14 },
+  bloater:     { hp: 54, speed: 1.05, scale: 1.06, color: 0x7a8a4a, damage: 30, scoreValue: 22 },
+  ironclad:    { hp: 34, speed: 1.3, scale: 1.04, color: 0x5a6068, damage: 34, scoreValue: 24 },
+  runt:        { hp: 17, speed: 2.7, scale: 0.62, color: 0x6b5a3a, damage: 18, scoreValue: 18 },
+  abomination: { hp: 102, speed: 1.85, scale: 1.24, color: 0x6a2a2a, damage: 52, scoreValue: 60 },
+  screamer:    { hp: 27, speed: 1.55, scale: 1.12, color: 0x9a9a8a, damage: 22, scoreValue: 22 },
+  headless:    { hp: 37, speed: 1.55, scale: 1.0, color: 0x5c4a3a, damage: 30, scoreValue: 20 },
+  reacher:     { hp: 61, speed: 1.2, scale: 1.16, color: 0x4a5a4a, damage: 40, scoreValue: 30 },
+  boss:        { hp: 900, speed: 1.0, scale: 3.0, color: 0x6b1e6b, damage: 83, scoreValue: 500 },
 };
+// the ten in the order of the concept sheet (the Zombie Gallery, ?lab=zombies)
+G.ZOMBIE_KINDS = ["normal", "fast", "crawler", "bloater", "ironclad", "runt", "abomination", "screamer", "headless", "reacher"];
 
 // ---------------- The waves (new list, round 2, F) ----------------
 // Twenty waves a level. The first four ease a new player in; 5, 10, 15 and 20

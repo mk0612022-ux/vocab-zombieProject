@@ -847,7 +847,8 @@
     zombieMaterials() {
       const Z = CFG().zombies, F = CFG().fog, M = CFG().materials.zombie;
       const mk = (rim, strength) => {
-        const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: M.roughness, metalness: M.metalness });
+        // (overhaul, round 4: the zombies' pixel atlas -- js/zombiefactory.js)
+        const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: M.roughness, metalness: M.metalness, map: G.ZombieSkin ? G.ZombieSkin.texture() : null });
         m.userData.shared = true;
         m.userData.vzRim = { color: new THREE.Color(rim).multiplyScalar(strength), power: Z.rimPower };
         m.userData.vzMinLight = new THREE.Color(Z.minLight);
@@ -1260,7 +1261,7 @@
     // the strong rim, a least light -- one each, as a boss's code tints it
     bossMaterial() {
       const Z = CFG().zombies, F = CFG().fog, M = CFG().materials.zombie;
-      const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: M.roughness, metalness: M.metalness });
+      const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: M.roughness, metalness: M.metalness, map: G.ZombieSkin ? G.ZombieSkin.texture() : null });
       m.userData.vzRim = { color: new THREE.Color(Z.bossRim).multiplyScalar(Z.bossRimStrength), power: Z.rimPower };
       m.userData.vzMinLight = new THREE.Color(Z.minLight);
       m.userData.vzMark = true;

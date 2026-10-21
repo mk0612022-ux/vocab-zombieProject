@@ -246,7 +246,8 @@ G.Round1Test = (function () {
     biter.mesh.position.set(g2.yawObject.position.x + 0.8, g2.yawObject.position.y - 1.7, g2.yawObject.position.z);
     biter.attackCooldown = 0; biter.hp = 500;
     const hp0 = pl.hp, zx0 = biter.mesh.position.x;
-    g2.updateZombies(1 / 60);
+    // (overhaul, round 4: a bite winds up first, then lands -- js/zombieai.js)
+    for (let i = 0; i < 40 && pl.hp === hp0; i++) g2.updateZombies(1 / 60);
     ok("perk Thorns: the biter takes 60 and is thrown back", biter.hp <= 440 && biter.mesh.position.x > zx0 + 0.5, biter.hp + " / moved " + (biter.mesh.position.x - zx0).toFixed(2));
     ok("perk Riot Gear: bites do 12% less", Math.abs((hp0 - pl.hp) - biter.damage * 0.88) < 0.01, (hp0 - pl.hp).toFixed(1));
     // Last Round

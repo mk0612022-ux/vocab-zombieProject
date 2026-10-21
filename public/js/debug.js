@@ -18,7 +18,7 @@
 //                   the room -- and the Stress button (bottom left)
 //
 // ?lab=weapons also loads the Weapon Lab (js/lab/weapons.js), ?lab=sound the
-// Sound Lab (js/lab/sound.js).
+// Sound Lab (js/lab/sound.js), ?lab=zombies the Zombie Gallery (js/lab/zombies.js).
 // ===================================================================
 window.G = window.G || {};
 
@@ -198,9 +198,9 @@ G.Debug = {
 (function () {
   const start = () => {
     G.Debug.init();
-    // a lab of its own (round 1: the weapons; round 3: the sound)
+    // a lab of its own (round 1: the weapons; round 3: the sound; round 4: the zombies)
     const lab = (/[?&]lab=([a-z]+)/.exec(location.search) || [])[1];
-    if (lab === "weapons" || lab === "sound") {
+    if (lab === "weapons" || lab === "sound" || lab === "zombies") {
       const s = document.createElement("script");
       s.src = "js/lab/" + lab + ".js";
       document.head.appendChild(s);

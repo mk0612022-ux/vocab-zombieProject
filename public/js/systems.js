@@ -24,6 +24,7 @@ G.waveSpec = function (level, wave, mode) {
     crawler: row[3],
     alive: row[4] + Math.round(d * 4),
     every: row[5] * (1 - d * 0.2),
+    wave,                     // (overhaul, round 4: which kinds come -- js/zombieai.js)
   };
 };
 G.isBossWave = function (wave) { return wave > 0 && wave % G.BOSS_EVERY === 0; };
@@ -44,7 +45,9 @@ G.Spawner = {
   },
   update(dt, world, aliveCount, maxAlive, spawnFn, waveDifficulty, playerPos, fwd) {
     const spec = this.spec;
-    if (aliveCount >= (spec ? spec.alive : maxAlive)) return;
+    // (overhaul, round 4: never more at once than the graphics level carries)
+    const cap = spec ? spec.alive : maxAlive;
+    if (aliveCount >= (G.ZombieAI ? G.ZombieAI.aliveCap(cap) : cap)) return;
     this.timer -= dt;
     if (this.timer <= 0) {
       this.timer = this.interval;
@@ -53,8 +56,10 @@ G.Spawner = {
       sp.cooldown = 2.5;
       const fastChance = spec ? spec.fast : Math.min(0.55, 0.1 + waveDifficulty * 0.08);
       const crawlerChance = spec ? spec.crawler : Math.min(0.22, 0.05 + waveDifficulty * 0.025);
+      // (overhaul, round 4: the ten kinds -- each from its first wave, js/zombieai.js)
       let type = "normal";
-      if (sp.types.includes("fast") && G.rng() < fastChance) type = "fast";
+      if (G.ZombieAI && G.Game) type = G.ZombieAI.pick(G.Game, sp);
+      else if (sp.types.includes("fast") && G.rng() < fastChance) type = "fast";
       else if (G.rng() < crawlerChance) type = "crawler";
       spawnFn(type, sp.pos, sp);
     }

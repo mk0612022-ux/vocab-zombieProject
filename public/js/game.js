@@ -494,6 +494,7 @@ G.Game = {
     // pooled objects live in the scene; take them out before it is disposed
     if (G.Perf) { G.Perf.resetPools(); G.Perf.disposeLightPool(this.scene); }
     if (G.ZombieFX) G.ZombieFX.reset(this.scene);
+    if (G.ZombieAI) G.ZombieAI.reset();               // (overhaul, round 4: helmets knocked off)
     if (G.Aim) G.Aim.reset();
     if (G.Zones) G.Zones.reset();
     if (G.Details) G.Details.reset();
@@ -534,6 +535,7 @@ G.Game = {
   },
 
   startWave() {
+    this._waveOutfits = new Set();                    // (overhaul, round 4: the wave's outfits, js/zombiefactory.js)
     this.wave++;
     this.spawnedCount = 0;
     if (this.player) this.player.secondLifeUsed = false;   // Second Life: once a wave
@@ -1073,8 +1075,10 @@ G.Game = {
       hitAny = true;
       // Round 2: the head is its own hitbox -- the neck group and everything
       // on it -- and a head hit does double damage
-      this.damageZombie(z, head ? dmg * G.HEADSHOT_MULT : dmg, hit.point, { dir: dir.clone(), head });
-      if (head) G.UI.showHitmarker(true);
+      // (overhaul, round 4: an Ironclad's helmet and vest have their say -- js/zombieai.js)
+      const hm = G.ZombieAI.hitMod(this, z, dmg, head, dir);
+      this.damageZombie(z, hm.dmg, hit.point, { dir: dir.clone(), head: hm.head });
+      if (hm.head) G.UI.showHitmarker(true);
       if (def && def.splash) this.splashDamage(hit.point, def, dmg);
       if (++through >= maxThrough) { stopAt = hit.distance; break; }
     }
@@ -1268,18 +1272,26 @@ G.Game = {
   // head, which decides how a killed zombie goes (js/zombiefx.js)
   damageZombie(z, dmg, hitPoint, info) {
     z._lastHit = info || { dir: null, head: false };
-    G.spawnHitParticles(this.scene, hitPoint, 0x8a2a2a, G.save.settings.graphicsQuality);
+    // (overhaul, round 4: Blood & Gore -- red, a darker brown, or grey dust)
+    const gore = G.ZombieFactory ? G.ZombieFactory.gore(z) : "full";
+    G.spawnHitParticles(this.scene, hitPoint, gore === "off" ? 0x8a8478 : gore === "reduced" ? 0x5a3a2a : 0x8a2a2a, G.save.settings.graphicsQuality);
     const died = z.takeDamage(dmg);
     if (died) { G.Audio.zombie("death", z.type, z.mesh.position); this.onZombieDeath(z); }
-    else if (!z._hurtSoundAt || performance.now() - z._hurtSoundAt > 350) {
-      z._hurtSoundAt = performance.now();
-      G.Audio.zombie("hurt", z.type, z.mesh.position);
+    else {
+      if (!z._hurtSoundAt || performance.now() - z._hurtSoundAt > 350) {
+        z._hurtSoundAt = performance.now();
+        G.Audio.zombie("hurt", z.type, z.mesh.position);
+      }
+      // a flinch, a stagger back, or down and up again (js/zombieai.js)
+      G.ZombieAI.react(this, z, dmg, z._lastHit);
     }
   },
 
   onZombieDeath(z) {
     // Was an instant scene.remove() -- vanishing with no transition at all.
     // Now it bursts apart, or loses its head and drops (startDeathAnimation).
+    // (overhaul, round 4: a Screamer's shriek never comes; a Bloater swells first)
+    G.ZombieAI.onDeath(this, z);
     this.startDeathAnimation(z);
     this.totalZombiesKilled++;
     // (vocabulary series, round 2) a zombie spelt down is its own right
@@ -2067,6 +2079,7 @@ G.Game = {
     if (this.state !== "GAMEPLAY") return;             // a boss's blow can end the run
     this.updateDyingZombies(dt);
     G.ZombieFX.update(this, dt);
+    G.ZombieAI.update(this, dt);                     // (overhaul, round 4: a helmet knocked off, falling)
     // (new series, round 1, B) the word under the crosshair, the words kept
     // apart, aim assist
     G.Aim.update(this, dt);
@@ -2539,11 +2552,16 @@ G.Game = {
     };
     const pFeet = playerPos.y - 1.7, pFlight = flightOf(playerPos.x, playerPos.z, pFeet);
     const tmpV = new THREE.Vector3();
+    // (overhaul, round 4: which poses are worked out this frame -- js/zombieanim.js)
+    if (G.ZombieAnim) G.ZombieAnim.frame(this);
     for (const z of this.zombies) {
       if (!z.alive) continue;
       // still coming in (out of the ground, a locker, a vent...): it can be
       // shot but cannot move or bite yet
       if (z.emerge) { G.ZombieFX.step(this, z, dt); continue; }
+      // (overhaul, round 4) its own timers -- knocked down, staggering, a
+      // stumble, a Screamer's shriek, a shriek's spur (js/zombieai.js)
+      const kindK = G.ZombieAI ? G.ZombieAI.tick(this, z, dt) : 1;
       // (visual series, round 3, L3: a blast or a shove never puts one out in the forest)
       G.clampToPlay(this.world, z.mesh.position, 0.3);
       // (round 3, H) an ability on it: frozen or dazed it stands (a frozen
@@ -2555,7 +2573,7 @@ G.Game = {
         z.attackCooldown -= dt;
         continue;
       }
-      const noBite = mod.noBite, zdt = dt * mod.speed, abTarget = mod.target;
+      const noBite = mod.noBite, zdt = dt * mod.speed * kindK, abTarget = mod.target;
       const zRegion = G.getRegionAt(this.world, z.mesh.position.x, z.mesh.position.z, z.mesh.position.y);
       let moveTarget = playerPos;
       // Mid-flight the region lookup flips between the hall (below 2.3) and
@@ -2649,9 +2667,10 @@ G.Game = {
       // zombie on the hall floor could bite a player on the gallery above it
       // (and a player in the air -- Pole Vault -- is out of reach)
       const sameFloor = Math.abs(z.mesh.position.y - (playerPos.y - 1.7)) < 1.5;
-      if (!noBite && dist !== undefined && dist < 1.1 && sameFloor && z.attackCooldown <= 0) {
-        z.attackCooldown = 1.0;
-        if (z.lunge) z.lunge();
+      // (overhaul, round 4) a wind-up the player can read, then the strike --
+      // a hit only if still in reach; each kind its own reach and wind-up
+      // (js/zombieai.js)
+      if (G.ZombieAI.attack(this, z, dist, sameFloor, noBite, dt) === "hit") {
         // (Dash: nothing lands while it lasts; Barrier: a quarter does)
         // (vocabulary series, round 2, C2) the zombie carrying the word asked
         // got to the player first: a wrong answer on that word (once)
@@ -3090,17 +3109,24 @@ G.Game = {
       const last = z._stepAt || (z._stepAt = { x: zp.x, z: zp.z });
       z._stepV = Math.hypot(zp.x - last.x, zp.z - last.z) / Math.max(dt, 1e-4);
       last.x = zp.x; last.z = zp.z;
-      if (d < AC.stepRange && z.type !== "crawler") near.push({ z, d });
+      if (d < AC.stepRange) near.push({ z, d });
     }
     near.sort((a, b) => a.d - b.d);
+    // (overhaul, round 4) each kind's tread: the heavy ones heavier, the
+    // Ironclad's armour with each step, a Runt's light and quick, and a
+    // Crawler -- no feet -- dragging itself along
+    const TREAD = { boss: [1.4, 1.6, true], bloater: [1.1, 1.4, true], reacher: [1.25, 1.5, true], abomination: [1.1, 1.6, true],
+      ironclad: [0.85, 1.15, true], runt: [0.55, 0.55, false], fast: [0.95, 0.85, false] };
     near.slice(0, AC.zombieSteps).forEach(({ z }) => {
-      if (z._stepV < 0.3) return;
+      if (z._stepV < 0.3 || z._hold > 0) return;
       z._stepT = (z._stepT || 0) - dt;
       if (z._stepT > 0) return;
-      const big = z.type === "boss";
-      z._stepT = (big ? 1.4 : z.type === "fast" ? 0.95 : 0.8) / Math.max(0.6, z._stepV);
-      const zp = z.mesh.position;
-      A.footstep(G.Surface.floor(this.world, zp.x, zp.z, zp.y), z._stepV > 3, { pos: zp.clone().setY(zp.y + 0.1), heavy: big, gain: big ? 1.6 : 0.85 });
+      const zp = z.mesh.position, at = zp.clone().setY(zp.y + 0.1);
+      if (z.type === "crawler") { z._stepT = 0.75 / Math.max(0.5, z._stepV); A.zombie("drag", z.type, at); return; }
+      const t = TREAD[z.type] || [0.8, 0.85, false];
+      z._stepT = t[0] / Math.max(0.6, z._stepV);
+      A.footstep(G.Surface.floor(this.world, zp.x, zp.z, zp.y), z._stepV > 3, { pos: at, heavy: t[2], gain: t[1] });
+      if (z.type === "ironclad") A.zombie("clank", z.type, at.setY(zp.y + 1.2));
     });
 
     // warning 1: heartbeat under 30% health, quickening as it drops

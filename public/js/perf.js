@@ -312,10 +312,14 @@ G.Perf = {
       sources.push(o);
     });
     const rel = new THREE.Matrix4(), nm = new THREE.Matrix3(), v = new THREE.Vector3();
+    // (overhaul, round 4) a set of materials with a pixel atlas says where on
+    // it each face of each box goes (shared.uvOf -- js/zombiefactory.js)
+    const uvOf = shared && shared.uvOf;
     Object.keys(buckets).forEach((kind) => {
       const B = buckets[kind];
       if (!B.meshes.length) return;
       const pos = new Float32Array(B.verts * 3), nor = new Float32Array(B.verts * 3), col = new Float32Array(B.verts * 3);
+      const uvs = uvOf && kind === "lambert" ? new Float32Array(B.verts * 2) : null;
       const index = new Uint16Array(B.idx);
       const parts = [];
       let vo = 0, io = 0;
@@ -324,6 +328,8 @@ G.Perf = {
         nm.getNormalMatrix(rel);
         const ga = o.geometry.attributes, c = o.material.color;
         const box = new THREE.Box3();
+        const p = o.geometry.parameters, isBox = o.geometry.type === "BoxGeometry" && p && ga.uv && ga.position.count === 24;
+        const dims = isBox ? [[p.depth, p.height], [p.depth, p.height], [p.width, p.depth], [p.width, p.depth], [p.width, p.height], [p.width, p.height]] : null;
         for (let i = 0; i < ga.position.count; i++) {
           v.fromBufferAttribute(ga.position, i).applyMatrix4(rel);
           box.expandByPoint(v);
@@ -331,6 +337,11 @@ G.Perf = {
           v.fromBufferAttribute(ga.normal, i).applyMatrix3(nm).normalize();
           nor[(vo + i) * 3] = v.x; nor[(vo + i) * 3 + 1] = v.y; nor[(vo + i) * 3 + 2] = v.z;
           col[(vo + i) * 3] = c.r; col[(vo + i) * 3 + 1] = c.g; col[(vo + i) * 3 + 2] = c.b;
+          if (uvs) {
+            const f = isBox ? Math.floor(i / 4) : -1;
+            const t = uvOf(o, f, ga.uv ? ga.uv.getX(i) : 0.5, ga.uv ? ga.uv.getY(i) : 0.5, isBox ? dims[f] : null);
+            uvs[(vo + i) * 2] = t[0]; uvs[(vo + i) * 2 + 1] = t[1];
+          }
         }
         parts.push({ box, color: c.clone() });
         const ix = o.geometry.index;
@@ -341,6 +352,7 @@ G.Perf = {
       geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
       geo.setAttribute("normal", new THREE.BufferAttribute(nor, 3));
       geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
+      if (uvs) geo.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
       geo.setIndex(new THREE.BufferAttribute(index, 1));
       geo.computeBoundingSphere();
       const mesh = new THREE.Mesh(geo, shared[kind]);

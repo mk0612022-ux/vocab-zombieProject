@@ -183,7 +183,8 @@ G.Round10Test = (function () {
   function zombies() {
     fresh("high");
     const C = G.CONFIG.zombieLooks;
-    ok("I2: the odd ones' chances are in js/config.js", C && C.oddChance > 0 && C.oddChance < 0.5 && ["deformed", "headInHand", "longArm", "bigArm"].every((k) => C.odd[k] > 0));
+    // (overhaul, round 4: a head carried and a long arm are kinds of their own now -- the Headless and the Reacher)
+    ok("I2: the odd ones' chances are in js/config.js", C && C.oddChance > 0 && C.oddChance < 0.5 && ["deformed", "bigArm"].every((k) => C.odd[k] > 0) && !!G.ZOMBIE_TYPES.headless && !!G.ZOMBIE_TYPES.reacher);
     let odd = 0, crawlerOk = true, bossOk = true;
     for (let i = 0; i < 600; i++) if (G.randomZombieLook("normal", "school").odd) odd++;
     for (let i = 0; i < 200; i++) { const o = G.randomZombieLook("crawler", "school").odd; if (o && o !== "deformed") crawlerOk = false; }

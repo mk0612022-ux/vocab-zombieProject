@@ -184,7 +184,8 @@ G.Round2Test = (function () {
     // the spawned zombies use their level's wardrobe
     const g = fresh(2);
     const zs = []; for (let i = 0; i < 8; i++) zs.push(g.spawnZombieAt("normal", g.yawObject.position.clone().add(new THREE.Vector3(i, -1.7, -4))));
-    ok("a hospital run spawns hospital outfits", zs.every((z) => ["patient", "nurse", "doctor"].includes(z.look.outfit)));
+    // (overhaul, round 4: plus the civilians every level has -- an office worker, a farmer, someone off the street)
+    ok("a hospital run spawns hospital outfits", zs.every((z) => G.ZOMBIE_OUTFITS.hospital.some((o) => o.key === z.look.outfit)) && zs.some((z) => ["patient", "nurse", "doctor"].includes(z.look.outfit)) && !zs.some((z) => ["student", "soldier", "teacher", "scientist"].includes(z.look.outfit)));
     // type by shape, not colour: measure them
     const size = (type) => {
       const m = G.buildZombieMesh(type, null, G.randomZombieLook(type, "school"));

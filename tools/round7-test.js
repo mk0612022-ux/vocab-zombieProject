@@ -201,7 +201,8 @@ G.Round7Test = (function () {
     const wd0 = zw1.mesh.position.distanceTo(wa) + zw2.mesh.position.distanceTo(wa); sim(2);
     ok("H2 Gravity Well: pulls the zombies near it together", zw1.mesh.position.distanceTo(wa) + zw2.mesh.position.distanceTo(wa) < wd0 - 4, r1(wd0));
     // Barrier
-    c = field(); use("barrier"); const zb2 = spawn(0, -0.9); hp = g.player.hp; up(2);
+    // (overhaul, round 4: a bite winds up first, then lands -- js/zombieai.js)
+    c = field(); use("barrier"); const zb2 = spawn(0, -0.9); hp = g.player.hp; for (let i = 0; i < 40 && g.player.hp === hp; i++) up(1);
     ok("H2 Barrier: a bite does a quarter of its damage", Math.abs((hp - g.player.hp) - zb2.damage * 0.25) < 0.01, r1(hp - g.player.hp));
     // Patch Up
     c = field(); g.player.hp = 100; use("patch"); sim(3.2);

@@ -725,33 +725,109 @@ G.Audio = {
 
   // Zombie voices differ by type: pitch, roughness and length all change,
   // so a fast one is recognisable before it rounds the corner.
+  // (overhaul, round 4) the ten kinds, each its own voice: a pitch (f), how
+  // rough (rough), how long (len), two formants (a throat's vowel), a
+  // breath, and what sets it apart -- the Sprinter pants, the Bloater
+  // gurgles wet, the Ironclad and the Headless are muffled (a helmet, a head
+  // held under an arm), the Runt squeals short and high, the Abomination's
+  // roar is three throats at once. A far one is darker and wetter with the
+  // room (more reverb).
   ZOMBIE_VOICE: {
-    normal: { f: 92, rough: 18, len: 0.9 },
-    fast: { f: 150, rough: 30, len: 0.55 },
-    crawler: { f: 70, rough: 12, len: 1.1 },
-    boss: { f: 48, rough: 10, len: 1.6 },
+    normal:      { f: 92, rough: 18, len: 0.9, fm: [520, 1000], breath: 0.07 },
+    fast:        { f: 150, rough: 30, len: 0.55, fm: [700, 1500], breath: 0.1, pant: true },
+    crawler:     { f: 70, rough: 12, len: 1.1, fm: [400, 900], breath: 0.06, scrape: true },
+    bloater:     { f: 62, rough: 14, len: 1.3, fm: [350, 800], breath: 0.05, wet: true },
+    ironclad:    { f: 84, rough: 10, len: 1.0, fm: [480, 950], breath: 0.05, muffle: 900 },
+    runt:        { f: 280, rough: 40, len: 0.35, fm: [1000, 2400], breath: 0.06 },
+    abomination: { f: 55, rough: 25, len: 1.6, fm: [380, 820], breath: 0.09, layers: [0.5, 1, 1.5] },
+    screamer:    { f: 170, rough: 20, len: 0.8, fm: [900, 2600], breath: 0.12 },
+    headless:    { f: 90, rough: 16, len: 1.0, fm: [450, 900], breath: 0.05, muffle: 700 },
+    reacher:     { f: 68, rough: 12, len: 1.2, fm: [380, 850], breath: 0.09 },
+    boss:        { f: 48, rough: 10, len: 1.6, fm: [380, 800], breath: 0.06 },
   },
-  zombie(kind, type, pos) {
+  // o: { tag } -- a sound that can be stopped (a shriek cut short)
+  zombie(kind, type, pos, o) {
     if (!this.ctx) return;
+    o = o || {};
     // (overhaul, round 3) one voice each; a death or a hurt is more important than a growl
-    this.group({ cat: "zombie", prio: kind === "growl" ? 3 : 2, pos, dur: 1.4 }, () => this._zombie(kind, type, pos));
+    // (round 4: a shriek, a swell and a burst are never dropped)
+    const urgent = kind === "scream" || kind === "scream_wind" || kind === "swell" || kind === "pop";
+    const prio = urgent ? true : kind === "growl" || kind === "drag" || kind === "helmet_land" ? 3 : 2;
+    this.group({ cat: "zombie", prio, pos, dur: kind === "scream" ? 1.6 : kind === "swell" ? 1.4 : 1.4, tag: o.tag || null }, () => this._zombie(kind, type, pos));
     if (G.Captions && kind === "growl") G.Captions.heard("zombie:growl", pos);
+    if (G.Captions && kind === "scream") G.Captions.heard("zombie:scream", pos);
   },
   _zombie(kind, type, pos) {
     const v = this.ZOMBIE_VOICE[type] || this.ZOMBIE_VOICE.normal;
     const f = v.f * (0.9 + Math.random() * 0.2);
+    // how far: a far voice darker, more of the room
+    const d = pos && this._lp ? Math.hypot(pos.x - this._lp.x, pos.z - this._lp.z) : 0;
+    const far = Math.max(0, Math.min(1, (d - 8) / 20)), dark = (1 - 0.45 * far) * (v.muffle ? Math.min(1, v.muffle / v.fm[1]) : 1), rev = 0.15 + 0.55 * far;
+    // a throat: a rough saw through two formants (+ more throats, the Abomination)
+    const throat = (f0, f1, dur, gain, o) => {
+      (v.layers || [1]).forEach((m, i) => {
+        const g = gain / (i ? 2 : 1);
+        this.tone(Object.assign({ type: "sawtooth", freq: f0 * m, freqEnd: f1 * m, dur, gain: g * 0.6, vibrato: { rate: v.wet ? 22 : 7 + Math.random() * 5, depth: v.rough * m },
+          filter: { type: "bandpass", freq: v.fm[0] * dark, q: 1.4 }, pos, rev }, o));
+        this.tone(Object.assign({ type: "sawtooth", freq: f0 * m * 1.01, freqEnd: f1 * m, dur, gain: g * 0.4, vibrato: { rate: 9, depth: v.rough * m * 0.7 },
+          filter: { type: "bandpass", freq: v.fm[1] * dark, q: 2 }, pos, rev }, o));
+      });
+    };
     if (kind === "growl") {
-      this.tone({ type: "sawtooth", freq: f, freqEnd: f * 0.8, dur: v.len, gain: type === "boss" ? 0.45 : 0.28,
-        vibrato: { rate: 7 + Math.random() * 5, depth: v.rough }, filter: { type: "bandpass", freq: 520 + f, q: 1.4 }, pos, attack: 0.08 });
-      this.noise({ dur: v.len * 0.8, freq: 500, q: 1, gain: 0.07, pos, attack: 0.1 });
+      throat(f, f * 0.8, v.len, type === "boss" ? 0.45 : 0.3, { attack: 0.08 });
+      this.noise({ dur: v.len * 0.8, freq: v.fm[1] * dark, q: 1, gain: v.breath, pos, attack: 0.1, rev });
+      // the Sprinter pants; the Bloater bubbles; the Crawler's nails on the floor
+      if (v.pant) for (let i = 0; i < 4; i++) this.noise({ dur: 0.09, filter: "highpass", freq: 1800, gain: 0.05, at: v.len + i * 0.16, pos });
+      if (v.wet) for (let i = 0; i < 5; i++) this.tone({ type: "sine", freq: 180 + Math.random() * 220, freqEnd: 90, dur: 0.06, gain: 0.05, at: Math.random() * v.len, pos });
+      if (v.scrape) this.noise({ dur: 0.25, freq: 2600, q: 3, gain: 0.04, at: v.len * 0.5, pos });
     } else if (kind === "hurt") {
-      this.tone({ type: "sawtooth", freq: f * 1.6, freqEnd: f * 0.9, dur: 0.22, gain: 0.26,
-        filter: { type: "bandpass", freq: 900, q: 1.2 }, pos });
-      this.noise({ dur: 0.1, filter: "lowpass", freq: 1200, gain: 0.18, pos });
+      throat(f * 1.6, f * 0.9, 0.22, 0.28, {});
+      this.noise({ dur: 0.1, filter: "lowpass", freq: 1200 * dark, gain: 0.18, pos });
     } else if (kind === "death") {
       this.tone({ type: "sawtooth", freq: f * 1.3, freqEnd: f * 0.35, dur: v.len * 1.1, gain: 0.3,
-        vibrato: { rate: 5, depth: v.rough * 1.5 }, filter: { type: "lowpass", freq: 800 }, pos, attack: 0.02 });
+        vibrato: { rate: 5, depth: v.rough * 1.5 }, filter: { type: "lowpass", freq: 800 * dark }, pos, attack: 0.02, rev });
       this.noise({ dur: 0.25, filter: "lowpass", freq: 400, gain: 0.3, pos, at: v.len * 0.9 });   // body hits the floor
+    } else if (kind === "attack") {
+      // the wind-up: a snarl rising into the blow
+      throat(f * 1.3, f * 2.1, 0.32, 0.3, { attack: 0.03 });
+      this.noise({ dur: 0.25, filter: "highpass", freq: 2200, gain: 0.06, pos });
+    } else if (kind === "scream_wind") {
+      // the Screamer draws breath: a long rising rasp
+      this.noise({ dur: 1.0, filter: "highpass", freq: 900, freqEnd: 3200, gain: 0.09, attack: 0.6, pos, rev });
+      this.tone({ type: "sawtooth", freq: f * 0.8, freqEnd: f * 1.3, dur: 1.0, gain: 0.08, attack: 0.5, filter: { type: "bandpass", freq: 1200, q: 3 }, pos });
+    } else if (kind === "scream") {
+      // the shriek: high and long, with its own echo -- loud, never piercing
+      // (its peak is the limiter's and the ceiling's, js/audio.js)
+      this.tone({ type: "sawtooth", freq: 880, freqEnd: 1250, dur: 1.2, gain: 0.2, attack: 0.04, vibrato: { rate: 16, depth: 45 }, filter: { type: "bandpass", freq: 2000, q: 1.6 }, pos, rev: 0.9 });
+      this.tone({ type: "sawtooth", freq: 1320, freqEnd: 1700, dur: 1.0, gain: 0.08, attack: 0.06, vibrato: { rate: 21, depth: 60 }, filter: { type: "bandpass", freq: 2900, q: 2 }, pos, rev: 0.9 });
+      this.noise({ dur: 1.1, filter: "highpass", freq: 2500, gain: 0.07, attack: 0.05, pos, rev: 0.7 });
+    } else if (kind === "swell") {
+      // the Bloater swelling: a gurgle that rises and stretches
+      this.tone({ type: "sine", freq: 70, freqEnd: 140, dur: 1.2, gain: 0.25, vibrato: { rate: 24, depth: 14 }, attack: 0.1, pos });
+      for (let i = 0; i < 8; i++) this.tone({ type: "sine", freq: 160 + Math.random() * 300, freqEnd: 80, dur: 0.07, gain: 0.06, at: i * 0.14, pos });
+      this.noise({ dur: 1.1, filter: "lowpass", freq: 500, freqEnd: 1400, gain: 0.08, attack: 0.4, pos });
+    } else if (kind === "pop") {
+      // the burst: wet, heavy, short
+      this.noise({ dur: 0.55, filter: "lowpass", freq: 1200, freqEnd: 140, gain: 0.55, pos, rev: 0.6 });
+      this.tone({ type: "sine", freq: 95, freqEnd: 30, dur: 0.45, gain: 0.6, pos, rev: 0.4 });
+      for (let i = 0; i < 6; i++) this.noise({ dur: 0.05, filter: "lowpass", freq: 700, gain: 0.12, at: 0.15 + Math.random() * 0.5, pos });   // what comes down after
+    } else if (kind === "helmet") {
+      // a round off the Ironclad's helmet
+      this.tone({ type: "triangle", freq: 1900 + Math.random() * 300, dur: 0.25, gain: 0.12, filter: { type: "bandpass", freq: 2100, q: 8 }, pos, rev: 0.3 });
+      this.noise({ dur: 0.03, filter: "highpass", freq: 4000, gain: 0.1, pos });
+    } else if (kind === "helmet_off") {
+      [1150, 1720, 2310].forEach((fq, i) => this.tone({ type: "triangle", freq: fq, dur: 0.6 - i * 0.12, gain: 0.12 / (i + 1), filter: { type: "bandpass", freq: fq, q: 9 }, pos, rev: 0.4 }));
+      this.noise({ dur: 0.05, filter: "highpass", freq: 3000, gain: 0.12, pos });
+    } else if (kind === "helmet_land") {
+      this.tone({ type: "triangle", freq: 900 + Math.random() * 200, dur: 0.18, gain: 0.08, filter: { type: "bandpass", freq: 1000, q: 6 }, pos });
+      this.noise({ dur: 0.06, filter: "lowpass", freq: 900, gain: 0.08, pos });
+    } else if (kind === "drag") {
+      // a Crawler pulling itself along: a wet scrape and a slap of the hand
+      this.noise({ dur: 0.32, freq: 900 * dark, freqEnd: 500, q: 0.9, gain: 0.07, attack: 0.05, pos });
+      this.noise({ dur: 0.05, filter: "lowpass", freq: 600, gain: 0.08, at: 0.28, pos });
+    } else if (kind === "clank") {
+      // the Ironclad's armour with each step
+      this.tone({ type: "triangle", freq: 640 + Math.random() * 120, dur: 0.12, gain: 0.05, filter: { type: "bandpass", freq: 700, q: 5 }, pos });
     }
   },
 
