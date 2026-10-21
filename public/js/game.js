@@ -82,7 +82,10 @@ G.Game = {
     this.setupThree();
     // (new series, round 1, C2) the boot screen stays until the update check is done too
     if (G.Updater) G.Updater.gameReady(); else document.getElementById("loading-overlay").classList.add("hidden");
-    G.UI.showScreen("screen-mainmenu");
+    // (overhaul, round 5) the Main Menu comes once Loading is done (js/updater.js);
+    // the lobby is built now, so its pictures are on their way
+    if (G.Lobby && !G.Lobby.built) G.Lobby.build();
+    if (!G.Updater && G.MainMenu) G.MainMenu.show();
     G.UI.el("hud-fps-counter").classList.toggle("hidden", !G.save.settings.showFpsCounter);
     requestAnimationFrame((t) => this.loop(t));
     // (overhaul, round 1) the debug overlay (?debug=1) and the labs
@@ -279,6 +282,10 @@ G.Game = {
   },
 
   beginRun() {
+    // (overhaul, round 5) the Main Menu's scene waits out the level, undrawn and
+    // silent: it is small (under 1 MB, 4 MB of shadow on High) and building it
+    // again would cost seconds of shader compiling on the way back
+    if (G.MainMenu) G.MainMenu.pause();
     // (J, round 3) a checkpoint being continued: the level is built as for
     // any run, then the saved state is laid over it just before wave 11
     const restoring = this._restoring || null;
@@ -3363,6 +3370,8 @@ G.Game = {
     if (delta > 0) this.update(delta);
 
     if (this.scene && this.camera) this.renderFrame();
+    // (overhaul, round 5) no level: the Main Menu's own scene, while it is in view
+    else if (G.MainMenu) G.MainMenu.frame(delta);
   },
 };
 
@@ -3389,6 +3398,8 @@ G.onKeyDown = function (e) {
   // (new series, round 2, F) the Settings page: rows, choices, categories, Esc back
   if (G.SettingsUI && G.SettingsUI.onKey(e)) return;
   // round 4: the lobby takes its own keys (move, select, switch tab)
+  // (overhaul, round 5) the Main Menu's own keys (up, down, Enter)
+  if (Game.state === "MENU" && G.MainMenu && G.MainMenu.onKey(e)) return;
   if (Game.state === "MENU" && G.Lobby && G.Lobby.onKey(e)) return;
   // (vocabulary series, round 2, D1) typing the words: letters, space,
   // hyphen, Backspace, Tab (a hint) and Enter belong to the bar -- before

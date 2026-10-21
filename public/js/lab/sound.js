@@ -32,8 +32,8 @@ G.SoundLab = {
     note.className = "slab-note";
     note.textContent = T("slab.loading");
     document.body.appendChild(note);
-    await until(() => G.Game && G.Game.renderer && G.Start && (G.Start.shown || (G.Lobby && G.Lobby.visible && G.Lobby.visible())));
-    if (G.Start.shown) { G.Start.enter(); await wait(700); }
+    await until(() => G.Game && G.Game.renderer && G.MainMenu && (G.MainMenu.visible() || (G.Lobby && G.Lobby.visible && G.Lobby.visible())));
+    if (G.MainMenu.visible()) { G.MainMenu.toLobby(); await wait(700); }
     if (G.Modal.isOpen("brightness") && G.BrightnessCal) G.BrightnessCal.ok();
     G.Game.startLevel(1);
     await until(() => G.Game.state === "GAMEPLAY" && G.Game.wsm, 30000);

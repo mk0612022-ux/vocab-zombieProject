@@ -201,7 +201,9 @@ window.G = window.G || {};
         // (overhaul, round 2) how bright a shot's flash is
         + row({ id: "set-muzzleflash", name: T("settings.muzzleFlash"), ctl: slider("set-muzzleflash", mf, 0, 1, 0.05, pct(mf)), desc: T("settings.muzzleFlashDesc") })
         // (overhaul, round 4) how much blood: Full, Reduced (no heads knocked off), Off (grey dust)
-        + row({ id: "set-gore", name: T("settings.gore"), ctl: seg("set-gore", s.gore || "full", ["full", "reduced", "off"].map((v) => [v, T("settings.gore." + v)])), desc: T("settings.goreDesc") });
+        + row({ id: "set-gore", name: T("settings.gore"), ctl: seg("set-gore", s.gore || "full", ["full", "reduced", "off"].map((v) => [v, T("settings.gore." + v)])), desc: T("settings.goreDesc") })
+        // (overhaul, round 5) the Main Menu's camera held still
+        + row({ id: "set-reducemotion", name: T("settings.reduceMotion"), ctl: toggle("set-reducemotion", !!s.reduceMotion), desc: T("settings.reduceMotionDesc") });
     },
     account() {
       const a = G.Account.state();
@@ -250,6 +252,7 @@ window.G = window.G || {};
         "set-camshake": (v) => { s.cameraShake = v; return pct(v); },
         "set-muzzleflash": (v) => { s.muzzleFlash = v; return pct(v); },
         "set-gore": (v) => { s.gore = v; },               // (round 4: zombies made from now on, and every death and hit)
+        "set-reducemotion": (v) => { s.reduceMotion = v; },
         "set-highlight": (v) => {
           s.highlightTarget = v;
           if (G.Game.zombies) G.Game.zombies.forEach((z) => { if (z.alive) { z._label = null; z.setTarget(z.isTarget); } });

@@ -38,8 +38,8 @@ G.Round4Test = (function () {
       const root = document.getElementById("lobby");
       ok("lobby is the main menu", !!root && !document.getElementById("screen-mainmenu").classList.contains("hidden"));
       ok("two tabs: CAMPAIGN, TRAINING & CUSTOM", root.querySelectorAll(".lobby-tab").length === 2 && /CAMPAIGN/.test(root.querySelector(".lobby-tab").textContent));
-      const icons = Array.from(root.querySelectorAll(".lobby-icon")).map((b) => b.dataset.icon);
-      ok("icon bar: settings, leaderboard, achievements, weapon log, word log, notes journal", ["settings", "leaderboard", "achievements", "armory", "wordlog", "journal"].every((k) => icons.includes(k)), icons.join(","));
+      // (overhaul, round 5: the icons moved to the Main Menu; a back button in their place)
+      ok("a back button to the Main Menu", !!root.querySelector("#lobby-back") && !root.querySelector(".lobby-icon"));
       ok("FEATURED heading", /FEATURED/.test(root.querySelector(".lobby-featured").textContent));
       const ids = L().MODES.map((m) => m.id);
       ok("seven modes", ["school", "hospital", "bunker", "endless", "daily", "practice", "custom"].every((k) => ids.includes(k)), ids.join(","));
@@ -92,12 +92,7 @@ G.Round4Test = (function () {
       key("KeyE"); ok("E: next tab", L().tab === "training" && cur() === "review");
       key("KeyQ"); ok("Q: previous tab, the selection remembered", L().tab === "campaign" && cur() === "school");
       ok("selected card: centred, bigger, ringed", (() => { const c = root.querySelector(".lcard.sel"); return c && c.dataset.id === "school" && /scale\(1\.12\)/.test(c.style.transform) && /translateX\(0%\)/.test(c.style.transform); })());
-      L().iconI = 0;
-      key("ArrowUp"); ok("↑ moves up to the icon row", L().focus === "icons" && root.querySelector(".lobby-icon.pad-focus"));
-      // (vocabulary series, round 4: Progress is the first icon, then Settings, Leaderboard)
-      key("ArrowRight"); key("ArrowRight"); key("Enter");
-      ok("Enter on an icon opens it (leaderboard)", G.UI._currentScreen === "screen-leaderboard");
-      G.UI.goToMainMenu();
+      key("ArrowUp"); ok("↑ moves up to the back button", L().focus === "back" && root.querySelector("#lobby-back.pad-focus"));
       key("ArrowDown"); ok("↓ back to the cards", L().focus === "cards");
 
       // mouse wheel and a swipe
@@ -129,11 +124,8 @@ G.Round4Test = (function () {
       padPress(B.RB); ok("RB: next tab", L().tab === "training");
       padPress(B.LB); ok("LB: previous tab", L().tab === "campaign");
       ok("controller hints", document.body.dataset.input === "pad" && getComputedStyle(root.querySelector(".lobby-hints .pad-only")).display !== "none" && getComputedStyle(root.querySelector(".lobby-hints .kb-only")).display === "none");
-      L().iconI = 1;
-      padPress(B.UP); padPress(B.A);
-      ok("controller: up to the icons, A opens (settings)", G.UI._currentScreen === "screen-settings");
-      G.UI.goToMainMenu();
-      key("Escape");
+      padPress(B.UP); ok("controller: up to the back button", L().focus === "back");
+      padPress(B.DOWN); ok("controller: down to the cards again", L().focus === "cards");
       L().setDevice("kb");
       ok("keyboard hints", getComputedStyle(root.querySelector(".lobby-hints .kb-only")).display !== "none" && getComputedStyle(root.querySelector(".lobby-hints .touch-only")).display === "none");
 

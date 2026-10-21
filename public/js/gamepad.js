@@ -95,9 +95,8 @@ G.Pad = {
       practice: "screen-practice-play", campstyle: "camp-style-box",
       // (new series, round 1) the boot screen: Update, Retry, Play this version
       boot: "boot-box",
-      // (new series, round 2) the Start screen: A on "Tap To Lobby", or down to
-      // Sign In; Settings' privacy policy
-      start: "start-screen", privacy: "privacy-box",
+      // (new series, round 2) Settings' privacy policy
+      privacy: "privacy-box",
       // (visual series, round 1) the brightness calibration
       brightness: "bcal-box" };
     if (top && byModal[top.id]) return document.getElementById(byModal[top.id]);
@@ -125,6 +124,8 @@ G.Pad = {
   navigate(gp, now, edge, dt) {
     const B = this.B;
     // round 4: the lobby carousel moves by cards and tabs, not by buttons
+    // (overhaul, round 5) the Main Menu: up and down its list, A
+    if (!G.Modal.isOpen() && G.MainMenu && G.MainMenu.visible()) { this.clearFocus(); G.MainMenu.pad(gp, now, edge, dt); return; }
     if (!G.Modal.isOpen() && G.Lobby && G.Lobby.visible()) { this.clearFocus(); G.Lobby.pad(gp, now, edge, dt); return; }
     // (vocabulary series, round 4) the Progress page's two tabs on LB / RB
     if (!G.Modal.isOpen() && G.UI._currentScreen === "screen-progress" && G.Progress) {

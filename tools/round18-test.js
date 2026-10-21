@@ -244,10 +244,10 @@ G.Round18Test = (function () {
     s.brightnessSet = false;
     key("Enter");
     ok("E4 Enter confirms: the window closes, the setting is kept and marked as set", !G.Modal.isOpen("brightness") && s.brightnessSet === true);
-    // the first time the game opens: after the Start screen
+    // the first time the game opens: after the Main Menu's PLAY (overhaul, round 5)
     s.brightnessSet = false;
-    G.Start.show(); await wait(30); G.Start.enter(); await wait(G.CONFIG.start.fadeMs + 120);
-    ok("E4 the first time: shown after the Start screen", G.Modal.isOpen("brightness"));
+    G.MainMenu.show(); await wait(30); G.MainMenu.activate("play"); await wait(60);
+    ok("E4 the first time: shown after PLAY on the Main Menu", G.Modal.isOpen("brightness"));
     G.BrightnessCal.ok();
     s.brightness = b0; s.brightnessSet = set0 !== false; G.Visuals.applyGrade(null); G.persist();
     // Settings

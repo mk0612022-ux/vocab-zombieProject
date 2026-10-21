@@ -8,7 +8,7 @@
 //
 //   opening     the Loading screen (js/boot.js) checks the site's version.json
 //               (never from a cache). The same build as installed: on to the
-//               Start screen (js/start.js), then the lobby. A
+//               Main Menu (js/mainmenu.js), then the lobby. A
 //               different one: "Update Available" -- this version -> that
 //               one, what changed, about how much to download -- and Update.
 //               It has to be done before playing, so every device matches.
@@ -101,7 +101,7 @@ window.G = window.G || {};
         if (G.Boot) G.Boot.finish();
         this.showLabel();
         this.badge();
-        if (G.Start) G.Start.show();
+        if (G.MainMenu) G.MainMenu.show();      // (overhaul, round 5: the Main Menu, where the Start screen was)
       }, wait);
     },
 
@@ -341,7 +341,9 @@ window.G = window.G || {};
       m = m || this.pending;
       if (!m || !this._entered) return;
       const g = G.Game;
-      if (!g || g.state !== "MENU" || !G.UI || G.UI._currentScreen !== "screen-mainmenu" || (G.Modal && G.Modal.isOpen())) { this._offerLater = true; this._offerM = m; return; }
+      // (overhaul, round 5: on the Main Menu too)
+      const menus = G.UI && (G.UI._currentScreen === "screen-mainmenu" || G.UI._currentScreen === "screen-home");
+      if (!g || g.state !== "MENU" || !menus || (G.Modal && G.Modal.isOpen())) { this._offerLater = true; this._offerM = m; return; }
       this._offerLater = false; this._offerM = null;
       G.Dialog.open({
         icon: "⬆️", title: T("update.title"),
@@ -365,7 +367,7 @@ window.G = window.G || {};
     tick() {
       this.badge();
       if (this.mode !== "web" || this.busy || !this._entered || this.stage === "downloading") return;
-      const g = G.Game, lobby = g && g.state === "MENU" && G.UI && G.UI._currentScreen === "screen-mainmenu";
+      const g = G.Game, lobby = g && g.state === "MENU" && G.UI && (G.UI._currentScreen === "screen-mainmenu" || G.UI._currentScreen === "screen-home");
       if (this._offerLater && lobby && !G.Modal.isOpen()) this.offer(this._offerM);
       const every = this.offline ? C().offlineRetrySeconds * 1000 : C().checkMinutes * 60000;
       if (lobby && Date.now() - (this._lastCheck || this._t0) > every) {

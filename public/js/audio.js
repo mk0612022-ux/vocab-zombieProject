@@ -42,7 +42,8 @@ G.Audio = {
   paused: false,
   // the kinds of voice, and where they go
   GAME_CATS: ["weapons", "impact", "zombie", "steps", "sfx"],
-  UI_SFX: ["correct", "wrong", "tick", "shop_warn", "purchase", "pickup", "pickup_key", "unlock", "update", "switch", "regen", "deny", "lowammo"],
+  UI_SFX: ["correct", "wrong", "tick", "shop_warn", "purchase", "pickup", "pickup_key", "unlock", "update", "switch", "regen", "deny", "lowammo",
+    "ui_hover", "ui_select", "ui_open", "ui_back"],
 
   init() {
     // (A5) every kind of gesture, for as long as the page lives: iOS Safari
@@ -485,6 +486,25 @@ G.Audio = {
       case "deny":
         this.tone({ type: "square", freq: 220, freqEnd: 170, dur: 0.09, gain: 0.07, filter: { type: "lowpass", freq: 1200 } });
         this.tone({ type: "square", freq: 170, dur: 0.08, gain: 0.06, at: 0.11, filter: { type: "lowpass", freq: 1000 } });
+        break;
+      // (overhaul, round 5) the menus: hover a light electronic tick; select a
+      // firmer one with a switch in it; open a short confirm, never shrill;
+      // back short and falling -- heard at once as going back
+      case "ui_hover":
+        this.tone({ type: "square", freq: 2400, dur: 0.018, gain: 0.025, filter: { type: "bandpass", freq: 2600, q: 5 } });
+        break;
+      case "ui_select":
+        this.tone({ type: "square", freq: 1500, dur: 0.03, gain: 0.05, filter: { type: "bandpass", freq: 1800, q: 4 } });
+        this.noise({ dur: 0.03, filter: "highpass", freq: 3000, gain: 0.04, at: 0.012 });
+        this.tone({ type: "sine", freq: 420, freqEnd: 300, dur: 0.06, gain: 0.07, at: 0.01 });
+        break;
+      case "ui_open":
+        this.tone({ type: "triangle", freq: 660, dur: 0.07, gain: 0.06 });
+        this.tone({ type: "triangle", freq: 990, dur: 0.09, gain: 0.05, at: 0.05 });
+        break;
+      case "ui_back":
+        this.tone({ type: "triangle", freq: 880, freqEnd: 520, dur: 0.08, gain: 0.055 });
+        this.noise({ dur: 0.03, filter: "lowpass", freq: 1200, gain: 0.03 });
         break;
       // (round 3) the magazine running low: one soft tick, once
       case "lowammo":
@@ -1210,12 +1230,29 @@ G.Audio = {
     const ctx = this.ctx, M = this._menu, C = G.CONFIG.menuMusic;
     if (!ctx || !M) return;
     const now = ctx.currentTime;
-    // the bells: a minor pentatonic, far away, now and then
+    const span = (a) => a[0] + Math.random() * (a[1] - a[0]);
+    // the bells: a minor pentatonic, far away, now and then -- and now and
+    // then nothing at all for a while, for the facility's own sounds
     while (M.next < now + 0.4) {
       const deg = C.bells[Math.floor(Math.random() * C.bells.length)];
-      const f = C.root * 4 * Math.pow(2, deg / 12) * (Math.random() < 0.3 ? 2 : 1);
-      this.tone({ type: "sine", freq: f, dur: 3.4, gain: C.bellGain, attack: 0.015, bus: "music", at: Math.max(0, M.next - now), filter: { type: "lowpass", freq: 2400 }, rev: 0.9 });
-      M.next += C.bellGap[0] + Math.random() * (C.bellGap[1] - C.bellGap[0]);
+      const f = C.root * 8 * Math.pow(2, deg / 12) * (Math.random() < 0.3 ? 2 : 1);
+      this.tone({ type: "sine", freq: f, dur: 4.2, gain: C.bellGain, attack: 0.02, bus: "music", at: Math.max(0, M.next - now), filter: { type: "lowpass", freq: 2400 }, rev: 0.9 });
+      // (overhaul, round 5) a quieter echo of it, a fifth below, sometimes
+      if (Math.random() < 0.35) this.tone({ type: "triangle", freq: f / 1.5, dur: 3, gain: C.bellGain * 0.4, attack: 0.05, bus: "music", at: Math.max(0, M.next - now) + 0.9, filter: { type: "lowpass", freq: 1400 }, rev: 0.9 });
+      M.next += span(C.bellGap) + (C.rest && Math.random() < C.rest[0] ? span([C.rest[1], C.rest[2]]) : 0);
+    }
+    // (round 5) a deep swell from under the floor
+    if (C.sub && (M.subAt == null || M.subAt < now)) {
+      if (M.subAt != null) this.tone({ type: "sine", freq: C.root / 2, freqEnd: C.root / 2 * 0.94, dur: 6, gain: C.sub.gain, attack: 2.2, bus: "music" });
+      M.subAt = now + span(C.sub.every);
+    }
+    // (round 5) a cold pad, two voices a little out of tune
+    if (C.pad && (M.padAt == null || M.padAt < now)) {
+      if (M.padAt != null) {
+        const deg = C.bells[Math.floor(Math.random() * C.bells.length)], f = C.root * 4 * Math.pow(2, deg / 12);
+        [0, 9].forEach((cents) => this.tone({ type: "sine", freq: f, detune: cents, dur: 7, gain: C.pad.gain, attack: 2.8, bus: "music", vibrato: { rate: 0.3, depth: 1.5 }, rev: 0.8 }));
+      }
+      M.padAt = now + span(C.pad.every);
     }
   },
 

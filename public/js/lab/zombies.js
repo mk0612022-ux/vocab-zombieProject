@@ -42,6 +42,8 @@ G.ZombieLab = {
   build() {
     // (the debug overlay and its Stress button: not over the gallery)
     if (G.Debug) { if (G.Debug.el) G.Debug.el.style.display = "none"; if (G.Debug.btn) G.Debug.btn.style.display = "none"; }
+    // (overhaul, round 5: nor the Main Menu's scene drawing under it)
+    if (G.MainMenu) { G.MainMenu.held = true; G.MainMenu.dispose(); }
     const c = document.createElement("canvas");
     c.className = "zlab-canvas";
     document.body.appendChild(c);

@@ -8,7 +8,7 @@ G.UI = {
   el(id) { return document.getElementById(id); },
 
   ALL_SCREENS: [
-    "screen-mainmenu", "screen-levelselect", "screen-howtoplay", "screen-settings",
+    "screen-home", "screen-mainmenu", "screen-levelselect", "screen-howtoplay", "screen-settings",
     "screen-leaderboard", "screen-achievements", "screen-import", "screen-practice-setup",
     "screen-practice-play", "screen-shop", "screen-crate", "screen-pause",
     "screen-gameover", "screen-victory", "screen-vocablog", "screen-weaponlog",
@@ -41,12 +41,15 @@ G.UI = {
     // the lobby is refreshed each time it comes back (scores, notes, words
     // and locks may have changed behind it)
     if (id === "screen-mainmenu" && G.Lobby) G.Lobby.open(this._lobbyOpts);
+    if (id === "screen-mainmenu") this.menuOrigin = "lobby";      // (overhaul, round 5: Back from here on goes to the lobby)
     this._lobbyOpts = null;
     // a new version found during a run is offered once back in the lobby
-    if (id === "screen-mainmenu" && G.PWA) G.PWA.maybeShow();
+    if ((id === "screen-mainmenu" || id === "screen-home") && G.PWA) G.PWA.maybeShow();
     // (new series, round 2, E) the lobby's music, back from a level (the
-    // first time, the Start screen's tap starts it)
-    if (id === "screen-mainmenu" && G.Audio && G.Audio.ctx && G.Audio.menuMusic && !(G.Start && G.Start.shown)) G.Audio.menuMusic(true);
+    // first time, the first touch on the Main Menu starts it -- js/mainmenu.js)
+    if (id === "screen-mainmenu" && G.Audio && G.Audio.ctx && G.Audio.menuMusic) G.Audio.menuMusic(true);
+    // (overhaul, round 5) the Main Menu, the lobby or nothing: no page over the menu's scene any more
+    if (id === "screen-home" || id === "screen-mainmenu" || !id) document.body.classList.remove("over-home");
   },
   hideAllScreens() { this.showScreen(null); },
   // (round 3, H) the menus in another language, or the words in other
@@ -55,6 +58,7 @@ G.UI = {
   languageChanged() {
     const id = this._currentScreen;
     if (G.Lobby) G.Lobby.relabel();
+    if (G.MainMenu) G.MainMenu.relabel();
     if (id === "screen-mainmenu" && G.Lobby) G.Lobby.open();
     else if (id === "screen-customvocab" && G.CustomVocabUI) G.CustomVocabUI.render();
     else if (id === "screen-vocablog" && this._vocabLogLevel) this.renderVocabLog(this._vocabLogLevel);
@@ -142,7 +146,13 @@ G.UI = {
     G.Lobby.build();
     this.el("btn-tutorial-replay").onclick = () => { G.Tutorial.reset(); G.Game.newRun(1); };
   },
+  // (overhaul, round 5) where "back" from a page goes: the Main Menu when the
+  // page was opened from it, else the lobby (after a run, the lobby's own
+  // choices -- opts.tab, opts.select -- and PLAY: opts.lobby)
+  menuOrigin: "home",
   goToMainMenu(opts) {
+    if (this.menuOrigin === "home" && G.MainMenu && !(opts && (opts.lobby || opts.tab || opts.select))) { G.MainMenu.show(); return; }
+    if (opts && opts.lobby) opts = null;
     this._lobbyOpts = opts || null;
     this.showScreen("screen-mainmenu"); this.setHudVisible(false); this.setTouchControlsVisible(false);
   },

@@ -1,11 +1,11 @@
 // ===================================================================
 // The lobby (round 4): a console-style carousel
 // -------------------------------------------------------------------
-//   top      two tabs -- CAMPAIGN, TRAINING & CUSTOM -- with the keys that
-//            switch them, and a row of icons: Progress (vocabulary series,
-//            round 4), Settings, Leaderboard,
-//            Achievements, Armory, Word Log, Notes Journal, Custom, Bosses
-//            (the Boss Codex, round 2), Help
+//   top      Back to the Main Menu (overhaul, round 5: Esc, B; its icons --
+//            Progress, Settings, Leaderboard, Achievements, Armory, Word Log,
+//            Notes, Custom, Bosses, Help -- went there, js/mainmenu.js), and
+//            two tabs -- CAMPAIGN, TRAINING & CUSTOM -- with the keys that
+//            switch them
 //   upper    a large preview of the selected mode: its artwork (rendered
 //            from the game itself, assets/lobby/), a big title, a line about
 //            it, its badge, and what the player has done there (best score,
@@ -37,17 +37,9 @@ G.Lobby = {
     { id: "practice", tab: "training", badge: "training", c1: "#55efc4", c2: "#00a86b", icon: "🎯" },
     { id: "custom", tab: "training", badge: "creative", c1: "#fd79a8", c2: "#a55eea", icon: "✏️" },
   ],
-  // (B) each with its short name under it and its full name as a tooltip
-  // (vocabulary series, round 4, I) Progress first: what the player has learnt
-  ICONS: [
-    { id: "progress", glyph: "📈" }, { id: "settings", glyph: "⚙️" }, { id: "leaderboard", glyph: "🏆" }, { id: "achievements", glyph: "🎖️" },
-    { id: "armory", glyph: "🔫" }, { id: "wordlog", glyph: "📖" }, { id: "journal", glyph: "📜" },
-    { id: "custom", glyph: "✏️" }, { id: "bosses", glyph: "💀" }, { id: "help", glyph: "❔" },
-  ],
   tab: "campaign",
   sel: { campaign: 0, training: 0 },
-  focus: "cards",
-  iconI: 0,
+  focus: "cards",                 // cards | back (overhaul, round 5)
   device: "kb",
   built: false,
 
@@ -135,13 +127,13 @@ G.Lobby = {
       <div class="lobby" id="lobby">
         <div class="lobby-bg"><div class="lobby-bg-art" id="lobby-bg-art"></div><div class="lobby-bg-glow"></div><div class="lobby-embers">${"<i></i>".repeat(14)}</div></div>
         <div class="lobby-top">
+          <button class="lobby-back" id="lobby-back" type="button"><span aria-hidden="true">◀</span> <span class="lb-label">${esc(T("lobby.back"))}</span> <span class="lobby-key kb-only">Esc</span><span class="lobby-key pad-only">B</span></button>
           <div class="lobby-logo" lang="en">${T("menu.title")}</div>
           <div class="lobby-tabs" role="tablist">
             <span class="lobby-key kb-only">Q</span><span class="lobby-key pad-only">LB</span>
             ${this.TABS.map((t) => `<button class="lobby-tab" role="tab" data-tab="${t}">${esc(T("lobby.tab." + t))}</button>`).join("")}
             <span class="lobby-key kb-only">E</span><span class="lobby-key pad-only">RB</span>
           </div>
-          <div class="lobby-icons">${this.ICONS.map((ic) => `<button class="lobby-icon" data-icon="${ic.id}" data-tip="${esc(T("lobby.icon." + ic.id))}" aria-label="${esc(T("lobby.icon." + ic.id))}"><span class="li-glyph" aria-hidden="true">${ic.glyph}</span><span class="li-label" aria-hidden="true">${esc(T("lobby.iconShort." + ic.id))}</span></button>`).join("")}</div>
         </div>
         <div class="lobby-preview" id="lobby-preview">
           <div class="lp-art"><div class="lp-img" data-layer="0"></div><div class="lp-img" data-layer="1"></div></div>
@@ -185,11 +177,7 @@ G.Lobby = {
     const T = G.T, esc = G.escapeHtml, q = (s) => this.root.querySelector(s);
     q(".lobby-logo").innerHTML = T("menu.title");
     this.root.querySelectorAll(".lobby-tab").forEach((b) => { b.textContent = T("lobby.tab." + b.dataset.tab); });
-    this.root.querySelectorAll(".lobby-icon").forEach((b) => {
-      const id = b.dataset.icon;
-      b.dataset.tip = T("lobby.icon." + id); b.setAttribute("aria-label", T("lobby.icon." + id));
-      const lab = b.querySelector(".li-label"); if (lab) lab.textContent = T("lobby.iconShort." + id);
-    });
+    q(".lb-label").textContent = T("lobby.back");
     q(".lobby-featured").textContent = T("lobby.featured");
     const h = q("#lobby-hints");
     if (h) h.innerHTML = `<span class="kb-only">${T("lobby.hint.kb")}</span><span class="pad-only">${T("lobby.hint.pad")}</span><span class="touch-only">${T("lobby.hint.touch")}</span>`;
@@ -227,7 +215,7 @@ G.Lobby = {
     if (opts.select) { const i = this.modes().findIndex((m) => m.id === opts.select); if (i >= 0) this.sel[this.tab] = i; }
     this.root.classList.remove("lobby-launching");
     this.el("lobby").classList.remove("launching");
-    this.focus = "cards";
+    this.focusBack(false);
     this.renderTab(true);
     this.startClock();
     this.voiceNotice();
@@ -345,7 +333,7 @@ G.Lobby = {
     i = Math.max(0, Math.min(n - 1, i));
     if (i === this.sel[this.tab]) { this.bump(i === 0 ? -1 : 1); return; }
     this.sel[this.tab] = i;
-    this.focus = "cards"; this.markIcon(-1);
+    this.focusBack(false);
     this.layout(false);
     this.showPreview(false);
     if (G.Audio && G.Audio.ctx) G.Audio.tone({ type: "triangle", freq: 660, freqEnd: 720, dur: 0.05, gain: 0.05 });
@@ -360,35 +348,20 @@ G.Lobby = {
   switchTab(d) {
     const i = (this.TABS.indexOf(this.tab) + d + this.TABS.length) % this.TABS.length;
     this.tab = this.TABS[i];
-    this.focus = "cards"; this.markIcon(-1);
+    this.focusBack(false);
     this.renderTab(false);
     if (G.Audio && G.Audio.ctx) G.Audio.tone({ type: "triangle", freq: 520, freqEnd: 780, dur: 0.08, gain: 0.05 });
   },
-  markIcon(i) {
-    this.iconI = i < 0 ? this.iconI : i;
-    const btns = this.root.querySelectorAll(".lobby-icon");
-    btns.forEach((b, k) => b.classList.toggle("pad-focus", i >= 0 && k === i));
-    // the full name shows while the keys or a controller are on it
-    if (G.Tips) { if (i >= 0 && btns[i]) G.Tips.show(btns[i]); else G.Tips.hide(); }
-  },
-  focusIcons(on) {
-    this.focus = on ? "icons" : "cards";
-    this.markIcon(on ? this.iconI || 0 : -1);
+  // (overhaul, round 5) up from the cards: the Back button (to the Main Menu)
+  focusBack(on) {
+    this.focus = on ? "back" : "cards";
+    this.el("lobby-back").classList.toggle("pad-focus", on);
     this.el("lobby-track").classList.toggle("dimmed", on);
+    if (on && G.Input.mode !== "touch") this.el("lobby-back").focus({ preventScroll: true });
   },
-  openIcon(id) {
-    const UI = G.UI;
-    if (id === "progress") G.Progress.open();
-    else if (id === "settings") { UI._settingsReturn = "screen-mainmenu"; UI.renderSettings(); UI.showScreen("screen-settings"); }
-    else if (id === "leaderboard") { UI.renderLeaderboard("level1"); UI.showScreen("screen-leaderboard"); }
-    else if (id === "achievements") { UI.renderAchievements(); UI.showScreen("screen-achievements"); }
-    else if (id === "armory") { UI._logReturnScreen = "screen-mainmenu"; UI.renderWeaponLog(1); UI.showScreen("screen-weaponlog"); }
-    else if (id === "wordlog") { UI._logReturnScreen = "screen-mainmenu"; UI.renderVocabLog(1); UI.showScreen("screen-vocablog"); }
-    else if (id === "journal") UI.openJournal("screen-mainmenu");
-    else if (id === "custom") G.CustomVocabUI.open("screen-mainmenu");
-    else if (id === "bosses") UI.openCodex("screen-mainmenu");
-    else if (id === "help") UI.showScreen("screen-howtoplay");
-    if (G.Tips) G.Tips.hide();
+  back() {
+    this.focusBack(false);
+    if (G.MainMenu) G.MainMenu.back();
   },
 
   // ---------------- choosing ----------------
@@ -449,20 +422,19 @@ G.Lobby = {
     if (!this.visible()) return false;
     this.setDevice("kb");
     const k = e.code;
-    if (this.focus === "icons") {
-      if (k === "ArrowLeft" || k === "KeyA") { this.markIcon((this.iconI + this.ICONS.length - 1) % this.ICONS.length); return true; }
-      if (k === "ArrowRight" || k === "KeyD") { this.markIcon((this.iconI + 1) % this.ICONS.length); return true; }
-      if (k === "ArrowDown" || k === "KeyS" || k === "Escape") { this.focusIcons(false); return true; }
-      if (k === "Enter" || k === "Space") { e.preventDefault(); this.openIcon(this.ICONS[this.iconI].id); return true; }
+    if (this.focus === "back") {
+      if (k === "ArrowDown" || k === "KeyS") { this.focusBack(false); return true; }
+      if (k === "Enter" || k === "Space") { e.preventDefault(); this.back(); return true; }
     }
     if (k === "ArrowLeft" || k === "KeyA") { this.move(-1); return true; }
     if (k === "ArrowRight" || k === "KeyD") { this.move(1); return true; }
-    if (k === "ArrowUp" || k === "KeyW") { this.focusIcons(true); return true; }
-    if (k === "ArrowDown" || k === "KeyS") { this.focusIcons(false); return true; }
+    if (k === "ArrowUp" || k === "KeyW") { this.focusBack(true); return true; }
+    if (k === "ArrowDown" || k === "KeyS") { this.focusBack(false); return true; }
     if (k === "KeyQ") { this.switchTab(-1); return true; }
     if (k === "KeyE") { this.switchTab(1); return true; }
     if (k === "Enter" || k === "Space") { e.preventDefault(); this.launch(); return true; }
-    if (k === "Escape") return true;          // already at the top
+    // (overhaul, round 5) Esc: back to the Main Menu
+    if (k === "Escape") { this.back(); return true; }
     return false;
   },
   // the gamepad, from G.Pad.navigate while the lobby is on screen
@@ -475,17 +447,17 @@ G.Lobby = {
     else if (now[B.UP] || ay < -0.6) dir = "up";
     else if (now[B.DOWN] || ay > 0.6) dir = "down";
     const act = (d) => {
-      if (d === "up") this.focusIcons(true);
-      else if (d === "down") this.focusIcons(false);
-      else if (this.focus === "icons") this.markIcon((this.iconI + (d === "left" ? -1 : 1) + this.ICONS.length) % this.ICONS.length);
-      else this.move(d === "left" ? -1 : 1);
+      if (d === "up") this.focusBack(true);
+      else if (d === "down") this.focusBack(false);
+      else if (this.focus !== "back") this.move(d === "left" ? -1 : 1);
     };
     if (dir !== this._padDir) { this._padDir = dir; this._padT = 0; if (dir) act(dir); }
     else if (dir && dir !== "up" && dir !== "down") { this._padT += dt; if (this._padT > 0.34) { this._padT = 0.22; act(dir); } }
     if (edge(B.LB)) this.switchTab(-1);
     if (edge(B.RB)) this.switchTab(1);
-    if (edge(B.A)) { if (this.focus === "icons") this.openIcon(this.ICONS[this.iconI].id); else this.launch(); }
-    if (edge(B.B) && this.focus === "icons") this.focusIcons(false);
+    if (edge(B.A)) { if (this.focus === "back") this.back(); else this.launch(); }
+    // (overhaul, round 5) B: back to the Main Menu
+    if (edge(B.B)) this.back();
   },
   bindInput() {
     const car = this.el("lobby-carousel");
@@ -529,7 +501,7 @@ G.Lobby = {
     car.addEventListener("pointerup", end);
     car.addEventListener("pointercancel", end);
     this.root.querySelectorAll(".lobby-tab").forEach((b) => { b.onclick = () => { if (b.dataset.tab !== this.tab) this.switchTab(this.TABS.indexOf(b.dataset.tab) - this.TABS.indexOf(this.tab)); }; });
-    this.root.querySelectorAll(".lobby-icon").forEach((b) => { b.onclick = () => this.openIcon(b.dataset.icon); });
+    this.el("lobby-back").onclick = () => this.back();
     this.el("lobby-preview").onclick = () => { if (!this.locked(this.current())) this.launch(); };
     // how many cards fit changes with the window (a phone turned round)
     window.addEventListener("resize", () => { if (this.visible()) this.layout(true); });

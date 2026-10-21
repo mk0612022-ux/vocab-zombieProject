@@ -1009,22 +1009,6 @@ body.modal-open .hud-minimap { opacity: 0.35; }
   display: inline-flex; align-items: center; justify-content: center; min-width: 26px; height: 22px; padding: 0 6px;
   border: 1px solid rgba(255,255,255,0.45); border-radius: 5px; font-size: 0.7rem; font-weight: 800; color: rgba(255,255,255,0.8);
 }
-.lobby-icons { display: flex; gap: clamp(2px, 0.5vw, 8px); }
-/* (B) the icon in its circle, its short name under it */
-.lobby-icon {
-  display: inline-flex; flex-direction: column; align-items: center; gap: 3px;
-  background: none; border: 0; padding: 0 1px; color: #fff; cursor: pointer; min-width: clamp(34px, 3.9vw, 50px);
-  -webkit-touch-callout: none;
-}
-.li-glyph {
-  width: clamp(30px, 3.4vw, 42px); height: clamp(30px, 3.4vw, 42px); border-radius: 50%;
-  border: 1px solid rgba(255,255,255,0.35); background: rgba(10,12,16,0.45);
-  display: inline-flex; align-items: center; justify-content: center; font-size: clamp(0.8rem, 1.4vw, 1.1rem);
-  transition: transform 0.3s var(--ease), background-color 0.3s, border-color 0.3s;
-}
-.li-label { font-size: clamp(0.56rem, 0.78vw, 0.7rem); font-weight: 700; letter-spacing: 0.4px; color: rgba(255,255,255,0.78); white-space: nowrap; line-height: 1; }
-.lobby-icon:hover .li-glyph, .lobby-icon.pad-focus .li-glyph { transform: scale(1.12); border-color: #fff; background: rgba(255,255,255,0.14); box-shadow: 0 0 14px rgba(255,255,255,0.35); }
-.lobby-icon:hover .li-label, .lobby-icon.pad-focus .li-label { color: #fff; }
 
 /* ---- the big preview ---- */
 .lobby-preview {
@@ -1189,24 +1173,17 @@ body[data-input="touch"] .lobby-carousel { cursor: default; }
   .lp-desc { display: none; }
   .lobby-logo { display: none; }
 }
-/* (round 2: nine icons now, with the Boss Codex) a laptop-sized screen: a
-   little tighter */
+/* a laptop-sized screen: a little tighter */
 @media (max-width: 1180px) {
   .lobby-top { gap: 10px; }
   .lobby-logo { letter-spacing: 1.5px; }
-  .lobby-icons { gap: 2px; }
-  .lobby-icon { min-width: 34px; }
 }
-/* a phone on its side: a tighter top bar so tabs and icons fit */
+/* a phone on its side: a tighter top bar so the tabs fit */
 @media (max-width: 900px) {
   .lobby-top { gap: 6px; }
   .lobby-tabs { gap: 2px; }
   .lobby-tab { font-size: 0.64rem; letter-spacing: 1px; padding: 6px 5px; }
   .lobby-key { display: none; }          /* (Q/E: keyboards on screens this small are rare) */
-  .lobby-icons { gap: 1px; }
-  .lobby-icon { min-width: 32px; }
-  .li-glyph { width: 26px; height: 26px; font-size: 0.74rem; }
-  .li-label { font-size: 0.52rem; letter-spacing: 0; }
 }
 /* a phone held upright: stack the text under a shorter picture */
 @media (max-aspect-ratio: 4/5) {
@@ -2017,46 +1994,8 @@ button.pg-tile:hover, button.pg-tile:focus-visible, button.pg-tile.pad-focus { b
 /* ---- G: a word's part of speech after it, smaller and fainter: research (N./V.) ---- */
 .pos-tag { font-size: 0.66em; font-weight: 600; font-style: normal; opacity: 0.62; margin-left: 0.2em; letter-spacing: 0.2px; white-space: nowrap; }
 .q-big .pos-tag { font-size: 0.5em; vertical-align: 0.15em; }
-.vc-pos { font-style: normal; font-weight: 600; letter-spacing: 0.3px; }/* ---- E: the Start screen (js/start.js) ---- */
-.start-screen { position: fixed; inset: 0; z-index: 60; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: clamp(6px, 1.8vh, 18px);
-  padding: max(12px, var(--sa-t)) max(16px, var(--sa-r)) max(14px, var(--sa-b)) max(16px, var(--sa-l));
-  background: radial-gradient(ellipse 75% 65% at 50% 44%, #0f2d1c 0%, #08180f 42%, #030706 78%, #010202 100%);
-  cursor: pointer; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none;
-  font-family: var(--font-ui); animation: start-in 0.6s ease-out; }
-@keyframes start-in { from { opacity: 0; } to { opacity: 1; } }
-.start-screen.leaving { animation: start-out 0.5s ease-in forwards; pointer-events: none; }
-@keyframes start-out { to { opacity: 0; transform: scale(1.04); } }
-.start-motes { position: absolute; inset: 0; pointer-events: none; }
-.start-motes i { position: absolute; border-radius: 50%; background: rgba(170,255,200,0.9); box-shadow: 0 0 8px 1px rgba(110,255,150,0.75); opacity: 0;
-  animation: start-mote 16s linear infinite; will-change: transform, opacity; }
-@keyframes start-mote { 0% { transform: translate3d(0, 0, 0); opacity: 0; } 12% { opacity: 0.85; } 80% { opacity: 0.45; } 100% { transform: translate3d(var(--dx, 20px), -42vh, 0); opacity: 0; } }
-.start-logo { position: relative; font-weight: 900; letter-spacing: clamp(4px, 1vw, 10px); font-size: clamp(1rem, 3.2vmin, 1.8rem); color: #e8ffe8; text-shadow: 0 0 18px rgba(90,220,120,0.55); }
-.start-logo span { color: #6bff7a; }
-.start-hero { position: relative; display: flex; justify-content: center; width: min(94vw, 1150px); min-height: 0; }
-.start-hero img { position: relative; display: block; max-width: 100%; max-height: 50vh; width: auto; height: auto;
-  filter: drop-shadow(0 0 9px rgba(110,200,255,0.42)) drop-shadow(0 0 30px rgba(70,150,230,0.22)); animation: start-breathe 7s ease-in-out infinite; }
-@keyframes start-breathe { 50% { transform: scale(1.012); filter: drop-shadow(0 0 13px rgba(140,215,255,0.6)) drop-shadow(0 0 42px rgba(70,150,230,0.32)); } }
-.start-glow { position: absolute; left: 8%; right: 8%; top: 18%; bottom: -6%; background: radial-gradient(ellipse 50% 55% at 50% 60%, rgba(80,170,240,0.24), transparent 72%); filter: blur(12px); pointer-events: none; }
-.start-tap { position: relative; background: none; border: 0; color: #fff; font: inherit; font-weight: 900; font-size: clamp(1.5rem, 5.6vmin, 3.1rem);
-  letter-spacing: clamp(2px, 0.6vmin, 6px); cursor: pointer; padding: 4px 22px; border-radius: 14px; animation: start-tap 2.8s ease-in-out infinite; }
-@keyframes start-tap { 0%, 100% { opacity: 0.8; text-shadow: 0 0 8px rgba(140,210,255,0.35), 0 0 24px rgba(90,170,240,0.2); }
-  50% { opacity: 1; text-shadow: 0 0 14px rgba(190,230,255,0.9), 0 0 44px rgba(100,180,250,0.55); } }
-.start-tap:focus { outline: none; }
-.start-tap:focus-visible, .start-tap.pad-focus { box-shadow: 0 0 0 2px rgba(107,255,122,0.55); }
-.start-hint { position: relative; margin-top: -4px; font-size: 0.78rem; letter-spacing: 1.5px; color: rgba(220,240,226,0.55); }
-.start-account { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 14px; min-width: min(380px, 88vw); max-width: 94vw;
-  padding: 6px 6px 6px 14px; border-radius: 999px; background: rgba(255,255,255,0.05); border: 1px solid rgba(200,255,215,0.26);
-  -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); cursor: default; }
-.sa-who { display: flex; align-items: center; gap: 10px; min-width: 0; font-weight: 700; color: #eefaf1; }
-.sa-avatar { flex: none; width: 30px; height: 30px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 0.95rem; background: rgba(107,255,122,0.1); border: 1px solid rgba(107,255,122,0.4); }
-.sa-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sa-uid { opacity: 0.62; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.sa-uid::before { content: "·"; margin-right: 10px; opacity: 0.6; }
-.sa-signin { flex: none; font: inherit; font-weight: 800; font-size: 0.85rem; letter-spacing: 0.5px; color: #06130a; background: linear-gradient(180deg, #8dff9e, #4fe072); border: 0;
-  border-radius: 999px; padding: 8px 18px; min-height: 36px; cursor: pointer; box-shadow: 0 0 14px rgba(107,255,122,0.35); }
-.sa-signin:hover, .sa-signin:focus-visible, .sa-signin.pad-focus { outline: none; box-shadow: 0 0 0 2px #e8ffe8, 0 0 20px rgba(107,255,122,0.6); }
-.start-version { position: absolute; right: max(12px, var(--sa-r)); bottom: max(6px, var(--sa-b)); font-size: 0.68rem; letter-spacing: 1px; color: rgba(220,240,226,0.45); }
-@media (max-height: 460px) { .start-logo { display: none; } .start-hero img { max-height: 46vh; } .start-tap { font-size: clamp(1.3rem, 7vmin, 2rem); } .start-account { padding: 4px 4px 4px 12px; } .sa-avatar { width: 26px; height: 26px; } .sa-signin { min-height: 32px; padding: 6px 14px; } }/* ---- F: the Settings page (js/settings.js) ---- */
+.vc-pos { font-style: normal; font-weight: 600; letter-spacing: 0.3px; }
+/* ---- F: the Settings page (js/settings.js) ---- */
 .screen.screen-set { padding: 0; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; overflow: hidden;
   background: radial-gradient(ellipse 70% 60% at 22% 12%, rgba(40,110,60,0.22), transparent 62%), radial-gradient(ellipse 60% 50% at 90% 100%, rgba(30,90,50,0.14), transparent 70%), rgba(4,7,6,0.97);
   font-family: var(--font-ui); }
@@ -2268,3 +2207,76 @@ ruby rt { font-size: 0.5em; font-weight: 600; letter-spacing: 0.02em; opacity: 0
 .hud-cap b { color: #ffd27a; font-weight: 700; margin: 0 2px; }
 .hud-cap.fade { opacity: 0; }
 @media (max-height: 520px) { .hud-captions { bottom: 30%; } .hud-cap, .hud-note { font-size: 0.72rem; } }
+
+/* ---- (overhaul, round 5) the Main Menu over its 3D scene (js/mainmenu.js) ---- */
+.screen.screen-home { display: block; padding: 0; overflow: hidden; background: none; font-family: var(--font-ui); }
+.home-vignette { position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(90deg, rgba(3,5,4,0.6) 0%, rgba(3,5,4,0.25) 24%, transparent 38%),
+    radial-gradient(ellipse 72% 72% at 56% 52%, transparent 45%, rgba(4,5,7,0.5) 78%, rgba(2,3,4,0.86) 100%); }
+.home-logo { position: absolute; left: 50%; top: max(14px, calc(var(--sa-t, 0px) + 10px)); transform: translateX(-50%); width: clamp(240px, 34vw, 540px); pointer-events: none; }
+.home-logo-svg { display: block; width: 100%; height: auto; }
+.home-logo::before { content: ""; position: absolute; inset: -40% -22% -55%; z-index: -1; background: radial-gradient(ellipse at 50% 42%, rgba(4,5,6,0.78), rgba(4,5,6,0.45) 45%, rgba(4,5,6,0) 72%); }
+.home-menu { position: absolute; left: max(22px, calc(var(--sa-l, 0px) + 14px)); top: 52%; transform: translateY(-50%); width: clamp(196px, 21vw, 264px); max-height: 84vh; overflow-y: auto;
+  padding: 10px 8px 10px; background: rgba(8,14,10,0.72); border: 1px solid #5e7a55; border-radius: 2px; box-shadow: 0 10px 34px rgba(0,0,0,0.55), inset 0 0 0 1px rgba(0,0,0,0.4);
+  backdrop-filter: blur(2px); scrollbar-width: none; }
+.home-menu::-webkit-scrollbar { display: none; }
+.home-menu::before { content: ""; position: absolute; left: -1px; top: -1px; width: 34px; height: 2px; background: #b3262e; }
+.home-menu::after { content: ""; position: absolute; right: -1px; bottom: -1px; width: 18px; height: 2px; background: #b3262e; }
+.hm-head { margin: 4px 8px 3px; font-size: 0.6rem; font-weight: 700; letter-spacing: 2.4px; text-transform: uppercase; color: rgba(155,196,138,0.55); }
+.hm-item { position: relative; display: flex; align-items: center; gap: 8px; width: 100%; min-height: 32px; margin: 1px 0; padding: 5px 10px 5px 14px;
+  background: transparent; border: 1px solid transparent; border-radius: 0; color: #c3d0be; font: inherit; font-weight: 600; font-size: 0.8rem; letter-spacing: 1.6px; text-align: left; cursor: pointer;
+  transition: background 0.12s ease-out, border-color 0.12s ease-out, color 0.12s ease-out; }
+.hm-mark { position: absolute; left: 4px; top: 6px; bottom: 6px; width: 3px; background: #9bc48a; opacity: 0; transform: scaleY(0.4); transition: opacity 0.12s, transform 0.12s; }
+.hm-item:hover, .hm-item.pad-focus, .hm-item:focus-visible { border-color: #9bc48a; background: rgba(36,60,36,0.6); color: #f2f8ee; outline: none; }
+.hm-item:hover .hm-mark, .hm-item.pad-focus .hm-mark, .hm-item:focus-visible .hm-mark { opacity: 1; transform: none; }
+.hm-item.pad-focus { outline: none !important; box-shadow: 0 0 12px rgba(155,196,138,0.28), inset 0 0 0 1px rgba(155,196,138,0.3) !important; }
+.hm-item:active { background: rgba(60,96,56,0.75); }
+.hm-item.primary { min-height: 40px; font-size: 0.95rem; letter-spacing: 3px; color: #ecf4e6; border-color: rgba(94,122,85,0.75); background: rgba(28,46,28,0.55); }
+.hm-badge { margin-left: auto; min-width: 20px; padding: 1px 6px; border-radius: 9px; background: #a3161f; color: #fff; font-size: 0.66rem; font-weight: 700; letter-spacing: 0; text-align: center; }
+.hm-sep { height: 1px; margin: 6px 6px; background: linear-gradient(90deg, rgba(94,122,85,0.7), rgba(94,122,85,0.08)); }
+.home-sound { position: absolute; right: max(14px, calc(var(--sa-r, 0px) + 10px)); top: max(14px, calc(var(--sa-t, 0px) + 10px)); display: flex; align-items: center; gap: 8px;
+  padding: 6px 12px; min-height: 34px; background: rgba(8,14,10,0.72); border: 1px solid #5e7a55; color: #cfe0c8; font: inherit; font-size: 0.72rem; letter-spacing: 1px; cursor: pointer;
+  transition: opacity 0.6s ease-out; animation: home-sound-pulse 2.6s ease-in-out infinite; }
+.home-sound.gone { opacity: 0; pointer-events: none; animation: none; }
+@keyframes home-sound-pulse { 50% { border-color: #9bc48a; } }
+.home-foot { position: absolute; left: max(16px, calc(var(--sa-l, 0px) + 12px)); bottom: max(10px, calc(var(--sa-b, 0px) + 8px)); display: flex; align-items: center; gap: 10px;
+  font-size: 0.68rem; letter-spacing: 0.8px; color: rgba(214,228,210,0.55); }
+.hf-signin { padding: 3px 10px; min-height: 26px; background: rgba(8,14,10,0.6); border: 1px solid rgba(94,122,85,0.7); color: #cfe0c8; font: inherit; font-size: 0.66rem; letter-spacing: 1px; cursor: pointer; }
+.hf-signin:hover, .hf-signin:focus-visible { border-color: #9bc48a; color: #fff; outline: none; }
+.hf-ver { opacity: 0.75; }
+.home-rotate { display: none; }
+/* a touch screen: every button a finger's size */
+body[data-input="touch"] .hm-item { min-height: 44px; }
+/* not much height (a phone held sideways): the logo smaller, the list in two
+   columns low on the left (no scrolling, even at a finger's 44 px), the
+   player and the version moved to the right */
+@media (max-height: 520px) {
+  .home-logo { width: clamp(180px, 26vw, 320px); top: 8px; }
+  .home-menu { top: auto; bottom: max(10px, calc(var(--sa-b, 0px) + 8px)); transform: none; width: clamp(280px, 38vw, 380px); padding: 6px; max-height: calc(100vh - 72px);
+    display: grid; grid-template-columns: 1fr 1fr; gap: 2px 4px; }
+  .hm-group { display: contents; }
+  .hm-head, .hm-sep { display: none; }
+  .hm-item { min-height: 28px; margin: 0; padding-top: 3px; padding-bottom: 3px; font-size: 0.72rem; }
+  .home-foot { left: auto; right: max(16px, calc(var(--sa-r, 0px) + 12px)); }
+}
+/* upright: the menu under the scene in two even columns (PLAY across both),
+   a hint to turn the device, the sound button under it -- clear of the logo */
+@media (orientation: portrait) and (max-aspect-ratio: 4/5) {
+  .home-logo { width: min(80vw, 420px); }
+  .home-menu { left: 50%; right: auto; top: auto; bottom: max(44px, calc(var(--sa-b, 0px) + 40px)); transform: translateX(-50%); width: min(92vw, 520px);
+    display: grid; grid-template-columns: 1fr 1fr; gap: 2px 6px; }
+  .hm-group { display: contents; }
+  .hm-item { margin: 0; }
+  .hm-item.primary { grid-column: 1 / -1; }
+  .hm-sep, .hm-head { display: none; }
+  .home-rotate { display: block; position: absolute; left: 50%; top: calc(min(80vw, 420px) * 0.32 + 26px); transform: translateX(-50%); padding: 4px 10px;
+    background: rgba(8,14,10,0.6); border: 1px solid rgba(94,122,85,0.6); color: #cfe0c8; font-size: 0.68rem; white-space: nowrap; }
+  .home-sound { left: 50%; right: auto; top: calc(min(80vw, 420px) * 0.32 + 64px); transform: translateX(-50%); white-space: nowrap; }
+}
+/* a page opened from the Main Menu: the scene still there behind it */
+body.over-home .screen:not(.screen-home) { background: radial-gradient(ellipse at center, rgba(6,11,8,0.78) 0%, rgba(3,5,5,0.9) 100%) !important; }
+/* the lobby's way back to the Main Menu */
+.lobby-back { display: flex; align-items: center; gap: 6px; padding: 5px 12px; min-height: 34px; background: rgba(8,14,10,0.7); border: 1px solid #5e7a55; color: #cfe0c8;
+  font: inherit; font-size: 0.74rem; font-weight: 600; letter-spacing: 1.2px; cursor: pointer; white-space: nowrap; transition: border-color 0.12s, background 0.12s; }
+.lobby-back:hover, .lobby-back.pad-focus, .lobby-back:focus-visible { border-color: #9bc48a; background: rgba(36,60,36,0.7); color: #fff; outline: none; }
+body[data-input="touch"] .lobby-back { min-height: 44px; }

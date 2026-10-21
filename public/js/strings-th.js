@@ -805,13 +805,6 @@ G.STRINGS.th = {
     "lobby.tab.campaign": "แคมเปญ",
     "lobby.tab.training": "ฝึกฝนและกำหนดเอง",
     "lobby.featured": "แนะนำ",
-    "lobby.icon.settings": "ตั้งค่า", "lobby.icon.leaderboard": "ตารางคะแนน", "lobby.icon.achievements": "ความสำเร็จ",
-    "lobby.icon.armory": "บันทึกอาวุธ", "lobby.icon.wordlog": "บันทึกคำศัพท์", "lobby.icon.journal": "สมุดบันทึก", "lobby.icon.help": "วิธีเล่น",
-    "lobby.icon.custom": "คำศัพท์ของฉัน", "lobby.icon.bosses": "สารานุกรมบอส",
-    // (B) the short names under the icons (the full ones above are the tooltips)
-    "lobby.iconShort.settings": "ตั้งค่า", "lobby.iconShort.leaderboard": "อันดับ", "lobby.iconShort.achievements": "รางวัล",
-    "lobby.iconShort.armory": "อาวุธ", "lobby.iconShort.wordlog": "คำศัพท์", "lobby.iconShort.journal": "บันทึก",
-    "lobby.iconShort.custom": "ของฉัน", "lobby.iconShort.help": "ช่วยเหลือ", "lobby.iconShort.bosses": "บอส",
     "hud.hearShort": "ฟัง",
     "touch.interactLabel": "ใช้", "touch.reloadLabel": "รีโหลด", "touch.pauseLabel": "หยุด", "touch.knifeLabel": "มีด",
     "touch.fireLabel": "ยิง", "touch.aimLabel": "เล็ง", "touch.jumpLabel": "กระโดด", "touch.sprintLabel": "วิ่ง",
@@ -1343,7 +1336,6 @@ G.STRINGS.th = {
     "practice.againAll": "ฝึกอีกครั้ง",
     "practice.doneBtn": "เสร็จ",
     // the Progress page (I)
-    "lobby.icon.progress": "ความก้าวหน้าในการเรียน", "lobby.iconShort.progress": "ความก้าวหน้า",
     "lobby.reviewBox": "ทบทวน",
     "progress.title": "ความก้าวหน้า",
     "progress.tabLearn": "การเรียน",
@@ -1437,11 +1429,7 @@ G.STRINGS.th = {
     "boot.tip.10": "บันทึกคำศัพท์แสดงทุกคำของด่าน กล่องความจำของมัน และเมื่อไรจะกลับมา",
     "boot.tip.11": "N., V., Adj. หลังคำบอกชนิดของคำ: research (N./V.) เป็นได้ทั้งคำนามและคำกริยา คำนามภาษาฝรั่งเศสบอกเพศด้วย: analyse (N. f.)",
     "boot.tip.12": "ความก้าวหน้าของคุณเก็บไว้ในอุปกรณ์นี้ ตั้งค่า > บัญชี ส่งออกเพื่อย้ายไปอีกเครื่องได้",
-    // E: the Start screen (js/start.js) and the account bar
-    "start.tap": "แตะเพื่อเข้าล็อบบี้",
-    "start.hintKeys": "คลิกหรือกดปุ่มใดก็ได้",
-    "start.hintTouch": "แตะที่ใดก็ได้",
-    "start.hintPad": "กด Ⓐ",
+    // E: the account bar (Settings > Account)
     "start.uid": "UID {uid}",
     "account.guest": "ผู้เยี่ยมชม",
     "account.signIn": "ลงชื่อเข้าใช้",
@@ -1502,6 +1490,13 @@ G.STRINGS.th = {
     "zlab.anim.hitLight": "โดนเบา", "zlab.anim.hitMedium": "โดนกลาง", "zlab.anim.hitHeavy": "โดนหนัก", "zlab.anim.special": "ท่าพิเศษ", "zlab.anim.death": "ตาย",
     "zlab.level": "ด่าน", "zlab.theme.school": "โรงเรียน", "zlab.theme.hospital": "โรงพยาบาล", "zlab.theme.bunker": "บังเกอร์",
     "zlab.page": "หน้า", "zlab.reroll": "สุ่มหน้าตาใหม่", "zlab.sheet": "บันทึกภาพรวม", "zlab.help": "หน้าละ 5 ชนิด ชนิดละ 3 แบบ ทั้งมุมหน้าตรงและมุมสามส่วน",
+    // (overhaul, round 5) the Main Menu, the lobby's way back to it, Reduce Motion
+    "home.menu": "เมนูหลัก", "home.group.play": "เล่น", "home.group.learn": "เรียนรู้", "home.group.collect": "สะสม", "home.group.system": "ระบบ",
+    "home.item.play": "เล่น", "home.item.review": "ทบทวนประจำวัน", "home.item.progress": "ความก้าวหน้า", "home.item.vocab": "คำศัพท์", "home.item.notes": "บันทึก", "home.item.custom": "คำศัพท์ของฉัน",
+    "home.item.weapons": "อาวุธ", "home.item.bosses": "บอส", "home.item.ranks": "อันดับ", "home.item.awards": "รางวัล", "home.item.settings": "ตั้งค่า", "home.item.help": "วิธีเล่น",
+    "home.sound": "คลิก / แตะ เพื่อเปิดเสียง", "home.rotate": "หมุนอุปกรณ์เป็นแนวนอนเพื่อมุมมองที่ดีที่สุด",
+    "lobby.back": "เมนูหลัก",
+    "settings.reduceMotion": "ลดการเคลื่อนไหว", "settings.reduceMotionDesc": "กล้องในเมนูหลักอยู่นิ่ง (ไม่โยก ไม่มีพารัลแลกซ์)",
     "settings.speechAfterShort": "หลังตอบ", "settings.speechBeforeShort": "เมื่อปรากฏ",
     "settings.speechModeDesc": "ฟังแต่ละคำหลังตอบแล้ว (แนะนำ) หรือทันทีที่คำใหม่ปรากฏ (ง่ายกว่า)",
     "settings.speechSpeedDesc": "ช้า เล่นคำที่ความเร็ว 0.8 เท่า",

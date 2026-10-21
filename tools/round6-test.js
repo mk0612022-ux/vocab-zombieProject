@@ -371,8 +371,10 @@ G.Round6Test = (function () {
   async function codex() {
     g = G.Game;
     g.quitToMainMenu();
-    const icon = document.querySelector('.lobby-icon[data-icon="bosses"]');
-    ok("G4 lobby: a 'Bosses' icon, 'Boss Codex' as its tooltip", icon && icon.querySelector(".li-label").textContent === "Bosses" && icon.dataset.tip === "Boss Codex");
+    // (overhaul, round 5: BOSSES on the Main Menu now, in place of the lobby's icon)
+    if (!G.MainMenu.built) G.MainMenu.build();
+    const icon = document.querySelector('#home-menu .hm-item[data-item="bosses"]');
+    ok("G4 Main Menu: a 'BOSSES' item", icon && icon.querySelector(".hm-label").textContent === "BOSSES");
     G.save.bosses = { seen: { void: 2, examiner: 1 }, defeated: { void: 1 } };
     icon.click();
     ok("G4 the codex opens", G.UI._currentScreen === "screen-bosses");
@@ -392,7 +394,8 @@ G.Round6Test = (function () {
     key("Escape");
     ok("G4 Escape closes it", !G.Modal.isOpen("codex") && document.getElementById("codex-detail").classList.contains("hidden"));
     document.getElementById("btn-codex-back").click();
-    ok("G4 Back to the lobby", G.UI._currentScreen === "screen-mainmenu");
+    ok("G4 Back to the Main Menu", G.UI._currentScreen === "screen-home");
+    G.UI.menuOrigin = "lobby"; G.UI.goToMainMenu({ lobby: true });
     // the save
     const bad = G.normalizeSave({ unlockedLevels: [1], bosses: { seen: { void: "3", "<x>": 4, eye: -1 }, defeated: [] } });
     ok("G4 save: bosses cleaned on load/import", bad.bosses.seen.void === 3 && !("<x>" in bad.bosses.seen) && !("eye" in bad.bosses.seen) && typeof bad.bosses.defeated === "object");

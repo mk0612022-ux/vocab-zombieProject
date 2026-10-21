@@ -146,13 +146,11 @@ G.UIAudit = {
     try {
       await step("main menu", () => UI.goToMainMenu());
       await step("level select", () => Game.goToLevelSelect());
-      // round 4: every card of the lobby, both tabs, and the icon row in focus
+      // round 4: every card of the lobby, both tabs, and its back button in focus
       for (const m of G.Lobby.MODES) await step("lobby " + m.id, () => UI.goToMainMenu({ tab: m.tab, select: m.id }));
-      await step("lobby icons focused", () => { UI.goToMainMenu({ tab: "campaign", select: "school" }); G.Lobby.focusIcons(true); });
-      for (const d of ["pad", "touch", "kb"]) await step("lobby hints " + d, () => { G.Lobby.focusIcons(false); G.Lobby.setDevice(d); });
-      // new list, round 1: an icon's tooltip, and the new-version window
-      await step("lobby tooltip", () => { G.Lobby.iconI = 5; G.Lobby.focusIcons(true); });
-      G.Lobby.focusIcons(false);
+      await step("lobby back focused", () => { UI.goToMainMenu({ tab: "campaign", select: "school" }); G.Lobby.focusBack(true); });
+      for (const d of ["pad", "touch", "kb"]) await step("lobby hints " + d, () => { G.Lobby.focusBack(false); G.Lobby.setDevice(d); });
+      // new list, round 1: the new-version window
       await step("update window", () => { G.PWA.offer(); });
       G.PWA.later();
       // (new series, round 1, C) the boot screen and its update panels, the corner badge
@@ -184,15 +182,16 @@ G.UIAudit = {
         G.save.settings.brightness = keepB; G.save.settings.brightnessSet = keepSet;
         if (G.Visuals && G.Visuals.ready) G.Visuals.applyGrade(G.Visuals.theme);
       }
-      // (D, E) the Loading screen -- words over the heads, a tip, then the Word of
-      // the Day -- and the Start screen, its Sign In
+      // (D) the Loading screen -- words over the heads, a tip, then the Word of
+      // the Day
       await step("loading screen", () => { UI.goToMainMenu(); document.getElementById("loading-overlay").classList.remove("hidden"); U.panel("boot-main"); G.Boot.active = true; G.Boot.placeWords(); G.Boot.showWord = false; G.Boot.tip(); G.Boot.update(); });
       await step("loading: word of the day", () => { G.Boot.showWord = true; G.Boot.tip(); });
       await new Promise((r) => setTimeout(r, 300));
       G.Boot.finish(); document.getElementById("loading-overlay").classList.add("hidden");
-      await step("start screen", () => { G.Start.show(); });
-      await step("start: sign in", () => { document.getElementById("btn-start-signin").click(); });
-      G.Dialog.close(); G.Modal.close("start"); document.getElementById("start-screen").classList.add("hidden"); G.Start.shown = false;
+      // (overhaul, round 5) the Main Menu in the Start screen's place, its Sign In
+      await step("home menu", () => { G.MainMenu.show(); });
+      await step("home menu: sign in", () => { document.getElementById("home-signin").click(); });
+      G.Dialog.close(); G.UI.menuOrigin = "lobby";
       for (const c of ["level1", "daily", "endless"]) await step("leaderboard " + c, () => { UI.renderLeaderboard(c); UI.showScreen("screen-leaderboard"); });
       await step("achievements", () => { UI.renderAchievements(); UI.showScreen("screen-achievements"); });
       for (const l of [1, 2, 3]) await step("word log " + l, () => { UI._logReturnScreen = "screen-mainmenu"; UI.renderVocabLog(l); UI.showScreen("screen-vocablog"); });

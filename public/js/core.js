@@ -112,6 +112,7 @@ G.defaultSave = function () {
       // (overhaul, round 2) the muzzle flash, 0-1: 0 = no light, only a faint flash at the muzzle
       muzzleFlash: 1,
       gore: "full",                // (overhaul, round 4) Blood & Gore: full | reduced | off
+      reduceMotion: false,         // (overhaul, round 5) no camera sway or parallax in the Main Menu
     },
     importedSets: {},             // {id: {name, words:[[en,th],...]}}
     customWords: { level1: [], level2: [], level3: [] },   // words the player added to each level ([[en,th] or [en,th,{definition,...}],...])
@@ -187,6 +188,7 @@ G.normalizeSave = function (data) {
   num("cameraRecoil", 0, 1); num("cameraShake", 0, 1); num("muzzleFlash", 0, 1);
   // (overhaul, round 4) a save from before Blood & Gore: Full, as the game always was
   oneOf("gore", ["full", "reduced", "off"]);
+  s.settings.reduceMotion = !!s.settings.reduceMotion;     // (overhaul, round 5)
   // (overhaul, round 3) a save from before the Master, Weapons and UI faders:
   // the guns and the menus start where the old Sound Effects fader was (they
   // were on it), the Master at full; captions off

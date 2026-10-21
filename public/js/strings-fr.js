@@ -805,13 +805,6 @@ G.STRINGS.fr = {
     "lobby.tab.campaign": "CAMPAGNE",
     "lobby.tab.training": "ENTRAÎNEMENT & PERSO",
     "lobby.featured": "À LA UNE",
-    "lobby.icon.settings": "Paramètres", "lobby.icon.leaderboard": "Classement", "lobby.icon.achievements": "Succès",
-    "lobby.icon.armory": "Journal des armes", "lobby.icon.wordlog": "Journal du vocabulaire", "lobby.icon.journal": "Carnet de notes", "lobby.icon.help": "Comment jouer",
-    "lobby.icon.custom": "Mon vocabulaire", "lobby.icon.bosses": "Bestiaire des boss",
-    // (B) the short names under the icons (the full ones above are the tooltips)
-    "lobby.iconShort.settings": "Réglages", "lobby.iconShort.leaderboard": "Rangs", "lobby.iconShort.achievements": "Succès",
-    "lobby.iconShort.armory": "Armes", "lobby.iconShort.wordlog": "Vocab", "lobby.iconShort.journal": "Notes",
-    "lobby.iconShort.custom": "Perso", "lobby.iconShort.help": "Aide", "lobby.iconShort.bosses": "Boss",
     "hud.hearShort": "Écouter",
     "touch.interactLabel": "Utiliser", "touch.reloadLabel": "Recharger", "touch.pauseLabel": "Pause", "touch.knifeLabel": "Couteau",
     "touch.fireLabel": "Tirer", "touch.aimLabel": "Viser", "touch.jumpLabel": "Sauter", "touch.sprintLabel": "Courir",
@@ -1343,7 +1336,6 @@ G.STRINGS.fr = {
     "practice.againAll": "Recommencer",
     "practice.doneBtn": "Terminé",
     // the Progress page (I)
-    "lobby.icon.progress": "Progrès d'apprentissage", "lobby.iconShort.progress": "Progrès",
     "lobby.reviewBox": "Révision",
     "progress.title": "Progrès",
     "progress.tabLearn": "Apprentissage",
@@ -1437,11 +1429,7 @@ G.STRINGS.fr = {
     "boot.tip.10": "Le Journal du vocabulaire liste chaque mot d'un niveau, sa boîte de mémoire et quand il revient.",
     "boot.tip.11": "N., V., Adj. après un mot indiquent sa nature : research (N./V.) est un nom ou un verbe. Un nom français montre aussi son genre : analyse (N. f.).",
     "boot.tip.12": "Votre progression est gardée sur cet appareil. Paramètres > Compte permet de l'exporter vers un autre.",
-    // E: the Start screen (js/start.js) and the account bar
-    "start.tap": "Touchez pour entrer",
-    "start.hintKeys": "Cliquez ou appuyez sur une touche",
-    "start.hintTouch": "Touchez n'importe où",
-    "start.hintPad": "Appuyez sur Ⓐ",
+    // E: the account bar (Settings > Account)
     "start.uid": "UID {uid}",
     "account.guest": "Invité",
     "account.signIn": "Se connecter",
@@ -1502,6 +1490,13 @@ G.STRINGS.fr = {
     "zlab.anim.hitLight": "Touché : léger", "zlab.anim.hitMedium": "Touché : moyen", "zlab.anim.hitHeavy": "Touché : lourd", "zlab.anim.special": "Spécial", "zlab.anim.death": "Mort",
     "zlab.level": "Niveau", "zlab.theme.school": "École", "zlab.theme.hospital": "Hôpital", "zlab.theme.bunker": "Bunker",
     "zlab.page": "Page", "zlab.reroll": "Nouvelles apparences", "zlab.sheet": "Enregistrer la planche", "zlab.help": "Cinq types par page : trois apparences chacun, de face et de trois quarts.",
+    // (overhaul, round 5) the Main Menu, the lobby's way back to it, Reduce Motion
+    "home.menu": "Menu principal", "home.group.play": "Jouer", "home.group.learn": "Apprendre", "home.group.collect": "Collection", "home.group.system": "Système",
+    "home.item.play": "JOUER", "home.item.review": "RÉVISION DU JOUR", "home.item.progress": "PROGRÈS", "home.item.vocab": "VOCABULAIRE", "home.item.notes": "NOTES", "home.item.custom": "PERSO",
+    "home.item.weapons": "ARMES", "home.item.bosses": "BOSS", "home.item.ranks": "CLASSEMENTS", "home.item.awards": "SUCCÈS", "home.item.settings": "PARAMÈTRES", "home.item.help": "AIDE",
+    "home.sound": "Cliquez / touchez pour activer le son", "home.rotate": "Tournez l'appareil à l'horizontale pour une meilleure vue",
+    "lobby.back": "Menu principal",
+    "settings.reduceMotion": "Réduire les animations", "settings.reduceMotionDesc": "La caméra du menu principal reste immobile (ni balancement ni parallaxe).",
     "settings.speechAfterShort": "Après la réponse", "settings.speechBeforeShort": "À l'apparition",
     "settings.speechModeDesc": "Entendez chaque mot après y avoir répondu (recommandé), ou dès qu'un nouveau apparaît (plus facile).",
     "settings.speechSpeedDesc": "Lente lit les mots à 0,8 fois leur vitesse.",

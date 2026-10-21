@@ -60,32 +60,13 @@ G.Round5Test = (function () {
 
   async function labels() {
     G.UI.goToMainMenu({ tab: "campaign", select: "school" });
-    const icons = Array.from(document.querySelectorAll(".lobby-icon"));
-    const want = { settings: "Settings", wordlog: "Vocab", armory: "Weapons", journal: "Notes", leaderboard: "Ranks", achievements: "Awards", custom: "Custom" };
-    ok("B lobby icons: short name under each", Object.keys(want).every((k) => { const b = icons.find((x) => x.dataset.icon === k); return b && b.querySelector(".li-label").textContent === want[k]; }), icons.map((b) => b.querySelector(".li-label").textContent).join(","));
-    ok("B lobby icons: full name as the tooltip", icons.find((b) => b.dataset.icon === "wordlog").dataset.tip === "Vocabulary Log" && icons.find((b) => b.dataset.icon === "leaderboard").dataset.tip === "Leaderboard");
-    // a controller or the keys on an icon: its tooltip shows
-    // (vocabulary series, round 4: Progress first, so the Word Log is the sixth)
-    G.Lobby.setDevice("pad"); G.Lobby.iconI = 5; G.Lobby.focusIcons(true);
-    const tip = document.getElementById("tip");
-    ok("B controller on an icon: the full name shows", !tip.classList.contains("hidden") && tip.textContent === "Vocabulary Log", tip.textContent);
-    G.Lobby.focusIcons(false);
-    ok("B ... and goes when it leaves", tip.classList.contains("hidden"));
-    // a long press on a touch screen shows it, and does not also open it
-    G.Lobby.setDevice("touch");
-    const b = icons.find((x) => x.dataset.icon === "settings");
-    const r = b.getBoundingClientRect();
-    const pe = (type) => b.dispatchEvent(new PointerEvent(type, { pointerType: "touch", clientX: r.left + 5, clientY: r.top + 5, bubbles: true }));
-    pe("pointerdown");
-    await until(() => false, 600);                 // held for 0.6 s
-    pe("pointerup");
-    ok("B touch: a long press shows the full name", !tip.classList.contains("hidden") && tip.textContent === "Settings", tip.textContent);
-    b.click();
-    ok("B touch: the long press does not also open Settings", G.UI._currentScreen === "screen-mainmenu");
-    await until(() => false, 750);
-    b.click();
-    ok("B touch: a normal tap still opens it", G.UI._currentScreen === "screen-settings");
-    G.UI.goToMainMenu(); G.Lobby.setDevice("kb");
+    // (overhaul, round 5: the lobby's icons became the Main Menu's list, a full name on each)
+    if (G.MainMenu && !G.MainMenu.built) G.MainMenu.build();
+    const items = Array.from(document.querySelectorAll("#home-menu .hm-item"));
+    const want = { settings: "SETTINGS", vocab: "VOCAB", weapons: "WEAPONS", notes: "NOTES", ranks: "RANKS", awards: "AWARDS", custom: "CUSTOM", progress: "PROGRESS", bosses: "BOSSES" };
+    ok("B Main Menu: a full name on each item", Object.keys(want).every((k) => { const b = items.find((x) => x.dataset.item === k); return b && b.querySelector(".hm-label").textContent === want[k]; }), items.map((b) => b.querySelector(".hm-label").textContent).join(","));
+    ok("B Main Menu: all twelve items", items.length === 12, items.length);
+    G.Lobby.setDevice("kb");
     // in the game: the HUD's icon buttons and the pause menu's perks
     ok("B HUD: the speaker and the one-letter touch buttons carry names", document.getElementById("hud-speak").dataset.label === "Hear" && document.getElementById("touch-interact").dataset.label === "Use" && document.getElementById("touch-reload").dataset.label === "Reload" && document.getElementById("touch-pause").dataset.label === "Pause");
     const g = fresh(1);

@@ -831,13 +831,6 @@ G.STRINGS = {
     "lobby.tab.campaign": "CAMPAIGN",
     "lobby.tab.training": "TRAINING & CUSTOM",
     "lobby.featured": "FEATURED",
-    "lobby.icon.settings": "Settings", "lobby.icon.leaderboard": "Leaderboard", "lobby.icon.achievements": "Achievements",
-    "lobby.icon.armory": "Weapon Log", "lobby.icon.wordlog": "Vocabulary Log", "lobby.icon.journal": "Notes Journal", "lobby.icon.help": "How to Play",
-    "lobby.icon.custom": "Custom Vocabulary", "lobby.icon.bosses": "Boss Codex",
-    // (B) the short names under the icons (the full ones above are the tooltips)
-    "lobby.iconShort.settings": "Settings", "lobby.iconShort.leaderboard": "Ranks", "lobby.iconShort.achievements": "Awards",
-    "lobby.iconShort.armory": "Weapons", "lobby.iconShort.wordlog": "Vocab", "lobby.iconShort.journal": "Notes",
-    "lobby.iconShort.custom": "Custom", "lobby.iconShort.help": "Help", "lobby.iconShort.bosses": "Bosses",
     "hud.hearShort": "Hear",
     "touch.interactLabel": "Use", "touch.reloadLabel": "Reload", "touch.pauseLabel": "Pause", "touch.knifeLabel": "Knife",
     "touch.fireLabel": "Fire", "touch.aimLabel": "Aim", "touch.jumpLabel": "Jump", "touch.sprintLabel": "Run",
@@ -1371,7 +1364,6 @@ G.STRINGS = {
     "practice.againAll": "Practise again",
     "practice.doneBtn": "Done",
     // the Progress page (I)
-    "lobby.icon.progress": "Learning Progress", "lobby.iconShort.progress": "Progress",
     "lobby.reviewBox": "Review",
     "progress.title": "Progress",
     "progress.tabLearn": "Learning",
@@ -1465,11 +1457,7 @@ G.STRINGS = {
     "boot.tip.10": "The Vocabulary Log lists every word of a level, its memory box and when it comes back.",
     "boot.tip.11": "N., V., Adj. after a word tell you its part of speech: research (N./V.) is a noun or a verb.",
     "boot.tip.12": "Your progress is kept on this device. Settings > Account can export it to move it to another one.",
-    // E: the Start screen (js/start.js) and the account bar
-    "start.tap": "Tap To Lobby",
-    "start.hintKeys": "Click or press any key",
-    "start.hintTouch": "Tap anywhere",
-    "start.hintPad": "Press Ⓐ",
+    // E: the account bar (Settings > Account)
     "start.uid": "UID {uid}",
     "account.guest": "Guest",
     "account.signIn": "Sign In",
@@ -1530,6 +1518,13 @@ G.STRINGS = {
     "zlab.anim.hitLight": "Hit: light", "zlab.anim.hitMedium": "Hit: medium", "zlab.anim.hitHeavy": "Hit: heavy", "zlab.anim.special": "Special", "zlab.anim.death": "Death",
     "zlab.level": "Level", "zlab.theme.school": "School", "zlab.theme.hospital": "Hospital", "zlab.theme.bunker": "Bunker",
     "zlab.page": "Page", "zlab.reroll": "New looks", "zlab.sheet": "Save sheet", "zlab.help": "Five kinds a page: three looks each, from the front and from three-quarters.",
+    // (overhaul, round 5) the Main Menu, the lobby's way back to it, Reduce Motion
+    "home.menu": "Main menu", "home.group.play": "Play", "home.group.learn": "Learn", "home.group.collect": "Collection", "home.group.system": "System",
+    "home.item.play": "PLAY", "home.item.review": "DAILY REVIEW", "home.item.progress": "PROGRESS", "home.item.vocab": "VOCAB", "home.item.notes": "NOTES", "home.item.custom": "CUSTOM",
+    "home.item.weapons": "WEAPONS", "home.item.bosses": "BOSSES", "home.item.ranks": "RANKS", "home.item.awards": "AWARDS", "home.item.settings": "SETTINGS", "home.item.help": "HELP",
+    "home.sound": "Click / tap to enable sound", "home.rotate": "Turn your device sideways for the best view",
+    "lobby.back": "Main Menu",
+    "settings.reduceMotion": "Reduce Motion", "settings.reduceMotionDesc": "Holds the Main Menu's camera still (no sway, no parallax).",
     "settings.speechAfterShort": "After an answer", "settings.speechBeforeShort": "When it appears",
     "settings.speechModeDesc": "Hear each word after you answer it (recommended), or as soon as a new one appears (easier).",
     "settings.speechSpeedDesc": "Slow plays the words at 0.8 of their speed.",

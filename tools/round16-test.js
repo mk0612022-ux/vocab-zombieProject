@@ -3,8 +3,8 @@
 //      picture, by size), what it says it is doing, the words over the heads
 //      (new each time, never touching), tips and the Word of the Day, the
 //      pictures' sizes, at least a second on screen
-//   E  the Start screen: in by a tap, a key or A -- not by Sign In or Tab --
-//      the bar (Guest, Sign In), the version, the lobby's music from that tap
+//   E  the way in (overhaul, round 5: the Main Menu, in the Start screen's place):
+//      PLAY by a click, Enter or A -- not by Sign In -- the bar (Guest, Sign In), the version, the music
 //   F  the Settings page: eight categories, every old setting in one, the
 //      kinds of control, a description under each row, changes applied and
 //      saved, the run's locked rows, keys and a controller, the red dots, the
@@ -60,7 +60,7 @@ G.Round16Test = (function () {
     const B = G.Boot, U = G.Updater;
     const tags = document.querySelectorAll("script[defer][src]").length;
     ok("D every game script is counted as it arrives", B.scripts.length === tags && tags > 60 && B.scripts.every((s) => s.done), B.scripts.length + " of " + tags);
-    ok("D ...and both pictures (Loading, Start)", B.images.length === 2 && B.images.every((s) => s.done), B.images.map((s) => s.src).join(", "));
+    ok("D ...and the Loading picture (overhaul, round 5: the Start screen's is gone)", B.images.length === 1 && B.images.every((s) => s.done), B.images.map((s) => s.src).join(", "));
     ok("D ...and the update check's version.json", B.check.done);
     ok("D everything in: 100%", Math.abs(B.progress() - 1) < 1e-9);
     // what the screen showed as the page opened: the bar went up as pieces came
@@ -114,40 +114,40 @@ G.Round16Test = (function () {
     B.finish(); overlay.classList.add("hidden");
     // the pictures: WebP, at most ~500 KB, two sizes of the Loading one
     const sizes = {};
-    for (const f of ["loading-large", "loading-small", "start-horde"]) { const r = await fetch("assets/boot/" + f + ".webp", { cache: "no-store" }); sizes[f] = r.ok ? (await r.blob()).size : -1; }
-    ok("D the pictures: two sizes for Loading, one for Start, WebP, at most 500 KB each", Object.values(sizes).every((n) => n > 20000 && n <= 512000), Object.keys(sizes).map((k) => k + " " + Math.round(sizes[k] / 1024) + " KB").join(", "));
+    for (const f of ["loading-large", "loading-small"]) { const r = await fetch("assets/boot/" + f + ".webp", { cache: "no-store" }); sizes[f] = r.ok ? (await r.blob()).size : -1; }
+    ok("D the pictures: two sizes for Loading, WebP, at most 500 KB each", Object.values(sizes).every((n) => n > 20000 && n <= 512000), Object.keys(sizes).map((k) => k + " " + Math.round(sizes[k] / 1024) + " KB").join(", "));
     ok("D a phone gets the small one (<picture> media)", !!document.querySelector('#loading-overlay source[media][srcset*="loading-small"]'));
   }
 
-  // ---------------- E: the Start screen ----------------
+  // ---------------- E: the way in (overhaul, round 5: the Main Menu took the Start screen's place) ----------------
   async function start() {
-    const St = G.Start, el = $("start-screen");
-    const fade = G.CONFIG.start.fadeMs + 120;
-    const show = () => { G.UI.goToMainMenu(); St.show(); };
+    const M = G.MainMenu, el = $("screen-home");
+    const show = () => { G.Modal.reset(); M.show(); };
+    const inLobby = () => G.UI._currentScreen === "screen-mainmenu" && !M.visible();
     show();
-    ok("E after Loading, before the lobby: a window of its own", !el.classList.contains("hidden") && G.Modal.top() && G.Modal.top().id === "start");
-    ok("E 'Tap To Lobby', and the version in the corner", $("start-tap").textContent === G.T("start.tap") && el.querySelector("[data-version]").textContent === G.Updater.label());
-    ok("E the bar: Guest and Sign In (no accounts yet)", $("start-name").textContent === G.T("account.guest") && !$("btn-start-signin").classList.contains("hidden") && $("start-uid").classList.contains("hidden"));
-    $("btn-start-signin").click();
+    ok("E after Loading, before the lobby: the Main Menu", M.visible() && !el.classList.contains("hidden"));
+    ok("E the version in the corner", el.querySelector("[data-version]").textContent === G.Updater.label());
+    ok("E the bar: Guest and Sign In (no accounts yet)", $("home-name").textContent === G.T("account.guest") && !$("home-signin").classList.contains("hidden"));
+    $("home-signin").click();
     await wait(50);
-    const dialog = G.Dialog.isOpen() && !el.classList.contains("hidden");
+    const dialog = G.Dialog.isOpen() && M.visible();
     G.Dialog.close();
-    ok("E Sign In: its own window, not the way in", dialog && St.shown);
-    key("Tab");
-    ok("E Tab only moves between the two", St.shown);
-    key("KeyM");
-    await wait(fade);
-    ok("E any key: the lobby", !St.shown && el.classList.contains("hidden") && !G.Modal.isOpen("start") && G.UI._currentScreen === "screen-mainmenu");
-    ok("E ...and the lobby's music starts with it", !G.Audio.ctx || !!G.Audio._menu);
+    ok("E Sign In: its own window, not the way in", dialog);
+    G.save.settings.brightnessSet = true;
+    M.focusI = 0; M.mark();
+    key("Enter");
+    await wait(30);
+    ok("E Enter on PLAY: the lobby", inLobby());
+    ok("E ...and the menu's music goes on with it", !G.Audio.ctx || !!G.Audio._menu);
     show();
-    el.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    await wait(fade);
-    ok("E a tap anywhere: the lobby", !St.shown);
+    el.querySelector('.hm-item[data-item="play"]').click();
+    ok("E a click on PLAY: the lobby", inLobby());
     show();
     G.Pad.clearFocus();
+    M.focusI = 0; M.mark();
     padPress(G.Pad.B.A);
-    await wait(fade);
-    ok("E A on a controller: the lobby", !St.shown);
+    await wait(30);
+    ok("E A on a controller: the lobby", inLobby());
     // the music: off in a level, back in the lobby
     if (G.Audio.ctx) {
       G.Input.requestPointerLock = function () {};
@@ -388,7 +388,7 @@ G.Round16Test = (function () {
       G.Input.mode = mode; G.Input.padActive = false;
       G.Pad.clearFocus();
       G.Modal.reset();
-      if (G.Start.shown) { G.Start.shown = false; $("start-screen").classList.add("hidden"); }
+      G.UI.menuOrigin = "lobby";
       if (G.Game.state !== "MENU") G.Game.quitToMainMenu();
       G.save = G.normalizeSave(JSON.parse(backup)); G.persist(); G.applySafeArea();
       G.UI.goToMainMenu();

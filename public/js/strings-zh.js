@@ -805,13 +805,6 @@ G.STRINGS.zh = {
     "lobby.tab.campaign": "战役",
     "lobby.tab.training": "训练与自定义",
     "lobby.featured": "推荐",
-    "lobby.icon.settings": "设置", "lobby.icon.leaderboard": "排行榜", "lobby.icon.achievements": "成就",
-    "lobby.icon.armory": "武器记录", "lobby.icon.wordlog": "词汇记录", "lobby.icon.journal": "笔记本", "lobby.icon.help": "玩法说明",
-    "lobby.icon.custom": "自定义词汇", "lobby.icon.bosses": "首领图鉴",
-    // (B) the short names under the icons (the full ones above are the tooltips)
-    "lobby.iconShort.settings": "设置", "lobby.iconShort.leaderboard": "排名", "lobby.iconShort.achievements": "成就",
-    "lobby.iconShort.armory": "武器", "lobby.iconShort.wordlog": "词汇", "lobby.iconShort.journal": "笔记",
-    "lobby.iconShort.custom": "自定义", "lobby.iconShort.help": "帮助", "lobby.iconShort.bosses": "首领",
     "hud.hearShort": "听",
     "touch.interactLabel": "使用", "touch.reloadLabel": "换弹", "touch.pauseLabel": "暂停", "touch.knifeLabel": "小刀",
     "touch.fireLabel": "开火", "touch.aimLabel": "瞄准", "touch.jumpLabel": "跳跃", "touch.sprintLabel": "奔跑",
@@ -1343,7 +1336,6 @@ G.STRINGS.zh = {
     "practice.againAll": "再练一次",
     "practice.doneBtn": "完成",
     // the Progress page (I)
-    "lobby.icon.progress": "学习进度", "lobby.iconShort.progress": "进度",
     "lobby.reviewBox": "复习",
     "progress.title": "进度",
     "progress.tabLearn": "学习",
@@ -1437,11 +1429,7 @@ G.STRINGS.zh = {
     "boot.tip.10": "词汇记录列出一关的每个单词、它的记忆盒，以及它何时再出现。",
     "boot.tip.11": "单词后的 N.、V.、Adj. 表示词性：research (N./V.) 是名词或动词。法语名词还会标出阴阳性：analyse (N. f.)。",
     "boot.tip.12": "你的进度保存在本设备上。设置 > 账号可以导出，以便转移到另一台设备。",
-    // E: the Start screen (js/start.js) and the account bar
-    "start.tap": "点击进入大厅",
-    "start.hintKeys": "点击或按任意键",
-    "start.hintTouch": "点击任意位置",
-    "start.hintPad": "按 Ⓐ",
+    // E: the account bar (Settings > Account)
     "start.uid": "UID {uid}",
     "account.guest": "游客",
     "account.signIn": "登录",
@@ -1502,6 +1490,13 @@ G.STRINGS.zh = {
     "zlab.anim.hitLight": "受击：轻", "zlab.anim.hitMedium": "受击：中", "zlab.anim.hitHeavy": "受击：重", "zlab.anim.special": "特殊", "zlab.anim.death": "死亡",
     "zlab.level": "关卡", "zlab.theme.school": "学校", "zlab.theme.hospital": "医院", "zlab.theme.bunker": "地堡",
     "zlab.page": "页", "zlab.reroll": "新外观", "zlab.sheet": "保存总图", "zlab.help": "每页五种：每种三个外观，正面与四分之三侧面。",
+    // (overhaul, round 5) the Main Menu, the lobby's way back to it, Reduce Motion
+    "home.menu": "主菜单", "home.group.play": "游戏", "home.group.learn": "学习", "home.group.collect": "收藏", "home.group.system": "系统",
+    "home.item.play": "开始", "home.item.review": "每日复习", "home.item.progress": "进度", "home.item.vocab": "词汇", "home.item.notes": "笔记", "home.item.custom": "自定义",
+    "home.item.weapons": "武器", "home.item.bosses": "首领", "home.item.ranks": "排行", "home.item.awards": "成就", "home.item.settings": "设置", "home.item.help": "帮助",
+    "home.sound": "点击 / 轻触以开启声音", "home.rotate": "请横向旋转设备以获得最佳视角",
+    "lobby.back": "主菜单",
+    "settings.reduceMotion": "减少动态效果", "settings.reduceMotionDesc": "主菜单的镜头保持静止（不摇晃、无视差）。",
     "settings.speechAfterShort": "回答后", "settings.speechBeforeShort": "出现时",
     "settings.speechModeDesc": "回答后再听每个单词（推荐），或新单词一出现就听（更简单）。",
     "settings.speechSpeedDesc": "“慢”以 0.8 倍速播放单词。",

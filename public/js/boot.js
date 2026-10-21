@@ -10,10 +10,10 @@
 // The progress is the real loading, nothing timed: the game's scripts are
 // <script defer> (index.html) and each counts as it arrives, weighted by its
 // size (from version.json, which this fetches straight away -- that fetch is
-// also the update check's, js/updater.js); the two pictures count too. The
+// also the update check's, js/updater.js); its picture counts too. The
 // screen stays at least G.CONFIG.update.minBootMs so it never just flashes.
 // Then js/updater.js decides: Update Available over this picture, or on to
-// the Start screen (js/start.js).
+// the Main Menu (js/mainmenu.js).
 //
 // This file and js/strings.js are the only scripts that are not deferred:
 // they run while the page is still being read, before any game script.
@@ -62,10 +62,9 @@ window.G = window.G || {};
         el.addEventListener("error", done);            // (index.html's own handler names it)
         this.scripts.push(s);
       });
-      // the two pictures: this screen's, and the Start screen's
+      // this screen's picture
       const img = $("boot-art-img");
       if (img) this.watchImage(img, null);
-      this.watchImage(new Image(), "assets/boot/start-horde.webp");
       // a file counts as soon as it has arrived (its download timing): the
       // scripts run in page order, so one slow early file would otherwise hold
       // back all the rest that are already here

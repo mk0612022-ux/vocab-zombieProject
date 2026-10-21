@@ -8,8 +8,7 @@
 //   await G.ArtRender.shot("school", "preview")
 //   await G.ArtRender.boot()       -> (new series, round 2) the Loading
 //                                     screen's two pictures and where their
-//                                     words go (for js/boot.js), and the
-//                                     Start screen's horde (public/assets/boot/)
+//                                     words go (for js/boot.js)
 window.G = window.G || {};
 G.ArtRender = {
   PORT: 8092,
@@ -214,7 +213,7 @@ G.ArtRender = {
     return { file, bytes: Math.round(url.length * 0.75) };
   },
 
-  // ---------------- the Loading and Start screens (new series, round 2, D/E) ----------------
+  // ---------------- the Loading screen (new series, round 2, D) ----------------
   // Loading: a horde in front of the school, facing the camera, two sizes --
   // the big screen 16:9, a phone 2.16:1 -- as WebP of at most ~500 KB, and
   // where each zombie's word goes on the picture (its label's anchor, as a
@@ -228,11 +227,6 @@ G.ArtRender = {
     horde: [["normal", -1.3, 51.0, 0.2], ["fast", 1.6, 50.6, 0.6], ["normal", -3.8, 49.6, 0.8], ["normal", 0.2, 49.2, 0.1], ["normal", 3.7, 49.5, 0.5],
       ["normal", -6.2, 48.2, 0.4], ["fast", -2.1, 47.7, 0.7], ["normal", 2.0, 47.6, 0.2], ["normal", 6.0, 48.0, 0.9], ["normal", -8.2, 46.7, 0.3],
       ["normal", -4.2, 46.1, 0.6], ["crawler", -0.3, 50.4, 0.5], ["normal", 4.3, 46.2, 0.8], ["normal", 8.4, 46.8, 0.15], ["normal", 0.1, 45.4, 0.45]],
-    // Start: the horde alone, from low down, lit green from the sides, on a
-    // transparent background (cropped to it)
-    hero: { size: [2000, 1300], cam: [0.8, 0.32, 6.2], look: [0, 1.4, -1], fov: 40,
-      z: [["normal", 0, 0.2, 0.3], ["normal", -1.35, -0.7, 0.7], ["fast", 1.45, -0.5, 0.5], ["normal", -2.6, -1.9, 0.1], ["normal", 0.4, -2.0, 0.9], ["normal", 2.7, -1.8, 0.2],
-        ["crawler", -0.7, 1.35, 0.6], ["normal", -1.3, -3.4, 0.4], ["normal", 1.7, -3.6, 0.8], ["normal", -3.9, -3.3, 0.55], ["normal", 3.9, -3.2, 0.35]] },
   },
   async post(name, url) {
     await fetch("http://localhost:" + this.BOOT.port + "/?name=" + name, { method: "POST", body: url, mode: "no-cors" });
@@ -286,51 +280,9 @@ G.ArtRender = {
     G.PlayerBody.setVisible(true);
     return out;
   },
-  async bootStart() {
-    const H0 = this.BOOT.hero, [W, H] = H0.size;
-    const scene = new THREE.Scene();
-    H0.z.forEach(([type, x, z, ph]) => {
-      const zb = new G.Zombie(type, new THREE.Vector3(x, 0, z), G.pick(G.WORDS_LEVEL_1), "school");
-      zb.mesh.rotation.y = Math.atan2(H0.cam[0] - x, H0.cam[2] - z);
-      for (let i = 0; i < 20 + Math.round((ph || 0) * 30); i++) zb.animate(1 / 30, 0.05);
-      zb.sprite.visible = false;
-      scene.add(zb.mesh);
-    });
-    // (visual series, round 3, N: the new look -- the moon's cool key light,
-    // a cyan rim from either side and behind, the navy of the night below;
-    // it used to be lit green)
-    scene.add(new THREE.HemisphereLight(0x5a6c94, 0x0a0e18, 0.34));
-    const key = new THREE.DirectionalLight(0xcfdcff, 0.8); key.position.set(-2, 5, 9); scene.add(key);
-    [[-7, 2.5, -1, 0x4fc8ff], [7, 2.5, -1, 0x7ab8ff]].forEach(([x, y, z, c]) => { const l = new THREE.DirectionalLight(c, 1.45); l.position.set(x, y, z); scene.add(l); });
-    const top = new THREE.DirectionalLight(0x9ac4ff, 0.55); top.position.set(0, 8, -4); scene.add(top);
-    const cam = new THREE.PerspectiveCamera(H0.fov, W / H, 0.1, 100);
-    cam.position.set(...H0.cam); cam.lookAt(...H0.look);
-    const r = new THREE.WebGLRenderer({ alpha: true, antialias: true, preserveDrawingBuffer: true });
-    r.setPixelRatio(1); r.setSize(W, H, false); r.setClearColor(0x000000, 0);
-    scene.updateMatrixWorld(true);
-    // (visual series: a zombie marks its pixels in the alpha for the game's
-    // haze -- here the alpha is the picture's own see-through: not marked)
-    const marked = [G.ZOMBIE_MATS.lambert, G.ZOMBIE_MATS.basic].filter((m) => m && m.userData.vzMark);
-    marked.forEach((m) => { m.userData.vzMark = false; });
-    try { r.render(scene, cam); } finally { marked.forEach((m) => { m.userData.vzMark = true; }); }
-    // cropped to what is drawn, with a little room for the glow
-    const c2 = document.createElement("canvas"); c2.width = W; c2.height = H;
-    const x2 = c2.getContext("2d"); x2.drawImage(r.domElement, 0, 0);
-    r.dispose();
-    const d = x2.getImageData(0, 0, W, H).data;
-    let minX = W, minY = H, maxX = 0, maxY = 0;
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-      if (d[(y * W + x) * 4 + 3] > 8) { minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y); }
-    }
-    const m = Math.round(Math.max(maxX - minX, maxY - minY) * 0.04);
-    minX = Math.max(0, minX - m); minY = Math.max(0, minY - m); maxX = Math.min(W - 1, maxX + m); maxY = Math.min(H - 1, maxY + m);
-    const out = document.createElement("canvas"); out.width = maxX - minX + 1; out.height = maxY - minY + 1;
-    out.getContext("2d").drawImage(c2, minX, minY, out.width, out.height, 0, 0, out.width, out.height);
-    return Object.assign(await this.post("boot/start-horde.webp", out.toDataURL("image/webp", 0.86)), { w: out.width, h: out.height });
-  },
   async boot() {
     const saved = JSON.stringify(G.save), upd = G.Game.update;
-    try { return { loading: await this.bootLoading(), start: await this.bootStart() }; }
+    try { return { loading: await this.bootLoading() }; }
     finally { G.save = JSON.parse(saved); G.persist(); G.Game.update = upd; G.Game.quitToMainMenu(); }
   },
 

@@ -220,10 +220,11 @@ G.Round14Test = (function () {
     // the page
     G.UI.goToMainMenu({ tab: "campaign" });
     await wait(60);
-    const icons = Array.from(document.querySelectorAll(".lobby-icon")).map((b) => b.dataset.icon);
-    const pi = document.querySelector('.lobby-icon[data-icon="progress"]');
-    ok("C the lobby: Progress, first icon top right, its short name and full name", icons[0] === "progress" && pi.querySelector(".li-label").textContent === "Progress" && pi.dataset.tip === "Learning Progress");
-    pi.click();
+    // (overhaul, round 5: Progress heads the Main Menu's LEARN group; from the lobby's side here)
+    if (!G.MainMenu.built) G.MainMenu.build();
+    const learn = Array.from(document.querySelectorAll('#home-menu .hm-group[data-group="learn"] .hm-item')).map((b) => b.dataset.item);
+    ok("C the Main Menu: PROGRESS first under LEARN", learn[0] === "progress", learn.join());
+    G.Progress.open();
     await wait(80);
     ok("C ...opens the page", G.UI._currentScreen === "screen-progress" && G.Progress.tab === "learn");
     const body = $("progress-body");

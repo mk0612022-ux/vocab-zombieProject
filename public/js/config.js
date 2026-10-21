@@ -293,10 +293,6 @@ G.CONFIG = {
     restartDelay: 1200,             // ms "Update complete - restarting" shows before the reload
     parallel: 4,                    // files downloaded at once
   },
-  // (new series, round 2, E) the Start screen (js/start.js)
-  start: {
-    fadeMs: 500,                    // its fade into the lobby
-  },
   // (new series, round 2, F) a controller's right stick (js/game.js); the
   // Settings slider multiplies the speed (G.save.settings.padSensitivity)
   pad: {
@@ -304,13 +300,19 @@ G.CONFIG = {
     deadzone: 0.15,                 // a stick this far off centre is still at rest
   },
   // (new series, round 2, E) the lobby's music, from the Start screen's tap on (js/audio.js menuMusic)
+  // (overhaul, round 5: the Main Menu's -- generative, low, lonely, with
+  // silences: a drone, a deep swell now and then, a cold pad, far-off notes)
   menuMusic: {
-    root: 55,                       // Hz: the drone's low A
+    root: 41.2,                     // Hz: the drone's low E
     gain: 0.5,                      // the drone, on the music bus
-    wind: 0.12,                     // the wind, on the ambient bus
-    bells: [0, 3, 5, 7, 10],        // semitones: a minor pentatonic
-    bellGain: 0.05,
-    bellGap: [3.5, 8.5],            // seconds between bells
+    wind: 0.07,                     // the wind, on the ambient bus
+    bells: [0, 3, 5, 7, 10, 12],    // semitones: a minor pentatonic
+    bellGain: 0.045,
+    bellGap: [6, 14],               // seconds between the far-off notes
+    rest: [0.3, 10, 20],            // now and then (chance) a silence of so many seconds
+    sub: { gain: 0.24, every: [18, 30] },   // a deep swell from under the floor
+    pad: { gain: 0.045, every: [24, 40] },  // a cold, slightly out-of-tune pad
+    ambience: 0.6,                  // the facility's own sounds round the Main Menu (js/mainmenu.js)
   },
   // B: aiming into a crowd (js/aim.js)
   aim: {

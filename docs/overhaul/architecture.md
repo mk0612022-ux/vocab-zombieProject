@@ -45,8 +45,8 @@
 |---|---|---|---|
 | Modal กลาง | `modal.js` (`G.Modal.open/close`, freeze/pause/keys) | = openModal/closeModal ของสเปก | **คง** ใช้ต่อทุกหน้าต่าง |
 | HUD | `ui.js` `updateHud(p)` (อัปเดต DOM เมื่อค่าเปลี่ยน), `game.js` `buildHudState()`, `hudcfg.js` (ขนาด 50–150% ต่อส่วน), `touchcfg.js`, `minimap.js` | HUD มุมซ้าย/ขวาล่าง | **แก้** (รอบ 6): layout กลางล่าง |
-| Loading / Start / Lobby | `boot.js`, `start.js` (Tap To Lobby), `lobby.js` (carousel + 10 ไอคอน) | Loading → Start → Lobby | **ใหม่** (รอบ 5): Main Menu 3D แทน Start, ย้ายไอคอน |
-| หน้าเมนูย่อย | `settings.js`, `progress.js`, `vocabcard.js` (Word Log), `journal.js`, `bosscodex.js`, `customvocab.js`, ui.js (leaderboard/achievements/armory/help) | เปิดจากไอคอนลอบบี้ | **คง** เนื้อหา เปลี่ยนแค่ทางเข้า |
+| Loading / Main Menu / Lobby | `boot.js`, `mainmenu.js` + `menuscene.js` (รอบ 5: เมนูหลัก 3D แทนหน้า Start), `lobby.js` (carousel + ปุ่มกลับ) | Loading → Main Menu → Lobby | **ใหม่แล้ว** (รอบ 5): Main Menu 3D แทน Start, ไอคอนย้ายมาเมนูหลัก |
+| หน้าเมนูย่อย | `settings.js`, `progress.js`, `vocabcard.js` (Word Log), `journal.js`, `bosscodex.js`, `customvocab.js`, ui.js (leaderboard/achievements/armory/help) | เปิดจากเมนูหลัก (รอบ 5) | **คง** เนื้อหา เปลี่ยนแค่ทางเข้า |
 | คำถาม | `quiz.js` (6 ข้อท้ายเวฟ), `questions.js` (8 แบบ), `spell.js`, `learnmodes.js`, `study.js` (Daily Review), `practice.js`, `clues.js`, `distract.js`, `srs.js`, `game.js` `startWordChallenge` (บอส/ประตู/ชั้น), `abilityui.js` (รวงผึ้ง), `floor3.js` | ตอบแล้วแสดงผลถูก/ผิดสั้น ๆ | **แก้** (รอบ 7): คำอธิบายทุกจุด |
 
 ### ภาพ

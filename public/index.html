@@ -28,6 +28,8 @@
 
 <!-- ===================== MAIN MENU ===================== -->
 <!-- The lobby (round 4) is built into this by js/lobby.js -->
+<!-- (overhaul, round 5) the Main Menu over its 3D scene (js/mainmenu.js, js/menuscene.js) -->
+<div id="screen-home" class="screen screen-home hidden"></div>
 <div id="screen-mainmenu" class="screen screen-lobby"></div>
 
 <!-- a phone or tablet held upright (js/pwa.js) -->
@@ -737,20 +739,6 @@
   <div class="boot-version" data-version></div>
 </div>
 
-<!-- The Start screen (new series, round 2, E; js/start.js): after Loading,
-     before the lobby. Anywhere, any key or A goes in (and lets the sound start). -->
-<div id="start-screen" class="start-screen hidden" role="dialog" aria-modal="true" aria-labelledby="start-tap">
-  <div class="start-motes" id="start-motes" aria-hidden="true"></div>
-  <div class="start-logo" lang="en" aria-hidden="true">VOCAB <span>ZOMBIE</span></div>
-  <div class="start-hero" aria-hidden="true"><div class="start-glow"></div><img src="assets/boot/start-horde.webp" alt="" decoding="async"></div>
-  <button class="start-tap" id="start-tap" type="button" data-i18n="start.tap"></button>
-  <div class="start-hint" id="start-hint"></div>
-  <div class="start-account" id="start-account">
-    <span class="sa-who"><span class="sa-avatar" aria-hidden="true">👤</span><span class="sa-name" id="start-name"></span><span class="sa-uid hidden" id="start-uid"></span></span>
-    <button class="sa-signin" id="btn-start-signin" type="button" data-i18n="account.signIn"></button>
-  </div>
-  <div class="start-version" data-version></div>
-</div>
 <script>
 // (A4) A file that fails to load (offline before the game was ever kept,
 // say) is named on this screen, rather than it saying "Loading..." for ever.
@@ -865,7 +853,8 @@ window.addEventListener("load", function () {
 <script defer src="js/lobby.js"></script>
 <script defer src="js/pwa.js"></script>
 <script defer src="js/account.js"></script>
-<script defer src="js/start.js"></script>
+<script defer src="js/menuscene.js"></script>
+<script defer src="js/mainmenu.js"></script>
 <script defer src="js/updater.js"></script>
 <script defer src="js/game.js"></script>
 <!-- the two that run while the page is read: the words, then the Loading screen -->
