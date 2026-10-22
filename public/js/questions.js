@@ -28,6 +28,8 @@
 // asked about -- carries its part of speech, research (N./V.), and the wrong
 // choices are of the same part of speech; a question about the word's forms
 // (Cloze, or a phrase that uses another form) shows none (q.noPos).
+// (overhaul, round 7) A gap's sentence and a phrase's collocation stay on the
+// question (q.cloze, q.colloc): its answer is explained from them (js/explain.js).
 // ===================================================================
 window.G = window.G || {};
 
@@ -165,7 +167,7 @@ window.G = window.G || {};
         const c = G.Clues.cloze(pair, G.rng() < 0.5 ? 0 : 1) || G.Clues.cloze(pair);
         const start = !c.before.trim();
         const shape = (w) => (start ? w.charAt(0).toUpperCase() + w.slice(1) : w.toLowerCase());
-        q.answerText = c.answer;
+        q.answerText = c.answer; q.cloze = c;
         q.ask = T("q.cloze");
         q.prompt = { html: esc(c.before) + '<span class="q-gap">_____</span>' + esc(c.after), lang: "en" };
         // H1: the other forms of the family first; then other words
@@ -174,7 +176,7 @@ window.G = window.G || {};
         shuffleIn({ text: shape(c.answer), lang: "en", pair, form: c.answer }, fam.concat(fill));
       } else if (type === "colloc") {
         const c = G.Clues.collocation(pair);
-        q.answerText = c.answer;
+        q.answerText = c.answer; q.colloc = c;
         q.ask = T("q.colloc");
         q.prompt = { html: esc(c.text).replace("___", '<span class="q-gap">_____</span>'), lang: "en", big: true };
         // never one that also goes with these words somewhere in the bank
@@ -206,7 +208,7 @@ window.G = window.G || {};
       } else if (type === "clozespell") {
         // the form the sentence uses is the word to write
         const c = G.Clues.cloze(pair, G.rng() < 0.5 ? 0 : 1) || G.Clues.cloze(pair);
-        q.answerText = c.answer.toLowerCase();
+        q.answerText = c.answer.toLowerCase(); q.cloze = c;
         q.spellPair = Object.assign([q.answerText, pair[1]], { exact: true });
         q.ask = T("q.clozespell");
         q.prompt = { html: esc(c.before) + '<span class="q-gap">_____</span>' + esc(c.after), lang: "en" };

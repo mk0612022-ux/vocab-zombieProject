@@ -49,7 +49,7 @@ G.Round6Test = (function () {
   // first -- pick the first hexagon and carry on)
   const hive = () => { if (G.Modal.isOpen("abilities")) { G.UI.hivePick(0); G.UI.hiveFinishReveal(); G.UI.hiveClose(null, G.Abilities.slots.length >= G.Abilities.MAX); } };
   // (new series, round 1: then the wave's six-question quiz -- answered right, the shop)
-  const quiz = (pass) => { const Q = G.Quiz; if (!Q.active) return false; let n = 0; while (Q.stage !== "result" && n++ < 40) { if (Q.stage === "question") { const q = Q.qs[Q.i]; Q.answerAs(pass !== false); } Q.update(5); } Q.close(); return true; };
+  const quiz = (pass) => { const Q = G.Quiz; if (!Q.active) return false; let n = 0; while (Q.stage !== "result" && n++ < 40) { if (Q.stage === "question") { const q = Q.qs[Q.i]; Q.answerAs(pass !== false); } else if (Q.stage === "feedback") Q.next(); } Q.close(); return true; };
 
   // ---------------- F: twenty waves ----------------
   async function waves() {

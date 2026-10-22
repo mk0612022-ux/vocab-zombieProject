@@ -113,6 +113,12 @@ G.defaultSave = function () {
       muzzleFlash: 1,
       gore: "full",                // (overhaul, round 4) Blood & Gore: full | reduced | off
       reduceMotion: false,         // (overhaul, round 5) no camera sway or parallax in the Main Menu
+      // (overhaul, round 7) the answers explained (js/explain.js): Short (More
+      // for the rest) or Full at once; a right answer going on by itself after
+      // 2 or 4 seconds (0: Continue); the cards under the word box while shooting
+      explainDetail: "short",
+      autoContinue: 2,
+      explainCards: true,
     },
     importedSets: {},             // {id: {name, words:[[en,th],...]}}
     customWords: { level1: [], level2: [], level3: [] },   // words the player added to each level ([[en,th] or [en,th,{definition,...}],...])
@@ -189,6 +195,10 @@ G.normalizeSave = function (data) {
   // (overhaul, round 4) a save from before Blood & Gore: Full, as the game always was
   oneOf("gore", ["full", "reduced", "off"]);
   s.settings.reduceMotion = !!s.settings.reduceMotion;     // (overhaul, round 5)
+  // (overhaul, round 7) a save from before the explanations: Short, 2 seconds, cards on
+  oneOf("explainDetail", ["short", "full"]);
+  if (![0, 2, 4].includes(s.settings.autoContinue)) s.settings.autoContinue = def.settings.autoContinue;
+  s.settings.explainCards = s.settings.explainCards !== false;
   // (overhaul, round 3) a save from before the Master, Weapons and UI faders:
   // the guns and the menus start where the old Sound Effects fader was (they
   // were on it), the Master at full; captions off

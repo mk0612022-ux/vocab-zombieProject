@@ -91,7 +91,7 @@ G.Round7Test = (function () {
     const Q = G.Quiz;
     if (!Q.active) return false;
     let n = 0;
-    while (Q.stage !== "result" && n++ < 40) { if (Q.stage === "question") { const q = Q.qs[Q.i]; Q.answerAs(pass !== false); } Q.update(5); }
+    while (Q.stage !== "result" && n++ < 40) { if (Q.stage === "question") { const q = Q.qs[Q.i]; Q.answerAs(pass !== false); } else if (Q.stage === "feedback") Q.next(); }
     Q.close();
     return true;
   }

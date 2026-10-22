@@ -10,7 +10,8 @@
 # Exit code 0 = clean, 1 = Thai text found.
 $root = Split-Path -Parent $PSScriptRoot
 # (round 3, H2: the Thai UI strings are Thai on purpose -- js/strings-th.js)
-$skip = @('public\js\data\bank_school.js', 'public\js\data\bank_hospital.js', 'public\js\data\bank_bunker.js', 'public\js\data\confusables.js', 'public\js\data\words_bosses.js', 'public\js\strings-th.js', 'public\version.json')
+# (overhaul, round 7: the explanations in Thai -- js/data/explain_th.js)
+$skip = @('public\js\data\bank_school.js', 'public\js\data\bank_hospital.js', 'public\js\data\bank_bunker.js', 'public\js\data\confusables.js', 'public\js\data\words_bosses.js', 'public\js\strings-th.js', 'public\js\data\explain_th.js', 'public\version.json')
 $files = Get-ChildItem -Path $root -Recurse -File -Include *.js, *.html, *.css, *.json, *.ps1 |
   Where-Object { $_.FullName -notmatch '\\(\.git|node_modules|\.wrangler|screenshots|_review)\\' }
 $hits = 0; $scanned = 0; $skipped = @()

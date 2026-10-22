@@ -55,8 +55,7 @@ G.Round8Test = (function () {
       if (Q.stage === "question") {
         const q = Q.qs[Q.i], a = pattern[i++] || "r";
         if (a === "r") Q.answerAs(true); else if (a === "w") Q.answerAs(false); else Q.update(Q.limit + 0.01);
-      }
-      Q.update(5);
+      } else if (Q.stage === "feedback") Q.next();   // (overhaul, round 7: Continue past the explanation)
     }
   }
 
@@ -125,7 +124,10 @@ G.Round8Test = (function () {
     ok("A3 ...and onto the run's words to review", !!g.wrongWordsThisRun[Q.qs[0].pair[0]]);
     Q.update(0.5);
     ok("A3 the answer stays up a moment", Q.stage === "feedback");
-    Q.update(G.CONFIG.quiz.wrongFeedback);
+    // (overhaul, round 7: a wrong answer is explained, and waits for Continue)
+    Q.update(30);
+    ok("A3 a wrong answer: explained, it waits for Continue", Q.stage === "feedback" && !!el("quiz-feedback").querySelector(".xp .xp-why"));
+    key("Enter");
     ok("A3 then the next question (English word -> Thai meaning)", Q.stage === "question" && Q.i === 1 && el("quiz-prompt").textContent === G.POS.text(Q.qs[1].pair[0], Q.qs[1].pair));
     // out of time
     Q.update(14.9);

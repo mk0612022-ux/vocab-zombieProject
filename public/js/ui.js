@@ -1064,7 +1064,7 @@ G.UI = {
   setChallengeQuestion(q, h) {
     const box = this.el("hud-challenge-box");
     box.dataset.type = q.type;
-    box.classList.remove("revealed");
+    box.classList.remove("revealed", "right");
     this.el("hud-challenge-reveal").classList.add("hidden");
     this.el("hud-challenge-reveal").innerHTML = "";
     this.setChallengeTimer(1);
@@ -1073,21 +1073,23 @@ G.UI = {
     return view;
   },
   // (H3) wrong or out of time: the right one lit, the wrong one red (or the
-  // spelling marked), and the word in context, until Continue
-  showChallengeReveal(q, k, view, onContinue) {
+  // spelling marked), and the word in context, until Continue; (overhaul,
+  // round 7) right too, each explained (`ex`, js/explain.js) -- a right one
+  // goes on by itself after `auto` seconds. Returns the explanation's view.
+  showChallengeReveal(q, k, view, onContinue, ex, auto) {
     const T = G.T, esc = G.escapeHtml;
     const box = this.el("hud-challenge-box");
+    const right = !!ex && ex.right;
     box.classList.add("revealed");
-    if (q.spell) { if (view && view.pad) view.pad.showFeedback(typeof k === "string" ? k : "", G.Questions.rightText(q), typeof k === "string" ? G.Spell.tipFor(k, q.pair) : ""); }
-    else this.el("hud-challenge-choices").querySelectorAll("[data-k]").forEach((b, i) => { b.disabled = true; b.classList.toggle("is-right", i === q.answer); b.classList.toggle("is-wrong", i === k); });
+    box.classList.toggle("right", right);
+    if (q.spell) { if (!right && view && view.pad) view.pad.showFeedback(typeof k === "string" ? k : "", G.Questions.rightText(q), typeof k === "string" ? G.Spell.tipFor(k, q.pair) : ""); }
+    else this.el("hud-challenge-choices").querySelectorAll("[data-k]").forEach((b, i) => { b.disabled = true; b.classList.toggle("is-right", i === q.answer); b.classList.toggle("is-wrong", i === k && !right); });
     const r = this.el("hud-challenge-reveal");
     const ans = G.Questions.rightText(q);
-    r.innerHTML = `<div class="qf-line">${esc(k === -1 ? T("quiz.timeUp", { a: ans }) : T("quiz.wrong", { a: ans }))}</div>` + G.VocabCard.miniHtml(q.pair, { form: q.answerText }) +
-      `<button class="btn btn-primary qf-next" type="button" data-pad-back>${esc(T("challenge.continue"))} <span class="kbd-only dlg-key">(Enter)</span></button>`;
+    r.innerHTML = `<div class="qf-line">${esc(right ? T("quiz.right") : k === -1 ? T("quiz.timeUp", { a: ans }) : T("quiz.wrong", { a: ans }))}</div><div class="qf-xp"></div>`;
+    r.classList.toggle("ok", right);
     r.classList.remove("hidden");
-    G.VocabCard.bind(r);
-    r.querySelector(".qf-next").onclick = () => onContinue();
-    if (G.Input.mode !== "touch") setTimeout(() => { const b = r.querySelector(".qf-next"); if (b) b.focus({ preventScroll: true }); }, 0);
+    return G.ExplainView.show(r.querySelector(".qf-xp"), ex || G.Explain.forQuestion(q, k, false, false), { onContinue, label: T("challenge.continue"), auto: auto || 0 });
   },
   // Category K: FPS and draw calls, each toggleable in Settings
   updateFpsCounter(fps) {

@@ -21,12 +21,12 @@ foreach ($lv in 1, 2, 3) {
   foreach ($e in (Read-DataBlock (Join-Path $root ('public/js/data/' + $BANK_FILES[$lv])) 'BANK')) { $rows.Add((ConvertTo-CsvRow $e)) }
 }
 $conf = @(Read-DataBlock (Join-Path $root 'public/js/data/confusables.js') 'CONFUSABLES' | ForEach-Object {
-    [pscustomobject][ordered]@{ headword = [string]$_.headword; partOfSpeech = [string]$_.partOfSpeech; thai = [string]$_.thai; definition = [string]$_.definition }
+    [pscustomobject][ordered]@{ headword = [string]$_.headword; partOfSpeech = [string]$_.partOfSpeech; thai = [string]$_.thai; zh = [string]$_.zh; pinyin = [string]$_.pinyin; fr = [string]$_.fr; definition = [string]$_.definition }
   })
 
 $bank = Join-Path $Out 'word-bank.csv'
 $lex = Join-Path $Out 'word-bank-confusables.csv'
 Write-CsvFile $bank $rows $CSV_COLUMNS
-Write-CsvFile $lex $conf @('headword', 'partOfSpeech', 'thai', 'definition')
+Write-CsvFile $lex $conf @('headword', 'partOfSpeech', 'thai', 'zh', 'pinyin', 'fr', 'definition')
 "Exported $($rows.Count) word families -> $bank"
 "Exported $($conf.Count) confusables -> $lex"

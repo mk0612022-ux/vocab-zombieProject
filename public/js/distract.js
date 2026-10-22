@@ -43,8 +43,8 @@ G.Distract = {
 
   // a word (bank key -- "analyse@zh" too --, bank form, lexicon word or the
   // player's own) as a pair [word, meaning] in the languages chosen, with
-  // .id, and .lexicon for a confusables-lexicon word (English > Thai only:
-  // those words have nothing else)
+  // .id, and .lexicon for a confusables-lexicon word (English words, with a
+  // Thai, Chinese and French meaning)
   resolve(w) {
     if (!w) return null;
     if (Array.isArray(w)) return w;
@@ -52,8 +52,14 @@ G.Distract = {
     if (k.lang !== "en" && k.lang !== G.Lang.word()) return null;
     const e = G.WordBank.byId(k.id) || G.WordBank.textOwner(k.id);
     if (e) return G.WordBank.pairOf(e);
-    const c = G.Lang.word() === "en" && G.Lang.meaning() === "th" ? G.WordBank.confusable(w) : null;
-    if (c) { const p = [c.headword, c.thai]; p.id = c.headword.toLowerCase(); p.lexicon = true; return p; }
+    // (overhaul, round 7: the lexicon has its Chinese and French meanings too)
+    const c = G.Lang.word() === "en" ? G.WordBank.confusable(w) : null;
+    const cm = c ? G.Lang.text(c, G.Lang.meaning()) : "";
+    if (c && cm) {
+      const p = [c.headword, cm]; p.id = c.headword.toLowerCase(); p.lexicon = true; p.wl = "en"; p.ml = G.Lang.meaning();
+      if (p.ml === "zh") p.pyM = String(c.pinyin || "");
+      return p;
+    }
     const key = String(k.id).toLowerCase();
     const lists = G.CustomVocab && G.CustomVocab.allCurrent ? [G.CustomVocab.allCurrent()] : Object.values(G.save.customWords || {});
     for (const list of lists) {

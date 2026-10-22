@@ -46,7 +46,8 @@ G.CONFIG = {
     // (vocabulary series, round 3, H5) the eight kinds of question: extra
     // seconds for the ones with more to read or to write (quiz, boss, locks)
     extraSeconds: { def2word: 4, cloze: 6, colloc: 3, paraphrase: 6, listen: 2, spell: 12 },
-    wrongFeedback: 8,        // a wrong answer stays up longer (or until Next): the right word, a sentence, a collocation
+    // (overhaul, round 7: a wrong answer's explanation stays until Continue; a
+    // right one goes on by itself after Settings > Auto-continue, js/explain.js)
     // how often each kind is asked, by the word's box: 1-2 mostly the first
     // three of H5 (Thai -> English, English -> Thai, Listening), from box 3
     // more of Definition, Cloze, Collocation, Paraphrase and Spelling
@@ -54,6 +55,13 @@ G.CONFIG = {
       low:  { th2en: 3, en2th: 3, listen: 2, def2word: 0.6, cloze: 0.6, colloc: 0.3, paraphrase: 0.3, spell: 0.4 },
       high: { th2en: 0.8, en2th: 0.8, listen: 0.8, def2word: 2, cloze: 2, colloc: 1.5, paraphrase: 1.5, spell: 2 },
     },
+  },
+
+  // ---------------- answer explanations (overhaul, round 7, js/explain.js) ----------------
+  explain: {
+    history: 5,              // why a word was missed: the last few, kept on the word (G.save.learn.why)
+    cardRight: 2,            // seconds the card under the word box stays: a right shot
+    cardWrong: 3.5,          // ...a wrong one (wrong shots in quick succession: one card)
   },
 
   // ---------------- bosses (new series, round 1, C) ----------------

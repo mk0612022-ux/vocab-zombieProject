@@ -244,6 +244,11 @@ G.UIAudit = {
         C.force = keep;
       });
       UI.hudNote(null); if (G.Captions) G.Captions.clear();
+      // (overhaul, round 7) the card under the word box while shooting: the longest meanings
+      const longPairs = G.WORDS_LEVEL_1.slice().sort((a, b) => b[1].length - a[1].length);
+      await step("explanation card (a wrong shot)", () => G.ExplainCard.show(G.Explain.build({ pair: longPairs[0], picked: longPairs[1], type: "th2en", right: false })));
+      await step("explanation card (a right shot)", () => G.ExplainCard.show(G.Explain.build({ pair: longPairs[0], type: "th2en", right: true })));
+      await step("explanation card gone", () => G.ExplainCard.hide());
       await step("challenge door", () => Game.startWordChallenge(T("challenge.door"), () => {}, () => {}));
       await step("challenge (answered)", () => Game.answerChallenge(0));
       // (vocabulary series, round 3: a wrong answer shows the word until Continue)
@@ -397,13 +402,15 @@ G.UIAudit = {
       await step("dialog closed", () => G.Dialog.close());
       // ---- newer series, round 1: the end-of-wave quiz, HUD sizes, touch look sensitivity ----
       const longMeanings = G.WORDS_LEVEL_1.slice().sort((a, b) => b[1].length - a[1].length).slice(0, 6).map((p) => p.slice());
-      const allWrong = () => { let n = 0; while (G.Quiz.stage !== "result" && n++ < 30) { if (G.Quiz.stage === "question") { const q = G.Quiz.qs[G.Quiz.i]; G.Quiz.answer((q.answer + 1) % 4); } G.Quiz.update(5); } };
+      // (overhaul, round 7: an answer is explained -- a wrong one waits for Continue)
+      const allWrong = () => { let n = 0; while (G.Quiz.stage !== "result" && n++ < 30) { if (G.Quiz.stage === "question") { const q = G.Quiz.qs[G.Quiz.i]; G.Quiz.answer((q.answer + 1) % 4); } else if (G.Quiz.stage === "feedback") G.Quiz.next(); } };
       await step("quiz: a Thai meaning", () => { Game.update = function () {}; Game.startLevel(1); Game.state = "GAMEPLAY"; UI.setHudVisible(true); Game.waveWords = longMeanings; Game.waveMissed = new Set(); G.Quiz.open(Game, () => {}); });
       await step("quiz: answered wrong", () => { const q = G.Quiz.qs[0]; G.Quiz.answer((q.answer + 1) % 4); });
-      await step("quiz: an English word, Thai choices", () => G.Quiz.update(5));
+      await step("quiz: the explanation in full (More)", () => G.ExplainView.key(G.Quiz.xv, { code: "KeyM" }));
+      await step("quiz: an English word, Thai choices", () => G.Quiz.next());
       await step("quiz: out of time", () => G.Quiz.update(99));
-      await step("quiz: failed, the words listed", () => allWrong());
-      await step("quiz: passed, no mistakes", () => { G.Quiz.close(); G.Quiz.open(Game, () => {}); let n = 0; while (G.Quiz.stage !== "result" && n++ < 30) { if (G.Quiz.stage === "question") G.Quiz.answer(G.Quiz.qs[G.Quiz.i].answer); G.Quiz.update(5); } });
+      await step("quiz: failed, the words explained", () => allWrong());
+      await step("quiz: passed, no mistakes", () => { G.Quiz.close(); G.Quiz.open(Game, () => {}); let n = 0; while (G.Quiz.stage !== "result" && n++ < 30) { if (G.Quiz.stage === "question") G.Quiz.answer(G.Quiz.qs[G.Quiz.i].answer); else if (G.Quiz.stage === "feedback") G.Quiz.next(); } });
       await step("quiz closed", () => G.Quiz.close());
       await step("settings: touch look sensitivities, HUD size", () => { Game.quitToMainMenu(); UI._settingsReturn = "screen-mainmenu"; UI.renderSettings(); UI.showScreen("screen-settings"); G.SettingsUI.select("controls"); });
       await step("hud sizes editor", () => G.HudCfg.openEditor());

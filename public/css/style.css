@@ -2376,3 +2376,68 @@ body.modal-open .hud-dock { opacity: 0.35; }
 .inv-slotrow .hud-slot.knife, .inv-slotrow .hud-slot.empty { cursor: default; opacity: 0.55; }
 .inv-slot.replace-hl { border-color: #ff6b6b; box-shadow: 0 0 14px rgba(255,90,90,0.45); }
 .pause-where { margin: -10px 0 12px; font-size: 0.85rem; opacity: 0.75; text-align: center; letter-spacing: 0.5px; }
+
+/* ===================== overhaul, round 7: the answers explained (js/explain.js) ===================== */
+.xp { text-align: left; font-weight: 400; color: #e6efe9; }
+.xp-body { display: flex; flex-direction: column; gap: 3px; padding: 8px 10px; border-radius: 10px; background: rgba(255,255,255,0.05); border: 1px solid #2e4636; }
+.xp-ok .xp-body { border-color: #2f6b3c; }
+.xp-bad .xp-body { border-color: #6b3434; }
+.xp-l { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; line-height: 1.4; }
+.xp-m { font-weight: 900; width: 1.1em; flex: none; text-align: center; }
+.xp-x .xp-m { color: #ff7b7b; }
+.xp-y .xp-m { color: #6bff7a; }
+.xp-w { font-size: 1.05rem; color: #fff; }
+.xp-x .xp-w { color: #ffc4c4; }
+.xp-eq { opacity: 0.6; }
+.xp-mean { color: #fff29b; font-weight: 700; }
+.xp-from { font-size: 0.82rem; opacity: 0.7; }
+.xp-w mark, .hud-xcard mark { background: rgba(255,90,90,0.25); color: #ff8a8a; font-weight: 900; border-radius: 2px; padding: 0 1px; }
+.xp-y .xp-w mark { background: rgba(107,255,122,0.18); color: #6bff7a; }
+.xp-why { font-size: 0.88rem; line-height: 1.45; color: #ffe0b3; padding-left: calc(1.1em + 6px); }
+.xp-why.xp-note { color: #ffe9a8; }
+.xp-again { font-size: 0.8rem; color: #ffb3b3; padding-left: calc(1.1em + 6px); font-style: italic; }
+.xp-ex, .xp-col, .xp-fam, .xp-tip { font-size: 0.84rem; line-height: 1.45; color: #d8e8e0; margin-top: 2px; }
+.xp-ex mark, .xp-col mark { background: none; color: #6bff7a; font-weight: 800; }
+.xp-k { display: inline-block; font-size: 0.68rem; letter-spacing: 1px; text-transform: uppercase; color: #9fc9a8; margin-right: 6px; font-weight: 800; }
+.xp-tr { font-size: 0.8rem; color: #b9cbc1; margin-top: 1px; }
+.xp-tip { color: #cfe8ff; }
+.xp-say { margin-left: 4px; padding: 0 6px; font-size: 0.78rem; }
+.xp-btns { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.xp-btns .qf-next, .quiz-feedback .xp-btns .qf-next, .hud-challenge-reveal .xp-btns .qf-next { display: inline-block; margin: 0; }
+.xp-more { padding: 7px 14px; }
+.xp-auto { height: 3px; margin-top: 6px; border-radius: 2px; background: rgba(255,255,255,0.1); overflow: hidden; }
+.xp-auto i { display: block; height: 100%; background: #6bff7a; transform-origin: left; animation: xp-auto-kf linear forwards; }
+@keyframes xp-auto-kf { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+.quiz-feedback.ok, .quiz-feedback.bad { text-align: left; }
+.quiz-feedback.ok .qf-line { color: #6bff7a; }
+.hud-challenge-reveal.ok .qf-line { color: #6bff7a; }
+.hud-challenge-reveal .qf-line { color: #ff8a8a; }
+/* the review at the end of a wave (and a study session's end) */
+.quiz-missed .qm-row.qm-xp { display: block; border-bottom: 0; padding: 3px 0; }
+.qm-right { display: flex; align-items: flex-start; gap: 6px; padding: 3px 0; }
+.qm-right .qm-xp { flex: 1; min-width: 0; }
+.qm-more { padding: 4px 10px; font-size: 0.75rem; flex: none; margin-top: 6px; }
+.qm-title-ok { color: #6bff7a; margin-top: 10px; }
+#quiz-missed { max-width: 560px; max-height: min(42vh, 380px); }
+/* the card while shooting: under the word box, above the tip and the combo (it moves them down, never covers them) */
+.hud-xcard { max-width: min(560px, calc(100vw - 72px)); box-sizing: border-box; padding: 5px 14px; border-radius: 8px; background: rgba(6,10,8,0.82); border: 1px solid #6bff7a55; font-size: 0.9rem; line-height: 1.4; text-align: center; color: #e8f5e9; pointer-events: none; }
+.hud-xcard.bad { border-color: #ff6b6b88; }
+.hud-xcard.show { animation: xcard-in .18s ease-out; }
+@keyframes xcard-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+.hud-xcard .xc-x { color: #ffc4c4; }
+.hud-xcard .xc-y { color: #c8ffd0; }
+.hud-xcard .xc-sep { opacity: 0.5; }
+.hud-xcard .xc-stress { margin-left: 4px; opacity: 0.75; letter-spacing: 0.3px; color: #cfe8ff; }
+.hud-xcard b { color: #fff; }
+body.modal-question .hud-xcard { display: none !important; }
+/* (the spelling bar under a question window -- its explanation is taller now -- would show through it) */
+body.modal-question .hud-spell { display: none !important; }
+@media (max-height: 500px) {
+  .hud-xcard { font-size: 0.78rem; padding: 3px 10px; }
+  .xp-body { padding: 6px 8px; }
+  .xp-why { font-size: 0.8rem; }
+  .xp-btns { margin-top: 4px; }
+}
+/* the vocabulary card: why it was missed */
+.vc-why li { font-size: 0.86rem; }
+.vc-when { opacity: 0.6; }

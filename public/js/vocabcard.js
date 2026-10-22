@@ -67,6 +67,9 @@ window.G = window.G || {};
       const dont = confused.map((d) => `<li class="vc-mine"><b${d.wa}>${d.w}${d.pos}</b> <span${d.ma}>${d.th}</span> <span class="vc-tag">${esc(T("card.youConfused"))}</span></li>`)
         .concat(lex.map((d) => `<li><b${d.wa}>${d.w}${d.pos}</b> <span${d.ma}>${d.th}</span></li>`)).join("");
       const miss = en && (i.commonMisspellings || []).length ? `<p class="vc-warn">${esc(T("card.spelling", { w: i.headword || pair[0], x: i.commonMisspellings.join(", ") }))}</p>` : "";
+      // (overhaul, round 7) why it was missed, the last few times (js/explain.js), the latest first
+      const why = G.Explain ? G.Explain.history(pair).slice().reverse() : [];
+      const whyRows = why.map((h) => `<li><span${G.Lang.attr(pair, 0)}>${esc(G.Explain.historyText(h))}</span> <small class="vc-when">${esc(this.ago(h.d))}</small></li>`).join("");
       // its box and next review
       const st = G.SRS.state(pair);
       let mem = T("learn.boxNew");
@@ -86,8 +89,14 @@ window.G = window.G || {};
         ${sec(T("card.collocations"), colls ? `<ul class="vc-list vc-colls" lang="en">${colls}</ul>` : "")}
         ${sec(T("card.family"), famRows)}
         ${sec(T("card.dontConfuse"), dont ? `<ul class="vc-list">${dont}</ul>` : "")}
+        ${sec(T("card.whyWrong"), whyRows ? `<ul class="vc-list vc-why">${whyRows}</ul>` : "")}
         ${miss}
         <div class="vc-meta">${meta}</div>`;
+    },
+    // "today", "yesterday", "3 days ago"
+    ago(day) {
+      const d = G.Clock.today() - day;
+      return T(d <= 0 ? "learn.dueToday" : d === 1 ? "card.yesterday" : "card.daysAgo", { n: d });
     },
     // H3: the right word in a few lines
     miniHtml(pair, opts) {

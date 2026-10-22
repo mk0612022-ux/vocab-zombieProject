@@ -235,9 +235,12 @@ window.G = window.G || {};
       if (streak != null) rows.push([T("study.statStreak"), T(streak === 1 ? "study.day" : "study.days", { n: streak })]);
       $("study-result-stats").innerHTML = rows.map(([k, v]) => `<div class="sr-stat"><b>${esc(v)}</b><span>${esc(k)}</span></div>`).join("");
       const missed = s.cards.filter((p) => s.done[G.wordKey(p)] === "wrong");
-      // (round 3, H3) each word missed in context: a sentence, a collocation, its sound
+      // (round 3, H3) each word missed in context; (overhaul, round 7) explained
+      // in full: the word taken for it, or the letters typed, and why -- else
+      // (bitten, never answered) the word with its example
+      const log = game.explainLog || {};
       $("study-result-missed").innerHTML = missed.length
-        ? `<div class="qm-title">${esc(T("quiz.review"))}</div>` + missed.map((p) => G.VocabCard.miniHtml(p)).join("")
+        ? `<div class="qm-title">${esc(T("quiz.review"))}</div>` + missed.map((p) => `<div class="qm-row qm-xp">${G.Explain.html(log[G.wordKey(p)] || G.Explain.build({ pair: p, right: false }), true)}</div>`).join("")
         : "";
       G.VocabCard.bind($("study-result-missed"));
       const btns = [];
@@ -278,7 +281,7 @@ window.G = window.G || {};
       game.player.score = 0;
       game.zombies.forEach((z) => { game.scene.remove(z.mesh); G.disposeObject3D(z.mesh); });
       game.zombies = [];
-      game.targetPair = null; game._attempt = null;
+      game.targetPair = null; game._attempt = null; game.explainLog = {};
       game.wave = 0;
       game.state = "GAMEPLAY"; game.paused = false;
       G.UI.setHudVisible(true);

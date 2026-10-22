@@ -818,6 +818,9 @@ window.G = window.G || {};
       if (!t) return;
       const pair = this.pair, right = S.isRight(t, pair), hints = this.pad.hints || 0;
       G.Learning.answerWord(pair, right, { recall: true, assisted: hints > 0, typed: t, source: "reload", skills: ["spelling"] });
+      // (overhaul, round 7) the fight goes on round this window: the answer
+      // explained on the card under the word box, as a shot's is (js/explain.js)
+      G.ExplainCard.show(right ? G.Explain.build({ pair, right: true, type: "spell" }) : G.Explain.answer({ pair, typed: t, right: false, type: "spell" }));
       if (right) {
         this.result = "full"; G.Audio.sfx("correct");
         // (round 3: right without its accents -- the word as written, a moment, before the window goes)

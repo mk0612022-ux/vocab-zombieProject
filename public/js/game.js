@@ -61,6 +61,8 @@ G.Game = {
     // the menus in the UI language (js/strings.js read it from the save early)
     G.Lang.apply();
     if (G.setUILang && G.save.settings.uiLang !== G.lang) G.setUILang(G.save.settings.uiLang, { quiet: true });
+    // (overhaul, round 7) the answers' explanations in the languages chosen (js/explain.js)
+    if (G.Explain) G.Explain.preload();
     if (isFirstRun) {
       // Phones/tablets start on medium so the first frame isn't a slideshow.
       // matchMedia("pointer: coarse") is what actually catches an iPad --
@@ -358,6 +360,9 @@ G.Game = {
     this._continues = 0;         // times this run came back from its checkpoint (J4)
     if (G.Floor3) G.Floor3.reset(this);
     if (G.Hud) G.Hud.reset();   // (overhaul, round 6) nothing of the last run stays on the HUD
+    // (overhaul, round 7) the last wrong answer on each word, explained (a study session's end shows them)
+    this.explainLog = {};
+    if (G.ExplainCard) G.ExplainCard.hide();
     this.zombies.forEach((z) => { this.scene.remove(z.mesh); G.disposeObject3D(z.mesh); });
     this.zombies = [];
     this.drops.forEach((d) => { this.scene.remove(d.mesh); G.disposeObject3D(d.mesh); });
@@ -1326,6 +1331,8 @@ G.Game = {
       if ((G.save.settings.speechMode || "after") === "after") G.Audio.speak(z.word);
       const prevStat = G.wordStat(z.pair), prevWrong = !!prevStat && prevStat.wrong > 0;
       this.learnRight(z, spelled);
+      // (overhaul, round 7) "✓ consist of (V.) = <its meaning>" under the word box
+      if (z.word) G.ExplainCard.show(G.Explain.forShot(z, true, this.targetPair, this.targetClue));
       this.player.combo++;
       if (this.player.combo >= 50) G.unlockAchievement("streak50");
       // (round 3: a word's length in its language -- a Chinese character counts as three letters)
@@ -1421,10 +1428,21 @@ G.Game = {
     G.Learning.answerWord(tp, false, { picked: shot, skills: G.Learning.skillsFor(this.targetClue && this.targetClue.kind, "shoot") });
     if (att && att.key === key) att.wrong = true;
   },
-  // (A4) a look-alike shot by mistake: what it means, beside the word wanted
+  // (A4) a look-alike shot by mistake: what it means, beside the word wanted;
+  // (overhaul, round 7) any word shot by mistake: the card under the word box
+  // -- "✗ provide = <meaning> · ✓ consist of = <meaning>" -- its cause kept on
+  // the word; with the cards off in Settings, the old banners
   showConfusion(z, tp) {
     if (!tp) return;
     const tc = this.targetClue;
+    const ex = z.word ? G.Explain.forShot(z, false, tp, tc) : null;
+    if (ex) (this.explainLog = this.explainLog || {})[G.wordKey(ex.y.pair)] = ex;
+    if (ex && G.ExplainCard.on()) {
+      G.ExplainCard.show(ex);
+      // (G3) Listening: the word that was said, said again
+      if (tc && tc.kind === "audio") G.Audio.speak(tp[0]);
+      return;
+    }
     // (round 3, G3) Listening: the word that was said -- its syllables, the
     // stressed one in capitals, and what it means -- and it is said again
     if (tc && tc.kind === "audio") {
@@ -1482,6 +1500,9 @@ G.Game = {
     } else if (G.SRS.typedWord(typed, z.pair)) G.SRS.noteConfusion(z.pair, typed);
     this.trackWrongWord(z.word, z.meaning);
     G.Quiz.noteMissed(this, z.word);
+    // (overhaul, round 7) the letters that differ and the word, on the card under the word box
+    const ex = G.Explain.answer({ pair: z.pair, form: z.spellPair ? z.spellPair[0] : null, spellPair: z.spellPair, typed, right: false, clue: z.clueKind || "thai", answer: "spell", cloze: z.cloze });
+    if (ex) { (this.explainLog = this.explainLog || {})[G.wordKey(ex.y.pair)] = ex; G.ExplainCard.show(ex); }
     const pl = this.player;
     if (pl.comboShield && pl.comboShield.charged && pl.combo > 0) { pl.comboShield.charged = false; pl.comboShield.streak = 0; }
     else pl.combo = 0;
@@ -1836,7 +1857,8 @@ G.Game = {
   challengeKey(e) {
     const c = this.challenge;
     if (!c) return false;
-    if (c.stage === "reveal") { if (e.code === "Enter" || e.code === "Space" || e.code === "Escape" || e.code === "KeyE") this.closeChallengeReveal(); return true; }
+    // (overhaul, round 7) the explanation: Enter / Space / E / Esc go on, M for More; 1-4 do nothing
+    if (c.stage === "reveal") { if (!G.ExplainView.key(c.xv, e) && (e.code === "Escape" || e.code === "KeyE")) this.closeChallengeReveal(); return true; }
     G.QuestionView.key(e, c.q, this.challengeView && this.challengeView.pad, this.challengeHandlers());
     return true;
   },
@@ -1864,44 +1886,42 @@ G.Game = {
       // the wrong-word list used to be fed `this.challenge` AFTER it had been
       // cleared, so every missed challenge was recorded under the word "null"
       this.wrongCount++; this.trackWrongWord(c.pair[0], c.pair[1]);
-      this.revealChallenge(k);
-      return;
-    }
-    const cb = c.onSuccess;
-    G.UI.setChallengeVisible(false);
-    this.challenge = null;
-    this.correctCount++;
-    cb && cb();
-    // closed after the callback: a crate it opens keeps the cursor free
-    G.Modal.close("challenge");
+    } else this.correctCount++;
+    // (overhaul, round 7) right too: the answer explained before going on --
+    // the door, the crate, the reward wait for Continue (or Auto-continue)
+    this.revealChallenge(k, correct);
   },
   // (round 3, H3) wrong, or out of time: the right answer and the word in
-  // context -- a sentence, a collocation, its sound -- until Continue
-  revealChallenge(k) {
+  // context until Continue; (overhaul, round 7) explained, right or wrong
+  // (js/explain.js) -- a right one goes on by itself after Auto-continue
+  revealChallenge(k, right) {
     const c = this.challenge;
-    c.stage = "reveal";
-    G.UI.showChallengeReveal(c.q, k, this.challengeView, () => this.closeChallengeReveal());
-    G.Audio.sfx("wrong");
-    G.Audio.speak(c.q.answerText || c.pair[0]);
+    c.stage = "reveal"; c.right = !!right;
+    c.ex = G.Explain.forQuestion(c.q, k, !!right, true);
+    c.xv = G.UI.showChallengeReveal(c.q, k, this.challengeView, () => this.closeChallengeReveal(), c.ex, right ? G.ExplainView.autoSeconds() : 0);
+    G.Audio.sfx(right ? "correct" : "wrong");
+    if (!right || (G.save.settings.speechMode || "after") !== "off" || c.q.speak) G.Audio.speak(c.q.answerText || c.pair[0]);
   },
   closeChallengeReveal() {
     const c = this.challenge;
     if (!c || c.stage !== "reveal") return;
-    const cb = c.onFail;
+    if (c.xv) c.xv.closed = true;
+    const cb = c.right ? c.onSuccess : c.onFail;
     G.UI.setChallengeVisible(false);
     this.challenge = null;
     cb && cb();
+    // closed after the callback: a crate it opens keeps the cursor free
     G.Modal.close("challenge");
   },
   // (tests and the playtest bot) the open question answered right or wrong,
-  // whatever its kind; a wrong one goes on past its reveal
+  // whatever its kind; it goes on past its explanation
   answerChallengeAs(right) {
     const c = this.challenge;
     if (!c) return;
     const q = c.q;
     if (q.spell) this.answerChallenge(right ? q.pair[0] : "qqqqq");
     else this.answerChallenge(right ? q.answer : (q.answer + 1) % q.choices.length);
-    if (!right) this.closeChallengeReveal();
+    this.closeChallengeReveal();
   },
 
   // Shove a zombie `dist` along (dx, dz) in short steps, stopping at the
@@ -3370,6 +3390,9 @@ G.Game = {
 
   updateChallengeTimer(dt) {
     const c = this.challenge;
+    // (overhaul, round 7) the question's clock stops while its answer is
+    // explained; a right one's Auto-continue runs instead
+    if (c && c.stage === "reveal") { G.ExplainView.tick(c.xv, dt); return; }
     if (!c || c.stage !== "question") return;
     c.timeLeft -= dt;
     G.UI.setChallengeTimer(c.timeLeft / c.timeLimit);

@@ -313,11 +313,12 @@ G.Round14Test = (function () {
     const sk0 = G.save.learn.skills.spelling.r, ls0 = G.save.learn.skills.listening.r;
     Pr.answerAs(true);
     ok("D right: counted, its skills too", Pr.right === 1 && G.save.learn.skills.spelling.r === sk0 + 1 && G.save.learn.skills.listening.r === ls0 + 1 && $("practice-feedback").classList.contains("ok"));
-    await wait(G.CONFIG.quiz.feedback * 1000 + 120);
+    // (overhaul, round 7: explained, then on by itself after Settings > Auto-continue)
+    await wait(G.ExplainView.autoSeconds() * 1000 + 200);
     ok("D ...then the next question by itself", Pr.i === 1 && Pr.stage === "question");
     const q1 = Pr.qs[1];
     Pr.answerAs(false);
-    ok("D wrong: the word's mini card and Continue", !!$("practice-feedback").querySelector(".vc-mini") && !!$("practice-feedback").querySelector(".qf-next") && G.SRS.box(q1.pair) === 1 && G.wordStat(q1.pair).wrong >= 1);
+    ok("D wrong: the explanation and Continue", !!$("practice-feedback").querySelector(".xp .xp-why") && !!$("practice-feedback").querySelector(".qf-next") && G.SRS.box(q1.pair) === 1 && G.wordStat(q1.pair).wrong >= 1);
     press("Enter");
     ok("D ...Enter goes on", Pr.i === 2 && Pr.stage === "question");
     // typing a spelling with the keys

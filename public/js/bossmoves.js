@@ -1371,6 +1371,8 @@
         G.Audio.sfx("correct");
         G.recordWordResult(ans, true);
         M.hint(T("boss.move.choice.right", { w: ans[0] }), 3);
+        // (overhaul, round 7) the card under the word box (js/explain.js)
+        G.ExplainCard.show(G.Explain.build({ pair: ans, right: true, type: "th2en" }));
         M.stats.dodged++;
       } else if (res === "timeout") M.hint(null);
     };
@@ -1405,6 +1407,7 @@
                 M.hurt(game, C.wrongDamage, { src: "choice" });
                 G.recordWordResult(ans, false);
                 if (game.trackWrongWord) game.trackWrongWord(ans[0], ans[1]);
+                G.ExplainCard.show(G.Explain.answer({ pair: ans, picked: w, right: false, type: "th2en" }));
                 if (figs.every((f) => f.real || f.clone.popped)) finish("revealed");
               };
               figs.push({ real: false, root: c.root, clone: c });

@@ -145,6 +145,10 @@ window.G = window.G || {};
         + row({ id: "set-spellreload", name: T("settings.spellReload"), ctl: toggle("set-spellreload", !!s.spellReload), desc: T("settings.spellReloadDesc") })
         + row({ id: "set-highlight", name: T("settings.highlightTarget"), ctl: toggle("set-highlight", !!s.highlightTarget), desc: T("settings.highlightDesc") })
         + row({ id: "set-cluethai", name: T("settings.clueThaiName"), ctl: seg("set-cluethai", s.clueThai || "auto", [["auto", T("settings.clueThaiAutoShort")], ["always", T("settings.clueThaiAlways")], ["never", T("settings.clueThaiNever")]]), desc: T("settings.clueThaiDesc") })
+        // (overhaul, round 7) the answers explained (js/explain.js)
+        + row({ id: "set-explaindetail", name: T("settings.explainDetail"), ctl: seg("set-explaindetail", s.explainDetail || "short", [["short", T("settings.explainShort")], ["full", T("settings.explainFull")]]), desc: T("settings.explainDetailDesc") })
+        + row({ id: "set-autocontinue", name: T("settings.autoContinue"), ctl: seg("set-autocontinue", s.autoContinue == null ? 2 : s.autoContinue, [[0, T("settings.autoContinueOff")], [2, T("settings.secondsShort", { n: 2 })], [4, T("settings.secondsShort", { n: 4 })]]), desc: T("settings.autoContinueDesc") })
+        + row({ id: "set-explaincards", name: T("settings.explainCards"), ctl: toggle("set-explaincards", s.explainCards !== false), desc: T("settings.explainCardsDesc") })
         + row({ id: "btn-settings-customvocab", name: T("settings.customVocab", { n: G.CustomVocab.count() }), ctl: button("btn-settings-customvocab", T("settings.customVocabBtn")), desc: T("settings.customVocabDesc") });
     },
     // (round 3, H1) the three languages, each of the four named in its own
@@ -258,6 +262,9 @@ window.G = window.G || {};
           if (G.Game.zombies) G.Game.zombies.forEach((z) => { if (z.alive) { z._label = null; z.setTarget(z.isTarget); } });
         },
         "set-cluethai": (v) => { s.clueThai = v; },
+        "set-explaindetail": (v) => { s.explainDetail = v; },
+        "set-autocontinue": (v) => { s.autoContinue = parseInt(v, 10); },
+        "set-explaincards": (v) => { s.explainCards = v; if (!v && G.ExplainCard) G.ExplainCard.hide(); },
         "set-gamespeed": (v) => { s.gameSpeed = v; return times(v); },
         "set-fontsize": (v) => { s.fontSize = v; G.UI.applyFontSizeClass(); },
         "set-colorblind": (v) => { s.colorblindMode = v; if (G.Game.state === "GAMEPLAY" && G.Game.buildWeaponViewModel) G.Game.buildWeaponViewModel(); },

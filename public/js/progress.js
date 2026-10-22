@@ -138,6 +138,11 @@ window.G = window.G || {};
       const rects = segs.filter((s) => s.v > 0).map((s) => { const w = max ? (s.v / max) * 100 : 0; const r = `<rect x="${x.toFixed(2)}" y="0" width="${w.toFixed(2)}" height="10" fill="${s.color}"/>`; x += w; return r; }).join("");
       return `<svg class="pg-bar" viewBox="0 0 100 10" preserveAspectRatio="none" role="img" aria-label="${esc(label)}"><rect x="0" y="0" width="100" height="10" class="pg-track"/>${rects}</svg>`;
     },
+    // (overhaul, round 7) why it was missed last: " · ✗ effect · look-alike" (js/explain.js)
+    lastWhy(pair) {
+      const h = G.Explain ? G.Explain.history(pair) : [];
+      return h.length ? " · " + G.Explain.historyText(h[h.length - 1]) : "";
+    },
     // a word the player can open
     wordBtn(pair, extra) {
       const i = this._words.push(pair) - 1;
@@ -171,7 +176,7 @@ window.G = window.G || {};
       // 4. the words missed most
       this._missed = d.missed.map((m) => m.pair);
       const missed = this.card("pg-missed", T("progress.missed", { n: P().topMissed }), d.missed.length
-        ? `<div class="pg-words">${d.missed.map((m) => this.wordBtn(m.pair, T("progress.missedTimes", { n: m.wrong }))).join("")}</div>
+        ? `<div class="pg-words">${d.missed.map((m) => this.wordBtn(m.pair, T("progress.missedTimes", { n: m.wrong }) + this.lastWhy(m.pair))).join("")}</div>
            <div class="row-center"><button class="btn btn-primary" id="btn-progress-practise" type="button">🎯 ${esc(T("progress.practise"))}</button></div>`
         : `<p class="pg-empty">${esc(T("progress.missedNone"))}</p>`);
       // 5. the last thirty days, and the streak

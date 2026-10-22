@@ -123,6 +123,34 @@ input (keyboard/mouse/touch/pad) ──คำขอ──▶ WeaponStateMachine 
 | 0/6 (ฟ้า) | ถ้าไม่มีขั้นตอนชั้น 3: เป้าหมายแรกที่ยังไม่เสร็จและมีตัวนับ (คำที่ตอบถูก ห้อง กุญแจ บันทึก บอส — ไม่นับ "รอดครบเวฟ" ที่อยู่บนแถบหัวแล้ว และความแม่นยำที่เป็น %) | `obj.short.*` |
 | แถบหัวกล่องคำถาม | ชื่อด่าน (ตัวเล็ก ซ่อนบนจอแคบ < 600 px — อยู่ในหน้า pause แทน) · Wave `wave/level.waves` (Endless/Daily = เลขเวฟอย่างเดียว, overtime ต่อท้าย) · Zombies left `ที่เหลือ/โควตาเวฟ` (`requiredKills`) · ระหว่างบอส = BOSS · Daily Review/บทเรียน = ความคืบหน้าของ session | `hud.wave*`, `hud.zombiesLeft*`, `hud.bossWave` |
 
+### คำอธิบายคำตอบ (รอบ 7)
+ทุกจุดที่ตอบคำ เรียก `G.Explain` หลังบันทึกคำตอบ (`G.Learning.answerWord` เดิม) — การอ่านคำอธิบายไม่เปลี่ยนกล่อง SRS
+
+```
+คำถาม (G.Questions.build: q.cloze / q.colloc เก็บไว้)      ยิง / สะกด (z.pair, targetPair, targetClue, z.decoy)
+             │ forQuestion(q, k, right, record)                         │ forShot(z, right, tp, tc) / answer({...})
+             ▼                                                          ▼
+                   G.Explain.build(o) → ex {right, cause, x, y, why, example{text, tr}, tip, colls, family}
+                          │  ภาษา: Meaning Language (G.EXPLAIN[l], js/data/explain_<l>.js) → UI → อังกฤษ
+                          │  answer(o) = build + remember(ex) → G.save.learn.why[คีย์คำ] (5 ครั้งล่าสุด)
+            ┌─────────────┴──────────────┐
+  G.ExplainView.show(el, ex, {onContinue, auto})      G.ExplainCard.show(ex) → #hud-xcard (ใต้กล่องคำถาม)
+  quiz.js / ui.js showChallengeReveal / practice.js    game.js onZombieDeath, spellMiss; spell.js reload; bossmoves.js choice
+  key(): Enter/Space/M; tick(dt): Auto-continue         รวมการ์ดยิงผิดติดกัน, 2 วิ / 3.5 วิ (G.CONFIG.explain)
+```
+
+| จุด | เมื่อไร | แสดงที่ |
+|---|---|---|
+| แบบทดสอบท้ายเวฟ (`quiz.js`) | ทุกข้อ ถูก/ผิด/หมดเวลา | `#quiz-feedback`; จบแล้ว `review()` → `#quiz-missed` (ผิด = เต็ม, ถูก = สั้น + More) |
+| ประตู กล่อง กับดัก ช่อง บอส กุญแจชั้น 3 (`game.js startWordChallenge`) | ทุกข้อ: `stage "reveal"` ทั้งถูกและผิด, callback รอ Continue / Auto-continue (`updateChallengeTimer` → `tick`) | `#hud-challenge-reveal` |
+| Practice (`practice.js`) | ทุกข้อ | `#practice-feedback` |
+| ยิงคำ / Daily Review / Learning Modes (`game.js onZombieDeath → showConfusion`) | ยิงผิด (ซอมบี้ที่มีคำ), ยิงถูก | การ์ด `#hud-xcard`; จบ session → `#study-result-missed` จาก `game.explainLog` |
+| สะกดระหว่างเล่น (`spellMiss`), Spell to Reload, The Examiner | ผิด / ถูก | การ์ด |
+| การ์ดคำศัพท์ (`vocabcard.js`), Progress (`progress.js lastWhy`) | ประวัติ `learn.why` | หัวข้อ "ทำไมถึงตอบผิด", ข้างคำที่ผิดบ่อย |
+
+- ข้อมูล: `G.EXPLAIN.<th|zh|fr> = { t (template), confusableNotes {"a|b"}, spelling {id}, explain {id}, ex {id: [ประโยคแปลตามลำดับ]} }` — ตรวจและนับด้วย `tools/validate-words.ps1`
+- Settings: `explainDetail` (short/full), `autoContinue` (0/2/4 วิ), `explainCards` (true/false) — normalize ใน `G.normalizeSave`
+
 ## 5. เวลาเกม (Game Time)
 - ใหม่: `G.Clock` — `t` (game time วินาที), `dt`, `paused`; เดินเฉพาะตอน `G.Game.state === "GAMEPLAY"` และไม่มี modal แบบ pause
 - ระบบที่ตอนนี้ใช้ `performance.now()`/`requestAnimationFrame` เอง (ปลอกกระสุน, hit particle fallback, glance note, เอฟเฟกต์บางตัว) จะย้ายมาใช้ `G.Clock` ทีละรอบ

@@ -122,7 +122,9 @@ G.Round13Test = (function () {
     const realBanner = G.UI.flashPurchaseBanner;
     G.UI.flashPurchaseBanner = (a, b) => { banner = a + " | " + b; };
     kill(g, fam[0]);
-    ok("B ...the wrong form shot: wrong, and why", G.SRS.box(ind) === 1 && /Wrong form/.test(banner), banner);
+    // (overhaul, round 7: the card under the word box in place of the banner)
+    const card1 = document.getElementById("hud-xcard").textContent;
+    ok("B ...the wrong form shot: wrong, and why (the card; its cause kept)", G.SRS.box(ind) === 1 && card1.includes(fam[0].word) && G.Explain.history(ind).slice(-1)[0].c === "form", card1);
     aim(g, z); g._attempt.wrong = false; put(ind, 3, 0);
     kill(g, z);
     ok("B a Context clue is a recall answer too: box 3 -> 4", G.SRS.box(ind) === 4);
@@ -151,7 +153,8 @@ G.Round13Test = (function () {
     G.save.settings.playOnce = false;
     banner = "";
     kill(g, o2);
-    ok("B a wrong shot: the word, its syllables, its meaning -- and it is said again", /You heard/.test(banner) && banner.includes(ben[0]) && banner.includes(G.Clues.stressText(ben)) && spoken[spoken.length - 1] === ben[0], banner);
+    const card2 = document.getElementById("hud-xcard").textContent;
+    ok("B a wrong shot: the word, its syllables, its meaning -- and it is said again", card2.includes(ben[0]) && card2.includes(G.Clues.stressText(ben)) && card2.includes(ben[1]) && spoken[spoken.length - 1] === ben[0], card2);
     put(ben, 3, 0); aim(g, z); g._attempt.wrong = false;
     kill(g, z);
     ok("B Listening is recognition: box 3 stays 3", G.SRS.box(ben) === 3);
@@ -269,7 +272,8 @@ G.Round13Test = (function () {
       G.Quiz.next();
       const q1 = G.Quiz.qs[1];
       G.Quiz.answer((q1.answer + 1) % 4);
-      ok("D quiz: a wrong answer shows the word in a sentence, a collocation and its sound", !!$("quiz-feedback").querySelector(".vc-mini .vc-mini-ex") && !!$("quiz-feedback").querySelector(".vc-say") && !!$("quiz-feedback").querySelector(".qf-next"));
+      // (overhaul, round 7: the explanation -- js/explain.js -- in place of the mini card)
+      ok("D quiz: a wrong answer shows the words, why, and its sound", !!$("quiz-feedback").querySelector(".xp .xp-why") && !!$("quiz-feedback").querySelector(".vc-say") && !!$("quiz-feedback").querySelector(".qf-next"));
       G.Quiz.update(1.5);
       ok("D ...and stays up longer than a right one", G.Quiz.stage === "feedback");
       press("Enter", "Enter");
@@ -282,7 +286,7 @@ G.Round13Test = (function () {
     g.startWordChallenge("Lock", () => { res = "ok"; }, () => { res = "fail"; }, { pair: P("assess"), time: 8, type: "listen" });
     ok("D the question box: a Listening question says its word", spoken[spoken.length - 1] === "assess");
     g.answerChallenge((g.challenge.q.answer + 1) % 4);
-    ok("D ...wrong: the reveal (mini card, Continue), the callback waits", g.challenge && g.challenge.stage === "reveal" && !$("hud-challenge-reveal").classList.contains("hidden") && !!$("hud-challenge-reveal").querySelector(".vc-mini") && res === null);
+    ok("D ...wrong: the reveal (explained, Continue), the callback waits", g.challenge && g.challenge.stage === "reveal" && !$("hud-challenge-reveal").classList.contains("hidden") && !!$("hud-challenge-reveal").querySelector(".xp") && res === null);
     ok("D ...a controller can press Continue (B backs out)", G.Pad.scope() === $("hud-challenge-box") && !!$("hud-challenge-reveal").querySelector("[data-pad-back]"));
     press("Enter", "Enter");
     ok("D ...Continue: then the wrong answer's callback", res === "fail" && !g.challenge && !G.Modal.isOpen("challenge"));
@@ -291,7 +295,10 @@ G.Round13Test = (function () {
     ok("D the question box: a spelling question, extra seconds", g.challenge.q.spell && !!$("hud-challenge-choices").querySelector(".spad") && g.challenge.timeLimit === 8 + G.CONFIG.quiz.extraSeconds.spell);
     "assess".split("").forEach((c) => press("Key" + c.toUpperCase(), c));
     press("Enter", "Enter");
-    ok("D ...spelt right: the callback at once", res === "ok" && !g.challenge);
+    // (overhaul, round 7: a right answer is explained too, then Continue)
+    ok("D ...spelt right: explained, the callback waits for Continue", res === null && g.challenge && g.challenge.stage === "reveal" && g.challenge.right);
+    press("Enter", "Enter");
+    ok("D ...Continue: the callback", res === "ok" && !g.challenge);
     put(P("assess"), 2, 0); res = null;
     g.startWordChallenge("Lock", () => {}, () => { res = "fail"; }, { pair: P("assess"), time: 2, type: "th2en" });
     g.updateChallengeTimer(3);

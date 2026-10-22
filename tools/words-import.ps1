@@ -39,7 +39,7 @@ foreach ($e in $entries) {
 }
 foreach ($lv in 1, 2, 3) { Write-BankFile $root $lv $byLevel[$lv] }
 $conf = @($lexRows | Where-Object { ([string]$_.headword).Trim() } | ForEach-Object {
-    [pscustomobject]@{ headword = ([string]$_.headword).Trim(); partOfSpeech = ([string]$_.partOfSpeech).Trim(); thai = ([string]$_.thai).Trim(); definition = ([string]$_.definition).Trim() }
+    [pscustomobject]@{ headword = ([string]$_.headword).Trim(); partOfSpeech = ([string]$_.partOfSpeech).Trim(); thai = ([string]$_.thai).Trim(); zh = ([string]$_.zh).Trim(); pinyin = ([string]$_.pinyin).Trim(); fr = ([string]$_.fr).Trim(); definition = ([string]$_.definition).Trim() }
   })
 Write-ConfusablesFile $root $conf
 "Imported $($entries.Count) word families ($($byLevel[1].Count) / $($byLevel[2].Count) / $($byLevel[3].Count)) and $($conf.Count) confusables"

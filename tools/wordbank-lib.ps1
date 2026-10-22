@@ -222,7 +222,10 @@ function Read-CsvFile([string]$path) {
 
 function Write-ConfusablesFile([string]$root, $items) {
   $lines = @($items | Sort-Object { ([string]$_.headword).ToLowerInvariant() } | ForEach-Object {
-      $o = [ordered]@{ headword = [string]$_.headword; partOfSpeech = [string]$_.partOfSpeech; thai = [string]$_.thai; definition = [string]$_.definition }
+      $o = [ordered]@{ headword = [string]$_.headword; partOfSpeech = [string]$_.partOfSpeech; thai = [string]$_.thai }
+      # (overhaul, round 7) the Chinese (with its pinyin) and French meanings, when it has them
+      foreach ($k in 'zh', 'pinyin', 'fr') { if ([string]$_.$k) { $o[$k] = [string]$_.$k } }
+      $o['definition'] = [string]$_.definition
       ConvertTo-JsonValue $o
     })
   $body = if ($lines.Count) { "[`n" + ($lines -join ",`n") + "`n]" } else { '[]' }

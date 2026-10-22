@@ -211,6 +211,8 @@
       <button class="hud-thai hidden" id="hud-thai" type="button" data-i18n-aria="hud.showThai"><span data-i18n="hud.showThaiShort"></span> <span class="kbd-only hud-thai-key" id="hud-thai-key"></span></button>
       <button class="hud-speak icon-btn" id="hud-speak" data-i18n-aria="hud.hearAgain" data-label-key="hud.hearShort" data-tip-key="hud.hearAgain">🔊</button>
     </div>
+    <!-- (overhaul, round 7) an answer while shooting, explained in a line (js/explain.js G.ExplainCard) -->
+    <div class="hud-xcard hidden" id="hud-xcard" role="status" aria-live="polite"></div>
     <!-- (round 2) the boss's health: name and title over a big red bar -->
     <div class="hud-boss-bar hidden" id="hud-boss-bar" role="progressbar" data-i18n-aria="hud.boss">
       <div class="hud-boss-name" id="hud-boss-name"></div>
@@ -854,6 +856,7 @@ window.addEventListener("load", function () {
 <script defer src="js/study.js"></script>
 <script defer src="js/questions.js"></script>
 <script defer src="js/vocabcard.js"></script>
+<script defer src="js/explain.js"></script>
 <script defer src="js/practice.js"></script>
 <script defer src="js/campstyle.js"></script>
 <script defer src="js/progress.js"></script>

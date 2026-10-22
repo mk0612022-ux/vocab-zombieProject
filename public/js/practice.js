@@ -12,8 +12,9 @@
 //                times (and a share of their answers), the most missed first
 // A session is up to G.CONFIG.practice.words of them, the ones due first.
 // Each answer counts like any other (G.Learning.answerWord): a right answer
-// on a word not yet due moves no box, as everywhere. A wrong one shows the
-// word's mini card until Continue. The Progress page's "Practise these"
+// on a word not yet due moves no box, as everywhere. Every answer is
+// explained (overhaul, round 7, js/explain.js): a wrong one until Continue, a
+// right one until Auto-continue says. The Progress page's "Practise these"
 // starts a session on its list at once (G.Practice.startList).
 // Mouse, touch, keys (1-4, typing, Enter, Esc) and a controller (D-pad, A).
 // ===================================================================
@@ -184,6 +185,7 @@ window.G = window.G || {};
     },
     next() {
       clearTimeout(this._t);
+      if (this.xv) { this.xv.closed = true; this.xv = null; }
       if (!this.active) return;
       this.i++;
       if (this.i >= this.qs.length) { this.finish(); return; }
@@ -240,19 +242,17 @@ window.G = window.G || {};
         $("practice-choices").querySelectorAll(".quiz-choice").forEach((b, i) => { b.disabled = true; b.classList.toggle("is-right", i === q.answer); b.classList.toggle("is-wrong", i === k && !right); });
       }
       const fb = $("practice-feedback");
-      if (right) {
-        // (round 3) right without its accents: the word as written
-        const fix = q.spell && typeof k === "string" ? G.Spell.accentFix(k, G.Questions.spellTarget(q)) : "";
-        fb.textContent = fix ? T("quiz.right") + " " + T("spell.accentNote") + " " + fix : T("quiz.right"); fb.className = "quiz-feedback ok";
-        this._t = setTimeout(() => this.next(), G.CONFIG.quiz.feedback * 1000);
-      } else {
-        fb.innerHTML = `<div class="qf-line">${esc(T("quiz.wrong", { a: G.Questions.rightText(q) }))}</div>` + G.VocabCard.miniHtml(q.pair, { form: q.answerText }) +
-          `<button class="btn btn-primary qf-next" type="button">${esc(T("quiz.next"))} <span class="kbd-only dlg-key">(Enter)</span></button>`;
-        fb.className = "quiz-feedback bad";
-        G.VocabCard.bind(fb);
-        fb.querySelector(".qf-next").onclick = () => this.next();
-        if (G.Input.mode !== "touch") setTimeout(() => { const b = fb.querySelector(".qf-next"); if (b && this.stage === "feedback") b.focus({ preventScroll: true }); }, 0);
-      }
+      // (round 3) right without its accents: the word as written
+      const fix = right && q.spell && typeof k === "string" ? G.Spell.accentFix(k, G.Questions.spellTarget(q)) : "";
+      const head = right ? (fix ? T("quiz.right") + " " + T("spell.accentNote") + " " + fix : T("quiz.right")) : T("quiz.wrong", { a: G.Questions.rightText(q) });
+      // (overhaul, round 7) explained, right or wrong, until Continue -- a right
+      // one goes on by itself after Settings > Auto-continue (js/explain.js)
+      q.ex = G.Explain.forQuestion(q, k, right, true);
+      fb.innerHTML = `<div class="qf-line">${esc(head)}</div><div class="qf-xp"></div>`;
+      fb.className = "quiz-feedback " + (right ? "ok" : "bad");
+      this.xv = G.ExplainView.show(fb.querySelector(".qf-xp"), q.ex, { onContinue: () => { if (this.stage === "feedback") this.next(); }, label: T("quiz.next") });
+      const auto = right ? G.ExplainView.autoSeconds() : 0;
+      if (auto) this._t = setTimeout(() => { if (this.xv && !this.xv.held) this.xv.done(); }, auto * 1000);
       G.Audio.sfx(right ? "correct" : "wrong");
       if ((G.save.settings.speechMode || "after") !== "off" || q.speak) G.Audio.speak(q.answerText || q.pair[0]);
       this.counters();
@@ -289,7 +289,7 @@ window.G = window.G || {};
     key(e) {
       if (e.code === "Escape") { this.quit(); return true; }
       if (this.stage === "question") { G.QuestionView.key(e, this.qs[this.i], this.view && this.view.pad, this.handlers()); return true; }
-      if (this.stage === "feedback") { if (e.code === "Enter" || e.code === "Space" || e.code === "NumpadEnter") { if (e.preventDefault) e.preventDefault(); this.next(); } return true; }
+      if (this.stage === "feedback") { G.ExplainView.key(this.xv, e); return true; }
       return true;
     },
   };

@@ -23,7 +23,9 @@
 // answers in a row with X in view -- and the Daily Review streak (C4).
 //
 // Saved as G.save.learn = { v, srs: {key: {b, due, last, n, lapses}},
-// conf: {Y: {X: {n, ok, off}}}, daily: {streak, best, last, nextDue, days} }
+// conf: {Y: {X: {n, ok, off}}}, daily: {streak, best, last, nextDue, days},
+// why: {key: [{d, c, x, t}]} } -- `why` (v 2, overhaul round 7): the causes of
+// the word's last wrong answers (js/explain.js)
 // under the word keys of G.wordKey. G.Learning.normalize makes any stored
 // value valid, and fills it from the old statistics the first time (C5).
 // ===================================================================
@@ -48,7 +50,8 @@ G.Learning = {
     // (round 4: skills -- right / wrong by kind of task, for the Progress
     // page; activity -- words answered a day; spellRun -- right spellings in
     // a row, for Spelling Bee)
-    const out = { v: 1, srs: {}, conf: {}, daily: { streak: 0, best: 0, last: null, nextDue: null, days: {} }, skills: {}, activity: {}, spellRun: 0 };
+    // (overhaul, round 7: why -- the causes of a word's last wrong answers, js/explain.js)
+    const out = { v: 2, srs: {}, conf: {}, daily: { streak: 0, best: 0, last: null, nextDue: null, days: {} }, skills: {}, activity: {}, spellRun: 0, why: {} };
     this.SKILLS.forEach((k) => { out.skills[k] = { r: 0, w: 0 }; });
     if (!r) {
       // C5: a player from before: every word the old statistics knew starts
@@ -97,6 +100,17 @@ G.Learning = {
     const act = obj(r.activity) || {};
     Object.keys(act).forEach((k) => { const n = int(act[k], 0, 1e6, 0); if (/^\d+$/.test(k) && n > 0) out.activity[k] = n; });
     out.spellRun = int(r.spellRun, 0, 1e7, 0);
+    // (overhaul, round 7) a save from before (v 1) has none; otherwise each
+    // word's list kept as it was, entries of a known cause only, the last few
+    const causes = G.Explain ? G.Explain.CAUSES : ["meaning", "confusable", "form", "pos", "colloc", "context", "spelling", "word", "timeout"];
+    const keep = (G.CONFIG && G.CONFIG.explain && G.CONFIG.explain.history) || 5;
+    const why = obj(r.why) || {};
+    Object.keys(why).forEach((k) => {
+      if (!k || !Array.isArray(why[k])) return;
+      const list = why[k].filter((h) => obj(h) && causes.includes(h.c)).slice(-keep)
+        .map((h) => ({ d: int(h.d, 0, 1e7, today), c: h.c, x: String(h.x == null ? "" : h.x).slice(0, 40), t: String(h.t == null ? "" : h.t).slice(0, 12) }));
+      if (list.length) out.why[k] = list;
+    });
     return out;
   },
   // (round 4, I) the kinds of task the Progress page shows accuracy for

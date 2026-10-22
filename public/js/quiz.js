@@ -15,10 +15,13 @@
 //                round 2: look-alikes for a word being learnt, clearly
 //                different words for a new one -- js/distract.js). Fifteen seconds; out
 //                of time is a mistake. The answer shows at once -- the right
-//                one lit green, a wrong pick red -- then the next.
+//                one lit green, a wrong pick red -- and (overhaul, round 7)
+//                explained (js/explain.js): a wrong one until Continue, a
+//                right one going on by itself after Settings > Auto-continue.
 //   the window   a G.Modal window that pauses everything; "Correct: X/6" and
 //                "Mistakes: X/2" all the while; at the end, passed or not and
-//                the words missed. Keys 1-4 (weapon keys do nothing while it
+//                the review: the words missed explained in full, then the
+//                ones got right. Keys 1-4 (weapon keys do nothing while it
 //                is open), a tap or a click, or a controller's D-pad and A.
 // Every answer goes into the long-term word statistics and the word's memory
 // box (G.Learning.answerWord), so a word missed here comes up more often, and onto the run's list of
@@ -83,6 +86,7 @@
       this.next();
     },
     next() {
+      if (this.xv) { this.xv.closed = true; this.xv = null; }
       this.i++;
       if (this.i >= this.qs.length) { this.finish(); return; }
       this.stage = "question"; this.t = 0;
@@ -159,20 +163,19 @@
       const ans = G.Questions.rightText(q);
       // (round 3) right without its accents (French, Strict accents off): the word as written
       const fix = right && q.spell && typeof k === "string" ? G.Spell.accentFix(k, G.Questions.spellTarget(q)) : "";
-      if (right) { fb.textContent = fix ? T("quiz.right") + " " + T("spell.accentNote") + " " + fix : T("quiz.right"); fb.className = "quiz-feedback ok"; }
-      else {
-        // (H3) the right word in context: a sentence, a collocation, its sound
-        fb.innerHTML = `<div class="qf-line">${esc(k === -1 ? T("quiz.timeUp", { a: ans }) : T("quiz.wrong", { a: ans }))}</div>` + G.VocabCard.miniHtml(q.pair, { form: q.answerText }) +
-          `<button class="btn btn-primary qf-next" type="button">${esc(T("quiz.next"))} <span class="kbd-only dlg-key">(Enter)</span></button>`;
-        fb.className = "quiz-feedback bad";
-        G.VocabCard.bind(fb);
-        fb.querySelector(".qf-next").onclick = () => this.next();
-        if (G.Input.mode !== "touch") setTimeout(() => { const b = fb.querySelector(".qf-next"); if (b && this.stage === "feedback") b.focus({ preventScroll: true }); }, 0);
-      }
+      const head = right ? (fix ? T("quiz.right") + " " + T("spell.accentNote") + " " + fix : T("quiz.right")) : T(k === -1 ? "quiz.timeUp" : "quiz.wrong", { a: ans });
+      // (overhaul, round 7) the answer explained, right or wrong (js/explain.js):
+      // a wrong one stays until Continue -- the clock waits -- a right one goes
+      // on by itself after Settings > Auto-continue
+      q.ex = G.Explain.forQuestion(q, k, right, true);
+      fb.innerHTML = `<div class="qf-line">${esc(head)}</div><div class="qf-xp"></div>`;
+      fb.className = "quiz-feedback " + (right ? "ok" : "bad");
+      this.xv = G.ExplainView.show(fb.querySelector(".qf-xp"), q.ex, { onContinue: () => { if (this.stage === "feedback") this.next(); }, label: T("quiz.next"), auto: right ? G.ExplainView.autoSeconds() : 0 });
       G.Audio.sfx(right ? "correct" : "wrong");
       if ((G.save.settings.speechMode || "after") !== "off" || q.speak) G.Audio.speak(q.answerText || q.pair[0]);
       this.counters();
-    },    finish() {
+    },
+    finish() {
       this.stage = "result";
       const passed = this.mistakes <= C().maxMistakes;
       this.passed = passed;
@@ -183,12 +186,33 @@
       el("quiz-result").classList.toggle("fail", !passed);
       el("quiz-verdict").textContent = T(passed ? "quiz.passed" : "quiz.failed");
       el("quiz-verdict-sub").textContent = T(passed ? "quiz.passedSub" : "quiz.failedSub", { x: this.correct, n: this.qs.length });
-      el("quiz-missed").innerHTML = this.missed.length
-        ? `<div class="qm-title">${esc(T("quiz.review"))}</div>` + this.missed.map((p) => `<div class="qm-row"><b${G.Lang.attr(p, 0)}>${G.Lang.html(p, 0)}${G.POS.tag(p)}</b><span${G.Lang.attr(p, 1)}>${G.Lang.html(p, 1)}</span></div>`).join("")
-        : `<div class="qm-none">${esc(T("quiz.noneMissed"))}</div>`;
+      // (overhaul, round 7) the review, the game still paused: the words missed
+      // first, each explained in full; then the ones got right, short, each
+      // with More
+      this.review(el("quiz-missed"), this.qs);
       G.Audio.sfx(passed ? "unlock" : "wrong");
       this.counters();
       if (G.Input.mode !== "touch") setTimeout(() => { const b = el("btn-quiz-continue"); if (b && this.active) b.focus({ preventScroll: true }); }, 0);
+    },
+    // the questions answered, explained (q.ex): into `box`
+    review(box, qs) {
+      const done = qs.filter((q) => q.ex);
+      const wrong = done.filter((q) => !q.ex.right), right = done.filter((q) => q.ex.right);
+      box.innerHTML = (wrong.length
+        ? `<div class="qm-title">${esc(T("quiz.review"))}</div>` + wrong.map((q) => `<div class="qm-row qm-xp">${G.Explain.html(q.ex, true)}</div>`).join("")
+        : `<div class="qm-none">${esc(T("quiz.noneMissed"))}</div>`)
+        + (right.length ? `<div class="qm-title qm-title-ok">${esc(T("quiz.reviewRight"))}</div>` + right.map((q, i) => `<div class="qm-right"><div class="qm-xp">${G.Explain.html(q.ex, false)}</div>${G.Explain.hasMore(q.ex) ? `<button class="btn qm-more" type="button" data-r="${i}" aria-expanded="false">${esc(T("explain.more"))}</button>` : ""}</div>`).join("") : "");
+      G.VocabCard.bind(box);
+      box.querySelectorAll(".qm-more").forEach((b) => {
+        b.onclick = () => {
+          const open = b.getAttribute("aria-expanded") !== "true", row = b.parentNode.querySelector(".qm-xp");
+          row.innerHTML = G.Explain.html(right[+b.dataset.r].ex, open);
+          G.VocabCard.bind(row);
+          b.setAttribute("aria-expanded", open);
+          b.textContent = T(open ? "explain.less" : "explain.more");
+        };
+      });
+      box.scrollTop = 0;
     },
     close() {
       if (!this.active || this.stage !== "result") return;
@@ -210,11 +234,12 @@
       if (this.stage === "question") {
         this.timerBar();
         if (this.t >= this.limit) this.answer(-1);
-      } else if (this.stage === "feedback" && this.t >= (this.qs[this.i] && this.qs[this.i].right ? C().feedback : C().wrongFeedback)) this.next();
+      } else if (this.stage === "feedback") G.ExplainView.tick(this.xv, dt);
     },
     key(e) {
       if (this.stage === "question") { G.QuestionView.key(e, this.qs[this.i], this.view && this.view.pad, this.handlers()); return true; }
-      if (this.stage === "feedback") { if (e.code === "Enter" || e.code === "Space") this.next(); return true; }
+      // (the explanation: Enter / Space go on, M for More; 1-4 do nothing)
+      if (this.stage === "feedback") { G.ExplainView.key(this.xv, e); return true; }
       if (this.stage === "result" && (e.code === "Enter" || e.code === "Space" || e.code === "KeyE")) this.close();
       return true;
     },

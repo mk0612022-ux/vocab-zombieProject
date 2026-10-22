@@ -20,6 +20,11 @@
 #     syllable per character, zhPos) and French (word, frPos, frGender m / f /
 #     m/f for a noun) are there, NFC accents, none repeated in a level
 #   - every confusable is in the bank or in the confusables lexicon
+#   - (overhaul, round 7) the explanations, public/js/data/explain_th|zh|fr.js:
+#     every example translated, in order, notes only on words and pairs of
+#     the bank; reports the coverage of each language and lists the pairs,
+#     misspellings and examples still on the templates (-ListTemplates: and
+#     every word with no hand-written note)
 #   - topic from the fixed list; awlSublist 1-10; the AWL complete: all
 #     570 families, each in the sublist the official list gives it
 #     (Coxhead's AWL, Victoria University of Wellington -- checked against
@@ -27,11 +32,12 @@
 # and prints the counts by level and topic.
 #
 #   powershell -ExecutionPolicy Bypass -File .\tools\validate-words.ps1
+#   ... -ListTemplates  also lists every word whose explanation is templates only
 #   ... -Partial     while the bank is still being built: skips the
 #                    "AWL complete" and level-size checks
 # Exit code 0 when clean, 1 when anything is wrong.
 # ===================================================================
-param([switch]$Partial, [switch]$Quiet)
+param([switch]$Partial, [switch]$Quiet, [switch]$ListTemplates)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $utf8 = [Text.Encoding]::UTF8
@@ -321,6 +327,88 @@ if (-not $Partial) {
   }
 }
 
+# ---------------- the explanations (overhaul, round 7) ----------------
+# public/js/data/explain_<th|zh|fr>.js, one entry per line inside
+# Object.assign(G.EXPLAIN.<lang>.<block>, { ... }): the example sentences
+# translated (ex), notes on confusable pairs (confusableNotes), on
+# misspellings (spelling) and on words (explain). English needs no file:
+# its templates are in js/explain.js and the examples are English.
+$xpReport = New-Object System.Collections.Generic.List[string]
+$byIdX = @{}; foreach ($e in $entries) { $byIdX[[string]$e.id] = $e }
+# the pairs the bank asks for a note on: a word and each of its confusables (as the
+# bank or lexicon headword), lower case, in alphabetical order
+$pairKeys = @{}
+foreach ($e in $entries) {
+  foreach ($c in @($e.confusables)) {
+    if (-not $c) { continue }
+    $w = ([string]$c).ToLowerInvariant()
+    $other = if ($formOwner.ContainsKey($w) -and $byIdX.ContainsKey($formOwner[$w])) { ([string]$byIdX[$formOwner[$w]].headword).ToLowerInvariant() } else { $w }
+    $k = @(([string]$e.headword).ToLowerInvariant(), $other) | Sort-Object
+    $pairKeys[($k -join '|')] = $true
+  }
+}
+$missWords = @($entries | Where-Object { @($_.commonMisspellings | Where-Object { $_ }).Count } | ForEach-Object { [string]$_.id })
+$sentTotal = 0; foreach ($e in $entries) { $sentTotal += @($e.examples | Where-Object { $_ }).Count }
+foreach ($l in 'th', 'zh', 'fr') {
+  $path = Join-Path $root "public/js/data/explain_$l.js"
+  if (-not (Test-Path $path)) { Err "missing file public/js/data/explain_$l.js"; continue }
+  $blocks = @{ ex = @{}; confusableNotes = @{}; spelling = @{}; explain = @{} }
+  $block = $null; $n = 0
+  foreach ($line in [IO.File]::ReadAllLines($path, $utf8)) {
+    $n++
+    if ($line -match '^Object\.assign\(G\.EXPLAIN\.(\w+)\.(\w+), \{$') {
+      if ($Matches[1] -ne $l) { Err "[explain_$l.js] line $n : block of G.EXPLAIN.$($Matches[1])" }
+      $block = $Matches[2]
+      if (-not $blocks.ContainsKey($block)) { Err "[explain_$l.js] line $n : unknown block '$block'"; $block = $null }
+      continue
+    }
+    if ($line -match '^\}\);') { $block = $null; continue }
+    if (-not $block) { continue }
+    if ($line -notmatch '^"([^"]+)":\s*(.+?),?\s*$') { Err "[explain_$l.js] line $n : not one entry per line"; continue }
+    $key = $Matches[1]
+    try { $val = $Matches[2] | ConvertFrom-Json } catch { Err "[explain_$l.js] line $n : '$key' is not valid JSON"; continue }
+    if ($blocks[$block].ContainsKey($key)) { Err "[explain_$l.js] $block '$key' twice" }
+    $blocks[$block][$key] = $val
+  }
+  # examples: every sentence of every entry, in order, none empty
+  $exOk = 0; $sentOk = 0; $noEx = New-Object System.Collections.Generic.List[string]
+  foreach ($e in $entries) {
+    $want = @($e.examples | Where-Object { $_ }).Count
+    $got = if ($blocks.ex.ContainsKey([string]$e.id)) { @($blocks.ex[[string]$e.id] | ForEach-Object { $_ }) } else { @() }
+    $full = @($got | Where-Object { ([string]$_).Trim() }).Count
+    if ($got.Count -and $got.Count -ne $want) { Err "[explain_$l.js] ex '$($e.id)' has $($got.Count) sentences, the bank $want" }
+    $sentOk += [Math]::Min($full, $want)
+    if ($want -and $full -ge $want) { $exOk++ } else { $noEx.Add([string]$e.id) }
+  }
+  foreach ($k in $blocks.ex.Keys) { if (-not $byIdX.ContainsKey($k)) { Err "[explain_$l.js] ex '$k' is not a word of the bank" } }
+  foreach ($k in @($blocks.spelling.Keys) + @($blocks.explain.Keys)) { if (-not $byIdX.ContainsKey($k)) { Err "[explain_$l.js] note '$k' is not a word of the bank" } }
+  foreach ($k in $blocks.confusableNotes.Keys) {
+    $p = $k -split '\|'
+    if ($p.Count -ne 2 -or ((($p | Sort-Object) -join '|') -ne $k)) { Err "[explain_$l.js] confusable pair '$k' is not two words in alphabetical order" }
+    elseif (-not $pairKeys.ContainsKey($k)) { Warn "[explain_$l.js] confusable note '$k' is on no pair of the bank" }
+  }
+  # the Thai notes and sentences are Thai; the others have none
+  foreach ($b in 'ex', 'confusableNotes', 'spelling', 'explain') {
+    foreach ($k in $blocks[$b].Keys) {
+      $text = (@($blocks[$b][$k]) -join ' ')
+      $hasThai = $text -match $THAI
+      if ($l -eq 'th' -and $b -eq 'ex' -and -not $hasThai) { Warn "[explain_th.js] ex '$k' has no Thai letters" }
+      if ($l -ne 'th' -and $hasThai) { Err "[explain_$l.js] $b '$k' has Thai letters" }
+    }
+  }
+  $pairsMissing = @($pairKeys.Keys | Where-Object { -not $blocks.confusableNotes.ContainsKey($_) } | Sort-Object)
+  $spellMissing = @($missWords | Where-Object { -not $blocks.spelling.ContainsKey($_) })
+  $pct = { param($a, $b) if ($b) { [Math]::Round(100.0 * $a / $b, 1) } else { 100 } }
+  $xpReport.Add("  ${l}: examples $exOk/$($entries.Count) words ($(& $pct $exOk $entries.Count)%), $sentOk/$sentTotal sentences; confusable pairs $($pairKeys.Count - $pairsMissing.Count)/$($pairKeys.Count) ($(& $pct ($pairKeys.Count - $pairsMissing.Count) $pairKeys.Count)%); misspellings $($missWords.Count - $spellMissing.Count)/$($missWords.Count); word notes $($blocks.explain.Count)")
+  if ($noEx.Count) { $xpReport.Add("      examples still English only: " + (($noEx | Select-Object -First 40) -join ', ') + $(if ($noEx.Count -gt 40) { " ... ($($noEx.Count))" } else { '' })) }
+  if ($pairsMissing.Count) { $xpReport.Add("      pairs on the template: " + ($pairsMissing -join ', ')) }
+  if ($spellMissing.Count) { $xpReport.Add("      misspellings on the template: " + ($spellMissing -join ', ')) }
+  if ($ListTemplates) {
+    $plain = @($entries | Where-Object { -not $blocks.explain.ContainsKey([string]$_.id) -and -not $blocks.spelling.ContainsKey([string]$_.id) } | ForEach-Object { [string]$_.id })
+    $xpReport.Add("      words with no hand-written note ($($plain.Count), templates only): " + ($plain -join ', '))
+  }
+}
+
 # ---------------- report ----------------
 if (-not $Quiet) {
   "Word bank: $($entries.Count) entries, $($lexicon.Count) confusables"
@@ -334,6 +422,8 @@ if (-not $Quiet) {
   "  AWL families: $($awlHeads.Count) of 570 -- by sublist: " + (($bySub | ForEach-Object { "$($_.Name):$($_.Count)" }) -join '  ')
   "  parts of speech: " + (($POS_ORDER | Where-Object { $posCount[$_] } | ForEach-Object { "${_}:$($posCount[$_])" }) -join '  ') + "  (two of them: $posTwo)"
   "  languages: en th zh fr in every entry -- needs review: $($needsReview.Count)$(if ($needsReview.Count) { ' -- ' + ($needsReview -join ', ') })"
+  "  explanations (js/explain.js; en: templates, English examples):"
+  $xpReport
   foreach ($w in $warnings) { "  WARNING $w" }
 }
 if ($errors.Count) {

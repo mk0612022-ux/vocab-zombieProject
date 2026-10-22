@@ -204,6 +204,8 @@ G.WordBank = (function () {
       if (Array.isArray(w)) {
         const e = (w.id && byId.get(w.id)) || (G.Lang.wl(w) === "en" ? byKey.get(low(w[0])) : null);
         if (e) return e;
+        // (overhaul, round 7) a confusables-lexicon word: its entry (part of speech, definition)
+        if (w.lexicon && lexicon.has(low(w[0]))) return lexicon.get(low(w[0]));
         const x = w[2] && typeof w[2] === "object" ? w[2] : {};
         return {
           id: low(w[0]), headword: String(w[0]), thai: String(w[1] || ""), custom: true,

@@ -458,6 +458,9 @@ G.Bot = {
               }
               Q.answer(k);
             }
+          } else if (Q.stage === "feedback" && quizT > 1.5) {
+            // (overhaul, round 7) the answer explained: read a moment, then Continue
+            quizT = 0; Q.next();
           } else if (Q.stage === "result") {
             (R.quizzes = R.quizzes || []).push({ wave: g.wave, right: Q.correct, of: Q.qs.length, passed: Q.passed, words: Q.log.words.length, asked: Q.log.asked.slice() });
             ev(t, "quiz wave " + g.wave + ": " + Q.correct + "/" + Q.qs.length + (Q.passed ? " passed" : " FAILED"));
