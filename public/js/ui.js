@@ -118,11 +118,16 @@ G.UI = {
     this.applyFontSizeClass();
   },
 
+  // (overhaul, round 8) UI scale: the text of every menu, window and the HUD
+  // (sized in rem) at 90% / 100% / 112%; and the screen effects' strength
   applyFontSizeClass() {
     document.body.classList.remove("font-small", "font-large");
     const fs = G.save.settings.fontSize;
     if (fs === "small") document.body.classList.add("font-small");
     if (fs === "large") document.body.classList.add("font-large");
+    document.documentElement.style.fontSize = (G.CONFIG.ui && G.CONFIG.ui.textScale[fs]) || "";
+    if (G.Access) G.Access.apply();
+    if (G.Hud && G.Hud.refit) G.Hud.refit();
   },
 
   // ---------------- Main menu ----------------

@@ -73,9 +73,7 @@ G.Hud = (function () {
     update(p) {
       if (!this.built) this.init();
       const touch = document.body.classList.contains("touch-mode");
-      // (the abilities' column only while there are some -- keyboard and controller)
-      const noAb = touch || $("hud-abilities").classList.contains("hidden");
-      if (shown.noAb !== noAb) { flag($("hud-dock"), "dock", "no-ab", noAb); shown.noAb = noAb; this.refit(); }
+      if (this.syncAb(touch)) this.refit();
       // the header over the word
       const H = p.head || {};
       text($("hud-level-name"), "lvl", H.level || "");
@@ -175,6 +173,14 @@ G.Hud = (function () {
       }, { passive: false });
     },
     refit() { clearTimeout(this._fitT); this._fitT = setTimeout(() => this.fit(), 30); },
+    // the abilities' column only while there are some (keyboard and
+    // controller); fit() asks too, so a paused game's HUD is laid out right
+    syncAb(touch) {
+      const noAb = touch || $("hud-abilities").classList.contains("hidden");
+      if (shown.noAb === noAb) return false;
+      flag($("hud-dock"), "dock", "no-ab", noAb); shown.noAb = noAb;
+      return true;
+    },
     // the controls a thumb holds at the bottom of a touch screen, where the
     // stylesheet puts them (the pause chip and the ability row are not among
     // them; a button the player has moved is kept off the HUD instead --
@@ -208,6 +214,7 @@ G.Hud = (function () {
       if (this._frozen) return this.publish();
       dock.style.left = l + "px"; dock.style.right = r + "px"; dock.style.bottom = b + "px";
       dock.classList.toggle("lifted", lifted);
+      this.syncAb(touch);
       // wide if all of it fits in a line, else the panel over the slots
       dock.classList.remove("narrow");
       const fits = dock.scrollWidth <= dock.clientWidth + 1 && dock.getBoundingClientRect().width <= W - l - r + 1;

@@ -459,10 +459,41 @@ G.Game = {
     // (M: all of the forest shown for the compile -- its shaders made now,
     // during the load, not the first time a side of it comes into view)
     if (G.Forest) G.Forest.showAll();
+    // (overhaul, round 8: the stress test) what a fight first makes on its
+    // first hit, death or blast -- the zombies' blocks and dust
+    // (js/zombiefx.js), a word label, a blast's sparks -- in the scene for
+    // the compile and the level's first two frames (the labels are drawn in
+    // a pass of their own), so those shaders are made now and not mid-wave
+    this.warmPieces().forEach((o) => this.scene.add(o));
+    this._warmFrames = 3;
     this.scene.updateMatrixWorld(true);
     try { this.renderer.compile(this.scene, this.camera); } catch (e) { /* best effort */ }
     if (G.Visuals) G.Visuals.afterCompile(this);
     if (G.Forest) G.Forest.update(this, 0, true);
+  },
+  // stand-ins wearing the same materials as a label and a blast's sparks --
+  // nothing to see: an empty label, a spark at no opacity (kept from level to
+  // level: a shader lives while a material still uses it); the zombies'
+  // pools are the real ones, hidden afterwards until their first piece
+  warmPieces() {
+    if (!this._warm) {
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(3), 3));
+      this._warm = [G.makeWordSprite("", {}), new THREE.Points(geo, new THREE.PointsMaterial({ size: 0.06, transparent: true, opacity: 0 })),
+        // (a plain flat colour: a wound, gore torn off in a blast)
+        new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.01, 0.01), new THREE.MeshBasicMaterial({ color: 0, transparent: true, opacity: 0 }))];
+      this._warm.forEach((o) => { o.frustumCulled = false; });
+    }
+    if (G.ZombieFX) { G.ZombieFX.blocks(this.scene).mesh.visible = true; G.ZombieFX.smoke(this.scene).mesh.visible = true; }
+    return this._warm;
+  },
+  endWarm() {
+    (this._warm || []).forEach((o) => { if (o.parent) o.parent.remove(o); });
+    if (G.ZombieFX && this.scene) {
+      const B = G.ZombieFX.blocks(this.scene), S = G.ZombieFX.smoke(this.scene);
+      if (!B.live) B.mesh.visible = false;
+      if (!S.live) S.mesh.visible = false;
+    }
   },
   startLayoutPreview() {
     if (this.state === "GAMEPLAY" || this.state === "PAUSE") return false;
@@ -914,6 +945,8 @@ G.Game = {
   renderFrame() {
     const r = this.renderer, sc = this.scene, cam = this.camera;
     if (!r || !sc || !cam) return;
+    // (overhaul, round 8: warmPieces -- drawn in the level's first two frames, then gone)
+    if (this._warmFrames && --this._warmFrames === 0) this.endWarm();
     // (visual series: the HDR frame, its film, the words on top -- js/visuals.js)
     if (G.Visuals && G.Visuals.ready) { G.Visuals.render(this); return; }
     r.info.reset();
@@ -1267,8 +1300,8 @@ G.Game = {
   switchProgress() { return this.wsm ? this.wsm.switchProgress() : null; },
   // a hit taken: the gun flinches, and the view a little (both by the Camera Shake setting)
   onPlayerHurt(frac) {
-    const cs = G.save.settings.cameraShake;
-    const k = Math.min(1, frac * 8) * G.CONFIG.weaponSM.flinch * (cs == null ? 1 : cs);
+    // (overhaul, round 8: G.Access -- Reduce Motion calms it too)
+    const k = Math.min(1, frac * 8) * G.CONFIG.weaponSM.flinch * G.Access.shake();
     if (k <= 0.01) return;
     G.ViewModel.flinch(k);
     this.pitchObject.rotation.x += 0.012 * k;
@@ -1650,8 +1683,8 @@ G.Game = {
   // The view shakes (a boss landing, a roar); gentler with head bob off.
   shake(a, d) {
     // (overhaul, round 1: and the Camera Shake setting, 0 = none)
-    const cs = G.save.settings.cameraShake;
-    const k = (G.save.settings.headBobOff ? 0.3 : 1) * (cs == null ? 1 : cs);
+    // (round 8: and Reduce Motion, G.Access)
+    const k = (G.save.settings.headBobOff ? 0.3 : 1) * G.Access.shake();
     this._shakeA = Math.max(this._shakeA || 0, a * k);
     this._shakeT = Math.max(this._shakeT || 0, d);
   },

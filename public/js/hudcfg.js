@@ -27,6 +27,9 @@
   };
   // the boxes that must not overlap each other or leave the screen
   const BOXES = ["#hud-dock", "#hud-minimap", ".hud-meaning-box"];
+  // (overhaul, round 8) ...and what only has to stay on the screen: the
+  // speaker sits half outside the word box's edge
+  const EDGES = ["#hud-speak"];
 
   G.HudCfg = {
     PARTS: Object.keys(PARTS),
@@ -101,10 +104,11 @@
       const boxes = BOXES.map((s) => this.visibleBox(s)).filter(Boolean);
       const btns = document.body.classList.contains("touch-mode") ? G.TouchCfg.IDS.map((id) => this.visibleBox("#touch-" + id)).filter(Boolean) : [];
       const hit = (a, b) => a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1;
-      const out = [];
+      const off = (a) => a.left < I.l - 1 || a.top < I.t - 1 || a.right > W - I.r + 1 || a.bottom > H - I.b + 1;
+      const out = EDGES.map((s) => this.visibleBox(s)).filter((b) => b && off(b.r)).map((b) => "off:" + b.sel);
       for (let i = 0; i < boxes.length; i++) {
         const a = boxes[i].r;
-        if (a.left < I.l - 1 || a.top < I.t - 1 || a.right > W - I.r + 1 || a.bottom > H - I.b + 1) out.push("off:" + boxes[i].sel);
+        if (off(a)) out.push("off:" + boxes[i].sel);
         for (let j = i + 1; j < boxes.length; j++) if (hit(a, boxes[j].r)) out.push(boxes[i].sel + "|" + boxes[j].sel);
         for (const b of btns) if (hit(a, b.r)) out.push(boxes[i].sel + "|" + b.sel);
       }

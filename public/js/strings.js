@@ -71,6 +71,7 @@ G.STRINGS = {
 
     // ---- how to play ----
     "howto.title": "How to Play",
+    "howto.body2": "<h3>The HUD</h3><ul><li>Bottom centre: <b>Savings</b> (money) and ★ score, your health (%) and the blue stamina bar, a row of slots (knife, pistol, Slot 2-4: the guns you carry) and, on the right, what is in your hand: its name, magazine / reserve (amber when low, red RELOAD when empty), the level's mission and the floor you are on</li><li>Top: the word box with the level, the wave and the zombies left. A short card under it explains each word you shoot</li><li><b>G</b> inspects the gun in your hand (touch: the Reload button when the magazine is full; controller: X with a full magazine)</li></ul><h3>The ten zombies</h3><ul><li><b>Shambler</b>: slow; shoot its word calmly, mind the crowds</li><li><b>Sprinter</b> (from wave 3): fast; answer quickly, shoot it when it stumbles</li><li><b>Crawler</b> (wave 4): low to the ground; its word label always shows above it</li><li><b>Bloater</b> (wave 6): swells and bursts when it dies; kill it from afar or step back as it swells</li><li><b>Screamer</b> (wave 7): looks up and screams: the others speed up and more come. Shoot its word as soon as it looks up</li><li><b>Ironclad</b> (wave 8): armoured; knock its helmet off for headshots, or hit its arms and legs</li><li><b>Runt</b> (wave 9): small and quick; aim low</li><li><b>Headless</b> (wave 11): carries its head, which is its weak spot</li><li><b>Reacher</b> (wave 12): long arms; keep 2.6 m away and back off when it raises them</li><li><b>Abomination</b> (wave 13): huge, one at a time; answer from a distance, mind its reach</li><li>Every zombie still needs its right word: no special move counts as an answer</li></ul><h3>Answer explanations</h3><ul><li>Every answer is explained: the word you chose and the right one (part of speech and meaning), why, an example sentence with its translation, and a tip on common IELTS mistakes</li><li>In a question window <b>Enter</b>, <b>Space</b>, <b>A</b> or a tap continues and <b>M</b> shows more; the clock stops while you read. The end-of-wave review shows the words you missed first</li><li>Settings &gt; Gameplay: short or full explanations, Auto-continue after a right answer (Off, 2 s, 4 s), and the cards while shooting. Your vocabulary cards remember why you got a word wrong</li></ul>",
     "howto.body": "<p>The top of the screen shows the <strong>meaning</strong> of a word — find the zombie carrying the word with that meaning and shoot it! (Settings &gt; Language: the language of the words, and of their meanings.)</p>"
       + "<ul><li><b>WASD</b> move, <b>Mouse</b> look, <b>Left click</b> shoot, <b>Hold right click</b> aim (zoom)</li>"
       + "<li><b>R</b> reload, <b>E</b> use / pick up, <b>Shift</b> sprint (uses the blue stamina bar, which refills when you stop)</li>"
@@ -92,12 +93,12 @@ G.STRINGS = {
       + "<ul><li><b>Paraphrase</b> (English words): the box at the top gives an English definition (≈ similar meaning). New words show the meaning under it; later, <b>0</b> (or the meaning button) shows it, but then the answer does not move the word's box</li>"
       + "<li><b>Listening</b>: the zombies carry meanings; listen and shoot the right one. <b>Dictation</b>: the zombies have no labels; aim at one to hear its word, then spell it. Hear it again: <b>9</b>, 🔊 or the controller's <b>View</b>. Settings: accent, speed, Play Once</li>"
       + "<li><b>Context</b>: a sentence with a gap; shoot the zombie with the word that fills it, in the right form (indicate, indication, indicative...)</li>"
-      + "<li>The end-of-wave quiz, the boss's question and the vocabulary locks ask eight kinds of question: meanings both ways, definitions, gaps, collocations, paraphrases, listening and spelling. A wrong answer shows the word in a sentence</li>"
+      + "<li>The end-of-wave quiz, the boss's question and the vocabulary locks ask eight kinds of question: meanings both ways, definitions, gaps, collocations, paraphrases, listening and spelling. Every answer is explained (see Answer explanations below)</li>"
       + "<li>The <b>Word Log</b>: click a word for its vocabulary card. In story notes, the level's words are underlined: tap one to look it up</li></ul>"
       + "<h3>Learning style, practice and progress</h3>"
       + "<ul><li>Before a campaign level, pick its <b>Learning Style</b>: <b>Adaptive</b> (each word asked by its box: the panel at the top says which clue), <b>Classic</b> (meaning, shoot), or your own clue and answer. In the campaign every zombie carries its word, so an Audio clue means: listen, then shoot the word you hear</li>"
       + "<li><b>Learning Modes</b> and <b>Practice Mode</b>: a ready-made mode or your own pairing of a clue (Meaning, Definition, Audio, Sentence gap) and an answer (Shoot, Spell), on a level's words or a topic's. Practice has no zombies and no clock, and filters: level, topic, memory box, words you often get wrong</li>"
-      + "<li><b>Progress</b> (📈, top right of the lobby): your words by box, the Academic Word List sublist by sublist, accuracy by topic and by skill, the words you miss most (with Practise these), the last 30 days, your streak and what comes due. Game progress (scores, guns) has its own tab</li></ul>",
+      + "<li><b>Progress</b> (Main Menu &gt; Learn): your words by box, the Academic Word List sublist by sublist, accuracy by topic and by skill, the words you miss most (with Practise these), the last 30 days, your streak and what comes due. Game progress (scores, guns) has its own tab</li></ul>",
 
     // ---- settings ----
     "settings.title": "Settings",
@@ -117,7 +118,7 @@ G.STRINGS = {
     "settings.showDraws": "Show draw call count",
     "settings.quality": "Graphics quality",
     "settings.qVlow": "Very Low", "settings.qLow": "Low", "settings.qMedium": "Medium", "settings.qHigh": "High", "settings.qVhigh": "Very High",
-    "settings.fontSize": "Text size",
+    "settings.fontSize": "UI scale",
     "settings.fontSmall": "Small", "settings.fontMedium": "Medium", "settings.fontLarge": "Large",
     "settings.colorblind": "Colorblind mode",
     "settings.headBobOff": "Camera bob off",
@@ -1534,7 +1535,7 @@ G.STRINGS = {
     "home.item.weapons": "WEAPONS", "home.item.bosses": "BOSSES", "home.item.ranks": "RANKS", "home.item.awards": "AWARDS", "home.item.settings": "SETTINGS", "home.item.help": "HELP",
     "home.sound": "Click / tap to enable sound", "home.rotate": "Turn your device sideways for the best view",
     "lobby.back": "Main Menu",
-    "settings.reduceMotion": "Reduce Motion", "settings.reduceMotionDesc": "Holds the Main Menu's camera still (no sway, no parallax).",
+    "settings.reduceMotion": "Reduce Motion", "settings.reduceMotionDesc": "Holds the Main Menu's camera still, calms camera shake and the walking bob, softens the screen effects and keeps flickering lights steady.",
     // (overhaul, round 6) the HUD at the bottom centre (js/hud.js) and its header
     "hud.savings": "Savings", "hud.health": "Health", "hud.stamina": "Stamina",
     "hud.slotEmpty": "Slot {n}", "hud.slotKnife": "Knife", "hud.slotPistol": "Pistol", "hud.melee": "Melee", "hud.reloadNow": "Reload", "hud.noAmmo": "No ammo",
@@ -1588,13 +1589,17 @@ G.STRINGS = {
     "settings.meanLang": "Meaning language", "settings.meanLangDesc": "The language of the meanings. It cannot be the word language.",
     // Accessibility
     "settings.gameSpeedName": "Game speed", "settings.gameSpeedDesc": "Slows the whole game down, or speeds it up.",
-    "settings.fontSizeDesc": "The size of the text in menus and windows.",
+    "settings.fontSizeDesc": "The size of the text in menus, windows and the HUD: 90%, 100% or 112%.",
     "settings.colorblindDesc": "Adds a letter to each weapon rarity, not just its colour.",
     "settings.headBobName": "Camera bob", "settings.headBobDesc": "How much the view moves as you walk and run.",
     // (overhaul, round 1) the weapon: settings, the inspect key, the weapon
     // families, the debug overlay (?debug=1) and the Weapon Lab (?lab=weapons)
     "key.inspect": "Inspect weapon",
     "settings.muzzleFlash": "Muzzle flash", "settings.muzzleFlashDesc": "How bright each shot's flash is. At 0% there is no light, only a faint flash at the muzzle.",
+    "settings.weaponBob": "Weapon bob",
+    "settings.weaponBobDesc": "How much the gun in your hands bobs and sways as you walk and run.",
+    "settings.screenEffects": "Screen effects",
+    "settings.screenEffectsDesc": "How strong the effects over the whole screen are: the red edge when you are hit, low health, Focus Time, a boss's lightning, a mystery box.",
     "debug.fx": "FX: particles {p}/{pb} · bullet holes {d}/{db} · brass {s}",
     // (overhaul, round 3) the sound in the debug overlay, the stress test, the Sound Lab (?lab=sound)
     "debug.audio": "Sound: {n}/{t} voices · peak {p} dB · room {z}", "debug.stress": "Stress", "debug.stressStop": "Stop stress",

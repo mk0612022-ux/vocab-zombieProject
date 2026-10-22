@@ -47,6 +47,7 @@ G.STRINGS.fr = {
 
     // ---- how to play ----
     "howto.title": "Comment jouer",
+    "howto.body2": "<h3>Le HUD</h3><ul><li>En bas au centre : <b>Savings</b> (l'argent) et le score ★, la santé (%) et la barre d'endurance bleue, une rangée d'emplacements (couteau, pistolet, emplacements 2-4 : les armes que vous portez) et, à droite, ce que vous tenez : son nom, chargeur / réserve (ambre quand il en reste peu, RELOAD en rouge quand il est vide), la mission du niveau et l'étage où vous êtes</li><li>En haut : la case du mot avec le niveau, la vague et les zombies restants. Une petite carte en dessous explique chaque mot que vous tirez</li><li><b>G</b> inspecte l'arme en main (tactile : le bouton Recharger quand le chargeur est plein ; manette : X avec un chargeur plein)</li></ul><h3>Les dix zombies</h3><ul><li><b>Shambler</b> : lent ; tirez son mot calmement, attention aux groupes</li><li><b>Sprinter</b> (dès la vague 3) : rapide ; répondez vite, tirez quand il trébuche</li><li><b>Crawler</b> (vague 4) : au ras du sol ; l'étiquette de son mot reste toujours visible au-dessus</li><li><b>Bloater</b> (vague 6) : enfle et éclate quand il meurt ; tuez-le de loin ou reculez dès qu'il enfle</li><li><b>Screamer</b> (vague 7) : lève la tête et hurle : les autres accélèrent et d'autres arrivent. Tirez son mot dès qu'il lève la tête</li><li><b>Ironclad</b> (vague 8) : en armure ; faites tomber son casque pour viser la tête, ou visez bras et jambes</li><li><b>Runt</b> (vague 9) : petit et vif ; visez bas</li><li><b>Headless</b> (vague 11) : porte sa tête à la main, c'est son point faible</li><li><b>Reacher</b> (vague 12) : longs bras ; restez à 2,6 m et reculez quand il les lève</li><li><b>Abomination</b> (vague 13) : énorme, une à la fois ; répondez de loin, attention à son allonge</li><li>Chaque zombie demande toujours son bon mot : aucune attaque spéciale ne compte comme réponse</li></ul><h3>Explications des réponses</h3><ul><li>Chaque réponse est expliquée : le mot choisi et le bon mot (nature et sens), pourquoi, une phrase d'exemple avec sa traduction et une astuce sur les erreurs fréquentes à l'IELTS</li><li>Dans une fenêtre de question, <b>Entrée</b>, <b>Espace</b>, <b>A</b> ou un toucher pour continuer et <b>M</b> pour en voir plus ; le chrono s'arrête pendant la lecture. Le bilan de fin de vague montre d'abord les mots ratés</li><li>Settings &gt; Gameplay : explications courtes ou complètes, continuer seul après une bonne réponse (Non, 2 s, 4 s) et les cartes en combat. Vos fiches de vocabulaire retiennent pourquoi vous vous êtes trompé</li></ul>",
     "howto.body": "<p>En haut de l'écran s'affiche le <strong>sens</strong> d'un mot — trouvez le zombie qui porte le mot de ce sens et tirez-lui dessus ! (Paramètres &gt; Langue : la langue des mots, et celle de leurs sens.)</p>"
       + "<ul><li><b>WASD</b> se déplacer, <b>Souris</b> regarder, <b>Clic gauche</b> tirer, <b>Clic droit maintenu</b> viser (zoom)</li>"
       + "<li><b>R</b> recharger, <b>E</b> utiliser / ramasser, <b>Maj</b> sprinter (utilise la barre d'endurance bleue, qui se recharge quand vous vous arrêtez)</li>"
@@ -68,12 +69,12 @@ G.STRINGS.fr = {
       + "<ul><li><b>Paraphrase</b> (mots anglais) : la case du haut donne une définition en anglais (≈ sens proche). Les mots nouveaux montrent le sens en dessous ; ensuite, <b>0</b> (ou le bouton Sens) l'affiche, mais la réponse ne déplace alors pas la boîte du mot</li>"
       + "<li><b>Écoute</b> : les zombies portent des sens ; écoutez et tirez sur le bon. <b>Dictée</b> : les zombies n'ont pas d'étiquette ; visez-en un pour entendre son mot, puis écrivez-le. Réécouter : <b>9</b>, 🔊 ou le bouton <b>View</b> de la manette. Paramètres : accent, vitesse, Écoute unique</li>"
       + "<li><b>Contexte</b> : une phrase à trou ; tirez sur le zombie qui porte le mot qui la complète, sous la bonne forme (indicate, indication, indicative...)</li>"
-      + "<li>Le quiz de fin de vague, la question du boss et les verrous de vocabulaire posent huit types de questions : le sens dans les deux sens, définitions, trous, collocations, paraphrases, écoute et écriture. Une mauvaise réponse montre le mot dans une phrase</li>"
+      + "<li>Le quiz de fin de vague, la question du boss et les verrous de vocabulaire posent huit types de questions : le sens dans les deux sens, définitions, trous, collocations, paraphrases, écoute et écriture. Chaque réponse est expliquée (voir Explications des réponses plus bas)</li>"
       + "<li>Le <b>Journal des mots</b> : cliquez sur un mot pour sa fiche. Dans les notes de l'histoire, les mots du niveau sont soulignés : touchez-en un pour le consulter</li></ul>"
       + "<h3>Style d'apprentissage, entraînement et progrès</h3>"
       + "<ul><li>Avant un niveau de campagne, choisissez son <b>Style d'apprentissage</b> : <b>Adaptatif</b> (chaque mot posé selon sa boîte : le panneau du haut indique l'indice), <b>Classique</b> (sens, tir), ou votre propre indice et réponse. En campagne, chaque zombie porte son mot, donc un indice Audio veut dire : écoutez, puis tirez sur le mot entendu</li>"
       + "<li><b>Modes d'apprentissage</b> et <b>Mode entraînement</b> : un mode tout prêt ou votre propre association d'un indice (Sens, Définition, Audio, Phrase à trou) et d'une réponse (Tirer, Écrire), sur les mots d'un niveau ou d'un thème. L'entraînement n'a ni zombies ni chrono, et des filtres : niveau, thème, boîte de mémoire, mots souvent ratés</li>"
-      + "<li><b>Progrès</b> (📈, en haut à droite du hall) : vos mots par boîte, l'Academic Word List sous-liste par sous-liste, la précision par thème et par compétence, les mots les plus ratés (avec S'entraîner sur ces mots), les 30 derniers jours, votre série et ce qui arrive à échéance. La progression du jeu (scores, armes) a son propre onglet</li></ul>",
+      + "<li><b>Progrès</b> (Menu principal &gt; Apprendre) : vos mots par boîte, l'Academic Word List sous-liste par sous-liste, la précision par thème et par compétence, les mots les plus ratés (avec S'entraîner sur ces mots), les 30 derniers jours, votre série et ce qui arrive à échéance. La progression du jeu (scores, armes) a son propre onglet</li></ul>",
 
     // ---- settings ----
     "settings.title": "Paramètres",
@@ -93,7 +94,7 @@ G.STRINGS.fr = {
     "settings.showDraws": "Afficher le nombre d'appels de rendu",
     "settings.quality": "Qualité graphique",
     "settings.qVlow": "Très basse", "settings.qLow": "Basse", "settings.qMedium": "Moyenne", "settings.qHigh": "Haute", "settings.qVhigh": "Très haute",
-    "settings.fontSize": "Taille du texte",
+    "settings.fontSize": "Taille de l'interface",
     "settings.fontSmall": "Petite", "settings.fontMedium": "Moyenne", "settings.fontLarge": "Grande",
     "settings.colorblind": "Mode daltonien",
     "settings.headBobOff": "Balancement de caméra désactivé",
@@ -1506,7 +1507,7 @@ G.STRINGS.fr = {
     "home.item.weapons": "ARMES", "home.item.bosses": "BOSS", "home.item.ranks": "CLASSEMENTS", "home.item.awards": "SUCCÈS", "home.item.settings": "PARAMÈTRES", "home.item.help": "AIDE",
     "home.sound": "Cliquez / touchez pour activer le son", "home.rotate": "Tournez l'appareil à l'horizontale pour une meilleure vue",
     "lobby.back": "Menu principal",
-    "settings.reduceMotion": "Réduire les animations", "settings.reduceMotionDesc": "La caméra du menu principal reste immobile (ni balancement ni parallaxe).",
+    "settings.reduceMotion": "Réduire les animations", "settings.reduceMotionDesc": "Caméra du menu principal immobile, secousses et balancement réduits, effets d'écran adoucis, lumières clignotantes fixes.",
     // (overhaul, round 6) the HUD at the bottom centre (js/hud.js) and its header
     "hud.savings": "Économies", "hud.health": "Santé", "hud.stamina": "Endurance",
     "hud.slotEmpty": "Case {n}", "hud.slotKnife": "Couteau", "hud.slotPistol": "Pistolet", "hud.melee": "Mêlée", "hud.reloadNow": "Recharger", "hud.noAmmo": "Plus de munitions",
@@ -1560,11 +1561,15 @@ G.STRINGS.fr = {
     "settings.meanLang": "Langue des sens", "settings.meanLangDesc": "La langue des sens. Elle ne peut pas être la langue des mots.",
     // Accessibility
     "settings.gameSpeedName": "Vitesse du jeu", "settings.gameSpeedDesc": "Ralentit ou accélère tout le jeu.",
-    "settings.fontSizeDesc": "La taille du texte dans les menus et les fenêtres.",
+    "settings.fontSizeDesc": "Taille du texte des menus, des fenêtres et du HUD : 90 %, 100 % ou 112 %.",
     "settings.colorblindDesc": "Ajoute une lettre à chaque rareté d'arme, pas seulement sa couleur.",
     "settings.headBobName": "Balancement de caméra", "settings.headBobDesc": "De combien la vue bouge quand vous marchez et courez.",
     "key.inspect": "Inspecter l'arme",
     "settings.muzzleFlash": "Flash de bouche", "settings.muzzleFlashDesc": "L'éclat de chaque tir. À 0 %, aucune lumière, seulement un léger éclat à la bouche du canon.",
+    "settings.weaponBob": "Balancement de l'arme",
+    "settings.weaponBobDesc": "L'amplitude du balancement de l'arme en main quand vous marchez et courez.",
+    "settings.screenEffects": "Effets d'écran",
+    "settings.screenEffectsDesc": "Intensité des effets sur tout l'écran : bord rouge quand vous êtes touché, santé faible, Focus Time, éclairs d'un boss, boîte mystère.",
     "debug.fx": "Effets : particules {p}/{pb} · impacts {d}/{db} · douilles {s}",
     // (overhaul, round 3) the sound in the debug overlay, the stress test, the Sound Lab (?lab=sound)
     "debug.audio": "Son : {n}/{t} voix · crête {p} dB · pièce {z}", "debug.stress": "Stress", "debug.stressStop": "Arrêter le stress",

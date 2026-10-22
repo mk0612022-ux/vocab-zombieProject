@@ -414,14 +414,16 @@ G.Perf = {
     const A = this.anchors;
     // flicker + a score: nearest first, with a bonus for being in front of
     // the camera so the lights you can see win over the ones behind you
+    // (overhaul, round 8: Reduce Motion holds every lamp steady -- no flicker, no dips)
+    const flick = !G.Access || G.Access.flicker();
     for (const a of A) {
-      let mult = 0.88 + 0.12 * Math.sin(tSec * a.speed + a.phase);
-      if (Math.sin(tSec * 1.7 + a.phase * 3) > 0.985) mult *= 0.35;
+      let mult = flick ? 0.88 + 0.12 * Math.sin(tSec * a.speed + a.phase) : 0.94;
+      if (flick && Math.sin(tSec * 1.7 + a.phase * 3) > 0.985) mult *= 0.35;
       // (round 2: a hero light holds still -- its own flicker is js/lightfx.js's)
       if (a.steady) mult = 1;
       // a failing tube (pass D3): stutters, dips and now and then dies for a
       // moment -- its fixture on the ceiling goes with it
-      if (a.mode === "flicker") {
+      if (a.mode === "flicker" && flick) {
         const f = Math.sin(tSec * 13.1 + a.phase) + Math.sin(tSec * 29.7 + a.phase * 1.7) + 1.4 * Math.sin(tSec * 3.3 + a.phase * 0.5);
         mult = f > 0.3 ? 1 : f > -0.8 ? 0.3 : 0.04;
       }

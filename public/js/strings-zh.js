@@ -47,6 +47,7 @@ G.STRINGS.zh = {
 
     // ---- how to play ----
     "howto.title": "玩法说明",
+    "howto.body2": "<h3>HUD</h3><ul><li>屏幕下方中间：<b>Savings</b>（金钱）和 ★ 分数、生命值（%）和蓝色体力条、一排武器格（小刀、手枪、第 2-4 格：你携带的枪），右侧是手中的武器：名称、弹匣 / 备弹（快用完时为琥珀色，打空时显示红色 RELOAD）、本关任务和所在楼层</li><li>上方：单词框，显示关卡、波次和剩余僵尸数。下面的小卡片会解释你射击的每个单词</li><li><b>G</b> 检视手中的枪（触屏：弹匣已满时按换弹按钮；手柄：弹匣已满时按 X）</li></ul><h3>十种僵尸</h3><ul><li><b>Shambler</b>：行动缓慢，从容地射中它的单词，小心成群出现</li><li><b>Sprinter</b>（第 3 波起）：跑得快，尽快作答，在它踉跄时射击</li><li><b>Crawler</b>（第 4 波）：贴地爬行，它的单词标签始终显示在上方</li><li><b>Bloater</b>（第 6 波）：死后膨胀并爆炸，从远处击杀，或在它膨胀时后退</li><li><b>Screamer</b>（第 7 波）：抬头尖叫，其他僵尸会加速并有更多僵尸赶来，它一抬头就射中它的单词</li><li><b>Ironclad</b>（第 8 波）：身穿护甲，先打掉头盔再爆头，或射击四肢</li><li><b>Runt</b>（第 9 波）：个子小、动作快，瞄准低处</li><li><b>Headless</b>（第 11 波）：提着自己的头，手中的头就是弱点</li><li><b>Reacher</b>（第 12 波）：手臂很长，保持 2.6 米距离，看到它举起手臂就后退</li><li><b>Abomination</b>（第 13 波）：体型巨大，每次只出现一只，远距离作答，注意它的攻击范围</li><li>每只僵尸仍须用正确的单词击杀，特殊动作不算作答</li></ul><h3>答案解释</h3><ul><li>每个答案都有解释：你选的词和正确的词（词性和意思）、原因、带翻译的例句，以及雅思常见错误提示</li><li>在问题窗口中按 <b>Enter</b>、<b>Space</b>、<b>A</b> 或轻点继续，按 <b>M</b> 查看更多；阅读时计时暂停。每波结束的回顾会先列出答错的单词</li><li>Settings &gt; Gameplay：简短或完整的解释、答对后自动继续（关、2 秒、4 秒）以及战斗中的卡片。词汇卡会记住你答错的原因</li></ul>",
     "howto.body": "<p>屏幕顶部显示一个单词的<strong>意思</strong>——找到拿着这个意思对应单词的僵尸，然后射击！（设置 &gt; 语言：选择单词的语言和意思的语言。）</p>"
       + "<ul><li><b>WASD</b> 移动，<b>鼠标</b> 观察，<b>左键</b> 射击，<b>按住右键</b> 瞄准（放大）</li>"
       + "<li><b>R</b> 换弹，<b>E</b> 使用 / 拾取，<b>Shift</b> 冲刺（消耗蓝色体力条，停下后会恢复）</li>"
@@ -68,12 +69,12 @@ G.STRINGS.zh = {
       + "<ul><li><b>释义</b>（英语单词）：顶部框给出英文释义（≈ 近似意思）。新词会在下面显示意思；之后按 <b>0</b>（或“意思”按钮）可显示，但这样回答不会移动该词的盒子</li>"
       + "<li><b>听力</b>：僵尸身上是意思；听单词，射击正确的那只。<b>听写</b>：僵尸没有标签；瞄准一只就能听到它的单词，然后拼写出来。再听一遍：<b>9</b>、🔊 或手柄的 <b>View</b> 键。设置：口音、语速、只播一次</li>"
       + "<li><b>语境</b>：一个有空格的句子；射击拿着能填空单词的僵尸，形式要正确（indicate、indication、indicative...）</li>"
-      + "<li>每波结束的小测、首领的问题和词汇锁会问八种题型：双向词义、释义、填空、搭配、改写、听力和拼写。答错时会在句子中展示该单词</li>"
+      + "<li>每波结束的小测、首领的问题和词汇锁会问八种题型：双向词义、释义、填空、搭配、改写、听力和拼写。每个答案都有解释（见下方“答案解释”）</li>"
       + "<li><b>单词记录</b>：点击单词查看词汇卡。在故事笔记中，本关的单词带有下划线：点一下即可查看</li></ul>"
       + "<h3>学习方式、练习与进度</h3>"
       + "<ul><li>开始战役关卡前，选择<b>学习方式</b>：<b>自适应</b>（每个词按其盒子出题：顶部面板会说明是哪种提示）、<b>经典</b>（意思，射击），或自己搭配提示与作答方式。在战役中每只僵尸都拿着自己的单词，所以“音频”提示的意思是：听，然后射击你听到的单词</li>"
       + "<li><b>学习模式</b>和<b>练习模式</b>：现成的模式，或自己搭配提示（意思、释义、音频、句子填空）与作答方式（射击、拼写），用于某一关或某一主题的单词。练习模式没有僵尸、不计时，并可筛选：关卡、主题、记忆盒、常错的单词</li>"
-      + "<li><b>进度</b>（📈，大厅右上角）：按盒子统计的单词、学术词汇表（AWL）各子表、按主题和技能的正确率、最常错的单词（可直接练习）、最近 30 天、连续天数以及即将到期的单词。游戏进度（分数、枪械）有单独的标签页</li></ul>",
+      + "<li><b>进度</b>（主菜单 &gt; 学习）：按盒子统计的单词、学术词汇表（AWL）各子表、按主题和技能的正确率、最常错的单词（可直接练习）、最近 30 天、连续天数以及即将到期的单词。游戏进度（分数、枪械）有单独的标签页</li></ul>",
 
     // ---- settings ----
     "settings.title": "设置",
@@ -93,7 +94,7 @@ G.STRINGS.zh = {
     "settings.showDraws": "显示绘制调用数",
     "settings.quality": "画质",
     "settings.qVlow": "极低", "settings.qLow": "低", "settings.qMedium": "中", "settings.qHigh": "高", "settings.qVhigh": "极高",
-    "settings.fontSize": "文字大小",
+    "settings.fontSize": "界面缩放",
     "settings.fontSmall": "小", "settings.fontMedium": "中", "settings.fontLarge": "大",
     "settings.colorblind": "色盲模式",
     "settings.headBobOff": "关闭镜头晃动",
@@ -1506,7 +1507,7 @@ G.STRINGS.zh = {
     "home.item.weapons": "武器", "home.item.bosses": "首领", "home.item.ranks": "排行", "home.item.awards": "成就", "home.item.settings": "设置", "home.item.help": "帮助",
     "home.sound": "点击 / 轻触以开启声音", "home.rotate": "请横向旋转设备以获得最佳视角",
     "lobby.back": "主菜单",
-    "settings.reduceMotion": "减少动态效果", "settings.reduceMotionDesc": "主菜单的镜头保持静止（不摇晃、无视差）。",
+    "settings.reduceMotion": "减少动态效果", "settings.reduceMotionDesc": "主菜单镜头保持静止，减弱镜头震动和走路晃动，减轻屏幕效果，闪烁的灯保持常亮。",
     // (overhaul, round 6) the HUD at the bottom centre (js/hud.js) and its header
     "hud.savings": "存款", "hud.health": "生命值", "hud.stamina": "体力",
     "hud.slotEmpty": "栏位 {n}", "hud.slotKnife": "刀", "hud.slotPistol": "手枪", "hud.melee": "近战", "hud.reloadNow": "换弹", "hud.noAmmo": "没有弹药",
@@ -1560,11 +1561,15 @@ G.STRINGS.zh = {
     "settings.meanLang": "意思语言", "settings.meanLangDesc": "意思所用的语言。不能和单词语言相同。",
     // Accessibility
     "settings.gameSpeedName": "游戏速度", "settings.gameSpeedDesc": "让整个游戏变慢或变快。",
-    "settings.fontSizeDesc": "菜单和窗口中文字的大小。",
+    "settings.fontSizeDesc": "菜单、窗口和 HUD 中文字的大小：90%、100% 或 112%。",
     "settings.colorblindDesc": "为每种武器稀有度加上字母标识，而不只靠颜色。",
     "settings.headBobName": "镜头晃动", "settings.headBobDesc": "走路和奔跑时视角晃动的程度。",
     "key.inspect": "检视武器",
     "settings.muzzleFlash": "枪口闪光", "settings.muzzleFlashDesc": "每次射击的闪光有多亮。0% 时没有照明，只在枪口留下淡淡的闪光。",
+    "settings.weaponBob": "武器晃动",
+    "settings.weaponBobDesc": "走动和奔跑时手中武器的晃动幅度。",
+    "settings.screenEffects": "屏幕效果",
+    "settings.screenEffectsDesc": "覆盖全屏的效果强度：受击时的红边、低血量、Focus Time、首领的闪电、神秘箱。",
     "debug.fx": "特效：粒子 {p}/{pb} · 弹孔 {d}/{db} · 弹壳 {s}",
     // (overhaul, round 3) the sound in the debug overlay, the stress test, the Sound Lab (?lab=sound)
     "debug.audio": "声音：{n}/{t} 个声部 · 峰值 {p} dB · 空间 {z}", "debug.stress": "压力测试", "debug.stressStop": "停止压力测试",

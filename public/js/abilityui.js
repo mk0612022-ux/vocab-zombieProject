@@ -186,6 +186,7 @@
       if (force || sig !== this._abSig) {
         this._abSig = sig;
         bar.classList.toggle("hidden", !slots.length);
+        if (G.Hud && G.Hud.refit) G.Hud.refit();
         bar.innerHTML = slots.map((s, i) => {
           const d = G.ABILITY_BY_ID[s.id];
           return `<div class="hab cat-${d.cat}" data-i="${i}" title="${esc(A.name(s.id))}"><span class="hab-ring"></span><span class="hab-ico">${d.icon}</span><span class="hab-cd"></span><span class="hab-key">${esc(G.abilityKeyLabel(i))}</span></div>`;

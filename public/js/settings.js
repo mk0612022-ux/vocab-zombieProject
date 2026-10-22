@@ -192,8 +192,11 @@ window.G = window.G || {};
     accessibility(s) {
       const hb = s.headBob == null ? 1 : s.headBob;
       const cr = s.cameraRecoil == null ? 1 : s.cameraRecoil, cs = s.cameraShake == null ? 1 : s.cameraShake, mf = s.muzzleFlash == null ? 1 : s.muzzleFlash;
+      const wb = s.weaponBob == null ? 1 : s.weaponBob, sf = s.screenEffects == null ? 1 : s.screenEffects;
       return row({ id: "set-gamespeed", name: T("settings.gameSpeedName"), ctl: slider("set-gamespeed", s.gameSpeed, 0.5, 1.5, 0.05, times(s.gameSpeed)), desc: T("settings.gameSpeedDesc") })
         + row({ id: "set-fontsize", name: T("settings.fontSize"), ctl: seg("set-fontsize", s.fontSize, [["small", T("settings.fontSmall")], ["medium", T("settings.fontMedium")], ["large", T("settings.fontLarge")]]), desc: T("settings.fontSizeDesc") })
+        // (overhaul, round 8) the HUD's sizes beside the UI's (the same editor as Graphics)
+        + row({ id: "btn-hudcfg-a", name: T("settings.hudSize"), ctl: button("btn-hudcfg-a", T("settings.hudSizeBtn")), desc: T("settings.hudSizeDesc") })
         + row({ id: "set-colorblind", name: T("settings.colorblind"), ctl: toggle("set-colorblind", !!s.colorblindMode), desc: T("settings.colorblindDesc") })
         // (visual series, round 1, E4) the shadows lifted further
         + row({ id: "set-visboost", name: T("settings.visBoost"), ctl: toggle("set-visboost", !!s.visibilityBoost), desc: T("settings.visBoostDesc") })
@@ -202,8 +205,12 @@ window.G = window.G || {};
         // (overhaul, round 1) the view's kick from a shot, and its shake from hits and blasts
         + row({ id: "set-camrecoil", name: T("settings.camRecoil"), ctl: slider("set-camrecoil", cr, 0, 1, 0.05, pct(cr)), desc: T("settings.camRecoilDesc") })
         + row({ id: "set-camshake", name: T("settings.camShake"), ctl: slider("set-camshake", cs, 0, 1, 0.05, pct(cs)), desc: T("settings.camShakeDesc") })
+        // (overhaul, round 8) how much the gun in hand bobs and sways as you move
+        + row({ id: "set-weaponbob", name: T("settings.weaponBob"), ctl: slider("set-weaponbob", wb, 0, 1, 0.05, pct(wb)), desc: T("settings.weaponBobDesc") })
         // (overhaul, round 2) how bright a shot's flash is
         + row({ id: "set-muzzleflash", name: T("settings.muzzleFlash"), ctl: slider("set-muzzleflash", mf, 0, 1, 0.05, pct(mf)), desc: T("settings.muzzleFlashDesc") })
+        // (overhaul, round 8) the effects over the whole screen
+        + row({ id: "set-screenfx", name: T("settings.screenEffects"), ctl: slider("set-screenfx", sf, 0, 1, 0.05, pct(sf)), desc: T("settings.screenEffectsDesc") })
         // (overhaul, round 4) how much blood: Full, Reduced (no heads knocked off), Off (grey dust)
         + row({ id: "set-gore", name: T("settings.gore"), ctl: seg("set-gore", s.gore || "full", ["full", "reduced", "off"].map((v) => [v, T("settings.gore." + v)])), desc: T("settings.goreDesc") })
         // (overhaul, round 5) the Main Menu's camera held still
@@ -256,7 +263,9 @@ window.G = window.G || {};
         "set-camshake": (v) => { s.cameraShake = v; return pct(v); },
         "set-muzzleflash": (v) => { s.muzzleFlash = v; return pct(v); },
         "set-gore": (v) => { s.gore = v; },               // (round 4: zombies made from now on, and every death and hit)
-        "set-reducemotion": (v) => { s.reduceMotion = v; },
+        "set-reducemotion": (v) => { s.reduceMotion = v; G.Access.apply(); },
+        "set-weaponbob": (v) => { s.weaponBob = v; return pct(v); },
+        "set-screenfx": (v) => { s.screenEffects = v; G.Access.apply(); return pct(v); },
         "set-highlight": (v) => {
           s.highlightTarget = v;
           if (G.Game.zombies) G.Game.zombies.forEach((z) => { if (z.alive) { z._label = null; z.setTarget(z.isTarget); } });
@@ -316,6 +325,7 @@ window.G = window.G || {};
       // the buttons
       const click = (id, fn) => { const b = $(id); if (b) b.onclick = fn; };
       click("btn-hudcfg", () => G.HudCfg.openEditor());
+      click("btn-hudcfg-a", () => G.HudCfg.openEditor());
       click("btn-touchcfg", () => G.TouchCfg.openEditor());
       click("btn-speech-test", () => { G.Audio.unlock(); G.Audio.speak(G.Lang.sample()); });
       // (overhaul, round 3) each fader's test sound, on its own bus

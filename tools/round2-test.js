@@ -54,12 +54,25 @@ G.Round2Test = (function () {
 
   function emerging() {
     const g = fresh(1), w = g.world;
+    // (overhaul, round 8) a zombie answered by the word shot, not spelt: a
+    // Spell zombie shows no label until it is aimed at and takes no bullets,
+    // and a profile far along in its memory boxes meets more of them
+    const shootable = (sp) => {
+      let z = null;
+      for (let t = 0; t < 20; t++) {
+        if (z) { g.scene.remove(z.mesh); g.zombies = g.zombies.filter((q) => q !== z); }
+        sp.cooldown = 0;
+        z = g.spawnZombieAt("normal", sp.pos, sp);
+        if (z && z.answer !== "spell") break;
+      }
+      return z;
+    };
     for (const kind of ["ground", "locker", "vent", "window", "desk"]) {
       const sp = w.spawnPoints.find((s) => s.kind === kind && !s.gate && s.types[0] !== "boss");
       if (!sp) { ok(`${kind}: found`, false); continue; }
       sp.cooldown = 0;
       g.zombies.forEach((z) => g.scene.remove(z.mesh)); g.zombies = [];
-      const z = g.spawnZombieAt("normal", sp.pos, sp);
+      const z = shootable(sp);
       // stand right where it will come out, and see that it cannot bite yet
       const P = g.yawObject.position;
       P.set(sp.pos.x + 0.6, sp.emerge.floorY + 1.7, sp.pos.z + 0.4);
@@ -82,8 +95,7 @@ G.Round2Test = (function () {
     // shootable while emerging -- but not the part still under the floor
     g.zombies.forEach((z) => g.scene.remove(z.mesh)); g.zombies = [];
     const sp = w.spawnPoints.find((s) => s.kind === "ground" && s.types[0] !== "boss");
-    sp.cooldown = 0;
-    const z = g.spawnZombieAt("normal", sp.pos, sp);
+    const z = shootable(sp);
     for (let i = 0; i < 18; i++) G.ZombieFX.step(g, z, 1 / 60);          // hands just out
     const origin = new THREE.Vector3(sp.pos.x, 1.7, sp.pos.z + 5);
     const hpA = z.hp;
@@ -170,7 +182,8 @@ G.Round2Test = (function () {
     const byTheme = {};
     for (const [lvl, theme] of [[1, "school"], [2, "hospital"], [3, "bunker"]]) {
       const outfits = new Set(), skins = new Set();
-      for (let i = 0; i < 60; i++) { const L = G.randomZombieLook("normal", theme); outfits.add(L.outfit); skins.add(L.skin.getHexString()); }
+      // (200 looks: the rarest civilian, 0.5 of 9.1, was missing from 60 about one run in thirty)
+      for (let i = 0; i < 200; i++) { const L = G.randomZombieLook("normal", theme); outfits.add(L.outfit); if (i < 60) skins.add(L.skin.getHexString()); }
       const want = G.ZOMBIE_OUTFITS[theme].map((o) => o.key);
       byTheme[theme] = Array.from(outfits);
       ok(`${theme}: only its own outfits, all of them`, want.every((k) => outfits.has(k)) && Array.from(outfits).every((k) => want.includes(k)), Array.from(outfits).join(","));

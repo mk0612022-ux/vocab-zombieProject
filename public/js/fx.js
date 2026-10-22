@@ -320,7 +320,13 @@ G.FX = (function () {
     const D = P.decals && P.decals[kind];
     if (!D) return;
     const i = D.next; D.next = (D.next + 1) % D.cap;
-    if (!D.on[i]) D.live++;
+    // (overhaul, round 8: the level's budget is for all the holes together,
+    // not each kind's -- over it, the oldest of any kind goes first)
+    if (!D.on[i]) {
+      const all = Object.values(P.decals);
+      if (all.reduce((a, d) => a + d.live, 0) >= D.cap) retireOldest(all);
+      D.live++;
+    }
     D.on[i] = 1; D.age[i] = 0;
     const DC = C().decal;
     D.size[i] = DC.size[0] + Math.random() * (DC.size[1] - DC.size[0]);
@@ -333,6 +339,13 @@ G.FX = (function () {
     D.im.setMatrixAt(i, D.mats[i]);
     D.im.instanceMatrix.needsUpdate = true;
     D.im.count = D.cap;
+  }
+  function retireOldest(all) {
+    let W = null, w = -1, age = -1;
+    all.forEach((d) => { for (let j = 0; j < d.cap; j++) if (d.on[j] && d.age[j] > age) { age = d.age[j]; W = d; w = j; } });
+    if (!W) return;
+    W.on[w] = 0; W.live--;
+    m4.makeScale(0, 0, 0); W.im.setMatrixAt(w, m4); W.im.instanceMatrix.needsUpdate = true;
   }
 
   // ---------------- the frame ----------------

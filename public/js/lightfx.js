@@ -913,7 +913,9 @@
           const a = anchorOf(l);
           let k = 0;
           if (h.on) {
-            if (h.t < warm) {
+            // (overhaul, round 8: Reduce Motion -- no stutter, a steady fade up)
+            if (h.t < warm && G.Access && !G.Access.flicker()) k = Math.max(0.05, h.t / warm);
+            else if (h.t < warm) {
               // the stutter: each tower its own way, catching more often as it warms
               const s = Math.sin(this.t * (17 + i * 5) + i * 1.7) + Math.sin(this.t * (31 + i * 3)) * 0.7;
               k = s > 1.1 - (h.t / warm) * 2.2 ? 1 : 0.05;

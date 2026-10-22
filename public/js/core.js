@@ -119,6 +119,12 @@ G.defaultSave = function () {
       explainDetail: "short",
       autoContinue: 2,
       explainCards: true,
+      // (overhaul, round 8) Accessibility: how much the gun in hand bobs and
+      // sways as you move (0-1), and how strong the effects over the whole
+      // screen are -- a hit's red edge, low health, Focus Time, a boss's
+      // lightning, a mystery box (0-1)
+      weaponBob: 1,
+      screenEffects: 1,
     },
     importedSets: {},             // {id: {name, words:[[en,th],...]}}
     customWords: { level1: [], level2: [], level3: [] },   // words the player added to each level ([[en,th] or [en,th,{definition,...}],...])
@@ -199,6 +205,9 @@ G.normalizeSave = function (data) {
   oneOf("explainDetail", ["short", "full"]);
   if (![0, 2, 4].includes(s.settings.autoContinue)) s.settings.autoContinue = def.settings.autoContinue;
   s.settings.explainCards = s.settings.explainCards !== false;
+  // (overhaul, round 8) a save from before: the gun's bob and the screen effects at full
+  num("weaponBob", 0, 1); num("screenEffects", 0, 1);
+  oneOf("fontSize", ["small", "medium", "large"]);
   // (overhaul, round 3) a save from before the Master, Weapons and UI faders:
   // the guns and the menus start where the old Sound Effects fader was (they
   // were on it), the Master at full; captions off
@@ -292,6 +301,23 @@ G.migrateWordStats = function (ws) {
     cur.lastCorrect = Math.max(cur.lastCorrect, num(v.lastCorrect));
   });
   return out;
+};
+
+// (overhaul, round 8) The Accessibility settings as the factors the systems
+// read, Reduce Motion included: it also calms the camera's shake (x0.35), the
+// walking bob of the view and the gun (x0.5), the effects over the screen
+// (x0.6) and holds the failing lamps steady (no flicker).
+G.Access = {
+  set() { return (G.save && G.save.settings) || {}; },
+  reduce() { return !!this.set().reduceMotion; },
+  unit(k) { const v = Number(this.set()[k]); return Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : 1; },
+  shake() { return this.unit("cameraShake") * (this.reduce() ? 0.35 : 1); },
+  bob() { return this.reduce() ? 0.5 : 1; },
+  weaponBob() { return this.unit("weaponBob") * this.bob(); },
+  screen() { return this.unit("screenEffects") * (this.reduce() ? 0.6 : 1); },
+  flicker() { return !this.reduce(); },
+  // the screen effects' strength for the CSS (--fx-screen)
+  apply() { if (document && document.documentElement) document.documentElement.style.setProperty("--fx-screen", this.screen().toFixed(2)); },
 };
 
 // the optional fields of a player's own word, cleaned; null when there are none

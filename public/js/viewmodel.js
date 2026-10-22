@@ -227,7 +227,8 @@ G.ViewModel = {
     rz += A.wobble(this.t * 0.5, 4) * 0.006 * still;
 
     // ---- gait bob: locked to the footfalls, not to a clock ----
-    const move = S.moveW * (1 - aim * 0.85);
+    // (overhaul, round 8: x Settings > Accessibility > Weapon bob, and Reduce Motion)
+    const move = S.moveW * (1 - aim * 0.85) * (G.Access ? G.Access.weaponBob() : 1);
     const bobAmp = (0.011 + 0.012 * gait.runW) * feel.bob;
     py += gait.bob * bobAmp * move;
     px += gait.sway * 0.012 * feel.swing * move;

@@ -565,7 +565,8 @@
         fired: {}, shakeA: 0, shakeT: 0,
         once: (name, at, fn) => { if (c.t >= at && !c.fired[name]) { c.fired[name] = true; fn(); } },
         local: (a, bb, h) => new V3(c.B.x + c.f.x * a + c.r.x * bb, c.F + (h || 0), c.B.z + c.f.z * a + c.r.z * bb),
-        shake: (a, d) => { c.shakeA = Math.max(c.shakeA, a); c.shakeT = Math.max(c.shakeT, d); },
+        // (overhaul, round 8: x Camera Shake and Reduce Motion, G.Access)
+        shake: (a, d) => { c.shakeA = Math.max(c.shakeA, a * (G.Access ? G.Access.shake() : 1)); c.shakeT = Math.max(c.shakeT, d); },
         flash: (k) => this.flashScreen(k),
         slash: () => { const s = this.el.slash; if (!s) return; s.classList.remove("go"); void s.offsetWidth; s.classList.add("go"); },
         dust: (k, at) => {
@@ -725,6 +726,8 @@
       const f = this.el.flash;
       if (!f) return;
       f.style.transition = "none";
+      // (overhaul, round 8: x Settings > Accessibility > Screen effects, Reduce Motion)
+      k *= G.Access ? G.Access.screen() : 1;
       f.style.opacity = String(Math.min(1, k));
       void f.offsetWidth;
       f.style.transition = "opacity " + (0.25 + k * 0.5) + "s ease-out";

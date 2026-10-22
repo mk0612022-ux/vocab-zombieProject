@@ -240,6 +240,17 @@ G.CONFIG = {
   // ---------------- touch and HUD settings (their limits) ----------------
   touch: { lookDrag: 2.2 },                  // pixels of drag -> turn (x the player's sensitivity)
   hud: { minScale: 0.5, maxScale: 1.5 },
+  // (overhaul, round 8) Settings > Accessibility > UI scale: the root text size
+  // (every menu, window and the HUD's words are in rem)
+  ui: { textScale: { small: "90%", medium: "", large: "112%" } },
+  // (overhaul, round 8) the Main Menu's 3D scene per graphics level (js/menuscene.js):
+  // light shafts, low fog layers, dust motes; the High+ post pass (depth of
+  // field, SSAO) is js/mainmenu.js postOn()
+  menuScene: {
+    shafts: { vlow: 0, low: 0, medium: 2, high: 5, vhigh: 5 },
+    fog: { vlow: 0, low: 0, medium: 1, high: 2, vhigh: 2 },
+    dust: { vlow: 0, low: 90, medium: 180, high: 300, vhigh: 420 },
+  },
 
   // ---------------- learning (vocabulary series, round 2: js/srs.js, js/learnmodes.js) ----------------
   srs: {

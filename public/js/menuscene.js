@@ -447,19 +447,21 @@ G.MenuScene = (function () {
     const shaft = (x, y, z, w, h, col, op, ry, rz) => {
       const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: shaftTex, color: col, transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, side: THREE.DoubleSide }));
       m.position.set(x, y, z); m.rotation.set(0, ry || 0, rz || 0); scene.add(m);
-      live.shafts.push({ m, op });
+      live.shafts.push({ m, op, red: col === 0xff3030 });
       return m;
     };
-    if (!lo) {
-      shaft(0, 3.0, ZD + 1.0, 2.2, 2.6, 0xff3030, 0.16, 0, 0);
-      shaft(0, 3.0, ZD + 1.0, 2.2, 2.6, 0xff3030, 0.12, Math.PI / 2, 0);
-      shaft(0.6, 2.4, SZ - 0.6, 1.6, 3.0, 0xffc88a, 0.09, 0.4, 0);
-      shaft(0.6, 2.4, SZ - 0.6, 1.6, 3.0, 0xffc88a, 0.07, -1.1, 0);
-      shaft(0, 1.6, ZD + 1.6, 0.9, 3.2, PAL.orange, 0.1, 0, 0);
-    }
+    // (overhaul, round 8: how many by graphics level -- G.CONFIG.menuScene; the
+    // two that matter most first, so Medium's simple version keeps them)
+    const MS = G.CONFIG.menuScene, tierN = (o, d) => (o && o[q] != null ? o[q] : d);
+    [[0, 3.0, ZD + 1.0, 2.2, 2.6, 0xff3030, 0.16, 0, 0],
+      [0.6, 2.4, SZ - 0.6, 1.6, 3.0, 0xffc88a, 0.09, 0.4, 0],
+      [0, 3.0, ZD + 1.0, 2.2, 2.6, 0xff3030, 0.12, Math.PI / 2, 0],
+      [0.6, 2.4, SZ - 0.6, 1.6, 3.0, 0xffc88a, 0.07, -1.1, 0],
+      [0, 1.6, ZD + 1.6, 0.9, 3.2, PAL.orange, 0.1, 0, 0]].slice(0, tierN(MS && MS.shafts, lo ? 0 : 5)).forEach((a) => shaft(...a));
     // dust drifting through them
-    if (!lo || q === "low") {
-      const n = q === "vhigh" ? 420 : hi ? 300 : q === "medium" ? 180 : 90;
+    const dustN = tierN(MS && MS.dust, q === "vhigh" ? 420 : hi ? 300 : q === "medium" ? 180 : q === "low" ? 90 : 0);
+    if (dustN > 0) {
+      const n = dustN;
       const pos = new Float32Array(n * 3), seed = new Float32Array(n);
       for (let i = 0; i < n; i++) {
         pos[i * 3] = (R() - 0.5) * 4.5; pos[i * 3 + 1] = 0.2 + R() * 3.8; pos[i * 3 + 2] = 5 - R() * 18;
@@ -470,10 +472,11 @@ G.MenuScene = (function () {
       live.dustSeed = seed; live.dustBase = pos.slice();
       scene.add(live.dust);
     }
-    // the low fog: two wide layers drifting slowly over the floor
-    if (!lo) {
+    // the low fog: two wide layers drifting slowly over the floor (Medium: one)
+    const fogN = tierN(MS && MS.fog, lo ? 0 : 2);
+    if (fogN > 0) {
       const ft = fogTexture(R);
-      live.fog = [0.25, 0.7].map((y, i) => {
+      live.fog = [0.25, 0.7].slice(0, fogN).map((y, i) => {
         const tex = ft.clone(); tex.needsUpdate = true; tex.repeat.set(2, 6);
         const m = new THREE.Mesh(new THREE.PlaneGeometry(W, 22), new THREE.MeshBasicMaterial({ map: tex, color: 0x6a7a80, transparent: true, opacity: i ? 0.12 : 0.18, depthWrite: false }));
         m.rotation.x = -Math.PI / 2; m.position.set(0, y, -3); scene.add(m);
@@ -494,7 +497,7 @@ G.MenuScene = (function () {
       const pulse = 0.5 + 0.5 * Math.sin(t * 1.7);
       live.red.intensity = 0.7 + 1.6 * pulse * pulse;
       live.lamp.material.color.setRGB(0.55 + 0.45 * pulse, 0.05, 0.05);
-      if (live.shafts.length) { live.shafts[0].m.material.opacity = live.shafts[0].op * (0.4 + 0.8 * pulse); live.shafts[1].m.material.opacity = live.shafts[1].op * (0.4 + 0.8 * pulse); }
+      live.shafts.forEach((s) => { if (s.red) s.m.material.opacity = s.op * (0.4 + 0.8 * pulse); });   // (the red lamp's shafts pulse with it)
       // the warm light through the door breathes a little
       const w = 1.3 + Math.sin(t * 0.7) * 0.12 + Math.sin(t * 2.3) * 0.05;
       live.warm.intensity = w;
@@ -502,7 +505,9 @@ G.MenuScene = (function () {
       live.lamps.forEach((L) => {
         let k = 1;
         if (L.kind === "flicker") {
-          const f = Math.sin(t * 0.31) > 0.82 ? (Math.sin(t * 23) > 0.2 ? 0.25 : 1) : 1;
+          // (overhaul, round 8: Reduce Motion -- the bulb holds steady)
+          const steady = G.Access && !G.Access.flicker();
+          const f = !steady && Math.sin(t * 0.31) > 0.82 ? (Math.sin(t * 23) > 0.2 ? 0.25 : 1) : 1;
           k = f * (0.88 + 0.12 * Math.sin(t * 5.1));
           if (live.flick) live.flick.intensity = 0.9 * k;
         } else k = 0.93 + 0.07 * Math.sin(t * (L.kind === "cold" ? 0.9 : 1.3) + 1);

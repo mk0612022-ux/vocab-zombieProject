@@ -561,10 +561,10 @@ body.touch-mode .hud-interact-prompt { top: 62%; }
 .loading-overlay { position: fixed; inset: 0; z-index: 100; background: #05070a; display: flex; align-items: center; justify-content: center; }
 .loading-text { font-size: 1.4rem; letter-spacing: 3px; opacity: 0.8; }
 
-/* Accessibility: font sizes */
-body.font-large .hud-meaning { font-size: 2.1rem; }
-body.font-large .hud-stat, body.font-large .btn { font-size: 1.15rem; }
-body.font-small .hud-meaning { font-size: 1.25rem; }
+/* Accessibility: font sizes -- (overhaul, round 8) UI scale sets the root's
+   font size (js/ui.js applyFontSizeClass, G.CONFIG.ui.textScale) and every
+   size here is in rem, so all of it grows together; the body keeps its
+   font-small / font-large class for anything that needs more */
 
 ::-webkit-scrollbar { width: 8px; }
 ::-webkit-scrollbar-thumb { background: #345; border-radius: 4px; }
@@ -2312,6 +2312,9 @@ body.touch-mode .hud-dock .hud-abilities { display: none; }
 .hud-dock.narrow .hdt-reload { flex: 1 0 100%; order: 9; }
 .hud-dock.narrow .hdt-count { font-size: 1.05rem; }
 .hud-dock.narrow .hdt-line { font-size: 0.66rem; }
+/* (overhaul, round 8: a task line too long for a phone's panel goes on to a
+   second line rather than losing its end) */
+.hud-dock.narrow .hdt-line:not(.hidden) { white-space: normal; overflow-wrap: anywhere; }
 
 /* touch: the slots are the weapon buttons -- a finger's size, no key labels */
 body.touch-mode .hud-dock .hud-slots { pointer-events: auto; }
@@ -2372,6 +2375,8 @@ body.modal-open .hud-dock { opacity: 0.35; }
 
 /* Inventory Full: the HUD's slot row over the cards */
 .inv-slotrow { display: flex; justify-content: center; margin-top: 10px; --hline: rgba(255,255,255,0.85); --hbg: rgba(18,20,23,0.62); }
+/* (overhaul, round 8) seven slots on a phone held upright: two rows rather than off the screen */
+.inv-slotrow { flex-wrap: wrap; row-gap: 4px; max-width: 100%; }
 .inv-slotrow .hud-slot { cursor: pointer; }
 .inv-slotrow .hud-slot.knife, .inv-slotrow .hud-slot.empty { cursor: default; opacity: 0.55; }
 .inv-slot.replace-hl { border-color: #ff6b6b; box-shadow: 0 0 14px rgba(255,90,90,0.45); }
@@ -2441,3 +2446,7 @@ body.modal-question .hud-spell { display: none !important; }
 /* the vocabulary card: why it was missed */
 .vc-why li { font-size: 0.86rem; }
 .vc-when { opacity: 0.6; }
+
+/* ===================== overhaul, round 8: Settings > Accessibility > Screen effects (--fx-screen, js/core.js G.Access) ===================== */
+.hud-damage-flash, .mystery-flash, body.slowmo #hud::before { filter: opacity(var(--fx-screen, 1)); }
+.hud-lowhp.on { opacity: calc(var(--low, 0.5) * var(--fx-screen, 1)); }

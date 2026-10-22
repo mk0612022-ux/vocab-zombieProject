@@ -34,7 +34,8 @@ G.HeadBob = {
     const s = G.save && G.save.settings;
     if (!s || s.headBobOff) return 0;
     const v = s.headBob == null ? 1 : +s.headBob;
-    return Math.max(0, Math.min(1, isNaN(v) ? 1 : v));
+    // (overhaul, round 8: Reduce Motion halves it)
+    return Math.max(0, Math.min(1, isNaN(v) ? 1 : v)) * (G.Access ? G.Access.bob() : 1);
   },
 
   // ctx: { dt, rig: {pitchObject, camera}, aimT, lookYaw (rad/s),

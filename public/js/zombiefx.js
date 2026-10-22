@@ -750,6 +750,7 @@ G.ZombieFX = {
       pos: new Float32Array(MAX * 3), vel: new Float32Array(MAX * 3), rot: new Float32Array(MAX * 3), spin: new Float32Array(MAX * 3),
       size: new Float32Array(MAX), age: new Float32Array(MAX), life: new Float32Array(MAX), floor: new Float32Array(MAX), on: new Uint8Array(MAX),
       emit(p, v, size, color, life, floorY) {
+        this.mesh.visible = true;              // (round 8: made at the level's load, hidden until now)
         const i = this.next; this.next = (this.next + 1) % this.MAX;
         if (!this.on[i]) this.live++;
         this.on[i] = 1;
@@ -826,6 +827,7 @@ G.ZombieFX = {
     const scene = G.Game.scene;
     if (!scene) return;
     const S = this.smoke(scene);
+    S.mesh.visible = true;                     // (round 8: made at the level's load, hidden until now)
     for (let k = 0; k < n; k++) {
       const i = S.next; S.next = (S.next + 1) % S.MAX;
       if (!S.on[i]) S.live++;
