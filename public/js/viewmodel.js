@@ -60,6 +60,24 @@ G.ViewModel = {
     melee: { freq: 5.0, lag: 1.0, bob: 1.1, swing: 1.4, switchDur: 0.34 },
   },
   BELT: new THREE.Vector3(-0.14, -0.78, -0.24),   // off-screen, at the hip
+  // (gun reference pass) the draws of the clips, as keys over the raise:
+  // [share, [x, y, rx, ry, rz]] added to the carry. The .45 (0.5 s): in from
+  // the left lying on its side, a full twirl to pointing at the sky by a third,
+  // down to the aim; the chassis sniper (1.3 s): up from low right, held a
+  // moment canted toward the eye, settled
+  SPIN: [[0, [-0.05, -0.36, 0.3, 0.2, Math.PI + 0.9]], [0.3, [-0.12, 0.03, 0.85, 0.35, 0.55]], [0.5, [-0.04, 0.04, 1.2, 0.1, 0.1]], [0.8, [0, 0.005, 0.1, 0, 0]], [1, [0, 0, 0, 0, 0]]],
+  FLOURISH: [[0, [0.18, -0.42, -0.7, -0.3, -0.5]], [0.4, [0.02, 0.04, 0.18, -0.35, 0.35]], [0.72, [0, 0.01, -0.05, -0.05, -0.1]], [1, [0, 0, 0, 0, 0]]],
+  // eased from key to key
+  keyed(keys, u) {
+    for (let i = 0; i < keys.length - 1; i++) {
+      const [t0, a] = keys[i], [t1, b] = keys[i + 1];
+      if (u <= t1 || i === keys.length - 2) {
+        const e = G.Anim.smooth(G.Anim.seg(u, t0, t1));
+        return a.map((v, j) => v + (b[j] - v) * e);
+      }
+    }
+    return keys[keys.length - 1][1].slice();
+  },
   HIP_LIFT: { y: 0.05, z: 0.06 },
 
   weightKey(def) {
@@ -67,6 +85,12 @@ G.ViewModel = {
     return G.weightClass(def).key;
   },
   switchDuration(def) { return this.FEEL[this.weightKey(def)].switchDur; },
+  // (gun reference pass) bringing it up: a gun of the clips' in its prototype's
+  // time (G.CONFIG.gunRef.draw), the rest in half their switch
+  drawDuration(def) {
+    const I = def && G.GunRef && G.GunRef.info(def);
+    return I ? G.CONFIG.gunRef.draw[I.proto] : this.switchDuration(def) / 2;
+  },
   // (overhaul, round 1) the weapon families of docs/overhaul/weapon-state-machine.md,
   // from the archetypes: what the animation, the sounds and the effects go by
   family(def) {
@@ -105,9 +129,44 @@ G.ViewModel = {
     this.S.flinchZ.v += 2.2 * k;
   },
 
+  // ---- (gun reference pass) a bolt-action of the clips, worked after its shot ----
+  // The steps are the clip's (G.GunRef.boltSteps): the hand to the bolt, it
+  // lifted, pulled back, pushed home, turned down, the hand back on the grip;
+  // the .50 sags meanwhile (10% of the screen, deepest half a second after).
+  onShot(e) {
+    const def = G.WEAPON_DEFS[e.weaponId], ref = def && G.GunRef && G.GunRef.info(def);
+    if (!this.S) this.reset();
+    this.boltHome();
+    this.S.bolt = ref && ref.action === "bolt" ? { t: 0, st: G.GunRef.boltSteps(def), proto: ref.proto, def, ejected: false } : null;
+  },
+  // the clip's chassis sniper comes off the sight to work its bolt (the .50
+  // stays on it and sags): js/game.js lets go of the aim meanwhile
+  boltBusy() {
+    const B = this.S && this.S.bolt;
+    if (!B || !B.st || B.proto === "F") return false;
+    return B.t > B.st.grab - 0.2 && B.t < B.st.down + 0.06;
+  },
+  boltPose(B) {
+    const A = G.Anim, st = B.st, t = B.t;
+    if (!st || t > st.settle + 0.12) return null;
+    const work = A.smooth(A.seg(t, st.grab - 0.14, st.grab)) * (1 - A.smooth(A.seg(t, st.down + 0.02, st.settle)));
+    const lift = A.smooth(A.seg(t, st.grab, st.lift)) * (1 - A.smooth(A.seg(t, st.push, st.down)));
+    const back = A.easeOutQuad(A.seg(t, st.lift, st.pull)) * (1 - A.easeInQuad(A.seg(t, st.pull + 0.04, st.push)));
+    const dip = st.dip ? A.smooth(A.seg(t, st.dip[0], st.dip[1])) * (1 - A.smooth(A.seg(t, st.dip[1], st.settle))) * st.dip[2] / 0.1 : 0;
+    // canted toward the working hand; the screen's 10% at the carry's distance is ~0.12 m
+    return { gun: [0.01 * work, 0.012 * work - 0.12 * dip, 0.02 * work, 0.04 * work, 0, -0.16 * work], work, lift, back };
+  },
+  boltHome() {
+    const P = this.group && this.group.userData.parts;
+    const b = P && P.bolt;
+    if (b && b.userData.home) { b.position.copy(b.userData.home.pos); b.rotation.copy(b.userData.home.rot); }
+  },
+
   onWeaponBuilt(group, def) {
     this.group = group; this.def = def;
     group.visible = this.visible !== false;
+    // (gun reference pass: a gun of the clips' prototypes is held at its own size)
+    group.scale.setScalar(group.userData.vmScale || 1);
     if (!this.S) this.reset();
     const P = (group.userData.parts) || {};
     // remember each moving part's rest pose
@@ -124,6 +183,23 @@ G.ViewModel = {
     bolt: { out: 0.13, drop: 0.24, grab: 0.42, in: 0.60, slap: 0.65, bolt: 0.80 },
     belt: { cover: 0.16, out: 0.26, drop: 0.34, grab: 0.50, in: 0.66, coverClose: 0.80, bolt: 0.91 },
     launcher: { out: 0.14, drop: 0.26, grab: 0.46, in: 0.66, slap: 0.72, bolt: 0.86 },
+  },
+  // (gun reference pass) the timelines of GUN_REFERENCE.md section 4.2, as
+  // shares of the gun's own reload time -- a gun of the clips goes by its
+  // family's: a pistol releases at once and its slide goes at ~3/4; the SMG's
+  // magazine is out by a third and locked at two thirds; the long rifle
+  // rocks its magazine out and in early and hauls the handle at ~2/3; the
+  // belt-fed's cover opens first, the box is swapped at ~0.4, the cover
+  // slammed at ~0.8 and it is charged last
+  REF_STYLES: {
+    pistol: { out: 0.06, drop: 0.14, grab: 0.32, in: 0.56, slap: 0.6, bolt: 0.76 },
+    pistol45: { out: 0.06, drop: 0.14, grab: 0.32, in: 0.56, slap: 0.6, bolt: 0.78 },
+    smg: { out: 0.13, drop: 0.29, grab: 0.45, in: 0.66, slap: 0.7, bolt: 0.87 },
+    ak: { out: 0.08, drop: 0.2, grab: 0.32, in: 0.46, slap: 0.5, bolt: 0.69 },
+    belt: { cover: 0.05, out: 0.15, drop: 0.39, grab: 0.47, in: 0.61, coverClose: 0.79, bolt: 0.91 },
+    bolt: { out: 0.13, drop: 0.24, grab: 0.42, in: 0.6, slap: 0.65, bolt: 0.8 },
+    boltClip: { out: 0.1, drop: 0.24, grab: 0.36, in: 0.55, slap: 0.62, bolt: 0.78 },
+    bolt50: { out: 0.13, drop: 0.24, grab: 0.42, in: 0.6, slap: 0.65, bolt: 0.82 },
   },
   SHELL: { lead: 0.28, tail: 0.38 },
 
@@ -153,7 +229,8 @@ G.ViewModel = {
       if (pump) events.push({ t: dur - tail + 0.2, kind: "pump" });
       return { style, dur, shellT, shells: n, events, tail, pump };
     }
-    let k = this.STYLES[style] || this.STYLES.rifle;
+    const ref = G.GunRef && G.GunRef.info(def);
+    let k = (ref && this.REF_STYLES[ref.reload]) || this.STYLES[style] || this.STYLES.rifle;
     let dur = base;
     if (tactical) {
       // the release step goes; what is left spreads over the shorter time
@@ -183,6 +260,8 @@ G.ViewModel = {
     const def = ctx.def;
     const wk = this.weightKey(def);
     const hold = G.holdPose(def);
+    // (gun reference pass) one of the clips' prototypes (js/gunref.js), or null
+    const ref = def && G.GunRef ? G.GunRef.info(def) : null;
     const feel = this.FEEL[wk];
     const gait = G.PlayerBody.gait || { phase: 0, moveW: 0, runW: 0, bob: 0, sway: 0 };
 
@@ -210,8 +289,20 @@ G.ViewModel = {
     const HIP = this.HIP_LIFT;
     let px = hold.x * ak + sp.x * sw, py = hold.y - hold.sag + HIP.y + sp.y * sw, pz = hold.z + HIP.z + sp.z * sw;
     let rx = hold.rx + sp.rx * sw, ry = -0.06 + sp.ry * sw, rz = hold.rz + sp.rz * sw;
-    // aim-down-sights pulls it to the centre line (same end pose as before)
-    px += (0.04 - px) * aim; py += (hold.y + 0.02 - py) * aim; pz += (hold.z + 0.1 - pz) * aim;
+    // (gun reference pass) a gun of the clips: carried as the clip carries it
+    // (nearer and bigger; a pistol low in the middle)...
+    const HN = g.userData.hipNudge, AI = g.userData.aim;
+    if (HN) { const k = 1 - sw; px += HN[0] * k; py += HN[1] * k; pz += HN[2] * k; }
+    if (AI && AI.y != null) {
+      // ...and aimed down its own sight: the sight's middle on the line of the
+      // view, `eye` behind it -- further while a scope's zoom is in, so the
+      // sight fills as much of the screen as the clip's does
+      const s = g.scale.x, fovK = Math.tan(25 * Math.PI / 180) / Math.tan(((G.Game && G.Game.camera ? G.Game.camera.fov : 50) * Math.PI) / 360);
+      px += (0 - px) * aim; py += (-AI.y * s - py) * aim; pz += (-(AI.eye * fovK) - AI.z * s - pz) * aim;
+    } else {
+      // aim-down-sights pulls it to the centre line (same end pose as before)
+      px += (0.04 - px) * aim; py += (hold.y + 0.02 - py) * aim; pz += (hold.z + 0.1 - pz) * aim;
+    }
     rx *= 1 - aim; ry *= 1 - aim; rz *= 1 - aim;
 
     // ---- idle: breathing and a slow drift, damped out when moving or aiming ----
@@ -285,7 +376,19 @@ G.ViewModel = {
     // ---- (overhaul, round 1) inspecting: one side, then the other ----
     if (sm.inspectP != null) { S.inspU = sm.inspectP; S.inspW = 1; }
     else S.inspW = A.approach(S.inspW, 0, dt, 0.09);     // any action: let go at once, eased
-    if (S.inspW > 0.001) {
+    let magOff = 0, magHand = 0;
+    if (S.inspW > 0.001 && ref && ref.inspect === "magCheck") {
+      // (gun reference pass) the SMG's of the clip (section 3.3, 2.2 s): turned
+      // to show its left side, held, tipped down to check the magazine -- out
+      // a little at 0.62, back in at 0.88 -- and home
+      const u = S.inspU, w = S.inspW;
+      const turn = A.smooth(A.seg(u, 0, 0.23)) * (1 - A.smooth(A.seg(u, 0.9, 1)));
+      const tilt = A.smooth(A.seg(u, 0.5, 0.6)) * (1 - A.smooth(A.seg(u, 0.88, 0.97)));
+      px += -0.1 * turn * w; py += (0.06 * turn + 0.03 * tilt) * w; pz += 0.05 * turn * w;
+      ry += 0.55 * turn * w; rz += (-0.3 * turn + 0.22 * tilt) * w; rx += 0.38 * tilt * w;
+      magOff = -0.05 * A.smooth(A.seg(u, 0.62, 0.7)) * (1 - A.smooth(A.seg(u, 0.84, 0.88))) * w;
+      magHand = A.smooth(A.seg(u, 0.55, 0.62)) * (1 - A.smooth(A.seg(u, 0.9, 0.96))) * w;
+    } else if (S.inspW > 0.001) {
       const u = S.inspU, w = S.inspW;
       const heavy = wk === "heavy" || wk === "very_heavy" ? 0.7 : 1;
       const up = A.smooth(A.seg(u, 0, 0.16)), b = A.smooth(A.seg(u, 0.16, 0.48)), c = A.smooth(A.seg(u, 0.52, 0.82));
@@ -325,7 +428,19 @@ G.ViewModel = {
       const down = A.easeInCubic(A.seg(p, 0, 0.45));
       const up = p < 0.5 ? 1 : 1 - A.easeOutBack(A.seg(p, 0.55, 0.9));
       const k = p < 0.5 ? down : up;
-      py -= 0.62 * k; rx -= 0.95 * k; rz += 0.45 * k; px += 0.06 * k;
+      // (gun reference pass) the clips' own: the .50 swung up on end to be put
+      // away; the .45 twirled up from the left, pointed at the sky and brought
+      // down; the chassis sniper brought up canted to show it off
+      const style = ref ? (p < 0.5 ? ref.holster : ref.draw) : "standard";
+      if (style === "swingUp") {
+        const sw = A.smooth(A.seg(p, 0, 0.32)), off = A.easeInCubic(A.seg(p, 0.3, 0.5));
+        py += 0.08 * sw - 0.5 * off; rx += 1.35 * sw; rz -= 0.25 * sw; px += 0.08 * sw + 0.1 * off;
+      } else if (style === "spin" || style === "flourish") {
+        const o = this.keyed(style === "spin" ? this.SPIN : this.FLOURISH, A.seg(p, 0.5, 1));
+        px += o[0]; py += o[1]; rx += o[2]; ry += o[3]; rz += o[4];
+      } else {
+        py -= 0.62 * k; rx -= 0.95 * k; rz += 0.45 * k; px += 0.06 * k;
+      }
       // the support hand lets go first and grabs last
       leftOff = Math.max(A.smooth(A.seg(p, 0, 0.22)) * (p < 0.5 ? 1 : 0), p >= 0.5 ? 1 - A.smooth(A.seg(p, 0.82, 1)) : 0);
       // grip settle: the new gun gives a small shake as the hands tighten
@@ -349,6 +464,20 @@ G.ViewModel = {
       rx += rl.gun.rx * rw; ry += rl.gun.ry * rw; rz += rl.gun.rz * rw;
     }
 
+    // ---- (gun reference pass) the bolt worked between shots (F G H I) ----
+    let bc = null;
+    if (S.bolt) {
+      if (ctx.reload || ctx.switchP != null || sm.meleeP != null) { this.boltHome(); S.bolt = null; }
+      else {
+        S.bolt.t += dt;
+        // the case comes out as the bolt is pulled back (the clip's chassis sniper)
+        if (!S.bolt.ejected && S.bolt.st && S.bolt.t >= S.bolt.st.pull) { S.bolt.ejected = true; if (G.FX && G.FX.eject) G.FX.eject(S.bolt.def); }
+        bc = this.boltPose(S.bolt);
+        if (!bc) { this.boltHome(); S.bolt = null; }
+        else { px += bc.gun[0]; py += bc.gun[1]; pz += bc.gun[2]; rx += bc.gun[3]; ry += bc.gun[4]; rz += bc.gun[5]; }
+      }
+    }
+
     // ---- write the transform ----
     g.position.set(px, py, pz);
     g.rotation.set(rx, ry, rz);
@@ -368,6 +497,21 @@ G.ViewModel = {
       if (rl.left && left) left.pos.lerp(rl.left, rw);
       if (rl.right) right.pos.lerp(rl.right, rw);
     }
+    // (gun reference pass) the right hand on the bolt: up, back, forward, down;
+    // the left on the magazine while it is checked
+    const P = g.userData.parts || {};
+    if (bc && An.bolt) {
+      if (P.bolt && P.bolt.userData.home) {
+        P.bolt.rotation.z = P.bolt.userData.home.rot.z + 1.1 * bc.lift;
+        P.bolt.position.copy(P.bolt.userData.home.pos).add(new THREE.Vector3(0, 0, 0.09 * bc.back));
+      }
+      const hb = toCam(An.bolt.clone().add(new THREE.Vector3(0.05, 0.02 + 0.03 * bc.lift, 0.09 * bc.back)));
+      right.pos.lerp(hb, bc.work);
+    }
+    if (magOff && P.mag && P.mag.userData.home && !rl) P.mag.position.copy(P.mag.userData.home.pos).add(new THREE.Vector3(0, magOff, 0));
+    else if (!rl && S._magOff && P.mag && P.mag.userData.home) P.mag.position.copy(P.mag.userData.home.pos);
+    S._magOff = magOff;
+    if (magHand > 0 && left && An.magBottom) left.pos.lerp(toCam(An.magBottom), magHand);
     this.hands = { right, left };
     this.shoulder = { x: S.shX.x * 0.6, y: S.shY.x * 0.6 };
   },
@@ -638,3 +782,5 @@ G.ViewModel = {
 
 // (overhaul, round 1) put away and shown again by the weapon state machine
 if (G.Bus) G.Bus.on("weapon:visible", (e) => G.ViewModel.setVisible(e.on), "viewmodel");
+// (gun reference pass) a shot: a bolt-action of the clips works its bolt after it
+if (G.Bus) G.Bus.on("weapon:fire", (e) => G.ViewModel.onShot(e), "viewmodel");

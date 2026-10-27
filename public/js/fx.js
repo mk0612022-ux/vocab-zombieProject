@@ -123,14 +123,18 @@ G.FX = (function () {
       P.smoke.frustumCulled = false;
       P.s = { n, vel: new Float32Array(n * 3), age: new Float32Array(n), life: new Float32Array(n), size: new Float32Array(n), on: new Uint8Array(n), next: 0, live: 0 };
       geo.setDrawRange(0, 0);
-      // brass
+      // brass (gun reference pass: each casing its own kind -- size and colour
+      // per instance: brass, the long rifle's black steel, the LMG's brass with
+      // its black links, the .50's big ones -- and a sound where it lands)
       const SH = C().shells;
-      P.shells = new THREE.InstancedMesh((() => { const g = new THREE.BoxGeometry(0.022, 0.022, 0.055); g.userData.shared = true; return g; })(),
-        mat(new THREE.MeshLambertMaterial({ color: SH.color })), SH.pool);
+      P.shells = new THREE.InstancedMesh(unitBox(), mat(new THREE.MeshLambertMaterial({ color: 0xffffff })), SH.pool);
       P.shells.instanceMatrix.setUsage(THREE.DynamicDrawUsage); P.shells.frustumCulled = false; P.shells.count = 0;
       zero(P.shells, SH.pool);
+      const brass = new THREE.Color(SH.color);
+      for (let i = 0; i < SH.pool; i++) P.shells.setColorAt(i, brass);
       P.sh = { pos: new Float32Array(SH.pool * 3), vel: new Float32Array(SH.pool * 3), rot: new Float32Array(SH.pool * 3), spin: new Float32Array(SH.pool * 3),
-        age: new Float32Array(SH.pool), on: new Uint8Array(SH.pool), floor: new Float32Array(SH.pool), next: 0, live: 0 };
+        age: new Float32Array(SH.pool), on: new Uint8Array(SH.pool), floor: new Float32Array(SH.pool), next: 0, live: 0,
+        size: new Float32Array(SH.pool * 3).fill(1), kind: new Array(SH.pool).fill("brass"), landed: new Uint8Array(SH.pool), sound: new Uint8Array(SH.pool) };
       // bullet holes: one instanced quad per kind
       P.decals = {};
       if (B.decals > 0) ["hole", "crack", "splinter", "dent"].forEach((k) => {
@@ -207,13 +211,14 @@ G.FX = (function () {
     if (n && P.debris.instanceColor) P.debris.instanceColor.needsUpdate = true;
     return n;
   }
-  function smokeAt(p, big) {
+  // (gun reference pass: `life` / `size` -- the smoke that hangs after a long burst)
+  function smokeAt(p, big, life, size) {
     const s = P.s, S = C().smoke;
     if (!s || !budget().smoke || !room(1)) return;
     const i = s.next; s.next = (s.next + 1) % s.n;
     if (!s.on[i]) s.live++;
-    s.on[i] = 1; s.age[i] = 0; s.life[i] = S.life * (0.8 + Math.random() * 0.4) * (big ? 1.4 : 1);
-    s.size[i] = big ? 1.6 : 1;
+    s.on[i] = 1; s.age[i] = 0; s.life[i] = (life || S.life * (big ? 1.4 : 1)) * (0.8 + Math.random() * 0.4);
+    s.size[i] = size || (big ? 1.6 : 1);
     const pa = P.smoke.geometry.attributes.position;
     pa.setXYZ(i, p.x, p.y, p.z);
     s.vel[i * 3] = (Math.random() - 0.5) * 0.12; s.vel[i * 3 + 1] = S.rise * (0.7 + Math.random() * 0.6); s.vel[i * 3 + 2] = (Math.random() - 0.5) * 0.12;
@@ -234,8 +239,16 @@ G.FX = (function () {
   // a gun just built for the hands gets its flash at the muzzle (hidden)
   function attachFlash(gun, def) {
     textures();
-    const fam = G.ViewModel.family(def), F = C().flash.family[fam] || C().flash.family.rifle;
+    const fam = G.ViewModel.family(def);
+    let F = C().flash.family[fam] || C().flash.family.rifle;
+    // (gun reference pass) a gun of the clips: its prototype's size class (S
+    // the polymer pistol and the snipers, M the rifles and the SMG, L the .45's
+    // big star, XL the .50's fireball) in the clips' colours -- a white core,
+    // cream flame (#DEC189) -- and round the .50's, burnt brown smoke (#967758)
+    const ref = G.GunRef && G.GunRef.info(def);
+    if (ref) { const w = G.CONFIG.gunRef.flash[ref.flash]; F = { w, h: w * (ref.flash === "XL" ? 1.1 : 0.95), color: ref.flash === "L" || ref.flash === "XL" ? 0xffe8be : 0xfff6dc }; }
     const An = gun.userData.anchors || {};
+    flash.ring = null;
     if (!F.w || !An.muzzle) { flash.mesh = null; return; }
     const m = new THREE.MeshBasicMaterial({ map: tex.flash, color: F.color, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
     const mesh = new THREE.Mesh(flashGeos()[0], m);
@@ -244,8 +257,18 @@ G.FX = (function () {
     mesh.visible = false;
     mesh.renderOrder = 10;
     mesh.userData.flashSize = [F.w, F.h];
+    mesh.userData.ms = ref ? G.CONFIG.gunRef.flashMs : null;
     gun.add(mesh);
     flash.mesh = mesh;
+    if (ref && ref.flash === "XL") {
+      const rm = new THREE.MeshBasicMaterial({ map: tex.smoke, color: 0x967758, transparent: true, opacity: 0.8, depthWrite: false, toneMapped: false });
+      const ring = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), rm);
+      ring.position.copy(mesh.position).add(new THREE.Vector3(0, 0, 0.02));
+      ring.scale.set(F.w * 1.45, F.h * 1.35, 1);
+      ring.visible = false; ring.renderOrder = 9;
+      gun.add(ring);
+      flash.ring = ring;
+    }
   }
 
   // ---------------- what a shot sets off ----------------
@@ -270,7 +293,9 @@ G.FX = (function () {
       m.scale.set(sz[0] * j, sz[1] * j, 1);
       m.material.opacity = F.minSprite + (1 - F.minSprite) * set;
       m.visible = true;
-      flash.t = (F.ms[0] + Math.random() * (F.ms[1] - F.ms[0])) / 1000;
+      const ms = m.userData.ms || F.ms;
+      flash.t = (ms[0] + Math.random() * (ms[1] - ms[0])) / 1000;
+      if (flash.ring) { flash.ring.visible = set > 0; flash.ring.rotation.z = Math.random() * Math.PI * 2; flash.ring.material.opacity = 0.8 * set; }
     }
     // the light: from the fixed pool, never a new one
     const every = F.lightEvery[quality()] || 0;
@@ -280,19 +305,47 @@ G.FX = (function () {
     // smoke, brass
     if (!fast || n % C().smoke.everyFast === 0) smokeAt(tmp, fam === "shotgun_pump" || fam === "shotgun_semi" || fam === "special");
     const noBrass = /energy|beam|launcher|cannon/.test(G.inferArchetype(def) + (def.archetype || ""));
-    if (!noBrass && C().shells.off.indexOf(quality()) < 0) shell(g);
+    const ref = G.GunRef && G.GunRef.info(def);
+    // (a bolt-action of the clips throws its case out when the bolt is pulled: eject())
+    if (!noBrass && C().shells.off.indexOf(quality()) < 0 && !(ref && ref.action === "bolt")) {
+      // (gun reference pass) its own kind of casing; the LMG's link rides out beside it
+      const kind = ref ? ref.casing : fam === "pistol" ? "pistol" : "brass";
+      shell(g, kind);
+      if (kind === "brassLinks") shell(g, "link");
+    }
+    // (gun reference pass) a long burst of the belt-fed leaves smoke hanging in front of it
+    const LG = G.CONFIG.gunRef.linger;
+    flash.burst = (flash.lastShotT != null && performance.now() - flash.lastShotT < 250) ? (flash.burst || 0) + 1 : 0;
+    flash.lastShotT = performance.now();
+    if (ref && ref.proto === "A" && flash.burst >= LG.after && flash.burst % LG.every === 0) smokeAt(tmp, true, LG.life, LG.size);
   }
-  function shell(g) {
-    const S = P.sh, SH = C().shells;
+  // (gun reference pass) a bolt-action's case, thrown out as its bolt comes back (js/viewmodel.js)
+  function eject(def) {
+    const g = G.Game, ref = def && G.GunRef && G.GunRef.info(def);
+    if (!g || !g.camera || !ref || C().shells.off.indexOf(quality()) >= 0) return;
+    shell(g, ref.casing);
+  }
+  function shell(g, kind) {
+    const S = P.sh, SH = C().shells, K = G.CONFIG.gunRef.shells;
     if (!S) return;
     const i = S.next; S.next = (S.next + 1) % SH.pool;
     if (!S.on[i]) S.live++;
-    S.on[i] = 1; S.age[i] = 0;
+    S.on[i] = 1; S.age[i] = 0; S.landed[i] = 0;
+    const link = kind === "link", spec = link ? null : (K[kind] || K.brass);
+    const size = link ? [0.03, 0.008, 0.024] : spec.size;
+    S.size[i * 3] = size[0]; S.size[i * 3 + 1] = size[1]; S.size[i * 3 + 2] = size[2];
+    S.kind[i] = kind;
+    // (one in three of a fast gun's rings out where it lands -- they would bury each other)
+    S.sound[i] = link ? 0 : (S.n = (S.n || 0) + 1) % (spec === K.brassLinks ? 3 : 1) === 0 ? 1 : 0;
+    P.shells.setColorAt(i, color.setHex(link ? K.brassLinks.link : spec.color));
+    P.shells.instanceColor.needsUpdate = true;
     const cam = g.camera;
     tmp.set(0.28, -0.18, -0.5).applyMatrix4(cam.matrixWorld);
     S.pos[i * 3] = tmp.x; S.pos[i * 3 + 1] = tmp.y; S.pos[i * 3 + 2] = tmp.z;
-    tmp2.set(1, 0, 0).transformDirection(cam.matrixWorld).multiplyScalar(1.4 + Math.random() * 0.8);
-    S.vel[i * 3] = tmp2.x; S.vel[i * 3 + 1] = tmp2.y + 1.6 + Math.random() * 0.6; S.vel[i * 3 + 2] = tmp2.z;
+    // thrown out to the right and up (a .50 heavier, a link lighter)
+    const k = kind === "fifty" ? 0.8 : link ? 1.15 : 1;
+    tmp2.set(1, 0, 0).transformDirection(cam.matrixWorld).multiplyScalar((1.4 + Math.random() * 0.8) * k);
+    S.vel[i * 3] = tmp2.x; S.vel[i * 3 + 1] = tmp2.y + (1.6 + Math.random() * 0.6) * k; S.vel[i * 3 + 2] = tmp2.z;
     S.spin[i * 3] = 8 + Math.random() * 8; S.spin[i * 3 + 1] = Math.random() * 8; S.spin[i * 3 + 2] = Math.random() * 8;
     S.floor[i] = g.world ? G.getFloorHeightAt(g.world, tmp.x, tmp.z, tmp.y - 1.4) : 0;
     P.shells.count = SH.pool;
@@ -352,7 +405,7 @@ G.FX = (function () {
   const m4 = new THREE.Matrix4(), eul = new THREE.Euler(), quat = new THREE.Quaternion(), pos = v3(), scl = v3();
   function update(dt, game) {
     // the flash: a few hundredths of a second
-    if (flash.t > 0) { flash.t -= dt; if (flash.t <= 0 && flash.mesh) flash.mesh.visible = false; }
+    if (flash.t > 0) { flash.t -= dt; if (flash.t <= 0) { if (flash.mesh) flash.mesh.visible = false; if (flash.ring) flash.ring.visible = false; } }
     if (!P.d) return;
     const G9 = C().impact.gravity;
     // pieces
@@ -414,9 +467,16 @@ G.FX = (function () {
           S.vel[o + 1] -= 9.8 * dt;
           S.pos[o] += S.vel[o] * dt; S.pos[o + 1] += S.vel[o + 1] * dt; S.pos[o + 2] += S.vel[o + 2] * dt;
           S.rot[o] += S.spin[o] * dt; S.rot[o + 1] += S.spin[o + 1] * dt; S.rot[o + 2] += S.spin[o + 2] * dt;
+        } else if (!S.landed[i]) {
+          // (gun reference pass) down: it rings on what it landed on
+          S.landed[i] = 1;
+          if (S.sound[i] && G.GunAudio && G.GunAudio.casing && game && game.world) {
+            pos.set(S.pos[o], S.pos[o + 1], S.pos[o + 2]);
+            G.GunAudio.casing(S.kind[i], G.Surface ? G.Surface.floor(game.world, pos.x, pos.z, pos.y + 0.3) : "concrete", pos.clone());
+          }
         }
         pos.set(S.pos[o], S.pos[o + 1], S.pos[o + 2]);
-        m4.compose(pos, quat.setFromEuler(eul.set(S.rot[o], S.rot[o + 1], S.rot[o + 2])), scl.set(1, 1, 1));
+        m4.compose(pos, quat.setFromEuler(eul.set(S.rot[o], S.rot[o + 1], S.rot[o + 2])), scl.set(S.size[o], S.size[o + 1], S.size[o + 2]));
         P.shells.setMatrixAt(i, m4);
       }
       P.shells.instanceMatrix.needsUpdate = true;
@@ -462,7 +522,7 @@ G.FX = (function () {
   if (G.Bus) G.Bus.on("weapon:fire", (e) => onFire(e), "fx");
 
   // (a window holding the world: the flash goes, nothing else moves)
-  function hideFlash() { flash.t = 0; if (flash.mesh) flash.mesh.visible = false; }
+  function hideFlash() { flash.t = 0; if (flash.mesh) flash.mesh.visible = false; if (flash.ring) flash.ring.visible = false; }
 
-  return { init, detach, clear, applyQuality, update, impact, attachFlash, onFire, hideFlash, stats, budget, _pools: P, _flash: flash };
+  return { init, detach, clear, applyQuality, update, impact, attachFlash, onFire, hideFlash, stats, budget, eject, _pools: P, _flash: flash };
 })();

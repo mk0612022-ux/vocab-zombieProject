@@ -280,7 +280,7 @@ G.MenuScene = (function () {
     // anchors (reach(), below)
     let gun = null, grip = null, fore = null;
     if (G.buildWeaponMesh && G.WEAPON_DEFS && G.WEAPON_DEFS.rifle) {
-      gun = G.buildWeaponMesh(G.WEAPON_DEFS.rifle);
+      gun = G.buildWeaponMesh(G.WEAPON_DEFS.rifle, { still: true });
       gun.scale.setScalar(0.95);
       gun.quaternion.setFromRotationMatrix(new THREE.Matrix4().lookAt(new THREE.Vector3(), new THREE.Vector3(-0.85, -0.15, 0.5), new THREE.Vector3(0, 1, 0)));
       const an = gun.userData.anchors || {}, at = (a, d) => new THREE.Vector3().copy(a || d).multiplyScalar(0.95).applyQuaternion(gun.quaternion);

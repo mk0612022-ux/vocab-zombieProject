@@ -243,9 +243,15 @@ G.Round23Test = (function () {
     // the families: every gun within 1.5 dB of its family's median
     for (const gid of ["smg", "rifle"].map((f) => Object.values(G.WEAPON_DEFS).filter((d) => G.ViewModel.family(d) === f).slice(0, 3)).flat().map((d) => d.id)) GA.prepare([gid]);
     await until(() => !GA.busy && !GA.queue.length, 60000);
+    // (gun reference pass: a gun of the clips' prototypes is brought to its
+    // prototype's own level, G.CONFIG.gunRef.loud -- js/gunaudio.js correction)
     const off = [];
-    GA.cache.forEach((r, gid) => { const f = GA.family[G.ViewModel.family(G.WEAPON_DEFS[gid])]; if (Math.abs(r.rms + r.corr - f) > C.familySpreadDb + 0.01) off.push(gid); });
-    ok("C each gun within 1.5 dB of its family's loudness", GA.cache.size >= 5 && !off.length, GA.cache.size + " guns; off: " + off.join(","));
+    for (const [gid, r] of GA.cache) {
+      const d = G.WEAPON_DEFS[gid], p = GA.profile(d);
+      const goal = p.proto ? await GA.refLevel(p.proto) : GA.family[GA.famKey(d)], tol = p.proto ? 0.01 : C.familySpreadDb + 0.01;
+      if (!(Math.abs(r.rms + r.corr - goal) <= tol)) off.push(gid);
+    }
+    ok("C each gun within 1.5 dB of its family's loudness (a prototype's gun at its prototype's)", GA.cache.size >= 5 && !off.length, GA.cache.size + " guns; off: " + off.join(","));
   }
 
   // ---------------- D ----------------

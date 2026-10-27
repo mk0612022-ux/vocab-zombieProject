@@ -32,6 +32,7 @@
 //   reloadSpeed()              Quick Hands
 //   spellReload(id), spellBusy()      Spell to Reload took it / still open
 //   switchDur(from, to)        seconds for the whole lower-and-raise
+//   switchSplit(from, to)      (optional) the swap's share of it (0.5 if not given)
 //   swapModel(id)              the gun in the hands is now this one (the model)
 //   stopSprint()               a trigger pull ends a run
 //   autoReload()               the setting
@@ -151,7 +152,7 @@
       if (!S.swapped) {
         if (sel === S.from) {
           // changed its mind before the old one was out of sight: back up it comes
-          S.to = sel; S.swapped = true; S.noModel = true; S.t = S.dur - S.t;
+          S.to = sel; S.swapped = true; S.noModel = true; mirror(S);
           emit("weapon:switch", { phase: "raise", switchId: S.switchId, fromId: S.from, toId: S.to, back: true });
         } else {
           // only the last one asked for counts
@@ -160,22 +161,31 @@
         }
       } else {
         // the new one was on its way up: down again, for the latest choice
-        S.from = sm.held; S.to = sel; S.swapped = false; S.noModel = false; S.t = S.dur - S.t;
+        S.from = sm.held; S.to = sel; S.swapped = false; S.noModel = false; mirror(S);
         emit("weapon:switch", { phase: "lower", switchId: S.switchId, fromId: S.from, toId: S.to });
       }
     }
+    // (gun reference pass) the swap need not be half way: the old gun goes
+    // down in its own time and the new one comes up in its own (a sniper's
+    // draw is longer than its put-away) -- `split` is the swap's share of the
+    // whole. The animation sees the even 0..1 it always did (switchProgress).
+    const evenP = (S) => { const u = Math.min(1, S.t / S.dur), s = S.split || 0.5; return u < s ? 0.5 * u / s : 0.5 + 0.5 * (u - s) / (1 - s); };
+    const fromEven = (S, p) => { const s = S.split || 0.5; return (p < 0.5 ? p / 0.5 * s : s + (p - 0.5) / 0.5 * (1 - s)) * S.dur; };
+    // turned round half way: the same place on the way back
+    function mirror(S) { S.t = fromEven(S, 1 - evenP(S)); }
     function beginSwitch(to) {
       cancelReload("switch"); endInspect("switch"); cancelMelee("switch");
       sm.queued = 0;
       const dur = Math.max(0.05, host.switchDur(sm.held, to) || 0.45);
-      sm.sw = { switchId: ++sm.ids, from: sm.held, to, t: 0, dur, swapped: false, noModel: false };
+      const split = host.switchSplit ? Math.max(0.15, Math.min(0.85, host.switchSplit(sm.held, to) || 0.5)) : 0.5;
+      sm.sw = { switchId: ++sm.ids, from: sm.held, to, t: 0, dur, split, swapped: false, noModel: false };
       emit("weapon:switch", { phase: "lower", switchId: sm.sw.switchId, fromId: sm.held, toId: to, dur });
       refresh("switch");
     }
     function tickSwitch(dt) {
       const S = sm.sw;
       S.t += dt * (host.reloadSpeed() || 1);
-      if (!S.swapped && S.t >= S.dur * 0.5) {
+      if (!S.swapped && S.t >= S.dur * (S.split || 0.5)) {
         if (!S.noModel) host.swapModel(S.to);
         sm.held = S.to; S.swapped = true;
         emit("weapon:switch", { phase: "swap", switchId: S.switchId, fromId: S.from, toId: S.to });
@@ -195,7 +205,7 @@
     }
     sm.finishSwitch = function () { finishSwitch(); refresh("finishSwitch"); };
     sm.requestSwitch = function () { sync(); refresh("switch"); return !!sm.sw; };
-    sm.switchProgress = function () { return sm.sw ? Math.min(1, sm.sw.t / sm.sw.dur) : null; };
+    sm.switchProgress = function () { return sm.sw ? evenP(sm.sw) : null; };
 
     // ---------------- firing ----------------
     function queue(o) { if (o && o.pressed) sm.queued = C.queueWindow; }

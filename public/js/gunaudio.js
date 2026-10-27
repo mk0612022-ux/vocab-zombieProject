@@ -233,6 +233,20 @@
         return p;
       }
       const arch = def.archetype || G.inferArchetype(def);
+      // (gun reference pass) a gun of the clips' prototypes: its recipe is
+      // js/gunvoice.js's, held to the measured numbers -- its mechanics only
+      // a little higher or lower than its family's (the clips' own frequencies)
+      const voice = G.GunVoice && G.GunVoice.voiceFor(def);
+      if (voice) {
+        const I = G.GunRef.info(def);
+        const p = {
+          arch, proto: I.proto, ref: I, voice, size: 1, punch: 1, tech: false, mat: "metal",
+          gain: Math.pow(10, (voice.level || 0) / 20), rev: 0.32, mech: "none", mechPitch: j(0.95, 1.05), humF: 0,
+          flavors: [], tail: null,
+        };
+        this._prof[def.id] = p;
+        return p;
+      }
       const B = BASE[arch] || BASE.rifle;
       const wk = G.weightClass(def).key;
       const size = { light: 1.12, medium: 1, heavy: 0.86, very_heavy: 0.74 }[wk] || 1;
@@ -269,6 +283,8 @@
     signature(def) {
       const p = this.profile(def);
       const v = (o, k) => (o && o[k]) || 0;
+      // (gun reference pass: a gun of the clips' by its recipe's own numbers)
+      if (p.voice) { const s = p.voice; return [p.proto, v(s.trans, "lo"), v(s.mid, "lo"), v(s.body, "f1"), v(s.body, "tau"), v(s.tail, "rt60"), v(s.tail, "lp")].map((x) => typeof x === "number" ? x.toFixed(3) : x).join("/"); }
       return [p.arch, v(p.crack, "f"), v(p.body, "f0"), v(p.body, "dur"), v(p.nbody, "lp"), p.rev, p.ring ? p.ring.f : 0, p.flavors.length, p.mech].map((x) => typeof x === "number" ? x.toFixed(3) : x).join("/");
     },
 
@@ -298,13 +314,65 @@
           if (far) { const sg = A.ctx.createGain(); sg.gain.value = 0.6 * s; V.gains[V.gains.length - 1].connect(sg); sg.connect(far); }
           if (p.tail) A.group({ cat: "weapons", prio: 1 }, () => this.tailLayer(A, p, s));
         }
+        // (gun reference pass) and its outdoor roll, one generator a gun
+        if (p.voice) this.tailShot(def, p, s * R.norm);
         this.stats.played++;
         return;
       }
       this.stats.live++;
+      // (a gun of the clips before its buffers are ready: drawn into one at
+      // once next time; this shot is its recipe on the live synthesiser)
+      if (p.voice) {
+        this.liveVoice(A, p, s);
+        this.tailShot(def, p, s);
+        this.prepare([def.id]);
+        return;
+      }
       // (still drawing its buffers: live, one voice for all its layers)
       A.group({ cat: "weapons", prio: 1, dur: 1.2, tag: "shot" }, () => this.layers(A, def, p, 0.96 + Math.random() * 0.08, s, this.liteShot(def), p.rev));
       this.prepare([def.id]);
+    },
+    // (gun reference pass) a gun of the clips', live (only until its buffers
+    // are drawn): its recipe drawn on the game's own context -- the very shot
+    // the buffers will hold, at their level, on the weapons bus and the reverb
+    liveVoice(A, p, s) {
+      const ctx = A.ctx, V = A._voiceFor({ cat: "weapons", prio: 1, tag: "shot" }, 0.9);
+      if (!V) return;
+      const g = ctx.createGain();
+      g.gain.value = s;
+      g.connect(A._out("weapons", null, V));
+      if (A.revIn) { const sg = ctx.createGain(); sg.gain.value = p.rev * 0.8; g.connect(sg); sg.connect(A.revIn); }
+      G.GunVoice.renderDry(ctx, g, p.voice, ctx.currentTime + 0.004, 0.97 + Math.random() * 0.06, A.noiseBuffer(), null);
+      V.gains.push(g);
+    },
+    // The outdoor roll of a gun of the clips (G.GunVoice's tail): one
+    // generator a gun, its level energy -- a burst builds it and holds it, so
+    // automatic fire rolls into one roar -- scaled by the space it is in
+    // (outdoors in full, a room a quarter: the room's own reverb is
+    // js/acoustics.js). One voice, kept going while it rings.
+    tailShot(def, p, s) {
+      const A = G.Audio, ctx = A.ctx, T = p.voice && p.voice.tail;
+      if (!ctx || !T) return;
+      const zone = (G.Acoustics && G.Acoustics.zone) || "room";
+      const L = T.g * s * (TAIL[zone] == null ? 0.3 : TAIL[zone]);
+      const now = ctx.currentTime;
+      let tg = this._tail;
+      if (!tg || tg.id !== def.id || tg.V.dead || now > tg.V.end - 0.02) {
+        if (tg && !tg.V.dead) A.stopVoice(tg.V);
+        const V = A._voiceFor({ cat: "weapons", prio: 1, tag: "tail" }, T.rt60 + 0.5);
+        if (!V) return;
+        const n = G.GunVoice.tailNodes(ctx, A._out("weapons", null, V), T, 1, A.noiseBuffer());
+        if (A.revIn) { const sg = ctx.createGain(); sg.gain.value = 0.25; n.gain.connect(sg); sg.connect(A.revIn); }
+        n.src.start(now, Math.random());
+        V.nodes.push(n.src); V.gains.push(n.gain);
+        tg = this._tail = { id: def.id, V, gain: n.gain, src: n.src, st: null, timer: null };
+      }
+      tg.st = G.GunVoice.scheduleTail(tg.gain.gain, tg.st, now, L, T);
+      // rings until -60 dB; the looping noise is stopped then
+      tg.V.end = Math.max(tg.V.end, tg.st.t1 + T.rt60 * 1.02);
+      clearTimeout(tg.timer);
+      const left = tg.V.end - now, src = tg.src;
+      tg.timer = setTimeout(() => { try { src.stop(); } catch (e) { /* already stopped */ } }, (left + 0.1) * 1000);
     },
     // a fast automatic lays every other round down lighter when it is synthesised live
     liteShot(def) {
@@ -359,10 +427,17 @@
     async renderOne(def, k) {
       const A = G.Audio, ctx = A.ctx, OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
       const rate = ctx.sampleRate, len = Math.floor(rate * 1.9);
-      const off = new OAC(1, len, rate);
-      const S = offlineSynth(off, off.destination, A.noiseBuffer());
-      this.layers(S, def, this.profile(def), k, 1, false, 0);
-      const raw = await off.startRendering();
+      const p = this.profile(def);
+      let raw;
+      if (p.voice) {
+        // (gun reference pass) the recipe, dry: its tail is played live (tailShot)
+        raw = await G.GunVoice.render(p.voice, { shots: [0.004], k, tail: false, sampleRate: rate, seed: Math.round(k * 1000) });
+      } else {
+        const off = new OAC(1, len, rate);
+        const S = offlineSynth(off, off.destination, A.noiseBuffer());
+        this.layers(S, def, p, k, 1, false, 0);
+        raw = await off.startRendering();
+      }
       // trimmed after the last sound worth hearing (-70 dB)
       const d = raw.getChannelData(0);
       let end = d.length - 1;
@@ -380,10 +455,7 @@
       const buffers = [];
       for (const k of ks) buffers.push(await this.renderOne(def, k));
       const lv = levels(buffers[0]), heard = this.heardDb(def, lv);
-      const fam = await this.familyLevel(def);
-      // brought within familySpreadDb of its family's loudness
-      const diff = heard - fam, spread = C.familySpreadDb;
-      const corr = Math.abs(diff) > spread ? -(diff - Math.sign(diff) * spread) : 0;
+      const corr = await this.correction(def, heard);
       this.cache.set(def.id, { buffers, norm: db(corr), rms: heard, peak: lv.peak, corr, last: performance.now(), prev: -1 });
       this.stats.rendered++;
       this.stats.renderMs += performance.now() - t0;
@@ -393,15 +465,27 @@
     // 150 ms) plus the gun's own level (profile gain, as shot() plays it)
     heardDb(def, lv) { return lv.rms + 20 * Math.log10(Math.max(1e-6, this.profile(def).gain * 0.85)); },
     // a family's loudness: every gun of it drawn once and measured (once)
+    // (gun reference pass: the guns of one of the clips' prototypes are a family of their own)
+    famKey(def) { const p = this.profile(def); return p.proto ? "ref:" + p.proto : G.ViewModel.family(def); },
     async familyLevel(def) {
-      const fam = G.ViewModel.family(def);
+      const fam = this.famKey(def);
       if (this.family[fam] != null) return this.family[fam];
-      const all = Object.values(G.WEAPON_DEFS).filter((d) => G.ViewModel.family(d) === fam);
+      const all = Object.values(G.WEAPON_DEFS).filter((d) => this.famKey(d) === fam);
       const rms = [];
       for (const d of all) rms.push(this.heardDb(d, levels(await this.renderOne(d, 1))));
       this.family[fam] = median(rms);
       return this.family[fam];
     },
+    // what a shot is brought up or down by (dB): a gun of the clips' to its
+    // prototype's level (section 5's order: G.CONFIG.gunRef.baseDb + loud);
+    // any other within familySpreadDb of its family's loudness
+    async correction(def, heard) {
+      const p = this.profile(def);
+      if (p.proto) return this.refLevel(p.proto) - heard;
+      const diff = heard - (await this.familyLevel(def)), spread = G.CONFIG.audio.familySpreadDb;
+      return Math.abs(diff) > spread ? -(diff - Math.sign(diff) * spread) : 0;
+    },
+    refLevel(proto) { const R = G.CONFIG.gunRef; return R.baseDb + R.loud[proto]; },
     evict() {
       const max = G.CONFIG.audio.gunCache, held = new Set((G.Game.player && G.Game.player.gunSlots) || []);
       if (this.cache.size <= max) return;
@@ -422,10 +506,9 @@
       const all = Object.values(G.WEAPON_DEFS);
       for (const d of all) {
         if (onStep) onStep(out.length, all.length);
-        const b = await this.renderOne(d, 1), lv = levels(b), fam = G.ViewModel.family(d);
+        const b = await this.renderOne(d, 1), lv = levels(b), fam = this.famKey(d);
         const famDb = await this.familyLevel(d);
-        const heard = this.heardDb(d, lv), diff = heard - famDb, spread = G.CONFIG.audio.familySpreadDb;
-        const corr = Math.abs(diff) > spread ? -(diff - Math.sign(diff) * spread) : 0;
+        const heard = this.heardDb(d, lv), corr = await this.correction(d, heard);
         out.push({ id: d.id, family: fam, peak: +lv.peak.toFixed(1), rms: +heard.toFixed(1), after: +(heard + corr).toFixed(1), famDb: +famDb.toFixed(1) });
       }
       return out;
@@ -436,14 +519,40 @@
     // bus, tagged with what it belongs to -- a cancelled reload stops its own
     reload(kind, def, tag) { if (G.Audio.ctx) G.Audio.group({ cat: "weapons", prio: 2, dur: 0.5, tag: tag || null }, () => this._reload(kind, def)); },
     holster(from, tag) { if (G.Audio.ctx) G.Audio.group({ cat: "weapons", prio: 2, dur: 0.3, tag: tag || null }, () => this._holster(from)); },
-    draw(to, tag) { if (G.Audio.ctx) G.Audio.group({ cat: "weapons", prio: 2, dur: 0.6, tag: tag || null }, () => this._draw(to)); },
-    inspect(def, tag) { if (G.Audio.ctx) G.Audio.group({ cat: "weapons", prio: 3, dur: 0.3, tag: tag || null }, () => this._inspect(def)); },
+    // (gun reference pass: a gun of the clips' draws over 1-1.8 s; its whole sequence one voice)
+    draw(to, tag) {
+      if (!G.Audio.ctx) return;
+      const E = to && G.GunRef && G.GunRef.info(to) && G.GunVoice ? G.GunVoice.EQUIP[G.GunRef.info(to).proto] : null;
+      G.Audio.group({ cat: "weapons", prio: 2, dur: E ? E.dur + 0.2 : 0.6, tag: tag || null }, () => this._draw(to));
+    },
+    inspect(def, tag, dur) { if (G.Audio.ctx) G.Audio.group({ cat: "weapons", prio: 3, dur: Math.max(0.3, dur || 0.3), tag: tag || null }, () => this._inspect(def, dur)); },
+    // (gun reference pass) a bolt worked after a shot (prototypes F G H I):
+    // its steps at the gun's own times (G.GunRef.boltSteps), one voice
+    boltCycle(def, tag) {
+      const A = G.Audio, p = this.profile(def);
+      if (!A.ctx || !p.ref || !G.GunVoice) return;
+      const st = G.GunRef.boltSteps(def), B = G.GunVoice.BOLT[p.proto];
+      if (!st || !B) return;
+      A.group({ cat: "weapons", prio: 2, dur: (st.settle || 1.5) + 0.25, tag }, () => Object.keys(B).forEach((k) => { if (st[k] != null) B[k](A, p.mechPitch || 1, st[k]); }));
+    },
+    // (gun reference pass) a casing landing (js/fx.js): its kind, what it landed on, where
+    casing(kind, surface, pos) {
+      const A = G.Audio;
+      if (!A.ctx || !G.GunVoice) return;
+      A.group({ cat: "impact", prio: 4, dur: 0.4, pos }, () => G.GunVoice.casing(A, kind, surface, 0));
+    },
 
     // ---- reload steps (triggered by the reload animation's own events) ----
     _reload(kind, def) {
       const A = G.Audio;
       if (!A.ctx) return;
       const p = this.profile(def);
+      // (gun reference pass) a gun of the clips': its family's steps (section 4)
+      if (p.ref && G.GunVoice) {
+        const set = G.GunVoice.REL[p.ref.reload] || G.GunVoice.REL.ak, fn = set[kind];
+        if (fn) fn(A, p.mechPitch || 1);
+        return;
+      }
       const m = p.mechPitch || 1, tech = p.tech;
       const click = (f, g, at) => A.tone({ type: "square", freq: f * m, dur: 0.025, gain: g, at: at || 0, filter: { type: "bandpass", freq: f * m * 1.6, q: 3 }, rev: 0.12 });
       const heavy = (p.size || 1) < 0.9;
@@ -497,6 +606,8 @@
         A.tone({ type: "sine", freq: 2600, dur: 0.18, gain: 0.03, at: 0.2 });
         return;
       }
+      // (gun reference pass) a gun of the clips': its own sequence (section 4.1)
+      if (pt.ref && G.GunVoice) { G.GunVoice.playEquip(A, to, pt.mechPitch || 1); return; }
       A.noise({ dur: 0.1, filter: "lowpass", freq: 1000, gain: 0.05 });
       if (pt.tech) {
         A.tone({ type: "sine", freq: 250, freqEnd: 1400, dur: 0.22, gain: 0.06, at: 0.05 });
@@ -509,10 +620,12 @@
       }
     },
     // a gun shown off (inspect): the hands on it, quietly
-    _inspect(def) {
+    _inspect(def, dur) {
       const A = G.Audio;
       if (!A.ctx || !def) return;
       const p = this.profile(def);
+      // (gun reference pass) the SMG's and the rifle's: the magazine checked (section 3.3)
+      if (p.ref && p.ref.inspect === "magCheck" && G.GunVoice) { G.GunVoice.playMagCheck(A, p.mechPitch || 1, dur); return; }
       A.noise({ dur: 0.18, filter: "lowpass", freq: 700, gain: 0.04 });
       if (p.arch !== "melee") A.noise({ dur: 0.03, freq: 1300 * p.mechPitch, q: 2, gain: 0.035, at: 0.12 });
     },
@@ -624,6 +737,9 @@
     G.Bus.on("weapon:fire", (e) => {
       const def = defOf(e.weaponId);
       G.GunAudio.shot(def, { charge: def && def.charge ? (e.charge || 0) : null, shotId: e.shotId });
+      // (gun reference pass) a bolt-action of the clips: its bolt worked after the shot
+      const ref = def && G.GunRef && G.GunRef.info(def);
+      if (ref && ref.action === "bolt") { G.GunAudio._boltTag = "bolt:" + e.shotId; G.GunAudio.boltCycle(def, G.GunAudio._boltTag); }
       const g = G.Game, a = g && g.player && g.player.ammo[e.weaponId], l = g && g.player && g.player.weaponLevels[e.weaponId];
       if (a && def && l) {
         const thr = Math.floor(Math.round(def.magSize * (l.mag || 1)) * G.CONFIG.audio.lowAmmoShare);
@@ -634,16 +750,19 @@
       G.Audio.sfx("deny");
       if (G.UI && G.UI.hudNote) G.UI.hudNote(G.T("hud.noReserve"));
     }, "gunaudio");
+    // (a bolt being worked stops when the hands go to something else)
+    const boltStop = () => { if (G.GunAudio._boltTag) { G.Audio.stopTag(G.GunAudio._boltTag); G.GunAudio._boltTag = null; } };
     G.Bus.on("weapon:reload", (e) => {
+      if (e.phase === "start") boltStop();
       if (e.phase === "marker" && !e.silent) G.GunAudio.reload(e.kind === "end" ? "done" : e.kind, defOf(e.weaponId), "reload:" + e.reloadId);
       else if (e.phase === "cancel") G.Audio.stopTag("reload:" + e.reloadId);
     }, "gunaudio");
     G.Bus.on("weapon:switch", (e) => {
-      if (e.phase === "lower") { G.GunAudio.holster(defOf(e.fromId), "switch:" + e.switchId); G.GunAudio.chargeStop(); G.GunAudio.prepare([e.toId]); }
+      if (e.phase === "lower") { boltStop(); G.GunAudio.holster(defOf(e.fromId), "switch:" + e.switchId); G.GunAudio.chargeStop(); G.GunAudio.prepare([e.toId]); }
       else if (e.phase === "swap" || (e.phase === "raise" && e.back)) G.GunAudio.draw(defOf(e.toId), "switch:" + e.switchId);
     }, "gunaudio");
     G.Bus.on("weapon:inspect", (e) => {
-      if (e.phase === "start") G.GunAudio.inspect(defOf(e.weaponId), "inspect:" + e.inspectId);
+      if (e.phase === "start") G.GunAudio.inspect(defOf(e.weaponId), "inspect:" + e.inspectId, e.dur);
       else G.Audio.stopTag("inspect:" + e.inspectId);
     }, "gunaudio");
   }

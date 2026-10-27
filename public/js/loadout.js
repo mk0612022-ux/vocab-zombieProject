@@ -175,7 +175,7 @@ G.Loadout = {
     opts = opts || {};
     const def = G.WEAPON_DEFS[id];
     const root = new THREE.Group();
-    const gun = G.buildWeaponMesh(def);
+    const gun = G.buildWeaponMesh(def, { still: true });
     gun.rotation.z = Math.PI / 2;                    // lying on its side
     gun.scale.setScalar(1.35);
     root.add(gun);

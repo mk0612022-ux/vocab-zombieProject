@@ -573,6 +573,9 @@ body.touch-mode .hud-interact-prompt { top: 62%; }
 /* The scope is drawn with a huge inset shadow rather than an image: it scales
    to any viewport and costs nothing to composite. */
 .hud-scope { position: absolute; inset: 0; pointer-events: none; z-index: 6; }
+/* (gun reference pass) the clips' scope: a sixteen-sided tube, a duplex reticle, a red dot (js/ui.js) */
+.hud-scope-svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.hud-scope.no-dot .hud-scope-dot { display: none; }
 .hud-scope-ring {
   position: absolute; left: 50%; top: 50%; width: 78vmin; height: 78vmin;
   transform: translate(-50%, -50%); border-radius: 50%;

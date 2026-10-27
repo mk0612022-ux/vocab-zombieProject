@@ -152,7 +152,9 @@ G.VISUAL = {
   },
   viewmodel: {
     rim: 0x5ed6ff, rimStrength: 0.28, rimPower: 3.0,
-    minLight: 0x101c34,
+    // (gun reference pass: a grey, not the night's blue -- the guns' own
+    // colours, a white sniper or a wooden stock, read in the dark)
+    minLight: 0x22252b,
   },
 
   // ---- shadows ----------------------------------------------------------------

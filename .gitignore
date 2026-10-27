@@ -10,3 +10,7 @@ vocab-zombie-save.json
 # local state of npx wrangler dev / deploy
 .wrangler/
 node_modules/
+# (gun reference pass) frames and spectrograms of the reference clips -- the
+# user's own copies, kept on this computer; GUN_REFERENCE.md itself is in the repo
+docs/reference/guns/images/
+docs/reference/guns/audio/

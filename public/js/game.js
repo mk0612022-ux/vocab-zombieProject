@@ -886,7 +886,9 @@ G.Game = {
       },
       spellBusy: () => !!(G.SpellReload && G.SpellReload.busy),
       // a heavy gun takes longer to put away and to bring up (Quick Hands speeds it, in the machine)
-      switchDur: (from, to) => (G.ViewModel.switchDuration(defOf(from)) + G.ViewModel.switchDuration(defOf(to))) / 2,
+      // (gun reference pass: the old one down in half its time, the new one up in its own draw)
+      switchDur: (from, to) => G.ViewModel.switchDuration(defOf(from)) / 2 + G.ViewModel.drawDuration(defOf(to)),
+      switchSplit: (from, to) => { const lo = G.ViewModel.switchDuration(defOf(from)) / 2; return lo / (lo + G.ViewModel.drawDuration(defOf(to))); },
       swapModel: () => g.buildWeaponViewModel(),
       // a trigger pull ends a run: sprint held stays ignored until it is let go
       stopSprint: () => { g._sprintLatch = true; },
@@ -1279,6 +1281,20 @@ G.Game = {
     a.recoilPos = Math.min(cap.pos, a.recoilPos + 0.05 + strength * 0.055);
     a.recoilRot = Math.min(cap.rot, a.recoilRot + 0.05 + strength * 0.075);
     const cr = G.save.settings.cameraRecoil;
+    // (gun reference pass) a gun of the clips kicks the view by its prototype's
+    // share of the screen's height (G.CONFIG.gunRef.recoil: the polymer pistol
+    // 0.7% and back in ~0.18 s, the chassis sniper 5% back over 0.35 s), some
+    // of it sideways for the LMG's and the SMG's shiver
+    const ref = def && G.GunRef && G.GunRef.info(def), RC = ref && G.CONFIG.gunRef.recoil[ref.proto];
+    if (RC) {
+      const kick = RC.kick * (this.camera.fov * Math.PI / 180) * (cr == null ? 1 : cr);
+      this.pitchObject.rotation.x += kick;
+      this.recoilRecover += kick;
+      this.recoilRate = 3 / RC.back;
+      if (RC.side) { const s = (Math.random() * 2 - 1) * kick * RC.side; this.yawObject.rotation.y += s; this.recoilYaw = (this.recoilYaw || 0) + s; }
+      return;
+    }
+    this.recoilRate = 9;
     const kick = strength * 0.013 * (cr == null ? 1 : cr);
     this.pitchObject.rotation.x += kick; // view punches upward...
     this.recoilRecover += kick;          // ...and is pulled back down over the next moments
@@ -1291,9 +1307,16 @@ G.Game = {
     if (a.recoilPos < 0.0005) a.recoilPos = 0;
     if (a.recoilRot < 0.0005) a.recoilRot = 0;
     if (this.recoilRecover > 0) {
-      const back = Math.min(this.recoilRecover, this.recoilRecover * 9 * dt + 0.0008);
+      const back = Math.min(this.recoilRecover, this.recoilRecover * (this.recoilRate || 9) * dt + 0.0008);
       this.pitchObject.rotation.x -= back;
       this.recoilRecover -= back;
+    }
+    // (gun reference pass) the sideways shiver comes back too
+    if (this.recoilYaw) {
+      const yb = this.recoilYaw * Math.min(1, (this.recoilRate || 9) * dt);
+      this.yawObject.rotation.y -= yb;
+      this.recoilYaw -= yb;
+      if (Math.abs(this.recoilYaw) < 1e-5) this.recoilYaw = 0;
     }
     // (the weapon switch -- lower, swap at the bottom, raise -- is G.WeaponSM's now)
   },
@@ -2486,7 +2509,8 @@ G.Game = {
     // (a run answered only by spelling has no trigger: the words are the shots)
     const rawFire = !this.challenge && !feetHeld && !(this.learn && !this.learn.shoots) && ((G.Input.mode === "desktop" && G.Input.mouseDown) || G.Input.touchFire || G.Input.padFire);
     if (this.wsm) this.wsm.input({ moving: len > 0.05, sprinting, aimHeld: aimInput, fireHeld: rawFire });
-    const wantAim = aimInput && (!this.wsm || this.wsm.aimActive);
+    // (gun reference pass: off the sight while a bolt is worked -- G.ViewModel.boltBusy)
+    const wantAim = aimInput && (!this.wsm || this.wsm.aimActive) && !(G.ViewModel.boltBusy && G.ViewModel.boltBusy());
     const WC = G.CONFIG.weaponSM, aimIn = WC.aimIn[G.ViewModel.weightKey(def)] || 0.22;
     this.aimP = Math.max(0, Math.min(1, (this.aimP || 0) + (wantAim ? dt / aimIn : -dt / (aimIn * WC.aimOutShare))));
     this.aimT = G.Anim.easeInOutCubic(this.aimP);
@@ -2496,7 +2520,17 @@ G.Game = {
     this.camera.fov = this.baseFov + (aimedFov - this.baseFov) * this.aimT + G.Abilities.fovKick() * (1 - this.aimT);
     this.camera.updateProjectionMatrix();
     if (G.UI.setAimingVisual) G.UI.setAimingVisual(this.aimT > 0.5);
-    if (G.UI.setScopeVisual) G.UI.setScopeVisual(!!def.scope && this.aimT > 0.85);
+    // (gun reference pass: the clips' own sights -- the chassis sniper's peep and
+    // the .50's frame are looked through as they are, zoomed; the two scoped
+    // ones draw the scope's tube)
+    const ref = G.GunRef && G.GunRef.info(def), iron = ref && (ref.sight === "peep" || ref.sight === "frameU");
+    const scoped = !!def.scope && !iron && this.aimT > 0.85;
+    if (G.UI.setScopeVisual) G.UI.setScopeVisual(scoped, ref && ref.proto === "H" ? "white" : "lens");
+    // (...through the scope only the world, as in the clip: the gun and the
+    // hands are put away while its overlay is up -- its tube sits on the eye)
+    const showVm = G.ViewModel.visible !== false && !scoped, arms = G.PlayerBody && G.PlayerBody.armRig;
+    if (this.weaponViewGroup && this.weaponViewGroup.visible !== showVm) this.weaponViewGroup.visible = showVm;
+    if (arms && arms.group.visible !== showVm) arms.group.visible = showVm;
     if (G.UI.setChargeMeter) G.UI.setChargeMeter(def.charge ? (this._chargeT || 0) / def.charge.time : null);
 
     this.updateWeaponAnim(dt);

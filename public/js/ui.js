@@ -869,8 +869,26 @@ G.UI = {
   setAimingVisual(v) { this.el("hud-crosshair").classList.toggle("aiming", !!v); },
   // Category N: the scope replaces the crosshair entirely -- a reticle drawn
   // on top of a scope ring reads as two sights at once.
-  setScopeVisual(v) {
-    this.el("hud-scope").classList.toggle("hidden", !v);
+  setScopeVisual(v, kind) {
+    const box = this.el("hud-scope");
+    // (gun reference pass) the clips' scope: a thick low-poly tube of sixteen
+    // sides, dark outside it, a duplex reticle with range ticks; the white
+    // sniper's has a small red dot in the middle (GUN_REFERENCE.md 3.8)
+    if (v && !box.querySelector("svg")) {
+      const pts = (r) => Array.from({ length: 16 }, (_, i) => { const a = (i + 0.5) / 16 * Math.PI * 2; return (Math.cos(a) * r).toFixed(2) + "," + (Math.sin(a) * r).toFixed(2); }).join(" ");
+      const ticks = [];
+      for (let d = 3; d < 12; d += 3) ticks.push(`<line x1="${d}" y1="-0.9" x2="${d}" y2="0.9"/><line x1="${-d}" y1="-0.9" x2="${-d}" y2="0.9"/><line x1="-0.9" y1="${d}" x2="0.9" y2="${d}"/>`);
+      box.innerHTML = `<svg class="hud-scope-svg" viewBox="-50 -50 100 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+        <defs><mask id="hud-scope-hole"><rect x="-600" y="-600" width="1200" height="1200" fill="#fff"/><polygon points="${pts(39)}" fill="#000"/></mask></defs>
+        <rect x="-600" y="-600" width="1200" height="1200" fill="rgba(4,5,6,0.95)" mask="url(#hud-scope-hole)"/>
+        <polygon points="${pts(40.2)}" fill="none" stroke="#0b0c0e" stroke-width="2.6"/>
+        <polygon points="${pts(38.4)}" fill="none" stroke="#2b313a" stroke-width="0.7"/>
+        <g class="hud-scope-thick" stroke="#0b0c0e" stroke-width="1.3"><line x1="-39" y1="0" x2="-12" y2="0"/><line x1="12" y1="0" x2="39" y2="0"/><line x1="0" y1="12" x2="0" y2="39"/><line x1="0" y1="-39" x2="0" y2="-24"/></g>
+        <g class="hud-scope-thin" stroke="#0b0c0e" stroke-width="0.22"><line x1="-12" y1="0" x2="12" y2="0"/><line x1="0" y1="-24" x2="0" y2="12"/>${ticks.join("")}</g>
+        <circle class="hud-scope-dot" r="0.55" fill="#ff3b3b"/></svg>`;
+    }
+    box.classList.toggle("hidden", !v);
+    box.classList.toggle("no-dot", kind !== "white");
     this.el("hud-crosshair").classList.toggle("hidden", !!v);
   },
   setChargeMeter(frac) {

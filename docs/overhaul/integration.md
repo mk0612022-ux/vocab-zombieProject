@@ -30,6 +30,9 @@
 | `js/mainmenu.js`, `js/menuscene.js` | 5 | เมนูหลัก 3D (แทน Tap To Lobby) |
 | `js/hud.js` | 6 | `G.Hud` HUD กลางล่าง (DOM ล้วน) |
 | `js/explain.js`, `js/data/explain_th|zh|fr.js` | 7 | `G.Explain` / `G.ExplainView` / `G.ExplainCard` คำอธิบายคำตอบ |
+| `js/gunref.js` | ปืนตามคลิป (ร่วมรอบ 1–3) | `G.GunRef` ต้นแบบ 9 แบบจาก `docs/reference/guns/GUN_REFERENCE.md`: ปืนกระบอกไหนเป็นต้นแบบอะไร (`proto`, `info`), พาเลต, สีเรือง, ตัวแทนของปืนในคลิป (`FLAGSHIP`), จังหวะขึ้นลำ bolt (`boltSteps`) |
+| `js/gunmodels.js` | ปืนตามคลิป | `G.GunModels.build(def)` โมเดลกล่องของต้นแบบ A–I (ศูนย์เรือง ชิ้นที่ขยับ anchor ขนาดในมือ ท่าเล็ง) — `G.buildWeaponModel` เรียกก่อน ถ้าได้ `null` ใช้แบบเดิม |
+| `js/gunvoice.js` | ปืนตามคลิป | `G.GunVoice` สูตรเสียงยิงต่อต้นแบบ (จูนตามหัวข้อ 5), หาง outdoor, ชุดเสียงกลไก/รีโหลด/หยิบ/inspect/bolt, ปลอกกระสุนตกพื้น |
 
 ไฟล์เดิมที่แก้มาก: `game.js`, `viewmodel.js`, `audio.js`, `gunaudio.js`, `ui.js`, `settings.js`, `quiz.js`, `config.js`, `core.js`, `style.css`, `index.html`
 
@@ -86,9 +89,10 @@ UI scale = `settings.fontSize` (small/medium/large) ตั้ง `font-size` ข
 
 **ปืนกระบอกใหม่**
 1. `config.js` → `G.WEAPON_DEFS` (id, rarity, damage, fireRate, magSize, reloadTime, auto, …; `archetype` ถ้าเดาจากค่าไม่ได้) — ตระกูล (`G.ViewModel.family`) เลือกท่า รีโหลด flash และเสียงให้เอง
-2. โมเดล: ตามแบบปืนเดิมใน `weapons.js`/`viewmodel.js`; พื้นผิวจาก `gunskin.js`
+2. โมเดล: ตามแบบปืนเดิมใน `weapons.js`/`viewmodel.js`; พื้นผิวจาก `gunskin.js` · ปืนที่แค่ตั้งโชว์ (บนผนัง บนพื้น ในมือ survivor ของเมนู) ใช้ `G.buildWeaponMesh(def, { still: true })` — ชิ้นที่ขยับรวมเข้าด้วยกัน เหลือ 1–2 draw call
 3. ชื่อ: `strings*.js` 4 ภาษา
 4. ตรวจใน `?lab=weapons` (ทุกสถานะ + ตัวตรวจค้างใน `?debug=1`)
+5. (ปืนตามคลิป) ปืนพก / SMG / ไรเฟิล / LMG / สไนเปอร์ ได้ต้นแบบ A–I ของ `gunref.js` เองตามชนิดและค่า (`G.GunRef.proto`) → ได้โมเดล สี flash ปลอก ท่า และเสียงของต้นแบบ (เสียงขยับจากสูตรเล็กน้อยตาม id) — บังคับต้นแบบได้ด้วย `proto: "A"`…`"I"` ใน def หรือ `proto: null` ให้ใช้แบบเดิม · หลังเพิ่มต้องรัน `tools/gun-sound-check.js` (`await G.GunSoundCheck.runAll()` ต้อง `ok`) และชุดทดสอบ 29 · แก้สูตรเสียงต้นแบบด้วย `G.GunSoundCheck.tune(key, รอบ)` (ให้คะแนนจากปืนทุกกระบอกของต้นแบบ เอาตัวแย่สุด)
 
 **ซอมบี้ชนิดใหม่**
 1. `config.js` → `G.ZOMBIE_TYPES`, `G.ZOMBIE_KINDS`, `zombies.first` (เวฟแรก), `zombies.share`, `zombies.maxAlive`
@@ -107,7 +111,8 @@ UI scale = `settings.fontSize` (small/medium/large) ตั้ง `font-size` ข
 ## 5. เครื่องมือทดสอบ (ไม่ได้ deploy — อยู่ใน `tools/`)
 
 - `serve-lan.ps1` เปิดเว็บที่ :8080 (map `/tools/` ด้วย)
-- ชุดทดสอบ `tools/round1-test.js` … `round28-test.js` โหลดเข้าเกมแล้ว `await G.RoundNTest.run()`
+- ชุดทดสอบ `tools/round1-test.js` … `round29-test.js` โหลดเข้าเกมแล้ว `await G.RoundNTest.run()` (29 = ปืนตามคลิปอ้างอิง)
+- `tools/gun-sound-check.js` วัดเสียงปืนตาม `GUN_REFERENCE.md` หัวข้อ 5 (`run()` ตัวแทน 9 กระบอก, `runAll()` ทุกกระบอกของต้นแบบ, `table()`, `tune()`)
 - `tools/stress-test.js` (`G.StressTest.run(tiers, frames)`), `tools/visual-test.js` (`G.VisualTest.perf`), `tools/perf-measure.js`
 - `tools/ui-text-audit.js` ทัวร์ทุกหน้าหาข้อความล้น/ทับ/หลุดจอ
 - `tools/check-strings.ps1`, `thai-scan.ps1`, `check-paths.ps1`, `validate-words.ps1`, `make-version.ps1`

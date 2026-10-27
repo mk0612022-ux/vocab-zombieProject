@@ -425,6 +425,60 @@ G.CONFIG = {
     recoilReturn: { pos: 16, rot: 11 },             // how fast it settles back (rotation a little slower: the follow-through)
     aspect: { min: 0.8, max: 1.15 },                // the hip carry moved in on a narrow screen (4:3) and out on a wide one (21:9), x of 16:9
   },
+  // ---------------- the guns of the reference clips (gun reference pass) ----------------
+  // docs/reference/guns/GUN_REFERENCE.md: nine prototypes, A-I -- A the
+  // belt-fed LMG, B the wood-and-steel rifle, C the two-tone SMG, D the
+  // polymer pistol, E the steel .45, F the silver .50 anti-materiel rifle,
+  // G the black chassis sniper, H the white one with the big scope, I the
+  // dark one with the blue lens. Which gun is which and its colours:
+  // js/gunref.js; its shape js/gunmodels.js; its sound js/gunaudio.js. A gun
+  // keeps its own name, damage and handling.
+  gunRef: {
+    // bringing the gun up (s): the raise half of a switch (the clips: 0.5 s a
+    // pistol or the SMG, 0.65 the rifle, 0.9 the .50, 1.3 the chassis sniper)
+    draw: { A: 0.8, B: 0.65, C: 0.5, D: 0.5, E: 0.5, F: 0.9, G: 1.3, H: 1.1, I: 1.0 },
+    // the view's kick a shot, as a share of the screen's height (so it is the
+    // same on screen at any zoom), how long it takes to settle back (s), and
+    // how much of it goes sideways at random (the shiver of the LMG and the SMG)
+    recoil: {
+      A: { kick: 0.005, back: 0.15, side: 0.6 }, B: { kick: 0.009, back: 0.2, side: 0.25 }, C: { kick: 0.0035, back: 0.12, side: 0.5 },
+      D: { kick: 0.007, back: 0.175, side: 0 }, E: { kick: 0.014, back: 0.25, side: 0.1 }, F: { kick: 0.08, back: 0.6, side: 0.05 },
+      G: { kick: 0.05, back: 0.35, side: 0 }, H: { kick: 0.045, back: 0.35, side: 0 }, I: { kick: 0.04, back: 0.3, side: 0 },
+    },
+    // how loud a shot is heard (js/gunaudio.js correction: the RMS of its
+    // first 150 ms with its gain, dB): the reference rifle's (B) at baseDb --
+    // about where the game's guns were before (rifles -26, LMGs -25, the
+    // snipers -16, the pump shotguns -17) -- and the others over or under it
+    // in the order of section 5 (.50 > LMG > rifle > .45 > 9 mm > SMG), the
+    // snipers, not in it, between the LMG and the rifle. The .50's shot peaks
+    // a little over full scale, as the old snipers' did: round 3's limiter
+    // and ceiling hold it (nothing leaves the master over -1 dBFS)
+    baseDb: -24,
+    loud: { F: 8, A: 4, G: 3, H: 3, I: 3, B: 0, E: -2, D: -3.5, C: -5.5 },
+    // the muzzle flash: its width at the muzzle (m) by size class, how long it
+    // shows (ms: the clips' one or two frames at 30 fps, under the 60 ms every flash keeps to)
+    flash: { S: 0.13, M: 0.2, L: 0.34, XL: 0.9 }, flashMs: [33, 58],
+    // a bolt worked by hand after every shot (prototypes F G H I firing no
+    // faster than every 0.9 s): its steps, s after the shot (sections 3.6 and
+    // 3.7); `dip` is the .50's sag [starts, deepest, how far: share of the
+    // screen]. A gun that fires sooner has them squeezed to fit.
+    bolt: {
+      G: { grab: 0.61, lift: 0.76, pull: 0.83, push: 1.1, down: 1.31, settle: 1.45 },
+      F: { grab: 0.9, lift: 1.02, pull: 1.13, push: 1.33, down: 1.43, lock: 1.68, settle: 1.8, dip: [0.27, 0.5, 0.1] },
+      minInterval: 0.9,
+    },
+    // the casings, by kind: size (m), colour; links ride out beside the
+    // LMG's brass; a .50 is big and rings lower when it lands
+    shells: {
+      pistol: { size: [0.026, 0.026, 0.045], color: 0xcebb75 },
+      brass: { size: [0.028, 0.028, 0.075], color: 0xcebb75 },
+      steel: { size: [0.03, 0.03, 0.078], color: 0x23261f },
+      brassLinks: { size: [0.028, 0.028, 0.07], color: 0xcebb75, link: 0x1d2019 },
+      fifty: { size: [0.046, 0.046, 0.14], color: 0xcebb75 },
+    },
+    // smoke that hangs in front of the gun after a long burst (the LMG's)
+    linger: { after: 8, every: 4, life: 2.2, size: 1.8 },
+  },
   // ---------------- the weapon's looks and effects (overhaul, round 2) ----------------
   // js/gunskin.js (the guns' surfaces), js/fx.js (flash, smoke, shells, impacts,
   // bullet holes), js/surface.js (what a round hit). Per graphics level:
@@ -592,7 +646,10 @@ G.WEAPON_DEFS = {
     reloadTime: 1500, auto: true, recoil: 0.75, price: 1200, color: 0x39c463, accent: 0x224a2e },
   lmg: { id: "lmg", rarity: "rare", damage: 15, fireRate: 90, magSize: 60,
     reloadTime: 2200, auto: true, recoil: 0.6, price: 2200, color: 0x2f6fd6, accent: 0x18325e },
-  sniper: { id: "sniper", rarity: "rare", damage: 90, fireRate: 950, magSize: 5,
+  // (gun reference pass: the bolt-action of the clips -- a round each 1.5 s,
+  // the bolt worked by hand between them; damage up so its DPS is unchanged:
+  // 90 / 0.95 s = 142 / 1.5 s)
+  sniper: { id: "sniper", rarity: "rare", damage: 142, fireRate: 1500, magSize: 5,
     reloadTime: 1800, auto: false, recoil: 2.2, price: 2400, color: 0x3b82f5, accent: 0x15234a },
   railgun: { id: "railgun", rarity: "epic", damage: 45, fireRate: 500, magSize: 8,
     reloadTime: 1700, auto: false, pierce: true, recoil: 1.5, price: 4200, color: 0xc23bef, accent: 0x3d1a4a },
@@ -652,7 +709,10 @@ G.WEAPON_DEFS = {
   // each tier, always weighted against power -- the weakest standard gun is
   // over five times as likely as the strongest, and the level-ending Meteor
   // Detention is the rarest thing in the game at 1%.
-  scrap_spitter: { id: "scrap_spitter", rarity: "common", damage: 11, fireRate: 85, magSize: 32,
+  // (gun reference pass: the two-tone SMG of the clips -- 1150 rounds a
+  // minute; lighter rounds and a longer magazine keep it where it was: 135
+  // DPS firing (was 129), 79 over a magazine and its reload (was 81))
+  scrap_spitter: { id: "scrap_spitter", rarity: "common", damage: 7, fireRate: 52, magSize: 44,
     reloadTime: 1600, auto: true, recoil: 0.5, color: 0x8a8f7a, accent: 0x3d4036, boxOnly: true, boxTier: "standard", boxWeight: 16 },
   nail_driver: { id: "nail_driver", rarity: "common", damage: 16, fireRate: 150, magSize: 24,
     reloadTime: 1400, auto: true, recoil: 0.6, color: 0xd2a63c, accent: 0x54401a, boxOnly: true, boxTier: "standard", boxWeight: 15 },
@@ -674,7 +734,9 @@ G.WEAPON_DEFS = {
     reloadTime: 2100, auto: false, recoil: 1.8, color: 0xb0b6bd, accent: 0x3a2f2a, boxOnly: true, boxTier: "standard", boxWeight: 3 },
   thunder_chalk: { id: "thunder_chalk", rarity: "epic", damage: 72, charge: { time: 0.75, mult: 2.4 }, fireRate: 480, magSize: 18,
     reloadTime: 2000, auto: false, recoil: 1.1, color: 0x7fe6ff, accent: 0x1d4c63, boxOnly: true, boxTier: "elite", boxWeight: 32 },
-  void_principal: { id: "void_principal", rarity: "epic", damage: 42, fireRate: 95, magSize: 40,
+  // (gun reference pass: the wood-and-steel rifle of the clips -- 600 a minute;
+  // 44 / 0.1 s = the 42 / 0.095 s it was)
+  void_principal: { id: "void_principal", rarity: "epic", damage: 44, fireRate: 100, magSize: 40,
     reloadTime: 2100, auto: true, recoil: 0.9, color: 0x5b3fa8, accent: 0x211640, boxOnly: true, boxTier: "elite", boxWeight: 28 },
   prism_lance: { id: "prism_lance", rarity: "epic", damage: 95, fireRate: 480, magSize: 8,
     reloadTime: 1800, auto: false, pierce: true, recoil: 1.4, color: 0xef5fd0, accent: 0x4a1a42, boxOnly: true, boxTier: "elite", boxWeight: 20 },
@@ -791,7 +853,9 @@ Object.assign(G.WEAPON_DEFS, {
     reloadTime: 1900, auto: false, recoil: 1.5, price: 2600, color: 0x5fd6ff, accent: 0x153f52, level: 3, archetype: "energy", wallExclusive: true },
   thermite_tube: { id: "thermite_tube", rarity: "epic", damage: 95, fireRate: 1000, magSize: 4,
     reloadTime: 2300, auto: false, splash: true, splashRadius: 4.6, recoil: 2.4, price: 3000, color: 0xff7a3d, accent: 0x54220c, level: 3, archetype: "launcher", wallExclusive: true },
-  overwatch: { id: "overwatch", rarity: "secret", damage: 200, scope: 24, fireRate: 1050, magSize: 4,
+  // (gun reference pass: the .50 anti-materiel rifle of the clips -- 1.85 s
+  // a round with its long bolt; 352 / 1.85 s = the 200 / 1.05 s it was)
+  overwatch: { id: "overwatch", rarity: "secret", damage: 352, scope: 24, fireRate: 1850, magSize: 4,
     reloadTime: 2000, auto: false, recoil: 2.5, price: 4000, color: 0x3f5a3a, accent: 0x18261a, level: 3, archetype: "sniper", wallExclusive: true },
   warhead: { id: "warhead", rarity: "secret", damage: 220, fireRate: 1400, magSize: 2,
     reloadTime: 2800, auto: false, splash: true, splashRadius: 6.5, recoil: 2.9, price: 5200, color: 0xff4d4d, accent: 0x5c0f0f, level: 3, archetype: "cannon", wallExclusive: true },

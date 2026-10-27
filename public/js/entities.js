@@ -218,17 +218,28 @@ G.weldGunParts = function (root) {
 };
 
 G.buildWeaponModel = function (def) {
+  // (gun reference pass) one of the clips' prototypes: its own build (js/gunmodels.js)
+  const ref = G.GunModels && G.GunModels.build(def);
+  if (ref) return ref;
   const A = G.WEAPON_ARCHETYPES[def.archetype] || G.WEAPON_ARCHETYPES[G.inferArchetype(def)];
   const rnd = gunSeed(def.id || "gun");
   const base = new THREE.Color(def.color);
+  // (gun reference pass) the rest -- shotguns, launchers, the energy and beam
+  // guns -- in the clips' colours too: dark metal and polymer in a few shades
+  // (GUN_REFERENCE.md section 1), the gun's own colour kept as its accent (its
+  // handguard or pump, a panel down each side, and what glows) so each still
+  // has its own (section 6)
+  const dna = (hex, k) => new THREE.Color(hex).lerp(base, k).getHex();
   const S = {
-    body: G.makeBoxMat(def.color),
-    dark: G.makeBoxMat(def.accent != null ? def.accent : base.clone().multiplyScalar(0.45).getHex()),
-    light: G.makeBoxMat(base.clone().lerp(new THREE.Color(0xffffff), 0.45).getHex()),
-    mid: G.makeBoxMat(base.clone().lerp(new THREE.Color(0x000000), 0.3).getHex()),
-    steel: G.makeBoxMat(0x9aa4ad),
-    black: G.makeBoxMat(0x191b1f),
+    body: G.makeBoxMat(dna(0x2b2e2a, 0.18)),
+    dark: G.makeBoxMat(dna(0x14150f, 0.08)),
+    light: G.makeBoxMat(dna(0x494d49, 0.15)),
+    mid: G.makeBoxMat(dna(0x1d2019, 0.1)),
+    steel: G.makeBoxMat(0x5d615f),
+    black: G.makeBoxMat(0x0e0f0a),
+    accent: G.makeBoxMat(base.clone().multiplyScalar(0.8).getHex()),
   };
+  S.accent.userData.skin = "polymer";
   // (overhaul, round 2) the surface each colour role is made of (js/gunskin.js):
   // the body by its own colour -- painted polymer if it has one, else metal
   S.light.userData.skin = "polymer"; S.dark.userData.skin = "grip"; S.mid.userData.skin = "worn";
@@ -266,6 +277,8 @@ G.buildWeaponModel = function (def) {
   // ---- receiver, top cover and ejection port ----
   const archKey = G.WEAPON_ARCHETYPES[def.archetype] ? def.archetype : G.inferArchetype(def);
   box(bw, bh, bd, 0, 0, recZ, S.body);
+  // (gun reference pass) the gun's own colour, a painted panel down each side
+  [-1, 1].forEach((s) => box(0.004, bh * 0.2, bd * 0.62, s * (bw / 2 + 0.002), -bh * 0.12, recZ + bd * 0.04, S.accent));
   // A pistol's top cover IS its slide: it rides back with the rack.
   // An LMG's hinges up at the rear for a belt change.
   if (archKey === "pistol") into = parts.bolt = part(0, bh * 0.5, recZ);
@@ -292,7 +305,7 @@ G.buildWeaponModel = function (def) {
   if (A.handguard || A.pump || A.coils) {
     const hgLen = barrelLen * 0.55;
     const hgZ = recZ - bd / 2 - hgLen / 2 - 0.02;
-    box(bore * 2.1, bore * 1.9, hgLen, 0, bh * 0.06, hgZ, A.pump ? S.dark : S.body);
+    box(bore * 2.1, bore * 1.9, hgLen, 0, bh * 0.06, hgZ, S.accent);
     // geometric vent slots: the repeating cut that makes a handguard read as
     // machined hardware rather than a stick
     const vents = 3 + Math.floor(rnd() * 3);
@@ -578,8 +591,12 @@ G.holdPose = function (def) {
   if (def.id === "melee") return G.HOLD_POSES.melee;
   return G.HOLD_POSES[G.weightClass(def).key] || G.HOLD_POSES.medium;
 };
-G.buildWeaponMesh = function (def) {
+// (gun reference pass) o.still: a gun only shown -- on a wall, on the floor,
+// in the menu survivor's hands -- has nothing that moves, so its moving parts
+// merge in with the rest: two draw calls, what is lit and what glows
+G.buildWeaponMesh = function (def, o) {
   const g = G.buildWeaponModel(def);
+  if (o && o.still) g.userData.parts = {};
   // (overhaul, round 2) its surfaces -- metal, polymer, a rubber grip, worn
   // edges, the shadows where parts meet -- and the whole gun one mesh on one
   // material (+ one for what glows), each moving part one more (js/gunskin.js)

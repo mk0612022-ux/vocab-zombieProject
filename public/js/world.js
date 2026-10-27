@@ -987,7 +987,7 @@ G.buildLevelScene = function (scene, level, quality) {
       const plaque = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.5, 2.0), new THREE.MeshLambertMaterial({ color: 0x141414 }));
       plaque.position.set(mx, y + 1.85, mz);
       scene.add(plaque);
-      const gunMesh = G.buildWeaponMesh(wdef);
+      const gunMesh = G.buildWeaponMesh(wdef, { still: true });
       gunMesh.scale.set(3.0, 3.0, 3.0);
       gunMesh.position.set(mx + sign * 0.3, y + 2.0, mz);
       gunMesh.rotation.y = facingWest ? 0 : Math.PI;
