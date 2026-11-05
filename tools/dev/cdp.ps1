@@ -1,10 +1,12 @@
-param([string]$Tab = "", [string]$Url = "", [string]$File = "", [string]$Expr = "", [int]$Timeout = 60, [int]$W = 0, [int]$H = 0, [int]$Port = 9335, [string]$Init = "")
+param([string]$Tab = "", [string]$Url = "", [string]$File = "", [string]$Expr = "", [int]$Timeout = 60, [int]$W = 0, [int]$H = 0, [int]$Port = 9335, [string]$Init = "", [switch]$Crash, [switch]$Close)
 # Dev-only (not shipped). Drive one headless Edge tab over the DevTools protocol
 # (tools/dev/edge-start.ps1): optionally load a page, optionally set the
 # viewport, then run an async JS body (a file or an expression; `return x` gives
 # the result) and print its value. -Tab: a page id; left out, the first page.
 # -Init: a script to run before the page's own on the -Url load (a seeded
-# Math.random, say). Every wait is bounded: a stuck connection once span a core
+# Math.random, say). -Crash / -Close: the renderer killed, or the tab closed,
+# right behind the JS body, without waiting for it (tools/dev/close-test.ps1).
+# Every wait is bounded: a stuck connection once span a core
 # for an hour and stalled the run behind it.
 $ErrorActionPreference = "Stop"
 if (-not $Tab) { $list = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/json" -TimeoutSec 10; $Tab = ($list | Where-Object { $_.type -eq "page" } | Select-Object -First 1).id }
@@ -55,6 +57,8 @@ if ($File) { $body = [IO.File]::ReadAllText($File, [Text.Encoding]::UTF8) } else
 if ($body) {
   $wrapped = "(async () => { " + $body + "`n })().then((v) => JSON.stringify(v === undefined ? null : v), (e) => JSON.stringify({ __error: String(e && e.stack || e) }))"
   $i = Send "Runtime.evaluate" @{ expression = $wrapped; awaitPromise = $true; returnByValue = $true; timeout = ($Timeout * 1000) }
+  if ($Crash) { $null = Send "Page.crash" @{}; Start-Sleep -Milliseconds 300; exit 0 }
+  if ($Close) { $null = Send "Page.close" @{}; Start-Sleep -Milliseconds 300; exit 0 }
   $o = Recv $i ($Timeout + 5)
   if ($null -eq $o) { "TIMEOUT after $Timeout s" }
   elseif ($o.result.exceptionDetails) { "EXCEPTION: " + ($o.result.exceptionDetails | ConvertTo-Json -Depth 6 -Compress) }

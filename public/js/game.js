@@ -55,8 +55,8 @@ G.Game = {
 
   // ---------------- Bootstrap ----------------
   init() {
-    const isFirstRun = !localStorage.getItem("vocabZombie_save_v1");
-    G.loadSave();
+    // (expansion, round 1) js/savemanager.js has read the save by now
+    const isFirstRun = G.SaveManager.isFirstRun();
     // (round 3, H) the word lists in the Word and Meaning Language chosen;
     // the menus in the UI language (js/strings.js read it from the save early)
     G.Lang.apply();
@@ -2039,7 +2039,7 @@ G.Game = {
     }
     if (this.mode === "daily") G.save.dailyHighScores[G.dailyKey()] = Math.max(G.save.dailyHighScores[G.dailyKey()] || 0, this.player.score);
     if (this.mode === "campaign") G.save.levelHighScores[this.level.id] = Math.max(G.save.levelHighScores[this.level.id] || 0, this.player.score);
-    G.persist();
+    G.persist(true);
     G.UI.renderResultScreen("lose", { score: this.player.score, wave: this.wave, correct: this.correctCount, wrong: this.wrongCount, money: this.player.money, bosses: G.Bosses.run.downs }, this.wrongWordsThisRun);
     if (G.Checkpoint) G.Checkpoint.onGameOver(this);     // Continue from Wave 11, once there is a checkpoint
     G.UI.showScreen("screen-gameover");
@@ -2060,7 +2060,7 @@ G.Game = {
     if (G.getLevel(nextId) && !G.save.unlockedLevels.includes(nextId)) G.save.unlockedLevels.push(nextId);
     if (!this.player.wasHitThisLevel) G.unlockAchievement("no_hit_level");
     if (G.LEVELS.every((l) => G.save.levelHighScores[l.id] !== undefined)) G.unlockAchievement("all_levels");
-    G.persist();
+    G.persist(true);
     G.UI.renderResultScreen("win", { score: this.player.score, wave: this.wave, correct: this.correctCount, wrong: this.wrongCount, money: this.player.money, bosses: G.Bosses.run.downs }, this.wrongWordsThisRun);
     G.UI.showScreen("screen-victory");
   },
@@ -3493,6 +3493,8 @@ G.Game = {
     // loaded -- has no time behind it: a step of 0 divides into NaN in the
     // camera rig, which then never recovers)
     if (delta > 0) this.update(delta);
+    // (expansion, round 1) time played: a level, the shop, the word screens
+    if ((this.state === "GAMEPLAY" && !this.paused) || this.state === "SHOP" || G.Modal.isOpen("practice")) G.save.meta.playSec += delta;
 
     if (this.scene && this.camera) this.renderFrame();
     // (overhaul, round 5) no level: the Main Menu's own scene, while it is in view
@@ -3590,4 +3592,7 @@ G.onPointerLockLost = function () {
 };
 
 // ---------------- Boot ----------------
-window.addEventListener("DOMContentLoaded", () => G.Game.init());
+// (expansion, round 1) IndexedDB answers late: the save first, then the game
+window.addEventListener("DOMContentLoaded", () => {
+  G.SaveManager.open().catch((e) => { console.error("Save manager failed", e); G.loadSave(); }).then(() => G.Game.init());
+});

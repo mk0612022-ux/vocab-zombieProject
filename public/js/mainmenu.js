@@ -160,7 +160,7 @@ window.G = window.G || {};
     shown: false, built: false, scene: null, quality: null, post: null, focusI: 0, _t: 0, _frame: 0,
     held: false,                  // (a dev page over everything -- ?lab=zombies -- no scene, no sound)
 
-    items() { return GROUPS.reduce((a, g) => a.concat(g.items), []); },
+    items() { return this.btns.map((b) => b.dataset.item); },
     build() {
       if (this.built) return;
       const root = $("screen-home");
@@ -174,13 +174,19 @@ window.G = window.G || {};
           </div>${gi < GROUPS.length - 1 ? `<div class="hm-sep" aria-hidden="true"></div>` : ""}`).join("")}
         </nav>
         <button type="button" class="home-sound" id="home-sound"><span class="hs-icon" aria-hidden="true">🔇</span><span class="hs-text">${esc(T("home.sound"))}</span></button>
+        <aside class="home-nudge hidden" id="home-nudge" aria-labelledby="home-nudge-title">
+          <b id="home-nudge-title"></b><p id="home-nudge-text"></p>
+          <div class="hn-btns"><button type="button" class="hn-btn hn-go" id="home-nudge-go" data-item="backup"></button><button type="button" class="hn-btn" id="home-nudge-later" data-item="backup_later"></button></div>
+        </aside>
         <div class="home-foot">
           <span class="hf-who"><span aria-hidden="true">👤</span> <span id="home-name"></span></span>
           <button type="button" class="hf-signin" id="home-signin">${esc(T("account.signIn"))}</button>
           <span class="hf-ver" data-version></span>
         </div>
         <div class="home-rotate" aria-hidden="true">${esc(T("home.rotate"))}</div>`;
-      this.btns = Array.from(root.querySelectorAll(".hm-item"));
+      this.btns = this.menuBtns = Array.from(root.querySelectorAll(".hm-item"));
+      $("home-nudge-go").onclick = () => this.activate("backup");
+      $("home-nudge-later").onclick = () => this.activate("backup_later");
       this.btns.forEach((b, i) => {
         b.onclick = () => { this.focusI = i; this.activate(b.dataset.item); };
         // a soft tick once on entering a button -- with a mouse, not a finger
@@ -256,7 +262,7 @@ window.G = window.G || {};
       const root = $("screen-home");
       $("home-menu").setAttribute("aria-label", T("home.menu"));
       root.querySelectorAll(".hm-group").forEach((g) => { g.querySelector(".hm-head").textContent = T("home.group." + g.dataset.group); });
-      this.btns.forEach((b) => { b.querySelector(".hm-label").textContent = T("home.item." + b.dataset.item); });
+      this.menuBtns.forEach((b) => { b.querySelector(".hm-label").textContent = T("home.item." + b.dataset.item); });
       root.querySelector(".hs-text").textContent = T("home.sound");
       $("home-signin").textContent = T("account.signIn");
       root.querySelector(".home-rotate").textContent = T("home.rotate");
@@ -270,6 +276,13 @@ window.G = window.G || {};
       const due = G.SRS && G.SRS.dueToday ? G.SRS.dueToday().length : 0, b = $("home-due");
       if (b) { b.textContent = due > 99 ? "99+" : String(due); b.classList.toggle("hidden", !due); }
       if (G.Updater) { G.Updater.showLabel(); G.Updater.badge(); }
+      if (G.DataUI) G.DataUI.atMenu();          // (expansion, round 1) a save not read; the word about a backup
+    },
+    // (expansion, round 1) the reminder's buttons, after the menu's for keys and a controller
+    setExtra(list) {
+      this.btns = this.menuBtns.concat(list);
+      if (this.focusI >= this.btns.length) this.focusI = 0;
+      this.mark();
     },
     // the first gesture: sound on, the music and the facility fade in
     wake(quiet) {
@@ -319,6 +332,7 @@ window.G = window.G || {};
       const UI = G.UI, H = "screen-home";
       G.Audio.unlock();
       this.wake();
+      if (id === "backup_later") { G.DataUI.closeNudge(); if (G.Input.mode !== "touch") this.btns[this.focusI].focus({ preventScroll: true }); return; }
       if (id === "play") {
         if (G.Audio.ctx) G.Audio.sfx("ui_select");
         this.toLobby();
@@ -337,6 +351,7 @@ window.G = window.G || {};
       else if (id === "ranks") { UI.renderLeaderboard("level1"); UI.showScreen("screen-leaderboard"); }
       else if (id === "awards") { UI.renderAchievements(); UI.showScreen("screen-achievements"); }
       else if (id === "settings") { UI._settingsReturn = H; UI.renderSettings(); UI.showScreen("screen-settings"); }
+      else if (id === "backup") { G.DataUI.openData(); UI._settingsReturn = H; UI.renderSettings(); UI.showScreen("screen-settings"); }
       else if (id === "help") UI.showScreen("screen-howtoplay");
     },
     // PLAY: the lobby (its Back comes here); the first time, how bright the night should be

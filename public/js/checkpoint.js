@@ -39,7 +39,7 @@
     remove(levelId) {
       if (!G.save.checkpoints || !G.save.checkpoints[this.key(levelId)]) return;
       delete G.save.checkpoints[this.key(levelId)];
-      G.persist();
+      G.persist(true);
     },
 
     // ---- keeping it (from G.Game.leaveShop after wave 10) ----
@@ -73,7 +73,7 @@
       const cp = this.snapshot(game);
       G.save.checkpoints = G.save.checkpoints || {};
       G.save.checkpoints[this.key(game.level.id)] = cp;
-      G.persist();
+      G.persist(true);
       this.toast(cp.wave);
       return cp;
     },

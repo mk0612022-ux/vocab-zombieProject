@@ -38,6 +38,7 @@ window.G = window.G || {};
     { id: "language", icon: "🌐", art: "daily-card" },
     { id: "accessibility", icon: "👁️", art: "practice-card" },
     { id: "account", icon: "👤", art: "custom-card" },
+    { id: "data", icon: "💾", art: "bunker-card" },       // (expansion, round 1)
     { id: "about", icon: "ℹ️", art: "school-card" },
   ];
   const ACTIONS = ["forward", "back", "left", "right", "sprint", "jump", "reload", "inspect", "interact", "melee", "slot2", "slot3", "slot4", "slot5", "slot6", "slot7",
@@ -221,9 +222,21 @@ window.G = window.G || {};
       return `<div class="set-profile"><span class="sp-avatar" aria-hidden="true">👤</span><div class="sp-who"><b>${esc(a.signedIn ? a.name : T("account.guest"))}</b>
           <small>${esc(a.signedIn ? T("start.uid", { uid: a.uid }) : T("settings.notSignedIn"))}</small></div>${a.signedIn ? "" : button("btn-set-signin", T("account.signIn"), "btn-primary")}</div>`
         + row({ id: "set-sync", name: T("settings.sync"), ctl: `<span class="set-val" id="set-sync">${esc(T(a.signedIn ? "settings.syncOn" : "settings.syncLocal"))}</span>`, desc: T("settings.syncDesc") })
-        + row({ id: "btn-export-save", name: T("settings.saveData"), ctl: `<span class="set-btns">${button("btn-export-save", T("settings.exportSave"))}${button("btn-import-save-settings", T("settings.importSave"))}</span><input type="file" id="import-save-file" accept="application/json" class="hidden">`, desc: T("settings.saveDataDesc") })
         + row({ id: "btn-delete-account", name: T("settings.deleteAccount"), ctl: button("btn-delete-account", T("settings.deleteAccountBtn"), "btn-danger", !a.signedIn), desc: T("settings.deleteAccountDesc") })
         + `<div class="set-bar">${button("btn-signout", T("settings.signOut"), "", !a.signedIn)}<small>${esc(a.signedIn ? "" : T("settings.signOutGuest"))}</small></div>`;
+    },
+    // (expansion, round 1) the player's data: how it is kept, a file of it, the
+    // backups, starting again (js/dataui.js). Import, Restore and Reset replace
+    // the whole save, so not in a run.
+    data(s, inRun) {
+      const rescue = G.SaveManager.rescueText();
+      return row({ id: "set-store", name: T("data.store"), ctl: `<span class="set-val" id="set-store-v"></span>`, desc: "", descId: "set-store-note" })
+        + row({ id: "set-lastbackup", name: T("data.lastBackup"), ctl: `<span class="set-val" id="set-lastbackup-v">${esc(G.DataUI.ago(G.save.meta.lastExportAt))}</span>`, desc: T("data.lastBackupDesc") })
+        + row({ id: "btn-export-save", name: T("settings.saveData"), ctl: `<span class="set-btns">${button("btn-export-save", T("settings.exportSave"))}${button("btn-import-save-settings", T("settings.importSave"), "", inRun)}</span><input type="file" id="import-save-file" class="hidden">`,
+          desc: T("settings.saveDataDesc") + (inRun ? " " + T("settings.lobbyOnly") : "") })
+        + (rescue ? row({ id: "btn-export-raw", name: T("data.rescue"), ctl: button("btn-export-raw", T("data.rescueBtn")), desc: T("data.rescueDesc") }) : "")
+        + `<div class="set-sub">${esc(T("data.backups"))}<small>${esc(T("data.backupsDesc", { n: G.CONFIG.save.snapshots }))}</small></div><div id="set-backups"></div>`
+        + row({ id: "btn-reset-progress", name: T("data.reset"), ctl: button("btn-reset-progress", T("data.resetBtn"), "btn-danger", inRun), desc: T("data.resetDesc"), locked: inRun });
     },
     about() {
       return row({ id: "btn-check-update", name: T("settings.version"), nameHtml: `${esc(T("settings.version"))}`, ctl: `<span class="set-version" data-version>${esc(G.Updater ? G.Updater.label() : "")}</span>${button("btn-check-update", T("settings.checkUpdates"))}`, desc: "", descId: "set-update-note" })
@@ -337,8 +350,7 @@ window.G = window.G || {};
       click("btn-set-signin", () => G.Account.signIn(() => this.render()));
       click("btn-signout", () => G.Account.signOut(() => this.render()));
       click("btn-delete-account", () => G.Account.deleteAccount(() => this.render()));
-      click("btn-export-save", () => G.exportSave());
-      click("btn-import-save-settings", () => $("import-save-file").click());
+      G.DataUI.bind();
       click("btn-privacy", () => this.openPrivacy());
       click("btn-brightcal", () => { if (G.BrightnessCal) G.BrightnessCal.open("settings"); });
       // (C1) a look for a newer version now
@@ -351,23 +363,6 @@ window.G = window.G || {};
         // (from the lobby's Settings: straight to Update; in a run, it waits for the lobby)
         if (r === "found") { if (G.Game.state === "MENU") G.Updater.showUpdate(); else G.Updater._offerLater = true; }
       });
-      // (category L) the file is read and checked BEFORE asking, so the
-      // overwrite question shows what is in it next to what would be lost
-      const file = $("import-save-file");
-      if (file) file.onchange = (e) => {
-        const f = e.target.files[0];
-        e.target.value = "";
-        if (!f) return;
-        G.readSaveFile(f, (err, res) => {
-          if (err) { alert(T("save.importFailed", { msg: err.message })); return; }
-          const a = res.summary, b = G.saveSummary(G.save);
-          const when = res.exportedAt ? new Date(res.exportedAt).toLocaleString(G.locale ? G.locale() : "en-GB") : T("common.unknown");
-          if (!confirm(T("save.importConfirm", { when, al: a.levels, aw: a.words, aa: a.achievements, ag: a.weapons, bl: b.levels, bw: b.words, ba: b.achievements, bg: b.weapons }))) return;
-          G.applyImportedSave(res.save);
-          alert(T("save.importDone"));
-          this.render();
-        });
-      };
       // the categories: a tap, or the focus arriving (keys, a controller)
       $("set-cats").querySelectorAll(".set-cat").forEach((b) => {
         b.onclick = () => this.select(b.dataset.cat);
@@ -413,10 +408,11 @@ window.G = window.G || {};
       el.textContent = !names.length ? T("settings.accentNone")
         : (a !== "mixed" && !A.hasAccent(a) ? T("settings.accentMissing", { a: T("settings.accent." + a) }) + " " : "") + T("settings.accentVoices", { list: names.join(", ") });
     },
-    // the red dots: not signed in; a new version out
+    // the red dots: not signed in; no backup file for a while; a new version out
     dots() {
       const dot = (c, on) => { const d = document.querySelector(`#set-cat-${c} .sc-dot`); if (d) d.classList.toggle("hidden", !on); };
       dot("account", !(G.Account && G.Account.state().signedIn));
+      dot("data", G.SaveManager.backupOverdue());
       dot("about", !!(G.Updater && G.Updater.pending));
     },
     keysHint() {
@@ -526,6 +522,8 @@ window.G = window.G || {};
       if (b && G.Input.mode !== "touch") { b.focus({ preventScroll: true }); if (G.Pad.focused) G.Pad.setFocus(b); }
     },
   };
+
+  G.SettingsUI.parts = { row, button };           // (js/dataui.js: the backups, drawn once they have been read)
 
   // (new series, round 2, F) the screen-edge margin: Auto takes what the
   // device reports (a notch, rounded corners); Manual, the player's own --

@@ -135,6 +135,12 @@ G.defaultSave = function () {
     // streak -- js/srs.js (G.Learning.normalize)
     learn: G.Learning ? G.Learning.normalize({}) : null,
     learnSeen: {},          // the spelling intros seen, per input: intro_keys, intro_touch, intro_pad (js/study.js)
+    tutorialDone: false,    // the tutorial's cards (js/tutorial.js)
+    tutorialSeen: {},
+    // (expansion, round 1) the player's public face (the accounts, later) and
+    // the save's own record (js/savemanager.js): rev counts its writes
+    profile: { name: "", avatar: null, publicId: null },
+    meta: { createdAt: 0, updatedAt: 0, rev: 0, deviceId: "", gameVersion: "", playSec: 0, lastExportAt: 0, exportMark: 0, nudgeAt: 0 },
   };
 };
 
@@ -267,6 +273,18 @@ G.normalizeSave = function (data) {
   s.bosses = { seen: counts(rawB.seen), defeated: counts(rawB.defeated) };
   // checkpoints: one per level, well-formed or dropped (js/checkpoint.js)
   s.checkpoints = G.Checkpoint ? G.Checkpoint.normalize(s.checkpoints) : (s.checkpoints && typeof s.checkpoints === "object" ? s.checkpoints : {});
+  // (expansion, round 1) a save from before these: empty, filled in by js/savemanager.js
+  s.tutorialDone = !!data.tutorialDone;
+  const ts = data.tutorialSeen;
+  s.tutorialSeen = {};
+  if (ts && typeof ts === "object" && !Array.isArray(ts)) Object.keys(ts).forEach((k) => { if (ts[k]) s.tutorialSeen[k] = true; });
+  const part = (o) => (o && typeof o === "object" && !Array.isArray(o) ? o : {});
+  const text = (v, n) => (typeof v === "string" ? v.slice(0, n) : "");
+  const count = (v) => { v = Number(v); return Number.isFinite(v) && v > 0 ? v : 0; };
+  const p = part(data.profile), m = part(data.meta);
+  s.profile = { name: text(p.name, 64), avatar: typeof p.avatar === "string" ? p.avatar : null, publicId: typeof p.publicId === "string" ? p.publicId : null };
+  s.meta = { createdAt: count(m.createdAt), updatedAt: count(m.updatedAt), rev: Math.floor(count(m.rev)), deviceId: text(m.deviceId, 40), gameVersion: text(m.gameVersion, 40),
+    playSec: count(m.playSec), lastExportAt: count(m.lastExportAt), exportMark: count(m.exportMark), nudgeAt: count(m.nudgeAt) };
   return s;
 };
 
@@ -343,6 +361,8 @@ G.cleanCustomExtra = function (x) {
   return Object.keys(out).length ? out : null;
 };
 
+// (expansion, round 1) The game itself reads the save through js/savemanager.js
+// (G.SaveManager.open, before G.Game.init); this is for the dev pages without it.
 G.loadSave = function () {
   try {
     const raw = localStorage.getItem(SAVE_KEY);
@@ -354,106 +374,32 @@ G.loadSave = function () {
   return G.save;
 };
 
-// Category L: a save that fails to write (Safari private mode, a full quota)
-// used to fail silently -- the player found out only when their progress was
-// gone. Now the first failure is shown once.
-G.persist = function () {
-  try {
-    localStorage.setItem(SAVE_KEY, JSON.stringify(G.save));
-    G._persistFailed = false;
-  } catch (e) {
-    console.warn("Save failed", e);
-    if (!G._persistFailedShown && G.UI && G.UI.flashPurchaseBanner) {
-      G._persistFailedShown = true;
-      G.UI.flashPurchaseBanner(G.T("save.persistFailTitle"), G.T("save.persistFailText"));
-    }
-    G._persistFailed = true;
-  }
+// (expansion, round 1) A change to the save: written within
+// G.CONFIG.save.debounceMs. G.persist(true): now -- a checkpoint, a level over;
+// the page going away does the same (js/savemanager.js).
+G.persist = function (now) {
+  const M = G.SaveManager;
+  if (!M) return;
+  if (now) M.flush(); else M.later();
 };
-// Frequent small changes (every answered word) are batched into one write a
-// moment later instead of a full JSON write per zombie.
-G.persistSoon = function () {
-  if (G._persistTimer) return;
-  G._persistTimer = setTimeout(() => { G._persistTimer = null; G.persist(); }, 1200);
-};
-// A phone kills a backgrounded tab without warning; these are the last
-// reliable moments to write, so a run's word history survives an app switch.
-["pagehide", "beforeunload"].forEach((ev) => window.addEventListener(ev, () => { if (G.save) G.persist(); }));
-document.addEventListener("visibilitychange", () => { if (document.hidden && G.save) G.persist(); });
+G.persistSoon = function () { G.persist(); };
 
-// ---------------- Export / import (category L) ----------------
+// ---------------- Export / import (js/savefile.js, js/dataui.js) ----------------
+// (the old export's wrapper: such a file is still read)
 G.SAVE_FORMAT = "vocab-zombie-save";
 G.SAVE_FORMAT_VERSION = 2;
 
 G.saveSummary = function (s) {
+  const srs = (s.learn && s.learn.srs) || {}, box = G.CONFIG.save.rememberedBox;
   return {
     levels: (s.unlockedLevels || []).length,
     words: Object.keys(s.wordStats || {}).length,
+    remembered: Object.keys(srs).filter((k) => srs[k].b >= box).length,
     achievements: Object.keys(s.achievements || {}).filter((k) => s.achievements[k]).length,
     weapons: (s.unlockedWeapons || []).length,
     bestScores: Object.values(s.levelHighScores || {}).filter((v) => v != null).length,
+    playSec: Math.round((s.meta && s.meta.playSec) || 0),
   };
-};
-
-G.exportSave = function () {
-  G.persist();
-  const payload = {
-    format: G.SAVE_FORMAT, version: G.SAVE_FORMAT_VERSION,
-    exportedAt: new Date().toISOString(),
-    summary: G.saveSummary(G.save),
-    save: G.save,
-  };
-  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url; a.download = "vocab-zombie-save-" + new Date().toISOString().slice(0, 10) + ".json";
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-};
-
-// Reads and VALIDATES a file without touching the current save, so the
-// overwrite confirmation can say what is actually in it. Accepts the wrapped
-// export format and a bare save from before it existed; rejects anything else
-// -- an arbitrary JSON file used to "import successfully" and wipe the save.
-G.readSaveFile = function (file, cb) {
-  const reader = new FileReader();
-  reader.onerror = () => cb(new Error(G.T("save.errRead")));
-  reader.onload = () => {
-    let data;
-    try { data = JSON.parse(reader.result); } catch (e) { cb(new Error(G.T("save.errJson"))); return; }
-    let raw = null, exportedAt = null;
-    if (data && data.format === G.SAVE_FORMAT && data.save) { raw = data.save; exportedAt = data.exportedAt || null; }
-    else if (data && (Array.isArray(data.unlockedLevels) || (data.wordStats && typeof data.wordStats === "object"))) raw = data;
-    if (!raw) { cb(new Error(G.T("save.errNotSave"))); return; }
-    try {
-      const save = G.normalizeSave(raw);
-      cb(null, { save, exportedAt, summary: G.saveSummary(save) });
-    } catch (e) { cb(new Error(G.T("save.errCorrupt"))); }
-  };
-  reader.readAsText(file);
-};
-
-G.applyImportedSave = function (save) {
-  G.save = save;
-  G.persist();
-  // everything that reads settings once at start-up has to be told
-  if (G.UI && G.UI.applyFontSizeClass) G.UI.applyFontSizeClass();
-  if (G.TouchCfg) G.TouchCfg.apply();
-  if (G.Audio) G.Audio.applyVolumes();
-  if (G.Input && G.save.settings.controlMode !== "auto") G.Input.mode = G.save.settings.controlMode;
-  if (G.UI && G.UI.applyControlMode) G.UI.applyControlMode();
-  // (new series, round 2, F) the screen-edge margin, the render resolution
-  if (G.applySafeArea) G.applySafeArea();
-  if (G.Game && G.Game.renderer && G.Game.applyGraphicsQuality) G.Game.applyGraphicsQuality();
-};
-
-// kept for any caller of the old one-step API
-G.importSaveFromFile = function (file, cb) {
-  G.readSaveFile(file, (err, res) => {
-    if (err) { cb && cb(false, err); return; }
-    G.applyImportedSave(res.save);
-    cb && cb(true);
-  });
 };
 
 // ---------------- Word stats (long-term memory tracking) ----------------

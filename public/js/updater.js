@@ -311,7 +311,7 @@ window.G = window.G || {};
         this.stage = "done";
         $("upd-pct").textContent = T("update.done");
         // (anything still waiting to be written goes first)
-        if (G.save && G.persist) G.persist();
+        if (G.save && G.persist) G.persist(true);
         setTimeout(() => location.reload(), C().restartDelay);
       } catch (err) {
         this.stage = "failed";

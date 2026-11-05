@@ -312,6 +312,16 @@ G.CONFIG = {
     restartDelay: 1200,             // ms "Update complete - restarting" shows before the reload
     parallel: 4,                    // files downloaded at once
   },
+  // (expansion, round 1) the save (js/savemanager.js) and its backups
+  save: {
+    debounceMs: 2000,               // a change is written at most this long after it
+    bootWaitMs: 1500,               // the start waits this long for IndexedDB, then uses the copy in localStorage
+    snapshots: 7,                   // backups kept in IndexedDB, the newest
+    lsSnapshots: 2,                 // ...in localStorage, where there is no IndexedDB
+    rememberedBox: 4,               // a word counts as remembered from this box up
+    remindAfterDays: 7,             // no backup file for this long, with new progress: a word in the Main Menu
+    remindEveryDays: 3,             // ...not more often than this
+  },
   // (new series, round 2, F) a controller's right stick (js/game.js); the
   // Settings slider multiplies the speed (G.save.settings.padSensitivity)
   pad: {

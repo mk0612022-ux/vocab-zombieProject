@@ -1,6 +1,7 @@
-// Dev-only (not shipped). The expansion's round 0: a sample of the save exactly
-// as the game writes it today, kept as tests/fixtures/save-v-current.json for
-// the migration tests of round 1. Nothing in it is a real player's: a player of
+// Dev-only (not shipped). The expansion's round 0: a sample of the flat save of
+// before js/savemanager.js, kept as tests/fixtures/save-v-current.json for the
+// migration tests of round 1. That file is the old format on record: this tool
+// (which now gets a save with meta and profile) is not run again to replace it. Nothing in it is a real player's: a player of
 // twelve simulated days, made with the game's own functions (G.Learning.answerWord,
 // G.SRS.completeDaily, G.addLeaderboardEntry, G.Checkpoint.snapshot on a real
 // run ...), so every part of the save holds what the game itself would put there.

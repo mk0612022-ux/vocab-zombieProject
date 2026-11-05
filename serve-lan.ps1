@@ -13,6 +13,7 @@ param([int]$Port = 8080, [string]$Root = "")
 
 $root = if ($Root) { (Resolve-Path $Root).Path } else { Join-Path $PSScriptRoot "public" }
 $tools = Join-Path $PSScriptRoot "tools"
+$tests = Join-Path $PSScriptRoot "tests"
 $mime = @{
   ".html" = "text/html; charset=utf-8"; ".css" = "text/css; charset=utf-8"
   ".js" = "application/javascript; charset=utf-8"; ".json" = "application/json; charset=utf-8"
@@ -44,7 +45,7 @@ foreach ($ip in $ips) { Write-Host "  network: http://${ip}:$Port/" }
 # time let a single idle one hold up every other request for seconds -- the
 # service worker's parallel downloads stalled on it, and so did the game.
 $handler = {
-  param($client, $root, $mime, $tools)
+  param($client, $root, $mime, $tools, $tests)
 function Send-Response {
   param($stream, [int]$status, [string]$statusText, [string]$contentType, [byte[]]$body, [bool]$headOnly)
   $head = "HTTP/1.1 $status $statusText`r`n" +
@@ -88,6 +89,7 @@ function Send-Response {
     $base = $root
     # (dev only) the test suites and dev pages, next to the site
     if ($decoded -match '^tools/') { $base = $tools; $decoded = $decoded.Substring(6) }
+    elseif ($decoded -match '^tests/') { $base = $tests; $decoded = $decoded.Substring(6) }
     $decoded = $decoded -replace '/', '\'
     $full = [System.IO.Path]::GetFullPath((Join-Path $base $decoded))
     $rootFull = [System.IO.Path]::GetFullPath($base)
@@ -123,7 +125,7 @@ while ($true) {
   try { $client = $listener.AcceptTcpClient() } catch { [System.Threading.Thread]::Sleep(200); continue }
   $ps = [PowerShell]::Create()
   $ps.RunspacePool = $pool
-  [void]$ps.AddScript($handler).AddArgument($client).AddArgument($root).AddArgument($mime).AddArgument($tools)
+  [void]$ps.AddScript($handler).AddArgument($client).AddArgument($root).AddArgument($mime).AddArgument($tools).AddArgument($tests)
   [void]$busy.Add(@{ ps = $ps; h = $ps.BeginInvoke() })
   # tidy up the ones that have finished
   for ($i = $busy.Count - 1; $i -ge 0; $i--) {

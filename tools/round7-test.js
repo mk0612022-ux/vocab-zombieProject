@@ -597,7 +597,7 @@ G.Round7Test = (function () {
     key("Escape");
     ok("J3 Cancel keeps the checkpoint", !G.Dialog.isOpen() && C.has(1) && G.Game.state === "MENU");
     // reopen the browser: the save read back from localStorage
-    G.persist();
+    G.persist(true);
     const reread = G.normalizeSave(JSON.parse(localStorage.getItem("vocabZombie_save_v1")));
     ok("J4 closing and reopening the browser keeps it", reread.checkpoints.level1 && reread.checkpoints.level1.wave === 11 && reread.checkpoints.level1.continues === 2);
     // Export / Import

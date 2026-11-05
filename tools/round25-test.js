@@ -323,7 +323,7 @@ G.Round25Test = (function () {
     $("btn-settings-back").click();
     // the words
     const KEYS = ["home.menu", "home.sound", "home.rotate", "lobby.back", "settings.reduceMotion", "settings.reduceMotionDesc"]
-      .concat(["play", "learn", "collect", "system"].map((g) => "home.group." + g), M().items().map((i) => "home.item." + i));
+      .concat(["play", "learn", "collect", "system"].map((g) => "home.group." + g), M().menuBtns.map((b) => "home.item." + b.dataset.item));
     // (the other languages' files come when first asked for)
     const lang = G.lang, use = (code) => new Promise((res) => G.setUILang(code, { done: res }));
     M().show();

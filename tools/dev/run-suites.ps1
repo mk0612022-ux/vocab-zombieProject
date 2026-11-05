@@ -4,17 +4,18 @@ param([string]$Groups = "29", [string]$Out = "", [int]$Max = 3000, [string]$Port
 # A suite's result is one line, then its failures; -Out <folder> keeps each
 # group's JSON. Batches of about seven suites take 25-30 minutes.
 $s = $PSScriptRoot
+$tabArg = if ($Tab) { @("-Tab", $Tab) } else { @() }
 $i = 0
 foreach ($g in ($Groups -split ";")) {
   $i++
   $R = Get-Random -Minimum 1000 -Maximum 99999
-  & powershell -ExecutionPolicy Bypass -File "$s\cdp.ps1" -Tab $Tab -Url "http://localhost:$Port/index.html?r=$R" -Timeout 20 | Out-Null
-  & powershell -ExecutionPolicy Bypass -File "$s\cdp.ps1" -Tab $Tab -Timeout 80 -Expr "await new Promise(r => { const t0 = Date.now(); (function w(){ if ((window.G && G.MainMenu && G.MainMenu.visible()) || Date.now()-t0 > 75000) r(); else setTimeout(w, 300); })(); }); window.__suites = [$g]; return G.MainMenu.visible();" | Out-Null
-  & powershell -ExecutionPolicy Bypass -File "$s\cdp.ps1" -Tab $Tab -Timeout 15 -File "$s\suites.js" | Out-Null
+  & powershell -ExecutionPolicy Bypass -File "$s\cdp.ps1" @tabArg -Url "http://localhost:$Port/index.html?r=$R" -Timeout 20 | Out-Null
+  & powershell -ExecutionPolicy Bypass -File "$s\cdp.ps1" @tabArg -Timeout 180 -Expr "await new Promise(r => { const t0 = Date.now(); (function w(){ if ((window.G && G.MainMenu && G.MainMenu.visible()) || Date.now()-t0 > 170000) r(); else setTimeout(w, 300); })(); }); window.__suites = [$g]; return G.MainMenu.visible();" | Out-Null
+  & powershell -ExecutionPolicy Bypass -File "$s\cdp.ps1" @tabArg -Timeout 60 -File "$s\suites.js" | Out-Null
   $t0 = Get-Date; $res = $null
   do {
     Start-Sleep -Milliseconds 500
-    $res = & powershell -ExecutionPolicy Bypass -File "$s\cdp.ps1" -Tab $Tab -Timeout 20 -Expr "return window._all;"
+    $res = & powershell -ExecutionPolicy Bypass -File "$s\cdp.ps1" @tabArg -Timeout 20 -Expr "return window._all;"
     if ($res -and $res -match '"running":false') { break }
   } while (((Get-Date) - $t0).TotalSeconds -lt $Max)
   if ($Out) { $res | Out-File -Encoding utf8 (Join-Path $Out "suites-$i.json") }

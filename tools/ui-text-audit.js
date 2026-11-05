@@ -167,13 +167,23 @@ G.UIAudit = {
       await step("how to play", () => UI.showScreen("screen-howtoplay"));
       // (new series, round 2, F) every category of the Settings page; the
       // Learning Style's own rows; the manual screen-edge margin; the privacy policy
-      for (const c of ["graphics", "audio", "controls", "gameplay", "language", "accessibility", "account", "about"]) await step("settings: " + c, () => { UI._settingsReturn = "screen-mainmenu"; UI.renderSettings(); UI.showScreen("screen-settings"); G.SettingsUI.select(c); });
+      for (const c of ["graphics", "audio", "controls", "gameplay", "language", "accessibility", "account", "data", "about"]) await step("settings: " + c, () => { UI._settingsReturn = "screen-mainmenu"; UI.renderSettings(); UI.showScreen("screen-settings"); G.SettingsUI.select(c); });
       const keepStyle = G.save.settings.campaignStyle, keepSafe = G.save.settings.safeArea;
       await step("settings: gameplay, your own Learning Style", () => { G.SettingsUI.select("gameplay"); document.querySelector('#set-campstyle [data-v="custom"]').click(); });
       await step("settings: graphics, manual margin", () => { G.SettingsUI.select("graphics"); document.querySelector('#set-safearea [data-v="manual"]').click(); });
       G.save.settings.campaignStyle = keepStyle; G.save.settings.safeArea = keepSafe; G.applySafeArea();
       await step("settings: privacy policy", () => { G.SettingsUI.select("about"); G.SettingsUI.openPrivacy(); });
       G.SettingsUI.closePrivacy();
+      // (expansion, round 1) the windows of Settings > Data, and the Main Menu's word about a backup
+      await step("data: import preview", () => { G.SettingsUI.select("data"); G.DataUI.askImport({ save: G.save, exportedAt: new Date().toISOString(), summary: G.saveSummary(G.save) }); });
+      await step("data: reset", () => G.DataUI.askReset());
+      await step("data: restore", () => G.DataUI.askRestore({ id: Date.now(), reason: "migration", summary: G.saveSummary(G.save) }));
+      await step("data: a file ready", () => G.DataUI.finishExport({ name: "x", text: "" }, "needTap"));
+      await step("data: not readable", () => G.DataUI.askFailed({ raw: "x", why: T("save.errCorrupt") }));
+      await step("data: done", () => G.Dialog.open({ icon: "✅", title: T("data.doneTitle"), text: T("data.done.restore"), buttons: [{ label: T("data.restart"), primary: true, cancel: true }] }));
+      G.Dialog.close();
+      await step("main menu: the word about a backup", () => { G.DataUI._nudged = true; G.MainMenu.show(); });
+      G.DataUI.closeNudge();
       // (visual series, round 1, E4) the brightness calibration window
       if (G.BrightnessCal) {
         const keepB = G.save.settings.brightness, keepSet = G.save.settings.brightnessSet;

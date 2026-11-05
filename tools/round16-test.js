@@ -5,7 +5,7 @@
 //      pictures' sizes, at least a second on screen
 //   E  the way in (overhaul, round 5: the Main Menu, in the Start screen's place):
 //      PLAY by a click, Enter or A -- not by Sign In -- the bar (Guest, Sign In), the version, the music
-//   F  the Settings page: eight categories, every old setting in one, the
+//   F  the Settings page: nine categories, every old setting in one, the
 //      kinds of control, a description under each row, changes applied and
 //      saved, the run's locked rows, keys and a controller, the red dots, the
 //      privacy policy, the new settings (render resolution, screen-edge
@@ -45,7 +45,7 @@ G.Round16Test = (function () {
     ["Thai with English clues", "set-cluethai", "gameplay"], ["Custom Vocabulary", "btn-settings-customvocab", "gameplay"],
     ["Game speed", "set-gamespeed", "accessibility"], ["Text size", "set-fontsize", "accessibility"], ["Colorblind mode", "set-colorblind", "accessibility"],
     ["Camera bob", "set-headbob", "accessibility"], ["Camera bob off", "set-headbob-off", "accessibility"],
-    ["Export Save / Import Save", "btn-export-save", "account"],
+    ["Export Save / Import Save", "btn-export-save", "data"],
     ["Version, Check for updates", "btn-check-update", "about"],
   ];
   const NEW = [
@@ -163,7 +163,7 @@ G.Round16Test = (function () {
     const keep = JSON.stringify(S());
     openSettings("screen-mainmenu", "graphics");
     const cats = Array.from(document.querySelectorAll("#set-cats .set-cat")).map((b) => b.dataset.cat);
-    ok("F eight categories down the side", cats.join() === "graphics,audio,controls,gameplay,language,accessibility,account,about", cats.join());
+    ok("F nine categories down the side", cats.join() === "graphics,audio,controls,gameplay,language,accessibility,account,data,about", cats.join());
     ok("F one shown at a time", document.querySelectorAll("#settings-content .set-sec:not(.hidden)").length === 1);
     const where = (id) => { const e = $(id); const sec = e && e.closest(".set-sec"); return sec ? sec.id.replace("set-sec-", "") : null; };
     const lost = TABLE.filter(([, id, cat]) => where(id) !== cat);
@@ -184,6 +184,7 @@ G.Round16Test = (function () {
     // a change: applied at once, saved
     const q0 = S().graphicsQuality;
     document.querySelector('#set-quality [data-v="low"]').click();
+    G.persist(true);                // (expansion, round 1: a change is written within two seconds)
     const saved = JSON.parse(localStorage.getItem("vocabZombie_save_v1")).settings.graphicsQuality;
     ok("F a choice: lit, applied, saved", S().graphicsQuality === "low" && saved === "low" && document.querySelector('#set-quality .seg-o.on').dataset.v === "low" && document.querySelector('#set-quality .seg-o.on').classList.contains("flash"));
     document.querySelector(`#set-quality [data-v="${q0}"]`).click();
