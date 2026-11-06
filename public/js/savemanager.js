@@ -95,44 +95,46 @@ G.SaveManager = (function () {
   const toSave = (data) => G.normalizeSave(fromDoc(migrate(data)));
 
   // ---------------- IndexedDB ----------------
-  const DB = {
-    conn: null,
-    open() {
-      return new Promise((res, rej) => {
-        if (!window.indexedDB) { rej(new Error("no IndexedDB")); return; }
-        const rq = indexedDB.open(names.db, 1);
-        rq.onupgradeneeded = () => {
-          rq.result.createObjectStore("kv", { keyPath: "id" });
-          rq.result.createObjectStore("snapshots", { keyPath: "id" });
-        };
-        rq.onsuccess = () => {
-          const d = rq.result;
-          d.onversionchange = () => { d.close(); if (DB.conn === d) DB.conn = null; };
-          d.onclose = () => { if (DB.conn === d) DB.conn = null; };
-          DB.conn = d;
-          res(d);
-        };
-        rq.onerror = () => rej(rq.error);
-        rq.onblocked = () => rej(new Error("IndexedDB blocked"));
-      });
-    },
-    // one transaction: done when it has committed, not when its requests have run
-    tx(d, store, mode, fn) {
-      return new Promise((res, rej) => {
-        const t = d.transaction(store, mode);
-        let out;
-        const r = fn(t.objectStore(store));
-        if (r) r.onsuccess = () => { out = r.result; };
-        t.oncomplete = () => res(out);
-        t.onerror = t.onabort = () => rej(t.error || new Error("IndexedDB aborted"));
-      });
-    },
-    // (Safari can drop a connection in the background: once more on a new one)
-    run(store, mode, fn) {
-      const go = (d) => DB.tx(d, store, mode, fn);
-      return (DB.conn ? go(DB.conn) : DB.open().then(go)).catch(() => { if (DB.conn) { DB.conn.close(); DB.conn = null; } return DB.open().then(go); });
-    },
-  };
+  // A database of object stores keyed by id (the save's; js/bugreport.js the reports')
+  function makeDB(name, stores) {
+    const DB = {
+      conn: null,
+      open() {
+        return new Promise((res, rej) => {
+          if (!window.indexedDB) { rej(new Error("no IndexedDB")); return; }
+          const rq = indexedDB.open(name(), 1);
+          rq.onupgradeneeded = () => { stores.forEach((s) => rq.result.createObjectStore(s, { keyPath: "id" })); };
+          rq.onsuccess = () => {
+            const d = rq.result;
+            d.onversionchange = () => { d.close(); if (DB.conn === d) DB.conn = null; };
+            d.onclose = () => { if (DB.conn === d) DB.conn = null; };
+            DB.conn = d;
+            res(d);
+          };
+          rq.onerror = () => rej(rq.error);
+          rq.onblocked = () => rej(new Error("IndexedDB blocked"));
+        });
+      },
+      // one transaction: done when it has committed, not when its requests have run
+      tx(d, store, mode, fn) {
+        return new Promise((res, rej) => {
+          const t = d.transaction(store, mode);
+          let out;
+          const r = fn(t.objectStore(store));
+          if (r) r.onsuccess = () => { out = r.result; };
+          t.oncomplete = () => res(out);
+          t.onerror = t.onabort = () => rej(t.error || new Error("IndexedDB aborted"));
+        });
+      },
+      // (Safari can drop a connection in the background: once more on a new one)
+      run(store, mode, fn) {
+        const go = (d) => DB.tx(d, store, mode, fn);
+        return (DB.conn ? go(DB.conn) : DB.open().then(go)).catch(() => { if (DB.conn) { DB.conn.close(); DB.conn = null; } return DB.open().then(go); });
+      },
+    };
+    return DB;
+  }
+  const DB = makeDB(() => names.db, ["kv", "snapshots"]);
 
   // ---------------- localStorage ----------------
   const flatRead = () => { try { return localStorage.getItem(names.flat); } catch (e) { return null; } };
@@ -386,7 +388,7 @@ G.SaveManager = (function () {
   }
 
   return Object.assign(api, {
-    SCHEMA, SECTIONS, fail, toDoc, fromDoc, migrate, toSave, versionOf,
+    SCHEMA, SECTIONS, fail, makeDB, toDoc, fromDoc, migrate, toSave, versionOf,
     open, later, flush, settled, version,
     isFirstRun: () => S.first,
     failure: () => S.failure, startFresh, rescueText,

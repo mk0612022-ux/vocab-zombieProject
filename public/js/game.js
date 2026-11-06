@@ -227,6 +227,7 @@ G.Game = {
   // Style picked before the level (G.save.settings.campaignStyle: Adaptive
   // by default, Classic, or a clue x answer of the player's own)
   startLevel(id) {
+    G.Bus.emit("game:level", { id, mode: this.mode });
     this.mode = "campaign";
     this.level = G.getLevel(id);
     this.wordPool = G.WORD_SETS[this.level.wordsKey].words;
@@ -584,6 +585,7 @@ G.Game = {
   },
 
   startWave() {
+    G.Bus.emit("game:wave", { wave: this.wave + 1 });
     this._waveOutfits = new Set();                    // (overhaul, round 4: the wave's outfits, js/zombiefactory.js)
     this.wave++;
     this.spawnedCount = 0;
@@ -1800,6 +1802,7 @@ G.Game = {
 
   // ---------------- Shop ----------------
   openShop() {
+    G.Bus.emit("game:shop", { wave: this.wave });
     this.state = "SHOP";
     // (C) 45 s by default, set in Settings: 30 / 45 / 60, or no limit at all
     // -- then the next wave waits for Ready
@@ -1897,6 +1900,7 @@ G.Game = {
     const limit = G.Questions.seconds(q.type, opts.time || 8) + (G.Perks.val("extra_time") || 0);   // Extra Time
     this.challenge = { pair, q, choices: q.spell ? [] : q.choices.map((c) => c.text), timeLeft: limit, timeLimit: limit, onSuccess, onFail, boss: !!opts.boss, stage: "question" };
     this._challengeEnd = null;
+    G.Bus.emit("game:question", { type: q.type, word: G.wordKey(pair), boss: !!opts.boss });
     G.Modal.open("challenge", { freeze: true, keys: (e) => this.challengeKey(e) });
     G.UI.setChallengeVisible(true, label, !!opts.boss);
     this.challengeView = G.UI.setChallengeQuestion(q, this.challengeHandlers());
@@ -2016,6 +2020,7 @@ G.Game = {
     this.onGameOver();
   },
   onGameOver() {
+    G.Bus.emit("game:over", { wave: this.wave, score: this.player.score });
     // (a study session ends with its own results, not the game-over screen)
     if (this.mode === "study" && G.Study) { G.Study.finish(this, "died"); return; }
     if (this.wsm) this.wsm.setDisabled("end", true);   // (overhaul, round 1) the gun put away, everything stopped
@@ -2045,6 +2050,7 @@ G.Game = {
     G.UI.showScreen("screen-gameover");
   },
   onVictory() {
+    G.Bus.emit("game:victory", { wave: this.wave, score: this.player.score });
     if (this.wsm) this.wsm.setDisabled("end", true);
     G.Audio.stopAll();                                 // (overhaul, round 3)
     this.state = "VICTORY";
@@ -2067,6 +2073,7 @@ G.Game = {
 
   // ---------------- Pause ----------------
   pause() {
+    G.Bus.emit("game:pause", {});
     if (this.state !== "GAMEPLAY") return;
     this.paused = true; this.state = "PAUSE";
     this._pausedAt = performance.now();
@@ -2087,6 +2094,7 @@ G.Game = {
     G.UI.showScreen("screen-pause");
   },
   resume() {
+    G.Bus.emit("game:resume", {});
     // a window that was open under the pause menu (the crate reveal, a
     // question) is still open: it keeps its pause and the free cursor
     this.paused = G.Modal.pausesAll(); this.state = "GAMEPLAY";
@@ -3483,6 +3491,7 @@ G.Game = {
       if (t - this.lastFrameTime < minDelta) return;
     }
     const delta = Math.min(0.1, (t - (this.lastFrameTime || t)) / 1000);
+    G.Diag.frame(t - (this.lastFrameTime || t));           // (expansion, round 2) the time itself, uncapped
     this.lastFrameTime = t;
     this.fpsSmoothed = this.fpsSmoothed * 0.9 + (1 / Math.max(delta, 0.0001)) * 0.1;
     G.UI.updateFpsCounter(this.fpsSmoothed);
@@ -3496,7 +3505,7 @@ G.Game = {
     // (expansion, round 1) time played: a level, the shop, the word screens
     if ((this.state === "GAMEPLAY" && !this.paused) || this.state === "SHOP" || G.Modal.isOpen("practice")) G.save.meta.playSec += delta;
 
-    if (this.scene && this.camera) this.renderFrame();
+    if (this.scene && this.camera) { this.renderFrame(); G.Diag.drawn(this.renderer); }
     // (overhaul, round 5) no level: the Main Menu's own scene, while it is in view
     else if (G.MainMenu) G.MainMenu.frame(delta);
   },
@@ -3510,6 +3519,12 @@ G.Game._update0 = G.Game.update;
 // ---------------- Global input event wiring ----------------
 G.onKeyDown = function (e) {
   const Game = G.Game;
+  // (expansion, round 2) the bug report's key, whatever is up -- unless it is being typed
+  if (e.code === G.save.settings.keybinds.report && !G.BugReport.shown && !(document.activeElement && /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName))) {
+    if (e.preventDefault) e.preventDefault();
+    G.BugReport.open();
+    return;
+  }
   // A window is open (question, crate, mystery box, shop): its own keys only
   // -- 1-4 answer instead of switching weapons, and nothing reaches
   // gameplay. Pause still works over a question.

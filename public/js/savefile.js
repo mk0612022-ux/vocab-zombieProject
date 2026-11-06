@@ -269,5 +269,5 @@ G.SaveFile = (function () {
   // (the old call, for what still uses it)
   G.readSaveFile = function (file, cb) { readFile(file).then((r) => cb(null, r), (e) => cb(e)); };
 
-  return { make, rawFile, deliver, read, readFile, merge, sha256, deviceLabel };
+  return { make, rawFile, deliver, read, readFile, merge, sha256, deviceLabel, stamp };
 })();

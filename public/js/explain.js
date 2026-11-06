@@ -502,6 +502,8 @@ window.G = window.G || {};
       o = o || {};
       const v = { el, ex, o, full: set().explainDetail === "full", left: o.auto || 0, held: false, closed: false };
       v.toggle = () => { v.full = !v.full; v.held = true; this.render(v, true); };
+      // (expansion, round 2) the word reported: Auto-continue waits
+      v.flag = () => { v.held = true; this.render(v, true); G.WordReport.open(v.ex.y.pair, { where: "explain", ex: v.ex }); };
       v.done = () => { if (v.closed) return; v.closed = true; if (o.onContinue) o.onContinue(); };
       this.render(v);
       return v;
@@ -510,10 +512,11 @@ window.G = window.G || {};
       const ex = v.ex, more = G.Explain.hasMore(ex);
       const auto = v.left > 0 && !v.held ? `<div class="xp-auto"><i style="animation-duration:${v.left}s"></i></div>` : "";
       v.el.innerHTML = `<div class="xp ${ex.right ? "xp-ok" : "xp-bad"}">${G.Explain.html(ex, v.full)}
-        <div class="xp-btns">${more ? `<button class="btn xp-more" type="button" aria-expanded="${v.full}">${esc(T(v.full ? "explain.less" : "explain.more"))} <span class="kbd-only dlg-key">(M)</span></button>` : ""}<button class="btn btn-primary qf-next" type="button" data-pad-back>${esc(v.o.label || T("challenge.continue"))} <span class="kbd-only dlg-key">(Enter)</span></button></div>${auto}</div>`;
+        <div class="xp-btns"><button class="xp-flag" type="button" aria-label="${esc(T("word.flag"))}" title="${esc(T("word.flag"))}">🚩</button>${more ? `<button class="btn xp-more" type="button" aria-expanded="${v.full}">${esc(T(v.full ? "explain.less" : "explain.more"))} <span class="kbd-only dlg-key">(M)</span></button>` : ""}<button class="btn btn-primary qf-next" type="button" data-pad-back>${esc(v.o.label || T("challenge.continue"))} <span class="kbd-only dlg-key">(Enter)</span></button></div>${auto}</div>`;
       G.VocabCard.bind(v.el);
       const m = v.el.querySelector(".xp-more");
       if (m) m.onclick = () => v.toggle();
+      v.el.querySelector(".xp-flag").onclick = () => v.flag();
       v.el.querySelector(".qf-next").onclick = () => v.done();
       const focus = () => {
         const b = v.el.querySelector(keepFocus && m ? ".xp-more" : ".qf-next");

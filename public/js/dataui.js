@@ -83,25 +83,59 @@ window.G = window.G || {};
       G.persist(true);
       let file;
       try { file = await F().make(); } catch (e) { console.warn("Export failed", e); this.oops(T("data.exportFailed"), e.message); return; }
-      this.finishExport(file, await F().deliver(file));
+      await this.send(file, () => this.exported());
     },
-    finishExport(file, how) {
-      if (how === "needTap") {
-        G.Dialog.open({ icon: "💾", title: T("data.exportTitle"), text: T("data.exportText"), buttons: [
-          { label: T("data.exportSave"), primary: true, action: () => F().deliver(file).then((h) => this.finishExport(file, h === "needTap" ? "saved" : h)) },
-          { label: T("dialog.cancel"), cancel: true },
-        ] });
-        return;
-      }
-      if (how === "cancelled") return;
+    exported() {
       M().backedUp();
-      G.UI.flashPurchaseBanner(T("data.exportDone"), file.name);
+      this.notice(T("data.exportDone"));
       const v = $("set-lastbackup-v");
       if (v) v.textContent = ago(G.save.meta.lastExportAt);
       this.closeNudge();
       if (G.SettingsUI) G.SettingsUI.dots();
     },
     exportRaw(text) { if (text) F().deliver(F().rawFile(text)); },
+
+    // ---------------- out of the game ----------------
+    // a file; `done` once it has gone (not when the player cancels)
+    send(file, done) {
+      return F().deliver(file).then((how) => {
+        if (how === "needTap") this.askTap(file, done);
+        else if (how !== "cancelled" && done) done();
+      });
+    },
+    // a browser that wants a tap of its own before it shares
+    askTap(file, done) {
+      G.Dialog.open({ icon: "💾", title: T("data.exportTitle"), text: T("data.exportText"), buttons: [
+        { label: T("data.exportSave"), primary: true, action: () => F().deliver(file).then((h) => { if (h !== "cancelled" && done) done(); }) },
+        { label: T("dialog.cancel"), cancel: true },
+      ] });
+    },
+    // text for the clipboard (the Clipboard API needs https or localhost, so
+    // the old way behind it); a browser that refuses both: a window to copy from
+    async copy(text, done) {
+      let ok = false;
+      try { if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(text); ok = true; } } catch (e) { /* the old way */ }
+      if (!ok) {
+        const ta = document.createElement("textarea");
+        ta.value = text; ta.readOnly = true;
+        ta.style.cssText = "position:fixed;left:-9999px;top:0";
+        document.body.appendChild(ta);
+        ta.select(); ta.setSelectionRange(0, text.length);
+        try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+        ta.remove();
+      }
+      if (ok) { if (done) done(); return; }
+      G.Dialog.open({ title: T("report.copyTitle"), body: `<textarea class="rp-text" id="dlg-copy" rows="8" readonly>${esc(text)}</textarea>`, focus: "dlg-copy", buttons: [{ label: T("common.close"), primary: true, cancel: true }] });
+      $("dlg-copy").select();
+    },
+    // a word on screen for a moment, in the menus too (the HUD's banner is hidden there)
+    notice(text) {
+      const el = $("ui-notice");
+      el.textContent = text;
+      el.classList.remove("hidden");
+      clearTimeout(this._noticeT);
+      this._noticeT = setTimeout(() => el.classList.add("hidden"), 2600);
+    },
 
     // ---------------- import ----------------
     async onFile(file) {

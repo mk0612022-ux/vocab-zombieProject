@@ -39,10 +39,11 @@ window.G = window.G || {};
     { id: "accessibility", icon: "👁️", art: "practice-card" },
     { id: "account", icon: "👤", art: "custom-card" },
     { id: "data", icon: "💾", art: "bunker-card" },       // (expansion, round 1)
+    { id: "help", icon: "❓", art: "practice-card" },     // (expansion, round 2)
     { id: "about", icon: "ℹ️", art: "school-card" },
   ];
   const ACTIONS = ["forward", "back", "left", "right", "sprint", "jump", "reload", "inspect", "interact", "melee", "slot2", "slot3", "slot4", "slot5", "slot6", "slot7",
-    "ability1", "ability2", "ability3", "ability4", "replay", "thaiHint", "pause"];
+    "ability1", "ability2", "ability3", "ability4", "replay", "thaiHint", "pause", "report"];
   // (round 3) a language's name in itself: G.Lang.NAMES (js/wordbank.js)
 
   // ---------------- the pieces of a row ----------------
@@ -238,6 +239,12 @@ window.G = window.G || {};
         + `<div class="set-sub">${esc(T("data.backups"))}<small>${esc(T("data.backupsDesc", { n: G.CONFIG.save.snapshots }))}</small></div><div id="set-backups"></div>`
         + row({ id: "btn-reset-progress", name: T("data.reset"), ctl: button("btn-reset-progress", T("data.resetBtn"), "btn-danger", inRun), desc: T("data.resetDesc"), locked: inRun });
     },
+    // (expansion, round 2) a bug or a word to report, and the reports kept here (js/bugreport.js)
+    help() {
+      return row({ id: "btn-report-bug", name: T("help.report"), ctl: button("btn-report-bug", T("help.reportBtn")), desc: T("help.reportDesc") })
+        + row({ id: "set-wordreports", name: T("help.words"), ctl: `<span class="set-btns"><span class="set-val" id="set-wordreports-v"></span>${button("btn-words-file", T("report.save"))}${button("btn-words-copy", T("report.copyShort"))}${button("btn-words-clear", T("help.wordsClear"))}</span>`, desc: T("help.wordsDesc") })
+        + `<div class="set-sub">${esc(T("help.saved"))}<small>${esc(T("help.savedDesc", { n: G.CONFIG.diag.reports }))}</small></div><div id="set-reports"></div>`;
+    },
     about() {
       return row({ id: "btn-check-update", name: T("settings.version"), nameHtml: `${esc(T("settings.version"))}`, ctl: `<span class="set-version" data-version>${esc(G.Updater ? G.Updater.label() : "")}</span>${button("btn-check-update", T("settings.checkUpdates"))}`, desc: "", descId: "set-update-note" })
         + row({ id: "btn-privacy", name: T("privacy.title"), ctl: button("btn-privacy", T("settings.privacyBtn")), desc: T("settings.privacyDesc") })
@@ -351,6 +358,7 @@ window.G = window.G || {};
       click("btn-signout", () => G.Account.signOut(() => this.render()));
       click("btn-delete-account", () => G.Account.deleteAccount(() => this.render()));
       G.DataUI.bind();
+      G.BugReport.bind();
       click("btn-privacy", () => this.openPrivacy());
       click("btn-brightcal", () => { if (G.BrightnessCal) G.BrightnessCal.open("settings"); });
       // (C1) a look for a newer version now

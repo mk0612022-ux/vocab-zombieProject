@@ -5,7 +5,7 @@
 //      pictures' sizes, at least a second on screen
 //   E  the way in (overhaul, round 5: the Main Menu, in the Start screen's place):
 //      PLAY by a click, Enter or A -- not by Sign In -- the bar (Guest, Sign In), the version, the music
-//   F  the Settings page: nine categories, every old setting in one, the
+//   F  the Settings page: ten categories, every old setting in one, the
 //      kinds of control, a description under each row, changes applied and
 //      saved, the run's locked rows, keys and a controller, the red dots, the
 //      privacy policy, the new settings (render resolution, screen-edge
@@ -40,7 +40,7 @@ G.Round16Test = (function () {
     ["Sound effects volume", "set-sfxVolume", "audio"], ["Music volume", "set-musicVolume", "audio"], ["Ambience volume", "set-ambientVolume", "audio"], ["Word pronunciation volume", "set-speechVolume", "audio"],
     ["Read words aloud", "set-speechmode", "audio"], ["Accent", "set-accent", "audio"], ["Speaking speed", "set-speechspeed", "audio"], ["Play Once", "set-playonce", "audio"], ["Test pronunciation", "btn-speech-test", "audio"],
     ["Control mode", "set-controlmode", "controls"], ["Mouse sensitivity", "set-sens", "controls"], ["Aim assist", "set-aimassist", "controls"], ["Touch look sensitivity", "set-tlook", "controls"],
-    ["Fire / Aim button look sensitivity", "set-blook", "controls"], ["Touch controls layout (editor)", "btn-touchcfg", "controls"], ["Key bindings (23 keys: Inspect added in the overhaul, round 1)", "btn-reset-keybinds", "controls"],
+    ["Fire / Aim button look sensitivity", "set-blook", "controls"], ["Touch controls layout (editor)", "btn-touchcfg", "controls"], ["Key bindings (24 keys: Inspect added in the overhaul, round 1, Report in the expansion, round 2)", "btn-reset-keybinds", "controls"],
     ["Shop time between waves", "set-shoptime", "gameplay"], ["Spell to Reload", "set-spellreload", "gameplay"], ["Highlight the word to shoot", "set-highlight", "gameplay"],
     ["Thai with English clues", "set-cluethai", "gameplay"], ["Custom Vocabulary", "btn-settings-customvocab", "gameplay"],
     ["Game speed", "set-gamespeed", "accessibility"], ["Text size", "set-fontsize", "accessibility"], ["Colorblind mode", "set-colorblind", "accessibility"],
@@ -163,11 +163,11 @@ G.Round16Test = (function () {
     const keep = JSON.stringify(S());
     openSettings("screen-mainmenu", "graphics");
     const cats = Array.from(document.querySelectorAll("#set-cats .set-cat")).map((b) => b.dataset.cat);
-    ok("F nine categories down the side", cats.join() === "graphics,audio,controls,gameplay,language,accessibility,account,data,about", cats.join());
+    ok("F ten categories down the side", cats.join() === "graphics,audio,controls,gameplay,language,accessibility,account,data,help,about", cats.join());
     ok("F one shown at a time", document.querySelectorAll("#settings-content .set-sec:not(.hidden)").length === 1);
     const where = (id) => { const e = $(id); const sec = e && e.closest(".set-sec"); return sec ? sec.id.replace("set-sec-", "") : null; };
     const lost = TABLE.filter(([, id, cat]) => where(id) !== cat);
-    ok("F every setting of the old page is here, in its category (" + TABLE.length + ")", !lost.length && document.querySelectorAll("#set-sec-controls .keybind-btn").length === 23, lost.map((x) => x[0] + " -> " + where(x[1])).join("; "));
+    ok("F every setting of the old page is here, in its category (" + TABLE.length + ")", !lost.length && document.querySelectorAll("#set-sec-controls .keybind-btn").length === 24, lost.map((x) => x[0] + " -> " + where(x[1])).join("; "));
     const missingNew = NEW.filter(([, id, cat]) => where(id) !== cat);
     ok("F the new ones too: render resolution, screen-edge margin, controller look, Learning Style, languages, account, privacy", !missingNew.length, missingNew.map((x) => x[0]).join("; "));
     // the kinds of control
@@ -183,10 +183,11 @@ G.Round16Test = (function () {
     ok("F a row that needs a restart says so (anti-aliasing)", /restart/i.test(document.querySelector('[data-row="set-quality"] .set-desc').textContent));
     // a change: applied at once, saved
     const q0 = S().graphicsQuality;
-    document.querySelector('#set-quality [data-v="low"]').click();
+    const qOther = q0 === "low" ? "medium" : "low";
+    document.querySelector(`#set-quality [data-v="${qOther}"]`).click();
     G.persist(true);                // (expansion, round 1: a change is written within two seconds)
     const saved = JSON.parse(localStorage.getItem("vocabZombie_save_v1")).settings.graphicsQuality;
-    ok("F a choice: lit, applied, saved", S().graphicsQuality === "low" && saved === "low" && document.querySelector('#set-quality .seg-o.on').dataset.v === "low" && document.querySelector('#set-quality .seg-o.on').classList.contains("flash"));
+    ok("F a choice: lit, applied, saved", S().graphicsQuality === qOther && saved === qOther && document.querySelector('#set-quality .seg-o.on').dataset.v === qOther && document.querySelector('#set-quality .seg-o.on').classList.contains("flash"));
     document.querySelector(`#set-quality [data-v="${q0}"]`).click();
     const r = $("set-render"), pr0 = G.Game.renderer.getPixelRatio();
     r.value = 0.6; r.dispatchEvent(new Event("input")); r.dispatchEvent(new Event("change"));

@@ -338,6 +338,10 @@ G.Round29Test = (function () {
     ok("F the stand-ins play their recipe as tuned; another gun of the prototype a little nudged (within 6%)", !exact.length && strip(vv) !== strip(V.VOICES.B) && ratio >= 0.94 && ratio <= 1.06, exact.join() + " | " + variant.id + " x" + ratio.toFixed(3));
     // section 5, every gun of a prototype
     if (!G.GunSoundCheck) await new Promise((res, rej) => { const s = document.createElement("script"); s.src = "/tools/gun-sound-check.js?v=" + Date.now(); s.onload = res; s.onerror = rej; document.head.appendChild(s); });
+    // (the game's context comes up on the first touch: well before any of this. Opened after the
+    // minutes of drawing below, its output stayed at time 0 on the machine this runs on)
+    G.Audio.unlock();
+    if (G.Audio.ctx && G.Audio.ctx.state !== "running") { try { await G.Audio.ctx.resume(); } catch (e) { /* no gesture */ } }
     const t0 = performance.now(), all = await G.GunSoundCheck.runAll();
     numbers.soundSecs = Math.round((performance.now() - t0) / 1000);
     const fails = all.rows.filter((r) => !r.ok).map((r) => r.id + ": " + r.fails.join("; "));
@@ -364,7 +368,9 @@ G.Round29Test = (function () {
       near(heard.B, G.CONFIG.gunRef.baseDb, 0.01) && Object.values(peaks).every((p) => p <= 3), "rifle " + heard.B + " dB; peaks " + JSON.stringify(peaks));
     // a gun's draw, heard on the master: well under its shot (section 4: 10-20 dB)
     const A = G.Audio;
-    if (A.ctx && A.ctx.state === "running") {
+    // ("running" alone says little: a context whose output never came up reads so, at time 0)
+    const moving = async () => { const t = A.ctx.currentTime; for (let i = 0; i < 40; i++) { await wait(100); if (A.ctx.currentTime > t) return true; } return false; };
+    if (A.ctx && A.ctx.state === "running" && await moving()) {
       // (the level's music, ambience and other sounds down meanwhile: only the gun on the master)
       const S = G.save.settings, keep = { musicVolume: S.musicVolume, ambientVolume: S.ambientVolume, sfxVolume: S.sfxVolume };
       Object.keys(keep).forEach((k) => { S[k] = 0; });

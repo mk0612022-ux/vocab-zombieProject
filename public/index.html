@@ -65,6 +65,7 @@
     <div data-i18n-html="howto.body2"></div></div>
   <div class="row-center">
     <button class="btn" id="btn-tutorial-replay" data-i18n="howto.tutorial"></button>
+    <button class="btn" id="btn-help-report" data-i18n="help.report"></button>
     <button class="btn" id="btn-howtoplay-back" data-i18n="common.back"></button>
   </div>
 </div>
@@ -634,7 +635,7 @@
   <div class="dialog-box vocab-card-box" id="vocab-card-box" role="dialog" aria-modal="true" aria-labelledby="vocab-card-title">
     <div class="vc-kicker" id="vocab-card-title" data-i18n="card.title"></div>
     <div class="vocab-card-body" id="vocab-card-body"></div>
-    <div class="dialog-btns"><button class="btn btn-primary" id="btn-card-close" data-pad-back><span data-i18n="common.close"></span> <span class="dlg-key">(Esc)</span></button></div>
+    <div class="dialog-btns"><button class="btn" id="btn-card-flag" type="button"><span aria-hidden="true">🚩</span> <span data-i18n="word.flag"></span></button><button class="btn btn-primary" id="btn-card-close" data-pad-back><span data-i18n="common.close"></span> <span class="dlg-key">(Esc)</span></button></div>
   </div>
 </div>
 
@@ -651,6 +652,17 @@
 </div>
 
 <!-- ===================== QUESTION WINDOW (round 3, js/dialog.js) ===================== -->
+<!-- (expansion, round 2) the bug report (js/bugreport.js), a toast when something goes wrong, a word for a moment -->
+<div id="bug-report" class="dialog-overlay hidden">
+  <div class="dialog-box report-box" id="bug-report-box" role="dialog" aria-modal="true" aria-labelledby="bug-report-title">
+    <h3 class="dialog-title" id="bug-report-title" data-i18n="report.title"></h3>
+    <div class="report-body" id="bug-report-body"></div>
+    <div class="dialog-btns" id="bug-report-btns"></div>
+  </div>
+</div>
+<button class="diag-toast hidden" id="diag-toast" type="button"></button>
+<div class="ui-notice hidden" id="ui-notice" role="status"></div>
+
 <div id="dialog" class="dialog-overlay hidden">
   <div class="dialog-box" id="dialog-box" role="alertdialog" aria-modal="true" aria-labelledby="dialog-title" aria-describedby="dialog-text">
     <div class="dialog-icon hidden" id="dialog-icon" aria-hidden="true"></div>
@@ -678,6 +690,7 @@
     <button class="btn" id="btn-pause-journal" data-i18n="menu.journal"></button>
     <button class="btn" id="btn-pause-settings" data-i18n="menu.settings"></button>
     <button class="btn" id="btn-pause-tutorial" data-i18n="pause.tutorial"></button>
+    <button class="btn" id="btn-pause-report" data-i18n="help.report"></button>
     <button class="btn" id="btn-pause-mainmenu" data-i18n="common.mainMenu"></button>
   </div>
 </div>
@@ -782,6 +795,7 @@ window.addEventListener("load", function () {
      order, each counted on the Loading screen as it arrives (js/boot.js). -->
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script defer src="js/config.js"></script>
+<script defer src="js/diag.js"></script>
 <script defer src="js/bus.js"></script>
 <script defer src="js/weaponsm.js"></script>
 <script defer src="js/gunref.js"></script>
@@ -858,6 +872,8 @@ window.addEventListener("load", function () {
 <script defer src="js/ui.js"></script>
 <script defer src="js/settings.js"></script>
 <script defer src="js/dataui.js"></script>
+<script defer src="js/bugreport.js"></script>
+<script defer src="js/wordreport.js"></script>
 <script defer src="js/brightness.js"></script>
 <script defer src="js/abilityui.js"></script>
 <script defer src="js/quiz.js"></script>

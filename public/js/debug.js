@@ -12,7 +12,7 @@
 //                   a reload, nothing stuck past its watchdog, the gun in the
 //                   hands the one chosen) and the HUD's ammo against the game's
 //   warnings        from the watchdog and the checks (also in the console)
-//   the frame       time, FPS, draw calls; (round 2) the effects against their
+//   the frame       time, FPS, draw calls, what js/diag.js costs a frame; (round 2) the effects against their
 //                   budget; (round 3) the sound: voices of each kind against
 //                   their limits, all of them against the level's, the peak,
 //                   the room -- and the Stress button (bottom left)
@@ -47,6 +47,7 @@ G.Debug = {
     el.setAttribute("aria-hidden", "true");
     document.body.appendChild(el);
     this.el = el;
+    G.Diag.timed = true;
     this.stressBtn();
     const tick = (now) => {
       requestAnimationFrame(tick);
@@ -153,6 +154,12 @@ G.Debug = {
       b.onclick = (e) => { e.stopPropagation(); this.stress(); b.blur(); };
       document.body.appendChild(b);
       this.btn = b;
+      // (expansion, round 2) an error nobody catches, to see the toast and the report
+      const x = b.cloneNode(false);
+      x.id = "debug-error"; x.style.left = "130px";
+      x.textContent = G.T("debug.testError");
+      x.onclick = (e) => { e.stopPropagation(); x.blur(); setTimeout(() => { throw new Error("test error from the debug overlay"); }, 0); };
+      document.body.appendChild(x);
     }
     this.btn.textContent = G.T(this._stress ? "debug.stressStop" : "debug.stress");
   },
@@ -170,13 +177,15 @@ G.Debug = {
       L.push(`<span class="${ok ? "" : "bad"}">${esc(T("debug.check", { r: ok ? T("debug.ok") : this.lastCheck.join("; ") }))}</span>`);
     }
     L.push(esc(T("debug.events")) + ":");
-    (G.Bus ? G.Bus.recent : []).slice().reverse().forEach((e) => {
+    (G.Bus ? G.Bus.recent : []).slice(-10).reverse().forEach((e) => {
       const p = e.p || {};
       const what = [p.phase, p.marker && p.marker !== p.phase ? p.marker : null, p.to, p.weaponId || p.toId].filter(Boolean).join(" ");
       L.push(`<span class="dim">  ${esc(e.type)} ${esc(what)}</span>`);
     });
     const r = g && g.renderer;
     L.push(esc(T("debug.frame", { ms: this.frameMs.toFixed(1), fps: Math.round(1000 / Math.max(1, this.frameMs)), calls: r ? r.info.render.calls : 0 })));
+    // (expansion, round 2) the bug report's bookkeeping, against its 0.2 ms
+    L.push(esc(T("debug.diag", { ms: G.Diag.costMs().toFixed(4), e: G.Diag.errors().length })));
     // (round 2) the weapon's effects against their budget for this graphics level
     if (G.FX) { const f = G.FX.stats(); L.push(esc(T("debug.fx", { p: f.particles, pb: f.particleBudget, d: f.decals, db: f.decalBudget, s: f.shells }))); }
     // (round 3) the sound: voices by kind against their limits, all of them against the level's, the peak, the room

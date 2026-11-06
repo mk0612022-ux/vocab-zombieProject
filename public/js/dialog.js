@@ -35,11 +35,12 @@ G.Dialog = {
     this.el("dialog").classList.remove("hidden");
     const g = G.Game;
     G.Modal.open("dialog", { pause: !!(g && g.state === "GAMEPLAY"), keys: (e) => {
-      // (typing in the box: digits and Backspace are the box's)
-      const a = document.activeElement, typing = !!a && a.tagName === "INPUT" && a.type === "text";
+      // (typing in a box: digits and Backspace are the box's, and in a text
+      // area so is Enter)
+      const a = document.activeElement, area = !!a && a.tagName === "TEXTAREA", typing = area || (!!a && a.tagName === "INPUT" && a.type === "text");
       const n = !typing && /^(?:Digit|Numpad)([1-9])$/.exec(e.code);
       if (e.code === "Escape" || (e.code === "Backspace" && !typing)) { const c = o.buttons.findIndex((b) => b.cancel); if (c >= 0) this.choose(c); return true; }
-      if (e.code === "Enter" || e.code === "NumpadEnter") {
+      if ((e.code === "Enter" || e.code === "NumpadEnter") && !area) {
         const f = document.activeElement && document.activeElement.closest && document.activeElement.closest("#dialog-btns button");
         this.choose(f ? parseInt(f.dataset.i, 10) : Math.max(0, o.buttons.findIndex((b) => b.primary)));
         return true;
@@ -55,7 +56,7 @@ G.Dialog = {
     }, 0);
   },
   moveFocus(d) {
-    const list = Array.from(this.el("dialog-box").querySelectorAll("input, button")).filter((b) => !b.disabled && b.getClientRects().length);
+    const list = Array.from(this.el("dialog-box").querySelectorAll("input, textarea, button")).filter((b) => !b.disabled && b.getClientRects().length);
     if (!list.length) return;
     const i = list.indexOf(document.activeElement);
     list[(i + d + list.length) % list.length].focus({ preventScroll: true });

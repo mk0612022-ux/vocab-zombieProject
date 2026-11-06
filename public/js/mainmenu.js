@@ -395,6 +395,7 @@ window.G = window.G || {};
         r.setRenderTarget(null);
         r.render(this.scene.scene, this.scene.camera);
       });
+      G.Diag.drawn(g.renderer);
     },
 
     // ---------------- High and up: a little depth of field, and SSAO ----------------

@@ -322,6 +322,24 @@ G.CONFIG = {
     remindAfterDays: 7,             // no backup file for this long, with new progress: a word in the Main Menu
     remindEveryDays: 3,             // ...not more often than this
   },
+  // (expansion, round 2) what the game keeps for a bug report (js/diag.js, js/bugreport.js)
+  diag: {
+    logs: 200,                      // console lines kept
+    logChars: 300,                  // ...each cut to this length
+    errors: 30,                     // errors kept (the same one again only counts)
+    events: 50,                     // events of G.Bus kept
+    seconds: 120,                   // seconds of FPS kept
+    frames: 7200,                   // frame times kept, for the 1% low
+    slowMs: 50,                     // a frame longer than this counts as slow
+    reports: 10,                    // bug reports kept on this device
+    wordReports: 500,               // word reports kept on this device
+    shotWidth: 1280,                // the screenshot's width at most
+    shotQuality: 0.72,              // ...its JPEG quality
+    shotWaitMs: 3000,               // ...how long to wait for a frame to be drawn
+    summaryChars: 3000,             // the summary for Claude Code, at most
+    toastMs: 8000,                  // how long "something went wrong" stays
+    toastEveryMs: 20000,            // ...and not more often than this
+  },
   // (new series, round 2, F) a controller's right stick (js/game.js); the
   // Settings slider multiplies the speed (G.save.settings.padSensitivity)
   pad: {

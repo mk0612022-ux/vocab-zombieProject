@@ -133,6 +133,7 @@ window.G = window.G || {};
       this.bind($("vocab-card-body"));
       $("vocab-card").classList.remove("hidden");
       $("btn-card-close").onclick = () => this.close();
+      $("btn-card-flag").onclick = () => G.WordReport.open(pair, { where: "card" });      // (expansion, round 2)
       G.Modal.open("vocabcard", { keys: (e) => {
         if (e.code === "Escape" || e.code === "Enter" || e.code === "Backspace") { this.close(); return true; }
         if (e.code === G.save.settings.keybinds.replay || e.code === "KeyV") { G.Audio.speak(pair[0]); return true; }

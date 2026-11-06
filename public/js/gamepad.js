@@ -98,7 +98,9 @@ G.Pad = {
       // (new series, round 2) Settings' privacy policy
       privacy: "privacy-box",
       // (visual series, round 1) the brightness calibration
-      brightness: "bcal-box" };
+      brightness: "bcal-box",
+      // (expansion, round 2) the bug report
+      bugreport: "bug-report-box" };
     if (top && byModal[top.id]) return document.getElementById(byModal[top.id]);
     if (G.TouchCfg && G.TouchCfg.editing) return document.getElementById("touchcfg-panel");
     const cur = G.UI._currentScreen;

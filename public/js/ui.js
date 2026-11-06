@@ -175,7 +175,10 @@ G.UI = {
   },
 
   // ---------------- How to play ----------------
-  bindHowTo() { this.el("btn-howtoplay-back").onclick = () => this.goToMainMenu(); },
+  bindHowTo() {
+    this.el("btn-howtoplay-back").onclick = () => this.goToMainMenu();
+    this.el("btn-help-report").onclick = () => G.BugReport.open();
+  },
 
   // ---------------- Settings ----------------
   // Settings is reachable from the main menu AND from the pause screen; "back"
@@ -255,6 +258,9 @@ G.UI = {
     this.el("btn-vocablog-back").onclick = () => this.showScreen(this._logReturnScreen || "screen-mainmenu");
     // J3: every word in the log can be heard
     this.el("vocablog-content").addEventListener("click", (e) => {
+      // (expansion, round 2) the word reported
+      const fl = e.target.closest("[data-flag]");
+      if (fl && this._vocabLogWords) { G.WordReport.open(this._vocabLogWords[+fl.dataset.flag], { where: "log" }); return; }
       const b = e.target.closest(".speak-btn");
       if (b) { G.Audio.unlock(); G.Audio.speak(b.dataset.word); return; }
       // (vocabulary series, round 3, H2) a word: its vocabulary card
@@ -303,7 +309,7 @@ G.UI = {
       const conf = G.SRS.confusedWith(pair).slice(0, 2).map((x) => G.Distract.resolve(x)).filter(Boolean);
       // (round 3: the word and meaning in their languages, Chinese with its pinyin)
       const confLine = conf.length ? `<div class="vw-conf">${esc(G.T("learn.confusedWith")).replace("{x}", conf.map((p) => `<b${G.Lang.attr(p, 0)}>${G.Lang.html(p, 0)}${G.POS.tag(p)}</b> <span${G.Lang.attr(p, 1)}>(${G.Lang.html(p, 1)})</span>`).join(", "))}</div>` : "";
-      return `<div class="vocab-item"><div><div class="vw-en"><button class="vw-open" type="button" data-card="${i}" aria-label="${esc(G.T("card.open", { word: en }))}"${G.Lang.attr(pair, 0)}>${G.Lang.html(pair, 0)}</button>${G.POS.tag(pair)} <button class="speak-btn" data-word="${esc(en)}" aria-label="${G.T("vocablog.hear", { word: esc(en) })}">🔊</button>${mine}</div><div class="vw-th"${G.Lang.attr(pair, 1)}>${G.Lang.html(pair, 1)}</div>${box}${confLine}</div>${badge}</div>`;
+      return `<div class="vocab-item"><div><div class="vw-en"><button class="vw-open" type="button" data-card="${i}" aria-label="${esc(G.T("card.open", { word: en }))}"${G.Lang.attr(pair, 0)}>${G.Lang.html(pair, 0)}</button>${G.POS.tag(pair)} <button class="speak-btn" data-word="${esc(en)}" aria-label="${G.T("vocablog.hear", { word: esc(en) })}">🔊</button><button class="speak-btn vw-flag" type="button" data-flag="${i}" aria-label="${esc(G.T("word.flag"))}" title="${esc(G.T("word.flag"))}">🚩</button>${mine}</div><div class="vw-th"${G.Lang.attr(pair, 1)}>${G.Lang.html(pair, 1)}</div>${box}${confLine}</div>${badge}</div>`;
     }).join("");
     this._vocabLogWords = words;
     this.el("vocablog-content").innerHTML = `<div class="vocab-grid">${items}</div>`;
@@ -527,6 +533,7 @@ G.UI = {
       this.renderWeaponLog(lvlId); this.showScreen("screen-weaponlog");
     };
     this.el("btn-pause-settings").onclick = () => { this._settingsReturn = "screen-pause"; this.renderSettings(); this.showScreen("screen-settings"); };
+    this.el("btn-pause-report").onclick = () => G.BugReport.open();
     this.el("btn-pause-mainmenu").onclick = () => G.Game.quitToMainMenu();
   },
 

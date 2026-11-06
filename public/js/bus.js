@@ -10,7 +10,7 @@
 //   G.Bus.on(type, fn, owner)   listen; returns a token
 //   G.Bus.off(tokenOrOwner)     stop one listener, or every one an owner added
 //   G.Bus.emit(type, payload)   tell them (payload is handed over as it is)
-//   G.Bus.recent                the last ten events (the debug overlay)
+//   G.Bus.recent                the last events, oldest first (the debug overlay, the bug report)
 //
 // docs/overhaul/architecture.md lists who sends and who hears what.
 // ===================================================================
@@ -32,8 +32,8 @@ G.Bus = {
     });
   },
   emit(type, payload) {
-    this.recent.push({ type, p: payload });
-    if (this.recent.length > 10) this.recent.shift();
+    this.recent.push({ t: Date.now(), type, p: payload });
+    if (this.recent.length > G.CONFIG.diag.events) this.recent.shift();
     const ls = this._ls[type];
     if (!ls || !ls.length) return;
     // (a copy: a listener may take itself off while it runs)

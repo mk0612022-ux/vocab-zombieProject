@@ -7,6 +7,8 @@ G.Input.requestPointerLock = () => {};
 if (G.save) G.save.settings.spellReload = false;
 // (a suite that died mid-way can leave the profile in another language or on touch controls)
 if (G.save) G.save.settings.controlMode = "auto";
+// (a run cut off in a suite that tries the higher tiers leaves the profile there: too slow for this browser)
+if (G.save && G.save.settings.graphicsQuality !== "low") { G.save.settings.graphicsQuality = "low"; G.Game.applyGraphicsQuality(); }
 // (learning progress piled up by earlier runs turns campaign runs into spelling runs: start from none)
 if (G.save) { const d0 = G.defaultSave(); ["learn", "learnSeen", "wordStats", "checkpoints", "customWords"].forEach((k) => { G.save[k] = JSON.parse(JSON.stringify(d0[k])); }); G.save.settings.fontSize = "medium"; G.save = G.normalizeSave(G.save); G.persist(); }
 if (G.lang !== "en") await new Promise((r) => G.setUILang("en", { done: r }));

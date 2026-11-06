@@ -471,6 +471,7 @@ G.defaultKeybinds = function () {
     // (vocabulary series, round 3) not letters: they work while typing words
     replay: "Digit9", thaiHint: "Digit0",
     pause: "Escape",
+    report: "F8",                              // (expansion, round 2) the bug report: a key nothing types and no browser takes
   };
 };
 

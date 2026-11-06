@@ -2487,3 +2487,36 @@ body.modal-question .hud-spell { display: none !important; }
   .dlg-table th, .dlg-table td { padding: 2px 6px; }
   .dlg-check { margin-top: 4px; min-height: 28px; }
 }
+
+/* ===================== expansion, round 2: the bug report, the toast, the word for a moment, the flags ===================== */
+.dialog-text:empty { display: none; }
+.report-box { max-width: 560px; text-align: left; }
+.report-box .dialog-title { text-align: center; }
+.report-body { margin-bottom: 12px; }
+.rp-h { display: block; margin: 10px 0 5px; font-size: 0.82rem; font-weight: 700; color: #6bff7a; }
+.rp-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.rp-chip { min-height: 34px; padding: 4px 11px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.22); background: rgba(255,255,255,0.05); color: #dfe8e2; font: inherit; font-size: 0.8rem; cursor: pointer; touch-action: manipulation; }
+.rp-chip:hover, .rp-chip:focus-visible, .rp-chip.pad-focus { border-color: #6bff7a; outline: none; }
+.rp-chip.on { background: rgba(107,255,122,0.2); border-color: #6bff7a; color: #fff; }
+.rp-text { display: block; box-sizing: border-box; width: 100%; padding: 8px 10px; font: inherit; font-size: 0.86rem; color: #fff; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.3); border-radius: 8px; resize: vertical;
+  -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
+.rp-text:focus, .rp-text.pad-focus { outline: 2px solid #6bff7a; }
+.rp-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; }
+.report-box .dlg-check { justify-content: flex-start; margin-top: 4px; }
+.rp-thumb { flex: none; width: 120px; height: 68px; object-fit: cover; border: 1px solid rgba(255,255,255,0.25); border-radius: 4px; }
+.rp-what { margin-top: 8px; font-size: 0.78rem; opacity: 0.85; }
+.rp-what summary { cursor: pointer; min-height: 28px; line-height: 28px; }
+.rp-what p { margin: 2px 0 0; line-height: 1.45; }
+.rp-note { margin: 8px 0 0; font-size: 0.76rem; line-height: 1.4; opacity: 0.7; }
+.rp-word { font-size: 1.15rem; font-weight: 800; }
+.rp-mean { margin-bottom: 4px; opacity: 0.85; }
+.diag-toast { position: fixed; left: 50%; top: max(12px, calc(var(--sa-t, 0px) + 8px)); transform: translateX(-50%); z-index: 72; max-width: calc(100vw - 32px); min-height: 40px; padding: 8px 16px; border-radius: 8px; border: 1px solid #ff6b6b; background: rgba(40,10,10,0.94); color: #ffe3e3;
+  font: inherit; font-size: 0.82rem; font-weight: 700; cursor: pointer; touch-action: manipulation; }
+.ui-notice { position: fixed; left: 50%; bottom: max(24px, calc(var(--sa-b, 0px) + 18px)); transform: translateX(-50%); z-index: 75; max-width: calc(100vw - 32px); padding: 8px 18px; border-radius: 8px; border: 1px solid #6bff7a88; background: rgba(8,18,12,0.94); color: #d9ffe0; font-size: 0.84rem; font-weight: 700; pointer-events: none; }
+.xp-flag { min-width: 36px; min-height: 36px; padding: 0 6px; margin-right: auto; border: 0; background: none; font-size: 0.95rem; opacity: 0.55; cursor: pointer; touch-action: manipulation; }
+.xp-flag:hover, .xp-flag:focus-visible, .xp-flag.pad-focus { opacity: 1; outline: 1px solid rgba(255,255,255,0.4); border-radius: 6px; }
+.speak-btn.vw-flag { opacity: 0.55; }
+.speak-btn.vw-flag:hover, .speak-btn.vw-flag:focus-visible, .speak-btn.vw-flag.pad-focus { opacity: 1; }
+/* (the buttons stay in sight on a short screen, the form scrolling behind them) */
+.report-box .dialog-btns { position: sticky; bottom: -18px; margin: 0 -22px -18px; padding: 10px 22px 18px; background: #0e1418; }
+@media (max-height: 460px) { .report-box .dialog-btns { bottom: -10px; margin: 0 -16px -10px; padding: 6px 16px 10px; } }
