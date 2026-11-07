@@ -364,8 +364,9 @@ G.Round29Test = (function () {
     ok("F the shots' loudness in section 5's order: .50 > LMG > rifle > .45 > 9 mm > SMG (the snipers between the LMG and the rifle)",
       order.every((k, i) => i === 0 || heard[order[i - 1]] > heard[k]) && ["G", "H", "I"].every((k) => heard[k] < heard.A && heard[k] > heard.B), order.map((k) => k + " " + heard[k]).join(" > ") + " | G " + heard.G);
     // (the old snipers' shots peaked at +2.4 dBFS before the master: round 3's limiter and ceiling are the guard)
+    // (the page's sample rate is the browser's choice and moves the peaks: at 44.1 kHz the .50 reads +3.8 on any build, at 48 kHz +2.4)
     ok("F the shots at the game's old levels (the reference rifle at baseDb), no peak hotter than the old guns' before the master (+3 dBFS)",
-      near(heard.B, G.CONFIG.gunRef.baseDb, 0.01) && Object.values(peaks).every((p) => p <= 3), "rifle " + heard.B + " dB; peaks " + JSON.stringify(peaks));
+      near(heard.B, G.CONFIG.gunRef.baseDb, 0.01) && Object.values(peaks).every((p) => p <= 3), "rifle " + heard.B + " dB; " + G.Audio.ctx.sampleRate + " Hz; peaks " + JSON.stringify(peaks));
     // a gun's draw, heard on the master: well under its shot (section 4: 10-20 dB)
     const A = G.Audio;
     // ("running" alone says little: a context whose output never came up reads so, at time 0)
@@ -379,20 +380,26 @@ G.Round29Test = (function () {
       // AudioWorklet on the meter's output -- reading the analyser from
       // timers missed a short click whenever the page was busy)
       const meter = await peakMeter(A);
-      const loudest = async (fn, ms) => { await meter.take(); fn(); await wait(ms); return meter.take(); };
-      const shots = async (d) => { let m = -Infinity; for (let i = 0; i < 3; i++) { m = Math.max(m, await loudest(() => GA.shot(d), 240)); await wait(1200); } return m; };
+      // (timed by the audio clock: on this machine the sound's thread can stand still just after the
+      // shots are drawn -- a good run lost 0.6 s of its first 1.44 -- and timed by the wall clock the
+      // meter then read nothing, the next take threw the shot away: "shot -Infinity" with it played)
+      const heardFor = async (secs) => { const end = A.ctx.currentTime + secs, t0 = performance.now(); while (A.ctx.currentTime < end && performance.now() - t0 < 30000) await wait(30); };
+      const loudest = async (fn, secs) => { await meter.take(); fn(); await heardFor(secs); return meter.take(); };
+      const shots = async (d) => { let m = -Infinity; for (let i = 0; i < 3; i++) m = Math.max(m, await loudest(() => GA.shot(d), 1.44)); return m; };
       await wait(600);
       await GA.render(flagDef("B")); await GA.render(flagDef("F"));
+      const sound0 = A.ctx.currentTime, wall0 = performance.now();
       const shot = await shots(flagDef("B"));
+      const clock = (A.ctx.currentTime - sound0).toFixed(1) + " s of sound in " + ((performance.now() - wall0) / 1000).toFixed(1) + " s";
       await wait(1500);
-      const draw = await loudest(() => GA.draw(flagDef("B")), 1600);
+      const draw = await loudest(() => GA.draw(flagDef("B")), 1.6);
       await wait(800);
       const fifty = await shots(flagDef("F"));
       Object.keys(keep).forEach((k) => { S[k] = keep[k]; });
       A.applyVolumes();
       meter.off();
       numbers.drawUnderShot = +(shot - draw).toFixed(1);
-      ok("F the rifle's draw under its shot on the master (section 4: 10-20 dB)", shot - draw >= 9 && shot - draw <= 22, "shot " + shot.toFixed(1) + " dBFS, draw " + draw.toFixed(1) + " dBFS");
+      ok("F the rifle's draw under its shot on the master (section 4: 10-20 dB)", shot - draw >= 9 && shot - draw <= 22, "shot " + shot.toFixed(1) + " dBFS, draw " + draw.toFixed(1) + " dBFS; " + clock);
       ok("F no clipping: the .50, the loudest, leaves the master under full scale (the ceiling, -1 dBFS)", fifty < 0 && fifty > -12, fifty.toFixed(1) + " dBFS");
     } else ok("F (the audio is not running: the draw's level not measured)", true, "skipped");
   }

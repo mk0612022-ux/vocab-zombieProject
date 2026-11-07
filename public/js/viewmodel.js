@@ -237,7 +237,7 @@ G.ViewModel = {
       const t2 = {};
       Object.keys(k).forEach((s) => { if (s !== "bolt") t2[s] = Math.min(0.93, k[s] / 0.88); });
       k = t2;
-      dur = base * G.CONFIG.weaponSM.tacticalScale;
+      dur = G.GunStats.active() ? G.GunStats.of(def).reloadTactical : base * G.CONFIG.weaponSM.tacticalScale;
     }
     const events = Object.keys(k).map((s) => ({ t: k[s] * dur, kind: s }));
     events.sort((a, b) => a.t - b.t);

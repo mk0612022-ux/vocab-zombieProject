@@ -170,7 +170,7 @@ G.ZombieAI = {
   // ---------------- a hit ----------------
   // a round meets zombie z: what it does. -> { dmg, head } (head: counts as
   // a head shot -- double damage, the head knocked off if it kills)
-  hitMod(game, z, dmg, head, dir) {
+  hitMod(game, z, dmg, head, dir, def) {
     const C = this.C();
     if (z.type === "ironclad") {
       const I = C.ironclad;
@@ -182,7 +182,7 @@ G.ZombieAI = {
       }
       if (!head) return { dmg: dmg * I.vest, head: false };
     }
-    return { dmg: head ? dmg * G.HEADSHOT_MULT : dmg, head };
+    return { dmg: head ? dmg * G.GunStats.headMult(def) : dmg, head };        // (expansion, round 3: each gun's own, js/gunstats.js)
   },
   popHelmet(game, z, dir) {
     z._helmetOn = false;

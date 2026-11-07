@@ -250,8 +250,9 @@
       const B = BASE[arch] || BASE.rifle;
       const wk = G.weightClass(def).key;
       const size = { light: 1.12, medium: 1, heavy: 0.86, very_heavy: 0.74 }[wk] || 1;
-      const punch = clamp(0.7 + Math.log10(Math.max(5, def.damage * (def.pellets || 1))) * 0.25, 0.85, 1.4);
-      const tight = def.fireRate < 100 ? 0.75 : def.fireRate < 200 ? 0.88 : 1;   // fast guns: short rounds
+      const O = def.orig || def;                 // (expansion, round 3: a gun sounds as it did before its numbers were tuned)
+      const punch = clamp(0.7 + Math.log10(Math.max(5, O.damage * (O.pellets || 1))) * 0.25, 0.85, 1.4);
+      const tight = O.fireRate < 100 ? 0.75 : O.fireRate < 200 ? 0.88 : 1;   // fast guns: short rounds
       const layer = (b, fk, dk) => b && Object.assign({}, b, {
         f: b.f && b.f * fk, f0: b.f0 && b.f0 * fk, f1: b.f1 && b.f1 * fk, lp: b.lp && b.lp * fk, lpEnd: b.lpEnd && b.lpEnd * fk,
         dur: b.dur * dk,

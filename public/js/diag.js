@@ -23,6 +23,7 @@ window.G = window.G || {};
 
 G.Diag = (function () {
   const C = G.CONFIG.diag, SLOW = C.slowMs;
+  const on = !(G.CONFIG.expansion && G.CONFIG.expansion.diag === false);
 
   // ---------------- the console ----------------
   const logRing = new Array(C.logs);
@@ -46,7 +47,7 @@ G.Diag = (function () {
     logAt = (logAt + 1) % logRing.length;
     if (logN < logRing.length) logN++;
   }
-  ["log", "info", "warn", "error", "debug"].forEach((level) => {
+  if (on) ["log", "info", "warn", "error", "debug"].forEach((level) => {
     const real = console[level];
     console[level] = function () {
       try { note(level, arguments); } catch (e) { /* the log must never break what logs */ }
@@ -71,12 +72,12 @@ G.Diag = (function () {
     if (M.onError) { try { M.onError(); } catch (e) { /* see above */ } }
   }
   // (the capture phase: a file that failed to load comes this way too)
-  window.addEventListener("error", (e) => {
+  if (on) window.addEventListener("error", (e) => {
     const t = e.target;
     if (t && t !== window && (t.src || t.href)) { addError("load", "failed to load " + String(t.src || t.href)); return; }
     addError("error", e.message, e.error && e.error.stack, e.filename ? e.filename.split("/").pop() + ":" + e.lineno + ":" + e.colno : "");
   }, true);
-  window.addEventListener("unhandledrejection", (e) => {
+  if (on) window.addEventListener("unhandledrejection", (e) => {
     const r = e.reason;
     addError("rejection", r && r.message ? r.message : String(r), r && r.stack);
   });
@@ -149,7 +150,7 @@ G.Diag = (function () {
     onError: null,
     timed: false,
     // a frame's time, in ms. (A tab coming back after a while is no slow frame.)
-    frame(ms) {
+    frame(ms) { if (!on) return;
       if (!(ms > 0) || ms > 2000) return;
       if (!M.timed) { tick(ms); return; }
       const t0 = performance.now();

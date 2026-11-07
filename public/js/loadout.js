@@ -31,7 +31,7 @@ G.Loadout = {
   maxSlots(game) { return this.BASE_SLOTS + (G.Perks.val("extra_slot", G.Perks.level("extra_slot", game.player)) || 0); },
   isFull(game) { return game.player.gunSlots.length >= this.maxSlots(game); },
 
-  freshAmmo(id) { const d = G.WEAPON_DEFS[id]; return { mag: d.magSize, reserve: d.magSize * 4 }; },
+  freshAmmo(id) { const d = G.WEAPON_DEFS[id]; return { mag: d.magSize, reserve: G.GunStats.reserve(d, d.magSize) }; },
   // what a gun takes with it onto the floor, so picking it back up restores it
   carryOf(game, id) {
     const a = game.player.ammo[id], l = game.player.weaponLevels[id];

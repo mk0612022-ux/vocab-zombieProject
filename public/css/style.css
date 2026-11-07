@@ -2311,7 +2311,7 @@ body.touch-mode .hud-dock .hud-abilities { display: none; }
 /* narrow: the panel in two or three short lines -- the name, then the
    ammunition and the tasks side by side */
 .hud-dock.narrow .hud-detail { flex-direction: row; flex-wrap: wrap; align-items: baseline; column-gap: 8px; max-width: 250px; }
-.hud-dock.narrow .hdt-head { flex: 1 0 100%; }
+.hud-dock.narrow .hdt-head { flex: 1 0 100%; flex-wrap: wrap; row-gap: 0; }
 .hud-dock.narrow .hdt-reload { flex: 1 0 100%; order: 9; }
 .hud-dock.narrow .hdt-count { font-size: 1.05rem; }
 .hud-dock.narrow .hdt-line { font-size: 0.66rem; }
@@ -2520,3 +2520,58 @@ body.modal-question .hud-spell { display: none !important; }
 /* (the buttons stay in sight on a short screen, the form scrolling behind them) */
 .report-box .dialog-btns { position: sticky; bottom: -18px; margin: 0 -22px -18px; padding: 10px 22px 18px; background: #0e1418; }
 @media (max-height: 460px) { .report-box .dialog-btns { bottom: -10px; margin: 0 -16px -10px; padding: 6px 16px 10px; } }
+
+/* ---------- the Stat Card (expansion, round 3) ---------- */
+.stat-card { text-align: left; font-size: 0.74rem; line-height: 1.3; min-width: 0; }
+.statc-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.statc-name { font-weight: 800; font-size: 0.86rem; min-width: 0; overflow-wrap: anywhere; }
+.statc-rarity { flex: none; font-size: 0.66rem; opacity: 0.8; padding-top: 2px; }
+.statc-tags { display: flex; flex-wrap: wrap; gap: 3px 5px; margin: 4px 0 6px; }
+.statc-tag { padding: 0 5px; border: 1px solid rgba(255,255,255,0.18); border-radius: 3px; font-size: 0.66rem; white-space: nowrap; }
+.statc-bars { display: grid; gap: 2px; }
+.statc-bar { display: grid; grid-template-columns: minmax(0, 5.8em) minmax(30px, 1fr) 1.9em; align-items: center; gap: 5px; }
+.stat-card.compare .statc-bar { grid-template-columns: minmax(0, 5.8em) minmax(30px, 1fr) 1.9em 2.8em; }
+.statc-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0.85; }
+.statc-track { height: 6px; border-radius: 3px; background: rgba(255,255,255,0.13); overflow: hidden; }
+.statc-track i { display: block; height: 100%; border-radius: 3px; }
+.statc-pct { text-align: right; font-weight: 800; }
+.statc-delta { text-align: right; font-weight: 800; white-space: nowrap; }
+.statc-delta.up { color: #6bff7a; }
+.statc-delta.down { color: #ff8a7a; }
+.statc-delta.same { opacity: 0.5; }
+.statc-nums { display: flex; flex-wrap: wrap; gap: 1px 10px; margin-top: 6px; font-size: 0.7rem; }
+.statc-nums i { font-style: normal; opacity: 0.7; }
+.statc-vs { margin-top: 4px; font-size: 0.66rem; opacity: 0.7; }
+.hud-statcard { position: absolute; top: 50%; right: 16px; width: 248px; transform: translateY(-50%); padding: 8px 10px; pointer-events: none;
+  background: rgba(8,12,10,0.82); border: 1px solid rgba(255,255,255,0.16); border-radius: 8px; }
+body.modal-question .hud-statcard { display: none; }
+.weaponlog-card .stat-card { margin-bottom: 6px; }
+.weaponlog-card .wl-stats { text-align: left; }
+.crate-weapon-stats .stat-card, .mystery-result-stats .stat-card { width: min(300px, 100%); margin: 0 auto; }
+.shop-item .stat-card { margin: 6px 0; }
+@media (max-height: 520px) {
+  /* a short screen: the free corner, the fewest lines */
+  .hud-statcard { left: 8px; right: auto; top: 50px; width: 216px; padding: 5px 8px; transform: none; }
+  .hud-statcard .statc-nums, .hud-statcard .statc-vs, .hud-statcard .statc-tags { display: none; }
+  .mystery-result:not(.hidden) { display: grid; grid-template-columns: minmax(150px, 1fr) minmax(0, 2fr); grid-template-areas: "rarity stats" "name stats" "take stats"; column-gap: 14px; align-items: center; margin-top: 6px; text-align: center; }
+  .mystery-result-rarity { grid-area: rarity; }
+  .mystery-result-name { grid-area: name; }
+  .mystery-result-stats { grid-area: stats; margin: 0; }
+  #btn-mystery-take { grid-area: take; justify-self: center; }
+  .mystery-result-stats .stat-card { width: 100%; }
+  .mystery-result-stats .statc-bars { grid-template-columns: 1fr 1fr; column-gap: 12px; }
+  .mystery-result-stats .statc-vs { display: none; }
+  .stat-card { font-size: 0.68rem; }
+  .statc-tags { margin: 2px 0 3px; }
+  .statc-nums { margin-top: 3px; }
+}
+/* a phone upright: the interact prompt is as wide as the screen, so the card sits above it,
+   measured the way the prompt is (--dock-h, --dock-b) */
+@media (max-width: 640px) and (min-height: 521px) {
+  .hud-statcard { top: auto; bottom: calc(max(42%, calc(var(--dock-b) + var(--dock-h) + 56px)) + 6px); transform: none; }
+}
+/* a small one: between the wave's banner and the prompt, clear of the minimap, the fewest lines */
+@media (max-width: 640px) and (min-height: 521px) and (max-height: 700px) {
+  .hud-statcard { left: 8px; right: auto; }
+  .hud-statcard .statc-nums, .hud-statcard .statc-vs, .hud-statcard .statc-tags { display: none; }
+}

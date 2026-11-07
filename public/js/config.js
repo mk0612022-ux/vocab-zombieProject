@@ -191,6 +191,9 @@ G.CONFIG = {
   // js/zombiefactory.js (looks), js/zombieanim.js (how they move),
   // js/zombieai.js (what they do); docs/overhaul/zombie-concepts.md
   zombies: {
+    // (expansion, round 3) health by wave: x (1 + perWave a wave past the first). Off until Word Forge
+    // (round 6) gives a way to keep up; tools/balance.js shows both
+    hpByWave: { on: false, perWave: 0.08 },
     // the wave a kind first comes in; before it, none
     first: { fast: 3, crawler: 4, bloater: 6, screamer: 7, ironclad: 8, runt: 9, headless: 11, reacher: 12, abomination: 13 },
     // its share of a wave from then: [at its first wave, at full, the wave it is full]
@@ -461,6 +464,74 @@ G.CONFIG = {
   // dark one with the blue lens. Which gun is which and its colours:
   // js/gunref.js; its shape js/gunmodels.js; its sound js/gunaudio.js. A gun
   // keeps its own name, damage and handling.
+  // (expansion) a new system can be switched off here without a revert
+  // gunStats: false brings back the guns' old numbers and the old way of shooting
+  // (no falloff, one spread, one head multiplier); the Stat Card stays
+  // diag: false stops the bug report's collecting (the report then holds no logs, errors or FPS)
+  expansion: { gunStats: true, diag: true },
+
+  // (expansion, round 3) what the guns are held to: tools/balance.js checks
+  // them and writes docs/expansion/balance-report.md. A gun's own numbers are
+  // js/data/gunstats.js; it starts from its class here.
+  balance: {
+    // sustained DPS a gun may have, x its class's (no "legendary" tier in this
+    // game: the five of G.RARITY_ORDER; the Golden SMG's flag is kept)
+    rarity: { common: 1, uncommon: 1.1, rare: 1.2, epic: 1.32, legendary: 1.45, secret: 1.6 },
+    tolerance: 0.1,                 // this far over its budget before a gun is flagged
+    // what is left of the point-buy once sustained DPS is counted: a gun's
+    // range, accuracy, handling and mobility against its class's middle, each to this power
+    pointBuy: { range: 0.15, accuracy: 0.1, handling: 0.1, mobility: 0.1 },
+    pierceValue: 0.03,              // ...and this much a zombie a round goes through, past the class's middle
+    distinct: 0.15,                 // two guns of a level closer than this (six stats, 0-1) are flagged
+    closeRange: 5, midRange: 10,    // m: where a shotgun's two lines of the shot table are read
+    pelletShare: 0.7,               // the pellets of a shot that reach a body at mid range
+    waves: [1, 5, 10, 15, 20],
+    tiers: [{ dmg: 1.25 }, { dmg: 1.55 }, { dmg: 1.9 }],     // Word Forge's three (round 6): x damage
+    // the report's look at the boss fights: hits landed, Damage upgrades bought by a boss wave, and the fight's length wanted (s)
+    bossCheck: { hitShare: 0.6, upgrades: { 5: 1, 10: 2, 15: 4, 20: 6 }, target: { 5: [90, 120], 10: [120, 150], 15: [150, 180], 20: [180, 240] } },
+    // What a niche means on the sheet: x its class's range (falloff), spread, bloom, head
+    // hits, and x its weight's time to aim and out of a run
+    niches: {
+      sidearm: {}, all_round: {}, crowd_pierce: {}, charge_shot: {}, blast_area: {},
+      room_clear: { range: 0.9, ads: 0.9 },
+      wide_scatter: { range: 0.85 },
+      tight_choke: { range: 1.15 },
+      close_spray: { range: 0.8, spread: 1.15, ads: 0.9 },
+      nimble: { ads: 0.8, sprint: 0.7 },
+      rapid_tap: { range: 0.8, ads: 0.9, bloom: 1.25 },
+      fast_reload: { ads: 0.9, sprint: 0.85 },
+      long_precise: { range: 1.35, spread: 0.75, ads: 1.15 },
+      burst_fire: { spread: 0.85, bloom: 0.8 },
+      headhunter: { head: 1.2, spread: 0.85, ads: 1.05 },
+      suppress: { range: 1.1, bloom: 0.8, ads: 1.1 },
+      big_mag: { spread: 1.1, ads: 1.15, sprint: 1.15 },
+      heavy_punch: { range: 0.9, spread: 1.15 },
+      one_tap: { spread: 0.9, ads: 1.1 },
+      boss_breaker: { ads: 1.1, sprint: 1.1 },
+    },
+    // A class (js/gunstats.js classOf):
+    //   body, head    shots to put down a Shambler of wave 1: [fewest, most]
+    //   sustained     DPS of a common gun of the class, reloads counted
+    //   headMult      a head hit, x
+    //   fall          full damage to [0] m, down to [2] of it by [1] m
+    //   hip, ads      spread out of the aim and in it (a shotgun: its own `spread` is the hip)
+    //   bloom         [added a shot, at most, gone a second]
+    //   reserveMags   magazines carried, on top of the one in the gun
+    classes: {
+      pistol: { body: [3, 4], head: [1, 2], sustained: 52, headMult: 2, fall: [14, 32, 0.6], hip: 0.01, ads: 0.004, bloom: [0.003, 0.016, 0.05], reserveMags: 4 },
+      smg: { body: [4, 6], head: [2, 3], sustained: 78, headMult: 2, fall: [10, 24, 0.55], hip: 0.016, ads: 0.007, bloom: [0.0012, 0.02, 0.06], reserveMags: 4 },
+      rifle: { body: [2, 3], head: [1, 1], sustained: 82, headMult: 2.7, fall: [22, 46, 0.7], hip: 0.014, ads: 0.003, bloom: [0.0016, 0.018, 0.05], reserveMags: 4 },
+      lmg: { body: [3, 4], head: [1, 2], sustained: 92, headMult: 2, fall: [20, 42, 0.65], hip: 0.022, ads: 0.008, bloom: [0.001, 0.024, 0.05], reserveMags: 4 },
+      shotgun: { body: [1, 1], mid: [2, 3], head: [1, 1], sustained: 58, headMult: 1.5, fall: [5, 14, 0.35], hip: 0, ads: 0, bloom: [0, 0, 0], reserveMags: 4 },
+      sniper: { body: [1, 2], head: [1, 1], sustained: 70, headMult: 2.5, fall: [60, 60, 1], hip: 0.03, ads: 0.0006, bloom: [0, 0, 0], reserveMags: 4 },
+      antimateriel: { body: [1, 1], head: [1, 1], pierce: 1, sustained: 75, headMult: 2.5, fall: [60, 60, 1], hip: 0.04, ads: 0.0004, bloom: [0, 0, 0], reserveMags: 4 },
+      // the three below are not in the prompt's table: the game's own kinds of gun
+      beam: { body: [1, 2], head: [1, 1], sustained: 58, headMult: 2, fall: [30, 60, 0.8], hip: 0.012, ads: 0.002, bloom: [0, 0, 0], reserveMags: 4 },
+      energy: { body: [1, 2], head: [1, 1], sustained: 75, headMult: 2, fall: [24, 50, 0.75], hip: 0.01, ads: 0.003, bloom: [0, 0, 0], reserveMags: 4 },
+      launcher: { body: [1, 1], head: [1, 1], sustained: 44, headMult: 1, fall: [60, 60, 1], hip: 0.012, ads: 0.006, bloom: [0, 0, 0], reserveMags: 4 },
+    },
+  },
+
   gunRef: {
     // bringing the gun up (s): the raise half of a switch (the clips: 0.5 s a
     // pistol or the SMG, 0.65 the rifle, 0.9 the .50, 1.3 the chassis sniper)

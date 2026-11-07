@@ -331,7 +331,7 @@ G.Game = {
       // (12-15 bites) at 375. Now a normal zombie's bite is 6.7% rather than 8%.
       hp: G.CONFIG.player.maxHp, maxHp: G.CONFIG.player.maxHp, money: 0, score: 0,   // (js/config.js)
       gunSlots: ["pistol"], currentSlot: 1,
-      ammo: { pistol: { mag: G.WEAPON_DEFS.pistol.magSize, reserve: G.WEAPON_DEFS.pistol.magSize * 4 } },
+      ammo: { pistol: { mag: G.WEAPON_DEFS.pistol.magSize, reserve: G.GunStats.reserve(G.WEAPON_DEFS.pistol, G.WEAPON_DEFS.pistol.magSize) } },
       weaponLevels: { pistol: { dmg: 1, rate: 1, mag: 1 } },
       // perks ({id: level}, see js/perks.js) belong to the run, like the money
       perks: {}, moveSpeedMult: 1, armorPct: 0, comboShield: null, secondLifeUsed: false,
@@ -372,6 +372,7 @@ G.Game = {
     this.targetPair = null;
     this.wave = 0;
     this.aimT = 0;
+    this._bloom = 0; this._shotT = 0; this._shotN = 0;
     // Nothing used to clear `paused` on the way into a run, so Pause -> Main
     // Menu -> any level loaded a frozen game (and quitting from behind a
     // crate or mystery-box screen did the same). Found by the category P
@@ -769,6 +770,8 @@ G.Game = {
       pair = G.weightedSample(candidates, 1)[0] || G.pick(this.wordPool);
     }
     const z = new G.Zombie(type, pos, pair, this.level.theme);
+    const hpK = G.zombieHpMult(this.wave);                   // (expansion, round 3: off until Word Forge)
+    if (hpK !== 1) { z.hp = Math.round(z.hp * hpK); z.maxHp = z.hp; }
     // how it is answered (shot, or spelt) and with which clue; a decoy is
     // shot, with its target's kind of clue (round 3: a Context look-alike
     // carries its form, a Listening one its Thai meaning)
@@ -862,6 +865,7 @@ G.Game = {
       },
       weight: (id) => G.ViewModel.weightKey(defOf(id)),
       family: (id) => G.ViewModel.family(defOf(id)),
+      sprintOut: (id) => (id === "melee" ? null : G.GunStats.of(id).sprintOut),
       cooldownReady: () => g.player.fireCooldown <= 0,
       fireInterval: (id) => {
         if (id === "melee") return G.MELEE_DEF.fireRate / 1000;
@@ -1061,16 +1065,31 @@ G.Game = {
     for (let i = 0; i < shots; i++) {
       // Per-weapon spread: a tight combat shotgun and a wide scattergun are
       // different guns even at the same pellet count.
-      const spread = (def.pellets ? (def.spread || 0.06) : 0.004) * (aimed ? 0.5 : 1);
+      // (expansion, round 3: out of the aim or in it, and wider the longer a string of shots goes on)
+      const spread = G.GunStats.spread(def, this.aimT, this._bloom) * (aimed ? 0.5 : 1);
       const d = dir.clone();
       d.x += (G.rng() - 0.5) * spread; d.y += (G.rng() - 0.5) * spread; d.z += (G.rng() - 0.5) * spread;
       d.normalize();
       if (this.raycastShoot(origin, d, dmg, def.pierce, def)) anyHit = true;
     }
     if (anyHit) G.UI.showHitmarker();
+    this.addBloom(def);
     // (the magazine empty: no more of a burst; the reload is G.WeaponSM's)
     if (ammo.mag <= 0) this._burst = null;
     return true;
+  },
+
+  // (expansion, round 3) a shot opens the gun's spread a little, up to its most;
+  // it closes on its own. A string of shots: how many in a row, for the kick's pattern
+  addBloom(def) {
+    const s = G.GunStats.of(def);
+    this._bloom = Math.min(s.bloomMax, (this._bloom || 0) + s.bloom);
+    this._shotT = 0.45; this._shotN = (this._shotN || 0) + 1;
+  },
+  updateBloom(dt, def) {
+    // (a gun with no bloom of its own lets go of what the last one left)
+    if (this._bloom > 0) this._bloom = Math.max(0, this._bloom - ((def && def.id !== "melee" && G.GunStats.of(def).bloomDecay) || 1) * dt);
+    if (this._shotT > 0 && (this._shotT -= dt) <= 0) this._shotN = 0;
   },
 
   // Category N: pierce is a COUNT now, not a flag -- a bolt that passes
@@ -1109,7 +1128,8 @@ G.Game = {
         const key = bh.clone !== undefined ? "c" + bh.clone : "boss";
         if (bossHit.has(key)) continue;
         bossHit.add(key);
-        const r = G.Bosses.onShot(this, hit.object, dmg, hit.point);
+        // (expansion, round 3: damage falls with distance, past the gun's range)
+        const r = G.Bosses.onShot(this, hit.object, dmg * G.GunStats.falloff(def, hit.distance), hit.point);
         if (!r.hit) continue;
         // (Mirror Gaze threw it back: no hit, and it goes no further)
         if (r.reflected) { stopAt = hit.distance; break; }
@@ -1131,7 +1151,7 @@ G.Game = {
       // Round 2: the head is its own hitbox -- the neck group and everything
       // on it -- and a head hit does double damage
       // (overhaul, round 4: an Ironclad's helmet and vest have their say -- js/zombieai.js)
-      const hm = G.ZombieAI.hitMod(this, z, dmg, head, dir);
+      const hm = G.ZombieAI.hitMod(this, z, dmg * G.GunStats.falloff(def, hit.distance), head, dir, def);
       this.damageZombie(z, hm.dmg, hit.point, { dir: dir.clone(), head: hm.head });
       if (hm.head) G.UI.showHitmarker(true);
       if (def && def.splash) this.splashDamage(hit.point, def, dmg);
@@ -1293,7 +1313,8 @@ G.Game = {
       this.pitchObject.rotation.x += kick;
       this.recoilRecover += kick;
       this.recoilRate = 3 / RC.back;
-      if (RC.side) { const s = (Math.random() * 2 - 1) * kick * RC.side; this.yawObject.rotation.y += s; this.recoilYaw = (this.recoilYaw || 0) + s; }
+      // (expansion, round 3: its sideways shiver is the gun's own pattern, the same in every string)
+      if (RC.side) { const s = G.GunStats.pattern(def, this._shotN || 0) * kick * RC.side; this.yawObject.rotation.y += s; this.recoilYaw = (this.recoilYaw || 0) + s; }
       return;
     }
     this.recoilRate = 9;
@@ -1829,7 +1850,7 @@ G.Game = {
   },
   // what Full Ammo tops a gun's reserve up to: the four spare magazines it
   // comes with
-  fullReserve(id) { return Math.round(G.WEAPON_DEFS[id].magSize * this.player.weaponLevels[id].mag) * 4; },
+  fullReserve(id) { const d = G.WEAPON_DEFS[id]; return G.GunStats.reserve(d, Math.round(d.magSize * this.player.weaponLevels[id].mag)); },
   buyShopItem(item, price) {
     if (this.player.money < price) return;
     const pay = () => {
@@ -2355,7 +2376,7 @@ G.Game = {
     // low at a quarter of a full magazine
     const melee = id === "melee", lvl = !melee && this.player.weaponLevels[id];
     const hand = {
-      name: def.name, melee, status: melee ? T("hud.melee") : G.weightClass(def).label,
+      name: def.name, melee, status: melee ? T("hud.melee") : G.StatCard.status(def),
       mag: ammoInMag, reserve: ammoReserve, lowAt: melee ? 0 : Math.max(1, Math.round(def.magSize * ((lvl && lvl.mag) || 1) * 0.25)),
       reloading: !!this.player.reloading && !melee, reloadFrac,
     };
@@ -2519,7 +2540,8 @@ G.Game = {
     if (this.wsm) this.wsm.input({ moving: len > 0.05, sprinting, aimHeld: aimInput, fireHeld: rawFire });
     // (gun reference pass: off the sight while a bolt is worked -- G.ViewModel.boltBusy)
     const wantAim = aimInput && (!this.wsm || this.wsm.aimActive) && !(G.ViewModel.boltBusy && G.ViewModel.boltBusy());
-    const WC = G.CONFIG.weaponSM, aimIn = WC.aimIn[G.ViewModel.weightKey(def)] || 0.22;
+    // (expansion, round 3: the gun's own time, js/gunstats.js)
+    const WC = G.CONFIG.weaponSM, aimIn = def.id === "melee" ? WC.aimIn.melee : G.GunStats.of(def).adsTime;
     this.aimP = Math.max(0, Math.min(1, (this.aimP || 0) + (wantAim ? dt / aimIn : -dt / (aimIn * WC.aimOutShare))));
     this.aimT = G.Anim.easeInOutCubic(this.aimP);
     // Category N: a sniper's `scope` is its own aimed FOV, well past the
@@ -2542,6 +2564,7 @@ G.Game = {
     if (G.UI.setChargeMeter) G.UI.setChargeMeter(def.charge ? (this._chargeT || 0) / def.charge.time : null);
 
     this.updateWeaponAnim(dt);
+    this.updateBloom(dt, def);
     const a = this.weaponAnim;
 
     // Animation pass A: what the rigs need to know about this frame -- how fast
@@ -2895,7 +2918,7 @@ G.Game = {
     const targets = this.world.interactables.map((i) => i.mesh);
     const hits = this.raycaster.intersectObjects(targets, true);
     const T = G.T, key = G.interactKeyLabel();
-    let label = "";
+    let label = "", cardGun = null;                   // (expansion, round 3: a gun to buy or pick up shows its card)
     this._lookedAtInteractable = null;
     if (hits.length) {
       // Walk the whole parent chain: interactables are groups now (doors have
@@ -2928,6 +2951,7 @@ G.Game = {
             key, name: wdef.name, price: wdef.price, weight: wc.label,
             short: this.player.money < wdef.price ? T("prompt.notEnough") : "",
           });
+          if (!found.ref.purchased) cardGun = wdef;
         }
       }
     }
@@ -2937,8 +2961,10 @@ G.Game = {
       const fg = this._nearFloorGun, def = G.WEAPON_DEFS[fg.id];
       label = T("prompt.pickUp", { key, name: def.name });
       if (fg.expires) label += T("prompt.pickUpTimer", { s: Math.max(0, Math.ceil(fg.expires - fg.t)) });
+      cardGun = def;
     }
     G.UI.setInteractPrompt(!!label, label);
+    if (cardGun) G.StatCard.showHud(cardGun); else G.StatCard.hideHud();
   },
   doInteract() {
     if (this.challenge) return;

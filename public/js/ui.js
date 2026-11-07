@@ -361,19 +361,6 @@ G.UI = {
       };
     });
   },
-  // Category E: weight is a real stat now -- it costs movement speed and
-  // stamina -- so it is shown everywhere a weapon's numbers are: the log, the
-  // shop crate reveal, the mystery box and the wall mounts.
-  // Weight (category E) and firing mode (category N) are both real stats, so
-  // they are shown everywhere a weapon.s numbers are: the log, the shop crate
-  // reveal, the mystery box and the wall mounts.
-  weightLine(def) {
-    const c = G.weightClass(def);
-    const pen = Math.round((1 - c.speedMult) * 100);
-    return `<span style="color:#9fd6ff">${G.T("weapon.mode", { m: G.fireModeLabel(def) })}</span><br>`
-      + `<span style="color:${c.color}">${G.T("weapon.weight", { w: c.label, v: G.weaponWeight(def).toFixed(1) })}</span>`
-      + ` <span style="opacity:.75">${pen ? G.T("weapon.speedPenalty", { p: pen }) : G.T("weapon.noPenalty")}</span>`;
-  },
   listenBtn(w) { return `<button class="btn wl-listen" data-id="${w.id}">${G.T("weaponlog.listen")}</button>`; },
   weaponLogCardHtml(w, dropChance) {
     const unlocked = (G.save.unlockedWeapons || []).includes(w.id);
@@ -381,10 +368,11 @@ G.UI = {
     if (!unlocked) {
       return `<div class="weaponlog-card locked"><div class="wl-icon">🔒</div><div class="wl-name">???</div><div class="wl-stats">${G.T("weaponlog.locked")}${odds}</div>${this.listenBtn(w)}</div>`;
     }
-    const dps = Math.round(w.damage * (w.pellets || 1) * (1000 / w.fireRate));
+    // (expansion, round 3) the Stat Card; in a run, against the gun in hand
+    const pen = Math.round((1 - G.weightClass(w).speedMult) * 100);
     return `<div class="weaponlog-card border-${w.rarity}" style="border-style:solid">
-      <div class="wl-icon">🔫</div><div class="wl-name rarity-${w.rarity}">${w.name}</div>
-      <div class="wl-stats">${G.T("weaponlog.damage", { d: w.damage })}${w.pellets ? G.T("weaponlog.pellets", { n: w.pellets }) : ""}<br>${G.T("weaponlog.rate", { r: (1000 / w.fireRate).toFixed(1) })}<br>${G.T("weaponlog.mag", { n: w.magSize })}<br>${G.T("weaponlog.dps", { n: dps })}<br>${this.weightLine(w)}${w.price ? `<br>${G.T("weaponlog.price", { p: w.price })}` : ""}${odds}</div>
+      ${G.StatCard.html(w, { compare: G.StatCard.held() })}
+      <div class="wl-stats">${pen ? G.T("weapon.speedPenalty", { p: pen }) : G.T("weapon.noPenalty")}${w.price ? ` · ${G.T("weaponlog.price", { p: w.price })}` : ""}${odds}</div>
       ${this.listenBtn(w)}
     </div>`;
   },
@@ -610,6 +598,7 @@ G.UI = {
       div.innerHTML = `<div class="shop-item-title">${o.icon ? `<span class="shop-icon">${o.icon}</span>` : ""}${o.title}</div>
         ${o.level ? `<div class="shop-item-level">${o.level}</div>` : ""}
         <div class="shop-item-desc">${o.desc || ""}</div>
+        ${o.detail || ""}
         <div class="shop-item-price">💰 ${o.owned ? G.T("shop.owned") : o.maxed ? G.T("shop.max") : o.price}</div>
         <button class="btn ${blocked ? "" : "btn-primary"}" ${blocked || pl.money < o.price ? "disabled" : ""}>${o.full ? G.T("shop.full") : blocked ? "-" : G.T("shop.buy")}</button>`;
       if (!blocked) div.querySelector("button").onclick = () => { o.buy(); this.renderShop(); };
@@ -640,7 +629,9 @@ G.UI = {
     });
     section("shop.armory");
     G.SHOP_ITEMS.filter((i) => i.section !== "essential").forEach((item) => {
-      itemCard(item, { owned: item.kind === "unlock" && pl.gunSlots.includes(item.weapon) });
+      // (expansion, round 3) a gun on sale shows its card, against the one in hand
+      const gun = item.kind === "unlock" && G.WEAPON_DEFS[item.weapon];
+      itemCard(item, { owned: !!gun && pl.gunSlots.includes(item.weapon), detail: gun ? G.StatCard.html(gun, { compare: G.StatCard.held(), name: false }) : "" });
     });
   },
 
@@ -652,7 +643,7 @@ G.UI = {
     this.el("crate-rarity-label").className = "crate-rarity-label rarity-" + rarityKey;
     this.el("crate-rarity-label").textContent = G.RARITY[rarityKey].label + (G.save.settings.colorblindMode ? ` [${rarityKey[0].toUpperCase()}]` : "");
     this.el("crate-weapon-name").textContent = weaponDef.name;
-    this.el("crate-weapon-stats").innerHTML = G.T("crate.stats", { d: weaponDef.damage, r: (1000 / weaponDef.fireRate).toFixed(1), m: weaponDef.magSize }) + this.weightLine(weaponDef);
+    this.el("crate-weapon-stats").innerHTML = G.StatCard.html(weaponDef, { compare: G.StatCard.held(), name: false });
     this.showScreen("screen-crate");
   },
 
@@ -942,7 +933,7 @@ G.UI = {
       if (w.boxTier === "elite") el.classList.add("elite");
       if (i === pickedIdx) el.classList.add("picked");
       el.style.animationDelay = (i * 60) + "ms";
-      const dps = Math.round(w.damage * (w.pellets || 1) * (1000 / w.fireRate));
+      const dps = Math.round(G.GunStats.dps(G.GunStats.of(w)));
       el.querySelector(".mc-face").innerHTML =
         `<div class="mc-name" style="color:${hex}">${w.name}</div>
          <div class="mc-tier">${G.RARITY[w.rarity].label}${w.boxTier === "elite" ? " ★" : ""}</div>
@@ -956,11 +947,7 @@ G.UI = {
     this.el("mystery-result-rarity").textContent = G.RARITY[picked.rarity].label + (picked.boxTier === "elite" ? G.T("mystery.elite") : "");
     this.el("mystery-result-rarity").style.color = pcol;
     this.el("mystery-result-name").textContent = picked.name;
-    const dps = Math.round(picked.damage * (picked.pellets || 1) * (1000 / picked.fireRate));
-    this.el("mystery-result-stats").innerHTML =
-      `${G.T("weaponlog.damage", { d: picked.damage })}${picked.pellets ? G.T("weaponlog.pellets", { n: picked.pellets }) : ""} · ${G.T("weaponlog.rate", { r: (1000 / picked.fireRate).toFixed(1) })}<br>
-       ${G.T("weaponlog.mag", { n: picked.magSize })} · ${G.T("weapon.reload", { s: (picked.reloadTime / 1000).toFixed(1) })} · ${G.T("weapon.recoil", { r: picked.recoil.toFixed(1) })}<br>
-       ${G.T("weaponlog.dps", { n: dps })}${picked.pierce ? " · " + G.T("weapon.pierce") : ""}${picked.splash ? " · " + G.T("weapon.splash") : ""}<br>${this.weightLine(picked)}`;
+    this.el("mystery-result-stats").innerHTML = G.StatCard.html(picked, { compare: G.StatCard.held(), name: false });
     // rarer pull = bigger screen flash
     const flash = this.el("mystery-flash");
     const strength = { common: 0, uncommon: 0, rare: 1, epic: 1, secret: 1 }[picked.rarity];

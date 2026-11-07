@@ -85,7 +85,7 @@ G.Round26Test = (function () {
     } else {
       const a = pl.ammo[id];
       want("ammo", $("hud-ammo").textContent, a.mag + "/" + a.reserve);
-      want("status", $("hud-weapon-status").textContent, G.weightClass(def).label);
+      want("status", $("hud-weapon-status").textContent, G.StatCard.status(def));
       want("empty magazine", $("hud-ammo").classList.contains("empty"), a.mag === 0);
     }
     // the tasks, the header

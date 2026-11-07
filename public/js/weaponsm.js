@@ -22,6 +22,7 @@
 //   selected()                 the weapon id the player has chosen ("melee": the knife)
 //   ammo(id)                   { mag, reserve, magSize } (null for the knife)
 //   weight(id), family(id)     "light".."very_heavy" | "melee";  the weapon family
+//   sprintOut(id)              (optional) out of a run to the first shot, the gun's own
 //   cooldownReady()            the time between shots has passed
 //   fireInterval(id)           seconds between shots
 //   doFire(shotId, charge, inBurst)   gameplay: the round leaves -> true
@@ -209,7 +210,7 @@
 
     // ---------------- firing ----------------
     function queue(o) { if (o && o.pressed) sm.queued = C.queueWindow; }
-    function startSprintOut() { sm.sprintOut = per(C.sprintOut); }
+    function startSprintOut() { const v = host.sprintOut && host.sprintOut(sm.held); sm.sprintOut = v != null ? v : per(C.sprintOut); }
     // what a trigger pull does before it can fire: an inspection stops, a
     // lowered gun comes up, a run ends. False: it cannot fire at all now.
     function prepare(o) {

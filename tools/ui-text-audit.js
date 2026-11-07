@@ -205,7 +205,11 @@ G.UIAudit = {
       for (const c of ["level1", "daily", "endless"]) await step("leaderboard " + c, () => { UI.renderLeaderboard(c); UI.showScreen("screen-leaderboard"); });
       await step("achievements", () => { UI.renderAchievements(); UI.showScreen("screen-achievements"); });
       for (const l of [1, 2, 3]) await step("word log " + l, () => { UI._logReturnScreen = "screen-mainmenu"; UI.renderVocabLog(l); UI.showScreen("screen-vocablog"); });
+      // (expansion, round 3) every gun met: a Stat Card each
+      const met0 = G.save.unlockedWeapons;
+      G.save.unlockedWeapons = Object.keys(G.WEAPON_DEFS);
       for (const l of [1, 2, 3]) await step("armory " + l, () => { UI._logReturnScreen = "screen-mainmenu"; UI.renderWeaponLog(l); UI.showScreen("screen-weaponlog"); });
+      G.save.unlockedWeapons = met0;
       await step("import", () => { UI.openImport("screen-mainmenu"); UI.renderImportPreview(G.WORDS_LEVEL_1.slice(0, 60)); });
       await step("import (empty preview)", () => UI.renderImportPreview([]));
       // (vocabulary series, round 4: Practice Mode is js/practice.js)
@@ -322,6 +326,8 @@ G.UIAudit = {
       });
       await step("shop with perks", () => { Game._interest = 250; Game._waveBonus = 500; Game.player.money = 12345; Game.openShop(); });
       Game.leaveShop();
+      await step("wall gun card", () => { UI.showScreen(null); UI.setHudVisible(true); G.StatCard.showHud(longest); });
+      G.StatCard.hideHud();
       await step("crate", () => UI.showCrateScreen("secret", longest));
       const hand = Object.values(G.WEAPON_DEFS).slice(0, 6).map((d, i) => Object.assign({}, d, { boxTier: i === 2 ? "elite" : "normal" }));
       await step("mystery pick", () => UI.showMysteryCards(hand, () => {}));

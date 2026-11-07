@@ -548,6 +548,7 @@ G.buildRarityBadge = function (rarityKey) {
 // launchers and slow reloads all mean a big receiver to swing around.
 G.weaponWeight = function (def) {
   if (!def || def.id === "melee") return 0.4;
+  if (def.weight != null) return def.weight;           // (expansion, round 3: frozen before its numbers are tuned, js/gunstats.js)
   let w = 1.0;
   w += (def.damage || 20) / 60;
   w += (def.magSize || 10) / 40;
@@ -1463,6 +1464,12 @@ G.buildZombieMesh = function (type, variation, look) {
   g.rotation.z = g.userData.baseLean;
   g.traverse((o) => { if (o.isMesh && !o.userData.hit) { o.castShadow = true; o.receiveShadow = false; } });
   return g;
+};
+
+// (expansion, round 3) health by wave: G.CONFIG.zombies.hpByWave. A boss has its own curve.
+G.zombieHpMult = function (wave) {
+  const H = G.CONFIG.zombies.hpByWave;
+  return H && H.on ? 1 + H.perWave * Math.max(0, (wave || 1) - 1) : 1;
 };
 
 let zombieUid = 0;
