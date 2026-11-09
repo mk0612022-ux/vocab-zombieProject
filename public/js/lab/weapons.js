@@ -61,7 +61,8 @@ G.WeaponLab = {
   // the chosen gun in slot 1, the one before it in slot 2 (for Switch)
   give(id) {
     const g = G.Game, p = g.player;
-    if (id === "melee") { g.switchSlot(0); return; }
+    // (expansion, round 4) a melee weapon: into the slot and out in the hands; "fire" swings it, "hold" charges it
+    if (id.startsWith("melee:")) { G.Melee.give(g, id.slice(6)); g.switchSlot(0); return; }
     const prev = this.cur && this.cur !== id ? this.cur : (id === "pistol" ? "smg" : "pistol");
     [id, prev].forEach((w) => {
       const d = G.WEAPON_DEFS[w];
@@ -91,7 +92,7 @@ G.WeaponLab = {
     Object.values(G.WEAPON_DEFS).forEach((d) => { const f = G.ViewModel.family(d); (fams[f] = fams[f] || []).push(d); });
     const order = ["pistol", "revolver", "smg", "rifle", "shotgun_pump", "shotgun_semi", "sniper_bolt", "lmg", "special"];
     const opts = order.filter((f) => fams[f]).map((f) => `<optgroup label="${esc(T("family." + f))}">${fams[f].map((d) => `<option value="${d.id}">${esc(d.name)}</option>`).join("")}</optgroup>`).join("")
-      + `<optgroup label="${esc(T("family.knife"))}"><option value="melee">${esc(G.MELEE_DEF.name || T("family.knife"))}</option></optgroup>`;
+      + `<optgroup label="${esc(T("weaponlog.melee"))}">${Object.values(G.MELEE_WEAPONS).map((m) => `<option value="melee:${m.key}">${esc(m.name)}</option>`).join("")}</optgroup>`;
     const el = document.createElement("div");
     el.className = "wlab";
     el.innerHTML = `<h3>${esc(T("lab.title"))}</h3><div id="wlab-state"></div>

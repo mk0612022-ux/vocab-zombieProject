@@ -215,7 +215,37 @@ G.GunStats = (function () {
     return out;
   }
 
-  return { TUNED, KEYS, apply, classOf, of, falloff, headMult, spread, reserve, pattern, perShot, dps, sustained, raw, stats, active, reset() { sheets = {}; ranks = null; } };
+  // ---------------- the melee slot (expansion, round 4) ----------------
+  // Its own section of the sheet (G.MELEE_WEAPONS, G.CONFIG.melee) and its own
+  // six bars, ranked among the melee weapons: a blade and a rifle have little to compare.
+  const M_KEYS = ["damage", "speed", "reach", "sweep", "blow", "thrift"];
+  const BLOW = { light: 1, medium: 2, heavy: 3, very_heavy: 4 };
+  function melee(x) {
+    const m = typeof x === "string" ? G.MELEE_WEAPONS[x] : x, K = G.CONFIG.melee;
+    if (!m) return null;
+    const p = K.moves[m.move].path, arc = Math.hypot(p[0][0] - p[1][0], p[0][1] - p[1][1]) + Math.hypot(p[1][0] - p[2][0], p[1][1] - p[2][1]);
+    const swing = m.windup + m.active + m.recover;
+    return { id: m.id, key: m.key, slot: "melee", level: m.level, price: m.price, move: m.move, niche: m.key, weight: m.weight,
+      damage: m.damage, head: m.head, charged: m.power ? m.damage * K.power.mult : 0, powerTime: m.power ? m.power.time : 0, powerStamina: m.power ? m.stamina * K.power.stamina : 0,
+      windup: m.windup, active: m.active, recover: m.recover, swing, range: m.range, targets: m.targets, arc: Math.round(arc),
+      stagger: m.stagger, stamina: m.stamina, dps: m.damage / (swing / 1000), combo: !!m.combo, knock: m.knock || 0, helmet: m.helmet || 1, armor: m.armor || 0,
+      unarmored: m.unarmored || 1, lowDamage: m.lowDamage || 1, low: !!m.low, draw: m.draw };
+  }
+  function meleeRaw(s) {
+    return { damage: s.damage * (s.unarmored || 1), speed: 1000 / s.swing, reach: s.range, sweep: s.targets + s.arc / 200, blow: BLOW[s.stagger] + s.knock * 0.5, thrift: s.damage / s.stamina };
+  }
+  function meleeStats(x) {
+    const all = Object.values(G.MELEE_WEAPONS).map((m) => meleeRaw(melee(m))), r = meleeRaw(melee(x)), out = {};
+    M_KEYS.forEach((k) => {
+      const A = all.map((v) => v[k]).sort((a, b) => a - b);
+      let lo = 0, hi = 0;
+      for (let i = 0; i < A.length; i++) { if (A[i] < r[k] - 1e-9) lo++; if (A[i] <= r[k] + 1e-9) hi++; }
+      out[k] = { raw: r[k], pct: Math.round(((lo + hi - 1) / 2) / Math.max(1, A.length - 1) * 100) };
+    });
+    return out;
+  }
+
+  return { TUNED, KEYS, M_KEYS, apply, classOf, of, falloff, headMult, spread, reserve, pattern, perShot, dps, sustained, raw, stats, melee, meleeStats, active, reset() { sheets = {}; ranks = null; } };
 })();
 
 G.GunStats.apply();

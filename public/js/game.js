@@ -331,6 +331,7 @@ G.Game = {
       // (12-15 bites) at 375. Now a normal zombie's bite is 6.7% rather than 8%.
       hp: G.CONFIG.player.maxHp, maxHp: G.CONFIG.player.maxHp, money: 0, score: 0,   // (js/config.js)
       gunSlots: ["pistol"], currentSlot: 1,
+      melee: "knife",                                  // (expansion, round 4) what is in the melee slot: a key of G.MELEE_WEAPONS
       ammo: { pistol: { mag: G.WEAPON_DEFS.pistol.magSize, reserve: G.GunStats.reserve(G.WEAPON_DEFS.pistol, G.WEAPON_DEFS.pistol.magSize) } },
       weaponLevels: { pistol: { dmg: 1, rate: 1, mag: 1 } },
       // perks ({id: level}, see js/perks.js) belong to the run, like the money
@@ -386,6 +387,7 @@ G.Game = {
     this._prevPos = null; this._prevYaw = undefined; this._prevPitch = undefined;
     this._sprintLatch = false; this._prevSprintHeld = false;
     this.aimP = 0; this._flinchHp = undefined;
+    this._meleeEdge = false; if (this._quick) { this.dropQuickModels(); this._quick = null; } if (G.Melee) G.Melee.reset();
     G.ViewModel.reset();
     G.ViewModel.setVisible(true);
     G.HeadBob.reset(this);
@@ -834,7 +836,7 @@ G.Game = {
   currentWeaponId() { return this.player.currentSlot === 0 ? "melee" : this.player.gunSlots[this.player.currentSlot - 1]; },
   currentWeaponDef() {
     const id = this.currentWeaponId();
-    return id === "melee" ? G.MELEE_DEF : G.WEAPON_DEFS[id];
+    return id === "melee" ? G.meleeDef(this) : G.WEAPON_DEFS[id];
   },
   currentWeaponLevel() {
     const id = this.currentWeaponId();
@@ -854,7 +856,7 @@ G.Game = {
   // here, the rules there
   weaponHost() {
     const g = this;
-    const defOf = (id) => (id === "melee" ? G.MELEE_DEF : G.WEAPON_DEFS[id]);
+    const defOf = (id) => (id === "melee" ? G.meleeDef(g) : G.WEAPON_DEFS[id]);
     return {
       selected: () => g.currentWeaponId(),
       ammo: (id) => {
@@ -868,17 +870,24 @@ G.Game = {
       sprintOut: (id) => (id === "melee" ? null : G.GunStats.of(id).sprintOut),
       cooldownReady: () => g.player.fireCooldown <= 0,
       fireInterval: (id) => {
-        if (id === "melee") return G.MELEE_DEF.fireRate / 1000;
+        if (id === "melee") return (G.Melee.on() ? G.meleeDef(g).fireRate : G.CONFIG.melee.legacy.fireRate) / 1000;
         const d = G.WEAPON_DEFS[id], l = g.player.weaponLevels[id];
         return d ? (d.fireRate / 1000) / ((l && l.rate) || 1) : 0.1;
       },
       doFire: (shotId, charge, inBurst) => g.shoot(charge, inBurst, shotId),
       dryFire: () => G.Audio.sfx("empty"),
-      startMelee: () => {
-        g.player.fireCooldown = G.MELEE_DEF.fireRate / 1000;
+      // (expansion, round 4: a swing's own steps -- G.WeaponSM, js/melee.js)
+      meleePlan: (o) => G.Melee.plan(g, o),
+      meleeSweep: (id, u0, u1) => G.Melee.sweep(g, u0, u1),
+      meleeEnd: (M, why) => G.Melee.finish(g, M, why === "cancel" ? "cancel" : "done"),
+      meleeHeld: (M) => g.meleeHeld(M.quick),
+      quickModel: (on) => g.quickMeleeModel(on),
+      startMelee: (id, P) => {
+        if (P) { G.Melee.begin(g, P); return; }
+        g.player.fireCooldown = G.CONFIG.melee.legacy.fireRate / 1000;
         G.Audio.noise({ dur: 0.16, freq: 1800, freqEnd: 600, q: 0.8, gain: 0.18 });   // blade swish
       },
-      doMelee: () => g.meleeAttack(G.MELEE_DEF),
+      doMelee: (id, M) => g.meleeAttack(G.meleeDef(g), M),
       planReload: (id, kind, missing) => G.ViewModel.planReload(G.WEAPON_DEFS[id], missing, kind),
       commitReload: (reloadId, id, n) => g.commitReload(id, n),
       reloadSpeed: () => 1 + (G.Perks.val("quick_hands") || 0) / 100,
@@ -895,7 +904,7 @@ G.Game = {
       // (gun reference pass: the old one down in half its time, the new one up in its own draw)
       switchDur: (from, to) => G.ViewModel.switchDuration(defOf(from)) / 2 + G.ViewModel.drawDuration(defOf(to)),
       switchSplit: (from, to) => { const lo = G.ViewModel.switchDuration(defOf(from)) / 2; return lo / (lo + G.ViewModel.drawDuration(defOf(to))); },
-      swapModel: () => g.buildWeaponViewModel(),
+      swapModel: (id) => g.buildWeaponViewModel(id),
       // a trigger pull ends a run: sprint held stays ignored until it is let go
       stopSprint: () => { g._sprintLatch = true; },
       autoReload: () => G.save.settings.autoReload !== false,
@@ -918,10 +927,62 @@ G.Game = {
     };
   },
   inspect() { return this.wsm ? this.wsm.requestInspect() : false; },
-  buildWeaponViewModel() {
-    if (this.weaponViewGroup) { this.camera.remove(this.weaponViewGroup); G.disposeObject3D(this.weaponViewGroup); }
-    const def = this.currentWeaponDef();
-    const mesh = def.id === "melee" ? G.buildMeleeMesh() : G.buildWeaponMesh(def);
+  // (expansion, round 4) the button that holds a swing back: the trigger with
+  // the weapon out, the melee button only for a quick swing off a gun
+  meleeHeld(quick) {
+    const I = G.Input, kb = G.save.settings.keybinds;
+    const melee = !!(I.touchMelee || I.padMelee || (kb.quickMelee && I.keys[kb.quickMelee]));
+    return quick ? melee : melee || !!((I.mode === "desktop" && I.mouseDown) || I.touchFire || I.padFire);
+  },
+  // A quick swing: the gun set aside as it is (no build, no dispose: it comes
+  // back the moment the swing ends), the weapon in its place. Both stay built
+  // for the next one, so a swing costs no frame on an iPad.
+  quickMeleeModel(on) {
+    const Q = this._quick || (this._quick = { gun: null, blade: null, key: null });
+    const cam = this.camera;
+    if (on) {
+      Q.gun = this.weaponViewGroup; Q.gunDef = G.ViewModel.def;
+      if (Q.gun) cam.remove(Q.gun);
+      const def = G.meleeDef(this);
+      if (!Q.blade || Q.key !== def.key) {
+        if (Q.blade) G.disposeObject3D(Q.blade);
+        Q.blade = this.viewModelOf(def); Q.key = def.key;
+      }
+      this.weaponViewGroup = Q.blade;
+      G.ViewModel.onWeaponBuilt(Q.blade, def);
+      cam.add(Q.blade);
+    } else {
+      if (this.weaponViewGroup) cam.remove(this.weaponViewGroup);
+      this.weaponViewGroup = Q.gun; Q.gun = null;
+      if (this.weaponViewGroup) { G.ViewModel.onWeaponBuilt(this.weaponViewGroup, Q.gunDef); cam.add(this.weaponViewGroup); }
+      else this.buildWeaponViewModel();
+    }
+  },
+  // the weapon kept for quick swings, gone (another one bought, the run over)
+  dropQuickModels() {
+    const Q = this._quick;
+    if (!Q) return;
+    if (Q.blade && this.weaponViewGroup !== Q.blade) { G.disposeObject3D(Q.blade); Q.blade = null; Q.key = null; }
+    if (Q.gun && this.weaponViewGroup !== Q.gun) { G.disposeObject3D(Q.gun); Q.gun = null; }
+  },
+  viewModelOf(def) {
+    const mesh = def.id === "melee" ? G.buildMeleeMesh(def) : G.buildWeaponMesh(def);
+    mesh.position.set(0.3, -0.32, -0.75);
+    mesh.rotation.y = -0.06;
+    // from here on G.ViewModel poses it every frame
+    G.ViewModel.onWeaponBuilt(mesh, def);
+    if (G.FX && def.id !== "melee") G.FX.attachFlash(mesh, def);
+    this.toViewmodelLayer(mesh);
+    return mesh;
+  },
+  buildWeaponViewModel(id) {
+    if (this.weaponViewGroup) {
+      this.camera.remove(this.weaponViewGroup);
+      // (the weapon kept for quick swings is not this model's to dispose of)
+      if (!this._quick || this.weaponViewGroup !== this._quick.blade) G.disposeObject3D(this.weaponViewGroup);
+    }
+    const def = id === "melee" ? G.meleeDef(this) : (id && G.WEAPON_DEFS[id]) || this.currentWeaponDef();
+    const mesh = def.id === "melee" ? G.buildMeleeMesh(def) : G.buildWeaponMesh(def);
     mesh.position.set(0.3, -0.32, -0.75);
     mesh.rotation.y = -0.06; // slight natural inward cant, typical FPS held-weapon angle
     // from here on G.ViewModel poses it every frame
@@ -1271,21 +1332,26 @@ G.Game = {
     }
   },
 
-  meleeAttack(def) {
+  // (expansion, round 4) M: the swing by steps (js/melee.js): the edge starts
+  // moving, and G.Melee.sweep finds what it meets. With the melee rules off
+  // (G.CONFIG.expansion.melee), the old knife: one blow at its hit frame.
+  meleeAttack(def, M) {
+    if (M && M.plan) return G.Melee.swing(this, M);
+    const L = G.CONFIG.melee.legacy;
     const dir = new THREE.Vector3(); this.camera.getWorldDirection(dir);
     const origin = new THREE.Vector3(); this.camera.getWorldPosition(origin);
-    let best = null, bestDist = def.range;
+    let best = null, bestDist = L.range;
     for (const z of this.zombies) {
       if (!z.alive || z.answer === "spell") continue;
       const toZ = new THREE.Vector3().subVectors(z.mesh.position, origin);
       const dist = toZ.length();
-      if (dist > def.range) continue;
+      if (dist > L.range) continue;
       toZ.normalize();
       if (toZ.dot(dir) > 0.7 && dist < bestDist) { best = z; bestDist = dist; }
     }
     // (overhaul, round 1: called at the swing's hit frame, by G.WeaponSM)
-    if (best) { G.UI.showHitmarker(); this.damageZombie(best, def.damage, best.mesh.position, { dir: dir.clone(), head: false }); return true; }
-    if (G.Bosses.melee(this, origin, dir, def)) { G.UI.showHitmarker(); return true; }
+    if (best) { G.UI.showHitmarker(); this.damageZombie(best, L.damage, best.mesh.position, { dir: dir.clone(), head: false }); return true; }
+    if (G.Bosses.melee(this, origin, dir, L)) { G.UI.showHitmarker(); return true; }
     return false;
   },
 
@@ -2489,7 +2555,8 @@ G.Game = {
     const speedMult = 1 - (1 - wcls.speedMult) * (1 - mule), staminaMult = 1 + (wcls.staminaMult - 1) * (1 - mule);
     // (Overdrive, round 3: sprinting costs nothing while it lasts)
     if (sprinting && !G.Abilities.freeStamina()) this.stamina = Math.max(0, this.stamina - PC.staminaDrain * staminaMult * dt);
-    else if (!sprinting) this.stamina = Math.min(this.maxStamina, this.stamina + PC.staminaRegen * (secondWind ? G.Perks.val("second_wind") : 1) * dt);
+    // (expansion, round 4: none comes back in the middle of a swing, or a held charge would pay for itself)
+    else if (!sprinting && !(this.wsm && this.wsm.mel)) this.stamina = Math.min(this.maxStamina, this.stamina + PC.staminaRegen * (secondWind ? G.Perks.val("second_wind") : 1) * dt);
     // Adrenaline: a burst of speed for three seconds after every kill
     const rush = this._adrenalineT > 0 ? 1 + G.Perks.val("adrenaline") / 100 : 1;
     // a boss's roar slows you down; its roots hold you where you stand
@@ -2561,7 +2628,9 @@ G.Game = {
     const showVm = G.ViewModel.visible !== false && !scoped, arms = G.PlayerBody && G.PlayerBody.armRig;
     if (this.weaponViewGroup && this.weaponViewGroup.visible !== showVm) this.weaponViewGroup.visible = showVm;
     if (arms && arms.group.visible !== showVm) arms.group.visible = showVm;
-    if (G.UI.setChargeMeter) G.UI.setChargeMeter(def.charge ? (this._chargeT || 0) / def.charge.time : null);
+    // (expansion, round 4: a melee swing being held back fills it too)
+    const swung = this.wsm && this.wsm.mel, heldP = swung && swung.plan && swung.phase === "hold" ? Math.min(1, swung.pressT / swung.plan.power) : null;
+    if (G.UI.setChargeMeter) G.UI.setChargeMeter(def.charge ? (this._chargeT || 0) / def.charge.time : heldP);
 
     this.updateWeaponAnim(dt);
     this.updateBloom(dt, def);
@@ -2617,6 +2686,8 @@ G.Game = {
       if (W && (rawFire || edge)) W.requestFire({ pressed: edge, held: rawFire, auto: !!def.auto || def.id === "melee" });
     }
     this._fireEdge = false;
+    // (expansion, round 4) the quick-melee button: never while the feet are held or a question is up
+    if (this._meleeEdge) { this._meleeEdge = false; if (W && !this.challenge && !feetHeld) W.requestMelee(); }
 
     // remaining rounds of a burst, on their own much shorter timer
     if (this._burst) {
@@ -2953,6 +3024,12 @@ G.Game = {
           });
           if (!found.ref.purchased) cardGun = wdef;
         }
+        // (expansion, round 4) a melee weapon on a wall: the one in the slot has nothing to buy
+        if (found.kind === "wallmelee") {
+          const mdef = G.MELEE_WEAPONS[found.ref.key], mine = this.player.melee === found.ref.key;
+          label = mine ? "" : T("prompt.wallMelee", { key, name: mdef.name, price: mdef.price, short: this.player.money < mdef.price ? T("prompt.notEnough") : "" });
+          if (!mine) cardGun = mdef;
+        }
       }
     }
     // a gun on the floor within reach, when nothing in view has a use
@@ -2997,6 +3074,8 @@ G.Game = {
       this.tryOpenStaticCrate(found.ref);
     } else if (found.kind === "wallweapon") {
       this.buyWallWeapon(found.ref);
+    } else if (found.kind === "wallmelee") {
+      this.buyWallMelee(found.ref);
     } else if (found.kind === "roomdoor") {
       this.toggleRoomDoor(found.ref);
     } else if (found.kind === "mysterybox") {
@@ -3334,6 +3413,17 @@ G.Game = {
       G.UI.flashPurchaseBanner(G.WEAPON_DEFS[ref.id].name);
     } });
   },
+  // (expansion, round 4) a melee weapon takes the slot; the one in it is gone
+  // (the one on the wall stays there, to be bought back)
+  buyWallMelee(ref) {
+    const def = G.MELEE_WEAPONS[ref.key];
+    if (!def || this.player.melee === ref.key || this.player.money < def.price) return;
+    this.player.money -= def.price;
+    G.Melee.give(this, ref.key);
+    G.Audio.sfx("purchase");
+    G.UI.pulseHudStat("money");
+    G.UI.flashPurchaseBanner(def.name);
+  },
 
   // Hides an obstacle's mesh AND removes its collider (doors/traps previously
   // only hid the mesh on "opened"/solved, leaving an invisible wall in place
@@ -3587,6 +3677,7 @@ G.onKeyDown = function (e) {
     if (kb.inspect && e.code === kb.inspect) { if (!e.repeat) Game.inspect(); return; }   // (overhaul, round 1)
     if (e.code === kb.interact) { Game.doInteract(); return; }
     if (e.code === kb.melee) { Game.switchSlot(0); return; }
+    if (kb.quickMelee && e.code === kb.quickMelee) { if (!e.repeat) G.onMeleePress(); return; }   // (expansion, round 4)
     // slot2..slot7: the four gun slots, and the two Extra Weapon Slot adds
     for (let s = 2; s <= 7; s++) if (kb["slot" + s] && e.code === kb["slot" + s]) { Game.switchSlot(s - 1); return; }
     // ability1..ability4 (round 3); a held key uses it once
@@ -3613,6 +3704,15 @@ G.onMouseDown = function (e) {
   // a click without pointer lock is the click that takes it back, not a shot.
   if (G.Input.mode === "desktop" && !G.Input.pointerLocked) return;
   if (e.button === 0) G.onFirePress();
+};
+// (expansion, round 4) the quick-melee button, on any device. A run answered
+// only by spelling has no blade: a word is not answered by a blow.
+G.onMeleePress = function () {
+  const Game = G.Game;
+  if (!Game.playing() || Game.challenge) return;
+  if (!G.Melee.on()) { Game.switchSlot(0); return; }
+  if (Game.learn && !Game.learn.shoots) return;
+  Game._meleeEdge = true;
 };
 G.onInteractPress = function () { if (G.Game.playing()) G.Game.doInteract(); };
 G.onSlotPress = function (slot) { if (G.Game.playing()) G.Game.switchSlot(slot); };

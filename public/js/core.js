@@ -467,6 +467,7 @@ G.defaultKeybinds = function () {
     inspect: "KeyG",                           // (overhaul, round 1) show the gun off (F is ability 2, V hears the word)
     melee: "Digit1", slot2: "Digit2", slot3: "Digit3", slot4: "Digit4", slot5: "Digit5",
     slot6: "Digit6", slot7: "Digit7",          // the slots the Extra Weapon Slot perk adds
+    quickMelee: "KeyZ",                        // (expansion, round 4) the melee slot's weapon, whatever is in the hands (held: charged)
     ability1: "KeyQ", ability2: "KeyF", ability3: "KeyC", ability4: "KeyX",   // round 3: the bosses' rewards
     // (vocabulary series, round 3) not letters: they work while typing words
     replay: "Digit9", thaiHint: "Digit0",
@@ -555,6 +556,7 @@ G.Input = {
   gamepadIndex: null,
   // held controller inputs, written each frame by G.Pad.poll (js/gamepad.js)
   padFire: false, padAim: false, padJump: false, padSprint: false,
+  touchMelee: false, padMelee: false,          // (expansion, round 4) the melee button held
   padActive: false,        // the controller was the last thing used
   rebindingAction: null,
 
@@ -692,8 +694,8 @@ G.Input = {
   // the matching touchend/mouseup never reaches us).
   clearHeldInputs() {
     this.mouseDown = false; this.aimDown = false;
-    this.padFire = false; this.padAim = false; this.padJump = false; this.padSprint = false;
-    this.touchFire = false; this.touchJump = false; this.touchSprint = false;
+    this.padFire = false; this.padAim = false; this.padJump = false; this.padSprint = false; this.padMelee = false;
+    this.touchFire = false; this.touchJump = false; this.touchSprint = false; this.touchMelee = false;
     this.touchInteract = false; this.touchReload = false;
     this.touchMove = { x: 0, y: 0, active: false };
     if (this._btnLookFingers) this._btnLookFingers.clear();
@@ -790,6 +792,7 @@ G.Input = {
     bindHold("touch-fire", "touchFire", () => G.onFirePress && G.onFirePress());
     bindHold("touch-jump", "touchJump");
     bindHold("touch-sprint", "touchSprint");
+    bindHold("touch-melee", "touchMelee", () => G.onMeleePress && G.onMeleePress());    // (expansion, round 4: a tap swings, a hold charges)
     // (new series, round 1, D) FIRE and AIM are look areas too: a finger that
     // presses one and drags turns the view -- firing (or aiming) as it turns --
     // for as long as it stays down, even once it has slid off the button.

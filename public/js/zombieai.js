@@ -170,19 +170,21 @@ G.ZombieAI = {
   // ---------------- a hit ----------------
   // a round meets zombie z: what it does. -> { dmg, head } (head: counts as
   // a head shot -- double damage, the head knocked off if it kills)
+  // (expansion, round 4) `def` a melee weapon: its own head multiplier; a heavy
+  // blow counts for more on the helmet (`helmet`) and goes through the vest (`armor`)
   hitMod(game, z, dmg, head, dir, def) {
-    const C = this.C();
+    const C = this.C(), M = def && def.id === "melee" && def.head ? def : null;
     if (z.type === "ironclad") {
       const I = C.ironclad;
       if (head && z._helmetOn !== false) {
-        z._helmetHits = (z._helmetHits || 0) + 1;
+        z._helmetHits = (z._helmetHits || 0) + ((M && M.helmet) || 1);
         if (z._helmetHits >= I.helmetHits) this.popHelmet(game, z, dir);
         else if (G.Audio && G.Audio.zombie) G.Audio.zombie("helmet", z.type, z.mesh.position.clone().setY(z.mesh.position.y + 1.8));
         return { dmg: dmg * I.helmetDamage, head: false, helmet: true };
       }
-      if (!head) return { dmg: dmg * I.vest, head: false };
+      if (!head) return { dmg: dmg * (I.vest + (1 - I.vest) * ((M && M.armor) || 0)), head: false };
     }
-    return { dmg: head ? dmg * G.GunStats.headMult(def) : dmg, head };        // (expansion, round 3: each gun's own, js/gunstats.js)
+    return { dmg: head ? dmg * (M ? M.head : G.GunStats.headMult(def)) : dmg, head };        // (expansion, round 3: each gun's own, js/gunstats.js)
   },
   popHelmet(game, z, dir) {
     z._helmetOn = false;
@@ -198,15 +200,18 @@ G.ZombieAI = {
   react(game, z, dmg, info) {
     if (!z.alive || z.type === "boss") return;
     const H = this.C().hit, f = dmg / Math.max(1, z.maxHp), now = performance.now() / 1000;
-    if (f >= H.heavy && now - (z._lastDown || -99) > H.heavyCooldown) {
+    // (expansion, round 4) a melee blow says how hard it is by what struck
+    // (light, medium, heavy, very_heavy), not by the health it took
+    const s = info && info.stagger;
+    if ((s ? s === "very_heavy" : f >= H.heavy) && now - (z._lastDown || -99) > H.heavyCooldown) {
       z._lastDown = now;
       z._down = H.downTime; z._hold = Math.max(z._hold || 0, H.downTime);
       z._atk = null;
       if (z._rear > 0) this.cancelScream(z);
-    } else if (f >= H.medium) {
+    } else if (s ? s !== "light" : f >= H.medium) {
       z._stagger = H.staggerTime; z._hold = Math.max(z._hold || 0, H.staggerTime * 0.8);
       const d = info && info.dir;
-      if (d && game.pushZombie) game.pushZombie(z, d.x, d.z, H.staggerBack);
+      if (d && game.pushZombie) game.pushZombie(z, d.x, d.z, H.staggerBack + ((info && info.knock) || 0));
     } else if (z.flinch) z.flinch();
   },
   cancelScream(z) {

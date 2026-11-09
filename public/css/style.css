@@ -416,6 +416,7 @@ body.cine-on #hud, body.cine-on #touch-controls { visibility: hidden; }
 .touch-ads    { right: calc(var(--tpad-x) + var(--tf) + 10px); bottom: calc(var(--tpad-b) + var(--tb) * 1.7); width: calc(var(--tb) * var(--s)); height: calc(var(--tb) * var(--s)); background: rgba(255,212,59,0.28); }
 .touch-interact { right: calc(var(--tpad-x) + var(--tf) + 10px); bottom: calc(var(--tpad-b) + var(--tb) * 0.1); width: calc(var(--tb) * var(--s)); height: calc(var(--tb) * var(--s)); background: rgba(107,255,122,0.32); }
 .touch-reload { right: var(--tpad-x); bottom: calc(var(--tpad-b) + var(--tf) + var(--tb) * 0.75); width: calc(var(--tb) * var(--s)); height: calc(var(--tb) * var(--s)); background: rgba(80,160,255,0.32); }
+.touch-melee { right: calc(var(--tpad-x) + var(--tf) + 10px); bottom: calc(var(--tpad-b) + var(--tb) * 2.85); width: calc(var(--tb) * var(--s)); height: calc(var(--tb) * var(--s)); background: rgba(255,130,90,0.3); }
 .touch-jump   { left: calc(var(--tpad-l) + var(--tj) + 12px); bottom: var(--tpad-b); width: calc(var(--tb) * var(--s)); height: calc(var(--tb) * var(--s)); background: rgba(255,220,80,0.3); }
 /* Stacked above JUMP rather than above the joystick: on a short phone the
    stats panel reaches far enough down the left edge that the old spot
@@ -1456,6 +1457,7 @@ body.fx-low .touch-btn { background: rgba(12,18,16,0.58); }
 .touch-ads.active { background: rgba(255,212,59,0.34); border-color: #ffd43b; box-shadow: 0 0 18px rgba(255,212,59,0.65), inset 0 0 12px rgba(255,212,59,0.3); }
 .touch-interact { --glow: 107,255,122; }
 .touch-reload { --glow: 90,170,255; }
+.touch-melee { --glow: 255,130,90; }
 .touch-jump { --glow: 255,220,80; }
 .touch-sprint { --glow: 120,200,255; }
 .touch-sprint.pressed, .touch-sprint.active { background: rgba(120,200,255,0.3); }
@@ -1568,7 +1570,7 @@ body.touch-mode .hud-spell { --tj: clamp(104px, 22vmin, 158px); --tb: clamp(42px
   bottom: calc(8px + var(--sa-b)); min-width: 0; padding: 6px 8px 4px;
   width: calc(100vw - 2 * (16px + var(--tj) + var(--tb) + 22px) - var(--sa-l) - var(--sa-r)); }
 body.spell-run .touch-abilities { display: none; }
-body.spell-only #touch-fire, body.spell-only #touch-ads, body.spell-only #touch-reload { display: none; }
+body.spell-only #touch-fire, body.spell-only #touch-ads, body.spell-only #touch-reload, body.spell-only #touch-melee { display: none; }
 /* held upright there is no room between the thumbs: over them instead */
 @media (orientation: portrait) {
   body.touch-mode .hud-spell { width: calc(100vw - 24px); bottom: calc(14px + var(--sa-b) + var(--tf) + var(--tb) * 1.75 + 12px); }
@@ -2574,4 +2576,8 @@ body.modal-question .hud-statcard { display: none; }
 @media (max-width: 640px) and (min-height: 521px) and (max-height: 700px) {
   .hud-statcard { left: 8px; right: auto; }
   .hud-statcard .statc-nums, .hud-statcard .statc-vs, .hud-statcard .statc-tags { display: none; }
+}
+/* (expansion, round 4) a phone upright: the melee button in the bottom row, or the HUD has to climb over it */
+@media (max-width: 640px) and (min-height: 521px) {
+  .touch-melee { right: calc(var(--tpad-x) + var(--tf) + var(--tb) + 18px); bottom: calc(var(--tpad-b) + var(--tb) * 0.1); }
 }

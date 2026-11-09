@@ -298,6 +298,21 @@
         [-0.2, 0.2].forEach((dz) => P.box(g, 0.9, 0.04, 0.04, P.lam(0x6a4a2a), -0.55, 0.5, dz, 0, 0, 0.2));
         S.spot(49.1, 0.02, -36.3, "garden");
       }
+      // (expansion, round 4) the gardener's shed against the fence, across the
+      // hedge at the end of the path: open on the garden side, the machete on
+      // its back wall
+      {
+        const sx = 53.9, sz = -38, wood = P.lam(0x5a4632), roof = P.lam(0x46463f);
+        const shed = new THREE.Group(); shed.position.set(sx, 0, sz); scene.add(shed);
+        P.box(shed, 0.14, 2.9, 4.4, wood, 1.2, 1.45, 0);
+        [-2.14, 2.14].forEach((dz) => P.box(shed, 2.5, 2.9, 0.12, wood, 0, 1.45, dz));
+        P.box(shed, 2.9, 0.1, 4.8, roof, 0, 2.98, 0, 0, 0, 0.07);
+        S.col(sx + 1.13, 0, sz - 2.2, sx + 1.27, 2.9, sz + 2.2);
+        [-1, 1].forEach((s) => S.col(sx - 1.25, 0, sz + s * 2.14 - 0.06, sx + 1.25, 2.9, sz + s * 2.14 + 0.06));
+        G.Melee.mount(world, scene, "machete", sx + 1.1, 0, sz, false);
+        S.take(sx - 1.3, sz - 2.3, sx + 1.3, sz + 2.3);
+        S.noGrass(sx - 1.2, sz - 2.1, sx + 1.2, sz + 2.1);
+      }
       S.landmark("GARDEN", cx, cz, 13);
       S.take(GX0, GZ0, GX1, GZ1 + 0.5);
     },

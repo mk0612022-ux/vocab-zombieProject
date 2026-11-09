@@ -124,7 +124,7 @@ G.ReportStore = (function () {
       level: g.level ? g.level.id : null, zone: (G.Acoustics && G.Acoustics.zone) || "", wave: g.wave, floor: Y && Y.length > 1 ? (feet < Y[1] - 1 ? 1 : Y.length < 3 || feet < Y[2] - 1 ? 2 : 3) : null,
       zombies: alive, kinds, boss: G.Bosses && G.Bosses.phase ? G.Bosses.phase : "",
       player: { hp: round(pl.hp, 1), maxHp: pl.maxHp, stamina: round(g.stamina, 1), money: pl.money, score: pl.score, combo: pl.combo, x: round(p.x, 2), y: round(p.y, 2), z: round(p.z, 2) },
-      weapon: { id, state: W ? W.state : "", stateTime: W ? round(W.stateT, 2) : 0, held: W ? W.held : "", mag: a ? a.mag : null, reserve: a ? a.reserve : null, levels: pl.weaponLevels[id] || null, slots: pl.gunSlots },
+      weapon: { id, melee: pl.melee || "knife", state: W ? W.state : "",stateTime: W ? round(W.stateT, 2) : 0, held: W ? W.held : "", mag: a ? a.mag : null, reserve: a ? a.reserve : null, levels: pl.weaponLevels[id] || null, slots: pl.gunSlots },
       word: g.targetPair ? { word: g.targetPair[0], id: g.targetPair.id || "", clue: g.targetClue ? g.targetClue.kind : "" } : null,
       question: g.challenge ? { word: g.challenge.pair[0], type: g.challenge.q.type, timeLeft: round(g.challenge.timeLeft, 1) } : null,
     });

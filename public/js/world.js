@@ -1418,6 +1418,12 @@ G.buildLevelScene = function (scene, level, quality) {
         const mx = r.cx < 0 ? r.cx - r.w / 2 + 0.3 : r.cx + r.w / 2 - 0.3;
         mountWallGun(spec.gun, mx, y, r.cz + (spec.gunOffZ || 0), r.cx < 0);
       }
+      // (expansion, round 4) a melee weapon for sale on the same wall (meleeIn: on the face of the rack against it)
+      if (spec.melee) {
+        const r = spec.room;
+        const off = 0.3 + (spec.meleeIn || 0);
+        G.Melee.mount(world, scene, spec.melee, r.cx < 0 ? r.cx - r.w / 2 + off : r.cx + r.w / 2 - off, spec.baseY, r.cz + (spec.meleeOffZ || 0), r.cx < 0);
+      }
       if (spec.mystery) {
         const s = 1.4;
         let mbX = spec.room.cx + spec.room.w / 2 - 2.2, mbZ = spec.room.cz - spec.room.d / 2 + 2.2;
@@ -1904,7 +1910,7 @@ G.buildLevelScene = function (scene, level, quality) {
           { key: "W6", side: "W", row: 5, light: 1, type: "music" },
           { key: "E6", side: "E", row: 5, light: 0, type: "classroom", num: "1D" },
           { key: "W7", side: "W", row: 6, light: 4, type: "changing" },
-          { key: "E7", side: "E", row: 6, light: 2, type: "sports" },
+          { key: "E7", side: "E", row: 6, light: 2, type: "sports", melee: "bat" },
           // 2nd floor (the stairwell up to the 3rd takes row 0 east)
           { key: "PW1", side: "W", row: 0, span: 2, storey: 2, light: 1, type: "library", gun: "honor_roll" },
           { key: "PE2", side: "E", row: 1, storey: 2, light: 2, type: "classroom", num: "2A" },
@@ -1961,7 +1967,7 @@ G.buildLevelScene = function (scene, level, quality) {
           { key: "W2", side: "W", row: 1, light: 1, furnish: "theatre", gun: "bone_saw" },
           { key: "E2", side: "E", row: 1, light: 3, furnish: "storage", gun: "iv_repeater" },
           { key: "W3", side: "W", row: 2, light: 2, button: true, furnish: "office" },
-          { key: "E3", side: "E", row: 2, light: 0, furnish: "ward" },
+          { key: "E3", side: "E", row: 2, light: 0, furnish: "ward", melee: "axe", meleeOffZ: 1.9 },
           { key: "W4", side: "W", row: 3, light: 4, secret: true, furnish: "lab", gun: "quarantine_lance", hasKey: true },
           { key: "E4", side: "E", row: 3, light: 1, wordDoor: true, furnish: "storage", gun: "morphine_mist", hasKey: true },
           { key: "W5", side: "W", row: 4, light: 2, furnish: "morgue" },
@@ -1974,7 +1980,7 @@ G.buildLevelScene = function (scene, level, quality) {
           { key: "PE3", side: "E", row: 2, storey: 2, light: 1, mystery: true, furnish: "storage" },
           { key: "PW4", side: "W", row: 3, storey: 2, light: 3, furnish: "lab", gun: "vital_sign" },
           { key: "PE4", side: "E", row: 3, storey: 2, light: 0, furnish: "office", gun: "code_blue" },
-          { key: "PW5", side: "W", row: 4, storey: 2, light: 2, furnish: "storage" },
+          { key: "PW5", side: "W", row: 4, storey: 2, light: 2, furnish: "storage", melee: "crowbar", meleeIn: 1.3 },
           { key: "PE5", side: "E", row: 4, storey: 2, light: 4, furnish: "ward" },
         ],
       };
@@ -2008,7 +2014,7 @@ G.buildLevelScene = function (scene, level, quality) {
         { key: "E3", side: "E", row: 2, light: 0, secret: true, furnish: "cells", hasKey: true },
         { key: "W4", side: "W", row: 3, light: 4, wordDoor: true, furnish: "storage", gun: "siege_slug", hasKey: true },
         { key: "E4", side: "E", row: 3, light: 1, furnish: "office", gun: "drum_hammer" },
-        { key: "W5", side: "W", row: 4, light: 2, furnish: "storage" },
+        { key: "W5", side: "W", row: 4, light: 2, furnish: "storage", melee: "shovel", meleeIn: 1.3 },
         { key: "E5", side: "E", row: 4, light: 3, furnish: "armoury" },
         { key: "PW1", side: "W", row: 0, storey: 2, light: 1, furnish: "control" },
         { key: "PE1", side: "E", row: 0, storey: 2, light: 3, furnish: "office" },

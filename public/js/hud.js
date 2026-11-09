@@ -60,7 +60,9 @@ G.Hud = (function () {
       const pl = game.player, kb = G.save.settings.keybinds;
       // (the knife and the starting pistol by short names in the language of the
       // menus -- "Knife", "Pistol"; every other gun by its own name)
-      const cells = [{ kind: "knife", id: "melee", name: T("hud.slotKnife"), key: G.keyLabel(kb.melee), active: pl.currentSlot === 0 }];
+      // (expansion, round 4: the melee slot shows what is in it)
+      const md = G.meleeDef(game);
+      const cells = [{ kind: "knife", id: "melee", name: md.key === "knife" ? T("hud.slotKnife") : md.name, key: G.keyLabel(kb.melee), active: pl.currentSlot === 0 }];
       pl.gunSlots.forEach((id, i) => {
         const d = G.WEAPON_DEFS[id], r = d && G.RARITY[d.rarity];
         cells.push({ kind: "gun", id, name: id === "pistol" ? T("hud.slotPistol") : d ? d.name : id, color: r ? "#" + r.color.toString(16).padStart(6, "0") : null, key: G.keyLabel(kb["slot" + (i + 2)]), active: pl.currentSlot === i + 1 });
@@ -188,7 +190,7 @@ G.Hud = (function () {
     thumbRects() {
       if (!document.body.classList.contains("touch-mode") || !G.TouchCfg) return [];
       const H = window.innerHeight, moved = G.TouchCfg.cfg().pos;
-      return ["joystick", "fire", "ads", "interact", "reload", "jump", "sprint"].filter((id) => !moved[id]).map((id) => {
+      return ["joystick", "fire", "ads", "interact", "reload", "melee", "jump", "sprint"].filter((id) => !moved[id]).map((id) => {
         const el = G.TouchCfg.el(id);
         const r = el && el.getClientRects().length ? el.getBoundingClientRect() : null;
         return r && r.width > 1 && r.top > H * 0.35 ? r : null;

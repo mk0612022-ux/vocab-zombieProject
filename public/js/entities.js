@@ -589,7 +589,7 @@ G.HOLD_POSES = {
 };
 G.holdPose = function (def) {
   if (!def) return G.HOLD_POSES.medium;
-  if (def.id === "melee") return G.HOLD_POSES.melee;
+  if (def.id === "melee") return def.hold || G.HOLD_POSES.melee;    // (expansion, round 4: each its own carry)
   return G.HOLD_POSES[G.weightClass(def).key] || G.HOLD_POSES.medium;
 };
 // (gun reference pass) o.still: a gun only shown -- on a wall, on the floor,
@@ -620,19 +620,49 @@ G.buildWeaponMesh = function (def, o) {
   return g;
 };
 
-G.buildMeleeMesh = function () {
+// (expansion, round 4) The melee weapons, of boxes like everything else: the
+// handle along +y from the hand, whatever strikes at the far end. Each part:
+// [width, height, depth, colour, x, y, z, surface (js/gunskin.js), rz]
+G.MELEE_MODELS = {
+  knife: { grip: [0, -0.1, 0], parts: [
+    [0.06, 0.2, 0.06, 0x3a2a1a, 0, -0.1, 0, "grip"], [0.11, 0.022, 0.06, 0x54585a, 0, 0.012, 0, "worn"],
+    [0.04, 0.32, 0.02, 0xcfd6d6, 0, 0.14, 0, "bare"], [0.012, 0.3, 0.023, 0xeef2f2, -0.014, 0.14, 0, "bare"]] },
+  bat: { grip: [0, -0.08, 0], parts: [
+    [0.075, 0.03, 0.075, 0x6e4a26, 0, -0.205, 0, "polymer"], [0.05, 0.3, 0.05, 0x22242a, 0, -0.05, 0, "grip"],
+    [0.06, 0.2, 0.06, 0xa4743e, 0, 0.2, 0, "polymer"], [0.078, 0.2, 0.078, 0xb0804a, 0, 0.4, 0, "polymer"],
+    [0.092, 0.24, 0.092, 0xb88a52, 0, 0.62, 0, "polymer"], [0.094, 0.018, 0.094, 0x8a2a24, 0, 0.56, 0, "polymer"], [0.078, 0.02, 0.078, 0x8e6436, 0, 0.75, 0, "polymer"]] },
+  machete: { grip: [0, -0.08, 0], parts: [
+    [0.055, 0.2, 0.05, 0x2c2622, 0, -0.08, 0, "grip"], [0.09, 0.02, 0.055, 0x4a4e50, 0.012, 0.03, 0, "worn"],
+    [0.075, 0.5, 0.012, 0x7c8488, 0.012, 0.29, 0, "worn"], [0.022, 0.5, 0.014, 0xd4dadc, 0.056, 0.29, 0, "bare"],
+    [0.085, 0.13, 0.012, 0x7c8488, 0.022, 0.58, 0, "worn", -0.22], [0.024, 0.14, 0.014, 0xd4dadc, 0.072, 0.56, 0, "bare", -0.22]] },
+  axe: { grip: [0, -0.06, 0], parts: [
+    [0.052, 0.86, 0.052, 0xc9a23a, 0, 0.22, 0, "polymer"], [0.056, 0.2, 0.056, 0x1e1e20, 0, -0.1, 0, "grip"],
+    [0.13, 0.13, 0.06, 0xb02a22, 0.06, 0.62, 0, "polymer"], [0.075, 0.2, 0.032, 0xd8dcdc, 0.15, 0.62, 0, "bare"],
+    [0.13, 0.05, 0.04, 0xb02a22, -0.09, 0.63, 0, "polymer", 0.22], [0.05, 0.03, 0.03, 0xd8dcdc, -0.16, 0.655, 0, "bare", 0.22]] },
+  crowbar: { grip: [0, -0.06, 0], parts: [
+    [0.034, 0.72, 0.034, 0x2c3e6a, 0, 0.2, 0, "worn"], [0.04, 0.2, 0.04, 0x1a1a1c, 0, -0.08, 0, "grip"],
+    [0.034, 0.09, 0.034, 0x3a4c78, -0.02, 0.59, 0, "worn", 0.5], [0.09, 0.03, 0.03, 0x8e969a, -0.075, 0.635, 0, "bare", -0.25],
+    [0.05, 0.028, 0.026, 0xc8ced0, -0.13, 0.62, 0, "bare", -0.5], [0.05, 0.03, 0.022, 0x8e969a, 0.01, -0.19, 0, "bare", 0.3]] },
+  shovel: { grip: [0, -0.04, 0], parts: [
+    [0.044, 0.62, 0.044, 0x6e5230, 0, 0.14, 0, "polymer"], [0.1, 0.034, 0.04, 0x2a2c26, 0, -0.18, 0, "grip"],
+    [0.04, 0.09, 0.04, 0x4e5a3a, 0, 0.47, 0, "worn"], [0.2, 0.2, 0.016, 0x4e5a3a, 0, 0.6, 0, "worn"],
+    [0.15, 0.06, 0.016, 0x4e5a3a, 0, 0.72, 0, "worn"], [0.15, 0.024, 0.018, 0xb4babc, 0, 0.76, 0, "bare"]] },
+};
+G.buildMeleeMesh = function (def) {
+  const M = G.MELEE_MODELS[(def && def.key) || "knife"] || G.MELEE_MODELS.knife;
   const g = new THREE.Group();
-  const handle = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.2, 0.06), G.makeBoxMat(0x3a2a1a));
-  handle.position.set(0, -0.1, 0);
-  g.add(handle);
-  const blade = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.32, 0.02), G.makeBoxMat(0xcfd6d6));
-  blade.position.set(0, 0.14, 0);
-  g.add(blade);
-  g.userData.anchors = { grip: new THREE.Vector3(0, -0.1, 0) };
+  M.parts.forEach(([w, h, d, color, x, y, z, skin, rz]) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), G.makeBoxMat(color));
+    m.position.set(x, y, z);
+    if (rz) m.rotation.z = rz;
+    // (overhaul, round 2) a rubber handle, a bare steel blade
+    m.material.userData.skin = skin;
+    g.add(m);
+  });
+  g.userData.anchors = { grip: new THREE.Vector3().fromArray(M.grip) };
+  if (M.fore) g.userData.anchors.fore = new THREE.Vector3().fromArray(M.fore);
   g.userData.parts = {};
   g.userData.reloadStyle = null;
-  // (overhaul, round 2) a rubber handle, a bare steel blade
-  handle.material.userData.skin = "grip"; blade.material.userData.skin = "bare";
   if (G.GunSkin) G.GunSkin.apply(g);
   return g;
 };

@@ -316,7 +316,8 @@ G.Round32Test = (function () {
         const known = G.save.unlockedWeapons, shown = (G.save.unlockedWeapons = ["smg"]);
         G.UI.renderWeaponLog(1);
         const log = $("weaponlog-content");
-        ok("H the Armory: a gun you have met has the card", log.querySelectorAll(".stat-card").length === 1 && log.querySelector(".stat-card").textContent.includes(G.WEAPON_DEFS.smg.name), shown.length);
+        // (round 4: the melee weapons have their own section, never locked)
+        ok("H the Armory: a gun you have met has the card", log.querySelectorAll(".stat-card:not(.melee)").length === 1 && log.querySelector(".stat-card:not(.melee)").textContent.includes(G.WEAPON_DEFS.smg.name), shown.length);
         ok("H ...one you have not stays a lock", log.querySelectorAll(".weaponlog-card.locked").length === G.weaponsForLevel(1).length - 1);
         G.save.unlockedWeapons = known;
         const hand = G.WEAPON_DEFS.sniper;

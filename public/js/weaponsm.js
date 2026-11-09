@@ -27,7 +27,9 @@
 //   fireInterval(id)           seconds between shots
 //   doFire(shotId, charge, inBurst)   gameplay: the round leaves -> true
 //   dryFire()                  the empty click
-//   startMelee(id), doMelee(id)       the swing begins; the blade arrives -> hit?
+//   startMelee(id, plan), doMelee(id, swing)   the swing begins; the blade arrives -> hit?
+//   meleePlan(o), meleeSweep(id, u0, u1, swing), meleeEnd(swing, why), meleeHeld(swing),
+//   quickModel(on)             (optional; expansion, round 4) the swing by steps: "the melee slot"
 //   planReload(id, kind, missing)     { style, dur, events: [{ t, kind }], pump }
 //   commitReload(reloadId, id, n)     n: "full" or 1 -> rounds added
 //   reloadSpeed()              Quick Hands
@@ -242,10 +244,10 @@
       if (!o.pressed && !o.auto) return false;
       if (!prepare(o)) { refresh("fire"); return false; }
       let r = false;
-      if (sm.sw || sm.mel) r = false;
+      if (sm.sw || sm.mel) { if (sm.mel && sm.mel.plan && o.pressed && sm.held === "melee") queue(o); r = false; }
       else if (sm.rl) r = fireDuringReload(o);
       else if (sm.raiseT > 0 || sm.sprintOut > 0) r = false;          // queued (prepare)
-      else if (sm.held === "melee") r = startMelee();
+      else if (sm.held === "melee") r = startMelee(o);
       else r = fireNow(o);
       refresh("fire");
       return r;
@@ -304,18 +306,110 @@
       return true;
     };
 
-    // ---------------- the knife ----------------
-    function startMelee() {
-      if (sm.mel || !host.cooldownReady()) return false;
+    // ---------------- the melee slot ----------------
+    // (expansion, round 4) With a plan from the host a swing goes by steps
+    // (without one -- G.CONFIG.expansion.melee off, or a host that has none --
+    // it is the old cut: one blow at its hit frame):
+    //   dip     a quick swing: the gun goes down, the weapon comes up in its place
+    //   wind    the wind-up
+    //   hold    a weapon with `power`, the button still down: drawn back, charging
+    //   swing   the edge moves (host.meleeSweep, every frame). A hit stands the
+    //           swing still a moment; a wall ends it
+    //   rec     back to the ready
+    //   rise    a quick swing: the gun comes back up
+    function startMelee(o) {
+      o = o || {};
+      if (sm.mel || (!o.quick && !host.cooldownReady())) return false;
       const meleeId = ++sm.ids;
-      const dur = Math.max(C.melee.hit + 0.05, host.fireInterval("melee") || C.melee.dur);
-      sm.mel = { meleeId, t: 0, dur, hitT: C.melee.hit, hit: false };
-      host.startMelee(meleeId);
-      emit("weapon:melee", { phase: "start", meleeId });
+      const P = host.meleePlan ? host.meleePlan(o) : null;
+      if (P) {
+        sm.mel = { meleeId, t: 0, dur: P.dur, hitT: P.wind, hit: false, plan: P, quick: !!o.quick, phase: P.dip > 0 ? "dip" : "wind", pt: 0,
+          pressT: 0, swept: 0, stop: 0, ready: false, charged: false, swapped: false, bounceU: null, limit: P.dip + P.dur + P.rise + P.maxHold };
+        host.startMelee(meleeId, P);
+      } else {
+        const dur = Math.max(C.melee.hit + 0.05, host.fireInterval("melee") || C.melee.dur);
+        sm.mel = { meleeId, t: 0, dur, hitT: C.melee.hit, hit: false };
+        host.startMelee(meleeId);
+      }
+      emit("weapon:melee", { phase: "start", meleeId, key: P ? P.key : null, quick: !!o.quick });
       return true;
+    }
+    // the quick-melee button: the weapon in the melee slot, whatever is in the hands
+    sm.requestMelee = function () {
+      if (sm.held === null) sync();
+      if (sm.held === null || anyDisabled() || sm.sw) return false;
+      if (sm.held === "melee") return sm.requestFire({ pressed: true, held: true, auto: true });
+      if (sm.mel || !prepare({})) { refresh("melee"); return false; }
+      sm.raiseT = 0; sm.sprintOut = 0; sm.queued = 0;
+      if (sm.rl) cancelReload("melee");
+      const r = startMelee({ quick: true });
+      refresh("melee");
+      return r;
+    };
+    function swingStart(M) {
+      M.phase = "swing"; M.pt = 0; M.t = M.plan.wind;
+      host.doMelee(M.meleeId, M);
+      emit("weapon:melee", { phase: "swing", meleeId: M.meleeId, key: M.plan.key, charged: M.charged });
+    }
+    function swingEnd(M) {
+      sm.mel = null;
+      if (host.meleeEnd) host.meleeEnd(M, "done");
+      emit("weapon:melee", { phase: "end", meleeId: M.meleeId, hit: M.hit });
+    }
+    function tickSwing(dt) {
+      const M = sm.mel, P = M.plan;
+      M.pt += dt;
+      switch (M.phase) {
+        case "dip":
+          if (M.pt >= P.dip) { host.quickModel(true); M.swapped = true; M.phase = "wind"; M.pt = 0; }
+          break;
+        case "wind":
+          M.t = Math.min(P.wind, M.pt); M.pressT += dt;
+          if (M.pt >= P.wind) {
+            if (P.power > 0 && host.meleeHeld && host.meleeHeld(M)) {
+              M.phase = "hold"; M.pt = 0;
+              emit("weapon:melee", { phase: "hold", meleeId: M.meleeId, key: P.key, secs: Math.max(0.05, P.power - M.pressT) });
+            } else swingStart(M);
+          }
+          break;
+        case "hold":
+          M.pressT += dt;
+          if (!M.ready && M.pressT >= P.power) { M.ready = true; emit("weapon:melee", { phase: "charged", meleeId: M.meleeId, key: P.key }); }
+          if (!host.meleeHeld(M) || M.pressT >= P.maxHold) { M.charged = M.ready; swingStart(M); }
+          break;
+        case "swing": {
+          if (M.stop > 0) {
+            M.stop -= dt; M.pt -= dt;
+            if (M.stop > 0) break;
+            M.pt += -M.stop; M.stop = 0;
+          }
+          const to = Math.min(1, M.pt / P.active);
+          if (to > M.swept) {
+            const r = host.meleeSweep(M.meleeId, M.swept, to, M) || {};
+            M.swept = to; M.t = P.wind + to * P.active;
+            if (r.hit) { M.hit = true; emit("weapon:melee", { phase: "hit", meleeId: M.meleeId, hit: true }); }
+            if (r.wall) { M.bounceU = to; M.phase = "rec"; M.pt = 0; emit("weapon:melee", { phase: "wall", meleeId: M.meleeId }); break; }
+            if (r.stop > 0) { M.stop = r.stop; break; }
+          }
+          if (to >= 1) { M.phase = "rec"; M.pt = 0; }
+          break;
+        }
+        case "rec":
+          M.t = Math.min(M.dur, P.wind + P.active + M.pt);
+          if (M.pt >= P.recover) {
+            if (P.rise > 0) { host.quickModel(false); M.swapped = false; M.phase = "rise"; M.pt = 0; }
+            else swingEnd(M);
+          }
+          break;
+        case "rise":
+          if (M.pt >= P.rise) swingEnd(M);
+          break;
+        default: swingEnd(M);
+      }
     }
     function tickMelee(dt) {
       const M = sm.mel;
+      if (M.plan) { tickSwing(dt); return; }
       M.t += dt;
       if (!M.hit && M.t >= M.hitT) {
         M.hit = true;
@@ -328,7 +422,16 @@
       const M = sm.mel;
       if (!M) return;
       sm.mel = null;
+      if (M.swapped) host.quickModel(false);     // (a quick swing cut off: the gun back in the hands)
+      if (M.plan && host.meleeEnd) host.meleeEnd(M, "cancel");
       emit("weapon:melee", { phase: "cancel", meleeId: M.meleeId, reason });
+    }
+    sm.cancelMelee = function (reason) { cancelMelee(reason || "request"); refresh("cancelMelee"); };
+    // the swing as the animation sees it
+    function swingView(M) {
+      const P = M.plan, n = { dip: P.dip, wind: P.wind, rec: P.recover, rise: P.rise }[M.phase];
+      return { phase: M.phase, u: M.phase === "swing" ? M.swept : n ? Math.min(1, M.pt / n) : 0, plan: P, quick: M.quick, bounceU: M.bounceU,
+        charge: P.power ? Math.min(1, M.pressT / P.power) : 0 };
     }
 
     // ---------------- reloading ----------------
@@ -556,7 +659,7 @@
         sm.queued = Math.max(0, sm.queued - dt);
         if (sm.canFire() && host.cooldownReady()) {
           sm.queued = 0;
-          if (sm.held === "melee") startMelee(); else fireNow({ pressed: true });
+          if (sm.held === "melee") startMelee({ pressed: true }); else fireNow({ pressed: true });
         }
       }
       sm.stateT += dt;
@@ -575,7 +678,7 @@
         case "Reloading": return sm.rl && sm.rl.plan ? sm.rl.plan.dur / Math.max(0.2, host.reloadSpeed() || 1) * W.reloadScale + W.reloadPad : null;
         case "Switching": return sm.sw ? sm.sw.dur * W.switchScale + W.switchPad : null;
         case "Inspecting": return sm.insp ? sm.insp.dur + W.inspectPad : null;
-        case "Melee": return sm.mel ? sm.mel.dur + W.meleePad : null;
+        case "Melee": return sm.mel ? (sm.mel.limit || sm.mel.dur) + W.meleePad : null;
         default: return null;
       }
     }
@@ -617,6 +720,7 @@
         lowered: isLowered() || sm.raiseT > 0, disabled: anyDisabled(),
         switchP: sm.switchProgress(), inspectP: sm.inspectProgress(),
         meleeP: sm.mel ? Math.min(1, sm.mel.t / sm.mel.dur) : null, meleeHitP: sm.mel ? sm.mel.hitT / sm.mel.dur : null,
+        melee: sm.mel && sm.mel.plan ? swingView(sm.mel) : null,
         reload: sm.rl && sm.rl.plan ? sm.rl : null, sprintOut: sm.sprintOut, aim: sm.aimActive,
       };
     };

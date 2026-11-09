@@ -42,7 +42,7 @@ window.G = window.G || {};
     { id: "help", icon: "❓", art: "practice-card" },     // (expansion, round 2)
     { id: "about", icon: "ℹ️", art: "school-card" },
   ];
-  const ACTIONS = ["forward", "back", "left", "right", "sprint", "jump", "reload", "inspect", "interact", "melee", "slot2", "slot3", "slot4", "slot5", "slot6", "slot7",
+  const ACTIONS = ["forward", "back", "left", "right", "sprint", "jump", "reload", "inspect", "interact", "melee", "quickMelee", "slot2", "slot3", "slot4", "slot5", "slot6", "slot7",
     "ability1", "ability2", "ability3", "ability4", "replay", "thaiHint", "pause", "report"];
   // (round 3) a language's name in itself: G.Lang.NAMES (js/wordbank.js)
 

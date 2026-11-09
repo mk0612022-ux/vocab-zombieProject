@@ -75,7 +75,8 @@ G.STRINGS = {
     "howto.body": "<p>The top of the screen shows the <strong>meaning</strong> of a word — find the zombie carrying the word with that meaning and shoot it! (Settings &gt; Language: the language of the words, and of their meanings.)</p>"
       + "<ul><li><b>WASD</b> move, <b>Mouse</b> look, <b>Left click</b> shoot, <b>Hold right click</b> aim (zoom)</li>"
       + "<li><b>R</b> reload, <b>E</b> use / pick up, <b>Shift</b> sprint (uses the blue stamina bar, which refills when you stop)</li>"
-      + "<li><b>1</b> knife (unlimited melee), <b>2-5</b> switch guns (<b>6-7</b> with the Extra Weapon Slot perk), or the <b>mouse wheel</b></li>"
+      + "<li><b>1</b> the melee slot (the knife, or a weapon bought off a wall), <b>2-5</b> switch guns (<b>6-7</b> with the Extra Weapon Slot perk), or the <b>mouse wheel</b></li>"
+      + "<li><b>Z</b> swings the melee weapon whatever is in your hands. It uses stamina; hold it to charge a bat, an axe or a shovel. A wall stops the swing, and a sideways swing goes over a Crawler unless you look down</li>"
       + "<li><b>ESC</b> pause</li>"
       + "<li>Controller: <b>RT</b> shoot, <b>LT</b> aim, <b>A</b> jump, <b>X</b> reload, <b>Y</b> use, <b>LB / RB</b> switch guns, <b>Menu</b> pause</li>"
       + "<li>Right zombie = score + money / wrong zombie = you lose health and the rest speed up</li>"
@@ -128,7 +129,7 @@ G.STRINGS = {
     "settings.exportSave": "Export Save",
     "settings.importSave": "Import Save",
     "key.forward": "Forward", "key.back": "Back", "key.left": "Left", "key.right": "Right", "key.sprint": "Sprint", "key.jump": "Jump",
-    "key.reload": "Reload", "key.interact": "Interact", "key.melee": "Knife", "key.slot2": "Weapon slot 2", "key.slot3": "Weapon slot 3",
+    "key.reload": "Reload", "key.interact": "Interact", "key.melee": "Melee slot", "key.quickMelee": "Quick melee", "key.slot2": "Weapon slot 2", "key.slot3": "Weapon slot 3",
     "key.slot4": "Weapon slot 4", "key.slot5": "Weapon slot 5", "key.slot6": "Weapon slot 6 (perk)", "key.slot7": "Weapon slot 7 (perk)",
     "key.pause": "Pause",
     "save.persistFailTitle": "Can't save progress",
@@ -998,6 +999,17 @@ G.STRINGS = {
 
     // ---- weapon names ----
     "weapon.melee": "Combat Knife",
+    // (expansion, round 4) the melee slot
+    "melee.name.bat": "Baseball Bat", "melee.name.machete": "Machete", "melee.name.axe": "Fire Axe", "melee.name.crowbar": "Crowbar", "melee.name.shovel": "Field Shovel",
+    "melee.niche.knife": "Quick, head x2", "melee.niche.bat": "Knocks back, cracks helmets", "melee.niche.machete": "Cuts deep where there is no armour", "melee.niche.axe": "Breaks armour", "melee.niche.crowbar": "All-rounder, rings on metal", "melee.niche.shovel": "Low targets",
+    "melee.where.knife": "Every level, from the start", "melee.where.bat": "School: the PE store", "melee.where.machete": "School: the shed by the dead flower garden", "melee.where.axe": "Hospital: the emergency cabinet", "melee.where.crowbar": "Hospital: the maintenance room", "melee.where.shovel": "Bunker: the supply store",
+    "melee.stagger.light": "Light stagger", "melee.stagger.medium": "Medium stagger", "melee.stagger.heavy": "Heavy stagger", "melee.stagger.very_heavy": "Knocks down",
+    "melee.tag.power": "Hold to charge", "melee.tag.combo": "Two-hit combo",
+    "stat.speed": "Speed", "stat.reach": "Reach", "stat.sweep": "Sweep", "stat.blow": "Stagger", "stat.thrift": "Stamina",
+    "stat.swing": "Swing", "stat.ms": "{n} ms", "stat.metres": "{n} m", "stat.targets": "Targets", "stat.stamina": "Stamina",
+    "prompt.wallMelee": "Press {key} to buy {name} (${price}{short})",
+    "weaponlog.melee": "Melee weapons",
+    "touch.meleeLabel": "Melee", "touchcfg.melee": "Melee button",
     "weapon.pistol": "Pistol", "weapon.shotgun": "Shotgun", "weapon.smg": "SMG", "weapon.rifle": "Assault Rifle", "weapon.lmg": "LMG",
     "weapon.sniper": "Sniper", "weapon.railgun": "Piercing Railgun", "weapon.grenadelauncher": "Grenade Launcher",
     "weapon.golden_smg": "Golden Vocabulary SMG", "weapon.school_wall": "Faculty Enforcer", "weapon.hospital_wall": "Trauma Cannon",
@@ -1879,7 +1891,7 @@ G.applyStaticStrings = function (root) {
 G.localizeData = function () {
   (G.LEVELS || []).forEach((l) => { l.name = G.T("level." + l.id); });
   if (G.WEAPON_DEFS) Object.values(G.WEAPON_DEFS).forEach((d) => { d.name = G.T("weapon." + d.id); });
-  if (G.MELEE_DEF) G.MELEE_DEF.name = G.T("weapon.melee");
+  if (G.MELEE_WEAPONS) Object.values(G.MELEE_WEAPONS).forEach((m) => { m.name = G.T(m.key === "knife" ? "weapon.melee" : "melee.name." + m.key); });
   (G.ACHIEVEMENTS || []).forEach((a) => { a.name = G.T("ach." + a.id + ".name"); a.desc = G.T("ach." + a.id + ".desc"); });
   (G.SHOP_ITEMS || []).forEach((it) => { it.label = G.T("shopItem." + it.id); });
   if (G.RARITY) Object.values(G.RARITY).forEach((r) => { r.label = G.T("rarity." + r.key); });

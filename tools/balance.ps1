@@ -14,7 +14,8 @@ $enc = New-Object Text.UTF8Encoding($false)
 $dir = Join-Path $root "docs\expansion"
 [IO.File]::WriteAllText((Join-Path $dir "balance-report.md"), ($o.md -replace "`r`n", "`n"), $enc)
 [IO.File]::WriteAllText((Join-Path $dir "balance.csv"), ($o.csv -replace "`r`n", "`n"), $enc)
+[IO.File]::WriteAllText((Join-Path $dir "balance-melee.csv"), ($o.meleeCsv -replace "`r`n", "`n"), $enc)
 [IO.File]::WriteAllText((Join-Path $dir "gun-changelog.md"), ($o.changelog -replace "`r`n", "`n"), $enc)
-"written: balance-report.md, balance.csv, gun-changelog.md; flags $($o.flags), not explained $(@($o.open).Count)"
+"written: balance-report.md, balance.csv, balance-melee.csv, gun-changelog.md; flags $($o.flags), not explained $(@($o.open).Count)"
 $o.open | ForEach-Object { "  $_" }
 if (@($o.open).Count) { exit 1 }

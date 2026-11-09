@@ -5,7 +5,8 @@
 //   in play    left stick move, right stick look (read in game.js)
 //              RT fire, LT aim, A jump, L3 sprint, X reload (inspect when
 //              the magazine is full), Y use,
-//              B knife, LB / RB previous / next weapon, View hear the word,
+//              B the melee slot's weapon (held: charged), LB / RB previous /
+//              next weapon (the melee slot among them), View hear the word,
 //              R3 the Thai of an English clue (a helper),
 //              Menu pause, D-pad up / right / down / left the four abilities
 //   in windows D-pad or left stick moves between buttons, A presses the one
@@ -64,7 +65,8 @@ G.Pad = {
       if (Math.hypot(gp.axes[0] || 0, gp.axes[1] || 0) < 0.2) I.padSprint = false;   // stick let go: sprint off
       if (edge(B.X) && g.reload() === "full") g.inspect();   // (overhaul, round 1: a full magazine: inspect)
       if (edge(B.Y)) g.doInteract();
-      if (edge(B.B)) g.switchSlot(0);
+      I.padMelee = now[B.B];                     // (expansion, round 4: a quick swing; held, charged)
+      if (edge(B.B)) G.onMeleePress();
       if (edge(B.LB)) G.Loadout.cycle(g, -1);
       if (edge(B.RB)) G.Loadout.cycle(g, 1);
       if (edge(B.VIEW)) g.speakCurrentWord();
@@ -77,7 +79,7 @@ G.Pad = {
     }
     this.prev = now;
   },
-  releaseHeld() { const I = G.Input; I.padFire = false; I.padAim = false; I.padJump = false; I.padSprint = false; },
+  releaseHeld() { const I = G.Input; I.padFire = false; I.padAim = false; I.padJump = false; I.padSprint = false; I.padMelee = false; },
   release() { this.releaseHeld(); this.prev = []; },
 
   // ---------------- window navigation ----------------

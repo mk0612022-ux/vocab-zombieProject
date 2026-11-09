@@ -602,11 +602,7 @@
       const A = G.Audio;
       if (!A.ctx || !to) return;
       const pt = this.profile(to);
-      if (pt.arch === "melee") {
-        A.noise({ dur: 0.24, filter: "highpass", freq: 4000, freqEnd: 7500, gain: 0.08, at: 0.05, attack: 0.03 });   // shing
-        A.tone({ type: "sine", freq: 2600, dur: 0.18, gain: 0.03, at: 0.2 });
-        return;
-      }
+      if (pt.arch === "melee") { G.Melee.audio.draw(to); return; }       // (expansion, round 4: each by what it is made of)
       // (gun reference pass) a gun of the clips': its own sequence (section 4.1)
       if (pt.ref && G.GunVoice) { G.GunVoice.playEquip(A, to, pt.mechPitch || 1); return; }
       A.noise({ dur: 0.1, filter: "lowpass", freq: 1000, gain: 0.05 });
@@ -733,7 +729,7 @@
   // (overhaul, round 3) and the shot itself: one sound a shot (its shot id),
   // the low-ammo tick once as the magazine crosses a quarter, the refusal when
   // there is nothing left to load; a cancelled reload's sounds stop at once
-  const defOf = (id) => (id === "melee" ? G.MELEE_DEF : G.WEAPON_DEFS[id]);
+  const defOf = (id) => (id === "melee" ? G.meleeDef() : G.WEAPON_DEFS[id]);
   if (G.Bus) {
     G.Bus.on("weapon:fire", (e) => {
       const def = defOf(e.weaponId);

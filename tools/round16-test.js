@@ -167,7 +167,8 @@ G.Round16Test = (function () {
     ok("F one shown at a time", document.querySelectorAll("#settings-content .set-sec:not(.hidden)").length === 1);
     const where = (id) => { const e = $(id); const sec = e && e.closest(".set-sec"); return sec ? sec.id.replace("set-sec-", "") : null; };
     const lost = TABLE.filter(([, id, cat]) => where(id) !== cat);
-    ok("F every setting of the old page is here, in its category (" + TABLE.length + ")", !lost.length && document.querySelectorAll("#set-sec-controls .keybind-btn").length === 24, lost.map((x) => x[0] + " -> " + where(x[1])).join("; "));
+    // (expansion, round 4: 25 keys with quick melee)
+    ok("F every setting of the old page is here, in its category (" + TABLE.length + ")", !lost.length && document.querySelectorAll("#set-sec-controls .keybind-btn").length === 25, lost.map((x) => x[0] + " -> " + where(x[1])).join("; "));
     const missingNew = NEW.filter(([, id, cat]) => where(id) !== cat);
     ok("F the new ones too: render resolution, screen-edge margin, controller look, Learning Style, languages, account, privacy", !missingNew.length, missingNew.map((x) => x[0]).join("; "));
     // the kinds of control

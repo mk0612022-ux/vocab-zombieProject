@@ -16,7 +16,7 @@
 // docs/expansion/balance-report.md, balance.csv and gun-changelog.md;
 // tools/round32-test.js runs it in the game itself.
 //
-//   const r = G.Balance.run();  r.rows, r.flags, r.unexplained, r.md, r.csv, r.changelog
+//   const r = G.Balance.run();  r.rows, r.flags, r.unexplained, r.md, r.csv, r.meleeCsv, r.melee, r.changelog
 // ===================================================================
 window.G = window.G || {};
 
@@ -183,7 +183,7 @@ G.Balance = (function () {
       o += "\n## " + c + "\n\n" + table(["gun", "lv", "rarity", "niche", "dmg", "rpm", "mag", "rl s", "DPS", "sust.", "score", "allowed", "body", "head", "TTK s", "w1", "w5", "w10", "w15", "w20", "T3 w20"],
         list.map((r) => [r.id, r.level, r.rarity, r.niche, r.damage + (r.pellets > 1 ? "x" + r.pellets : "") + (r.burst > 1 ? " b" + r.burst : ""), r.rpm, r.mag, r.reload, r.dps, r.sustained, r.score, r.allowed, r.stkBody, r.stkHead, r.ttkBody].concat(r.byWave, [r.tier3])));
     });
-    return o + bossTable(rows);
+    return o + bossTable(rows) + meleeTable();
   }
   // how long a boss lasts, by what the middle gun of a rarity does: boss health
   // (G.CONFIG.boss.hpByWave) was sized for a fight of the wanted length
@@ -205,6 +205,33 @@ G.Balance = (function () {
     const head = ["boss", "health", "upgrades", "wanted (s)"].concat(R);
     return "\n## Boss fights\n\nSeconds to bring a boss of level 1 down: the middle gun of a rarity, " + B.hitShare * 100 + "% of its shots landing, with that many Damage upgrades.\n\n"
       + table(head, fights((x) => x.sustained)) + "\n\nThe same fights with the old numbers (before the sheet):\n\n" + table(head, fights(before));
+  }
+  // ---------------- the melee slot (round 4) ----------------
+  // each weapon's numbers, and the blows a kind of zombie takes (to the body, at full stamina)
+  function meleeRows() {
+    const I = G.CONFIG.zombies.ironclad;
+    return Object.values(G.MELEE_WEAPONS).map((m) => {
+      const s = GS().melee(m), kinds = {};
+      G.ZOMBIE_KINDS.forEach((k) => {
+        let d = m.damage;
+        if (m.unarmored && k !== "ironclad") d *= m.unarmored;
+        if (m.lowDamage && (k === "crawler" || k === "runt")) d *= m.lowDamage;
+        if (k === "ironclad") d *= I.vest + (1 - I.vest) * (m.armor || 0);
+        kinds[k] = Math.ceil(G.ZOMBIE_TYPES[k].hp / d);
+      });
+      return Object.assign(s, { kinds, ttk: round(((kinds.normal - 1) * s.swing + s.windup + s.active) / 1000, 2), dps: round(s.dps) });
+    });
+  }
+  function meleeTable() {
+    const rows = meleeRows();
+    return "\n## Melee\n\nG.MELEE_WEAPONS and G.CONFIG.melee. Times in ms: wind-up / edge moving / back to ready. Blows: to the body, at full stamina.\n\n"
+      + table(["weapon", "lv", "price", "move", "times", "swing", "reach m", "targets", "stagger", "stamina", "dmg", "head x", "charged", "DPS", "TTK s"].concat(G.ZOMBIE_KINDS),
+        rows.map((s) => [s.key, s.level, s.price, s.move, s.windup + "/" + s.active + "/" + s.recover, s.swing, s.range, s.targets, s.stagger, s.stamina, s.damage, s.head, s.charged ? round(s.charged) : "-", s.dps, s.ttk].concat(G.ZOMBIE_KINDS.map((k) => s.kinds[k]))));
+  }
+  function meleeCsv() {
+    const rows = meleeRows();
+    const head = ["key", "level", "price", "move", "windup_ms", "active_ms", "recover_ms", "swing_ms", "reach_m", "arc_deg", "targets", "stagger", "stamina", "damage", "head", "charged", "dps", "ttk_s"].concat(G.ZOMBIE_KINDS.map((k) => "blows_" + k));
+    return head.join(",") + "\n" + rows.map((s) => [s.key, s.level, s.price, s.move, s.windup, s.active, s.recover, s.swing, s.range, s.arc, s.targets, s.stagger, s.stamina, s.damage, s.head, s.charged ? round(s.charged) : "", s.dps, s.ttk].concat(G.ZOMBIE_KINDS.map((k) => s.kinds[k])).join(",")).join("\n") + "\n";
   }
   function csv(rows) {
     const B = C();
@@ -236,7 +263,7 @@ G.Balance = (function () {
     scores(rows);
     const flags = check(rows);
     flags.forEach((f) => { f.why = explainOf(f); });
-    return { rows, flags, unexplained: flags.filter((f) => !f.why), md: report(rows, flags), csv: csv(rows), changelog: changelog() };
+    return { rows, flags, unexplained: flags.filter((f) => !f.why), md: report(rows, flags), csv: csv(rows), meleeCsv: meleeCsv(), melee: meleeRows(), changelog: changelog() };
   }
   return { run, rowOf, EXPLAINED, EXPLAINED_PAIRS, distance, roundDamage };
 })();

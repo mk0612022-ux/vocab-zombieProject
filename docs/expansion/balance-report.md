@@ -190,3 +190,16 @@ The same fights with the old numbers (before the sheet):
 | wave 10 | 11000 | 2 | 120-150 | 228 | 153 | 153 | 108 | 107 |
 | wave 15 | 22000 | 4 | 150-180 | 345 | 231 | 231 | 164 | 162 |
 | wave 20 | 32000 | 6 | 180-240 | 379 | 254 | 254 | 180 | 178 |
+
+## Melee
+
+G.MELEE_WEAPONS and G.CONFIG.melee. Times in ms: wind-up / edge moving / back to ready. Blows: to the body, at full stamina.
+
+| weapon | lv | price | move | times | swing | reach m | targets | stagger | stamina | dmg | head x | charged | DPS | TTK s | normal | fast | crawler | bloater | ironclad | runt | abomination | screamer | headless | reacher |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| knife | 0 | 0 | stab | 80/60/180 | 320 | 1.6 | 1 | light | 5 | 25 | 2 | - | 78 | 0.46 | 2 | 1 | 2 | 3 | 2 | 1 | 5 | 2 | 2 | 3 |
+| bat | 1 | 900 | sweep | 180/90/320 | 590 | 2.1 | 3 | heavy | 12 | 42 | 1.25 | 76 | 71 | 0.27 | 1 | 1 | 1 | 2 | 2 | 1 | 3 | 1 | 1 | 2 |
+| machete | 1 | 1100 | slash | 140/80/260 | 480 | 1.9 | 2 | medium | 9 | 34 | 1.5 | - | 71 | 0.22 | 1 | 1 | 1 | 2 | 2 | 1 | 3 | 1 | 1 | 2 |
+| axe | 2 | 1800 | chop | 260/100/420 | 780 | 2.2 | 1 | very_heavy | 18 | 78 | 1.5 | 140 | 100 | 0.36 | 1 | 1 | 1 | 1 | 1 | 1 | 2 | 1 | 1 | 1 |
+| crowbar | 2 | 1300 | hook | 170/80/300 | 550 | 2 | 2 | heavy | 11 | 40 | 1.5 | - | 73 | 0.25 | 1 | 1 | 1 | 2 | 2 | 1 | 3 | 1 | 1 | 2 |
+| shovel | 3 | 1400 | scoop | 200/90/340 | 630 | 2 | 2 | heavy | 13 | 42 | 1.25 | 76 | 67 | 0.29 | 1 | 1 | 1 | 2 | 2 | 1 | 3 | 1 | 1 | 2 |

@@ -51,7 +51,8 @@ G.STRINGS.zh = {
     "howto.body": "<p>屏幕顶部显示一个单词的<strong>意思</strong>——找到拿着这个意思对应单词的僵尸，然后射击！（设置 &gt; 语言：选择单词的语言和意思的语言。）</p>"
       + "<ul><li><b>WASD</b> 移动，<b>鼠标</b> 观察，<b>左键</b> 射击，<b>按住右键</b> 瞄准（放大）</li>"
       + "<li><b>R</b> 换弹，<b>E</b> 使用 / 拾取，<b>Shift</b> 冲刺（消耗蓝色体力条，停下后会恢复）</li>"
-      + "<li><b>1</b> 小刀（近战无限次），<b>2-5</b> 切换枪械（有“额外武器栏”天赋时 <b>6-7</b>），或用<b>鼠标滚轮</b></li>"
+      + "<li><b>1</b> 近战栏（小刀，或从墙上买的武器），<b>2-5</b> 切换枪械（有“额外武器栏”天赋时 <b>6-7</b>），或用<b>鼠标滚轮</b></li>"
+      + "<li><b>Z</b> 无论手持什么都能用近战武器挥击。消耗体力；按住可为球棒、斧头或铲子蓄力。墙会挡住挥击，横向挥击若不低头看就打不到 Crawler</li>"
       + "<li><b>ESC</b> 暂停</li>"
       + "<li>手柄：<b>RT</b> 射击，<b>LT</b> 瞄准，<b>A</b> 跳跃，<b>X</b> 换弹，<b>Y</b> 使用，<b>LB / RB</b> 切换枪械，<b>Menu</b> 暂停</li>"
       + "<li>打中正确的僵尸 = 得分 + 金钱 / 打错 = 扣血，其余僵尸会加速</li>"
@@ -104,7 +105,7 @@ G.STRINGS.zh = {
     "settings.exportSave": "导出存档",
     "settings.importSave": "导入存档",
     "key.forward": "前进", "key.back": "后退", "key.left": "向左", "key.right": "向右", "key.sprint": "冲刺", "key.jump": "跳跃",
-    "key.reload": "换弹", "key.interact": "互动", "key.melee": "小刀", "key.slot2": "武器栏 2", "key.slot3": "武器栏 3",
+    "key.reload": "换弹", "key.interact": "互动", "key.melee": "近战栏", "key.quickMelee": "快速近战", "key.slot2": "武器栏 2", "key.slot3": "武器栏 3",
     "key.slot4": "武器栏 4", "key.slot5": "武器栏 5", "key.slot6": "武器栏 6（天赋）", "key.slot7": "武器栏 7（天赋）",
     "key.pause": "暂停",
     "save.persistFailTitle": "无法保存进度",
@@ -970,6 +971,17 @@ G.STRINGS.zh = {
     "howto.import": "导入词汇",
     // ---- weapon names ----
     "weapon.melee": "Combat Knife",
+    // (expansion, round 4) the melee slot
+    "melee.name.bat": "棒球棍", "melee.name.machete": "砍刀", "melee.name.axe": "消防斧", "melee.name.crowbar": "撬棍", "melee.name.shovel": "工兵铲",
+    "melee.niche.knife": "快速，爆头 x2", "melee.niche.bat": "击退，快速砸掉头盔", "melee.niche.machete": "对无护甲目标伤害高", "melee.niche.axe": "破甲", "melee.niche.crowbar": "均衡，打金属声响大", "melee.niche.shovel": "克制低矮目标",
+    "melee.where.knife": "所有关卡，一开始就有", "melee.where.bat": "学校：体育器材室", "melee.where.machete": "学校：枯花园旁的工具棚", "melee.where.axe": "医院：应急柜", "melee.where.crowbar": "医院：维修室", "melee.where.shovel": "地堡：物资库",
+    "melee.stagger.light": "轻微硬直", "melee.stagger.medium": "中等硬直", "melee.stagger.heavy": "强力硬直", "melee.stagger.very_heavy": "击倒",
+    "melee.tag.power": "按住蓄力", "melee.tag.combo": "两段连击",
+    "stat.speed": "速度", "stat.reach": "攻击距离", "stat.sweep": "范围", "stat.blow": "冲击", "stat.thrift": "体力",
+    "stat.swing": "挥击", "stat.ms": "{n} 毫秒", "stat.metres": "{n} 米", "stat.targets": "目标数", "stat.stamina": "体力",
+    "prompt.wallMelee": "按 {key} 购买 {name}（${price}{short}）",
+    "weaponlog.melee": "近战武器",
+    "touch.meleeLabel": "近战", "touchcfg.melee": "近战按钮",
     "weapon.pistol": "Pistol", "weapon.shotgun": "Shotgun", "weapon.smg": "SMG", "weapon.rifle": "Assault Rifle", "weapon.lmg": "LMG",
     "weapon.sniper": "Sniper", "weapon.railgun": "Piercing Railgun", "weapon.grenadelauncher": "Grenade Launcher",
     "weapon.golden_smg": "Golden Vocabulary SMG", "weapon.school_wall": "Faculty Enforcer", "weapon.hospital_wall": "Trauma Cannon",

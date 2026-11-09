@@ -49,7 +49,7 @@
         v: 1, levelId: game.level.id, wave: game.wave + 1, savedAt: Date.now(), continues: 0,
         score: pl.score, money: pl.money, hp: pl.hp, maxHp: pl.maxHp,
         player: copy({
-          gunSlots: pl.gunSlots, currentSlot: pl.currentSlot, ammo: pl.ammo, weaponLevels: pl.weaponLevels,
+          gunSlots: pl.gunSlots, currentSlot: pl.currentSlot, ammo: pl.ammo, weaponLevels: pl.weaponLevels, melee: pl.melee,
           perks: pl.perks, moveSpeedMult: pl.moveSpeedMult, armorPct: pl.armorPct, comboShield: pl.comboShield,
         }),
         abilities: G.Abilities.state(),
@@ -106,6 +106,8 @@
         });
         pl.currentSlot = Math.max(0, Math.min(guns.length, P.currentSlot | 0));
       }
+      // (expansion, round 4: a checkpoint from before it has none: the knife)
+      pl.melee = G.MELEE_WEAPONS[P.melee] ? P.melee : "knife";
       pl.perks = {};
       Object.keys(P.perks || {}).forEach((id) => { if (G.PERK_BY_ID[id]) pl.perks[id] = Math.min(G.PERK_BY_ID[id].max, Math.max(0, P.perks[id] | 0)); });
       pl.moveSpeedMult = P.moveSpeedMult || 1;

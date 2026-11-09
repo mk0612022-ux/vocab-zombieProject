@@ -129,15 +129,18 @@ window.G = window.G || {};
     // order: a word first (it is drawn on top), then the hitboxes of the
     // zombies alive, nearest first, one entry a zombie.
     //   [{ z, head, point, distance, label }]
-    trace(game, origin, dir, far) {
+    // only: (expansion, round 4: a melee swing) just these zombies, and no word:
+    // a blade meets what is there, not what is drawn over it; fresh: their
+    // matrices are up to date already (a swing's many rays, one frame)
+    trace(game, origin, dir, far, only, fresh) {
       const out = [], seen = new Set();
-      const live = game.zombies.filter((z) => z.alive && z.hitboxes && z.hitboxes.length);
-      live.forEach((z) => z.mesh.updateMatrixWorld(true));
+      const live = (only || game.zombies).filter((z) => z.alive && z.hitboxes && z.hitboxes.length);
+      if (!fresh) live.forEach((z) => z.mesh.updateMatrixWorld(true));
       game.camera.updateMatrixWorld();
       // (a word is where it is drawn on the screen: only a shot from the eye
       // can be aimed at one -- not a ray that starts anywhere else)
       game.camera.getWorldPosition(tmpA);
-      const lh = tmpA.distanceToSquared(origin) < 0.36 ? this.labelHit(game, origin, dir) : null;
+      const lh = !only && tmpA.distanceToSquared(origin) < 0.36 ? this.labelHit(game, origin, dir) : null;
       if (lh) {
         // (a word seen through a gap is still behind the wall if its zombie is)
         lh.z.sprite.getWorldPosition(tmpA);

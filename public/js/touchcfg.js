@@ -14,7 +14,7 @@
 G.TouchCfg = {
   // also the save keys of touchLayout.pos / .scale; names are "touchcfg.<id>"
   // (overhaul, round 6: the weapon row is the HUD's own slot row now, not a control to move)
-  IDS: ["joystick", "fire", "ads", "interact", "reload", "jump", "sprint", "pause", "abilities"],
+  IDS: ["joystick", "fire", "ads", "interact", "reload", "melee", "jump", "sprint", "pause", "abilities"],
   MIN_SCALE: 0.6, MAX_SCALE: 1.8,
   editing: false,
   _sel: null,

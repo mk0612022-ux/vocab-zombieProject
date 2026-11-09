@@ -84,7 +84,8 @@ G.ViewModel = {
     if (!def || def.id === "melee") return "melee";
     return G.weightClass(def).key;
   },
-  switchDuration(def) { return this.FEEL[this.weightKey(def)].switchDur; },
+  // (expansion, round 4: a melee weapon's own, by its size)
+  switchDuration(def) { return (def && def.id === "melee" && def.draw) || this.FEEL[this.weightKey(def)].switchDur; },
   // (gun reference pass) bringing it up: a gun of the clips' in its prototype's
   // time (G.CONFIG.gunRef.draw), the rest in half their switch
   drawDuration(def) {
@@ -109,7 +110,7 @@ G.ViewModel = {
       bump: new G.Anim.Spring(),
       prevVel: new THREE.Vector3(), wasAir: false,
       // (overhaul, round 1) the machine's layers
-      lowW: 0, inspW: 0, inspU: 0, melW: 0, melU: 0, melHit: 0.2,
+      lowW: 0, inspW: 0, inspU: 0, melW: 0, melU: 0, melHit: 0.2, melOff: null, melOffW: 0,
       flinchX: new G.Anim.Spring(), flinchZ: new G.Anim.Spring(), breath: 0,
     };
     this.t = 0;
@@ -377,7 +378,11 @@ G.ViewModel = {
     if (sm.inspectP != null) { S.inspU = sm.inspectP; S.inspW = 1; }
     else S.inspW = A.approach(S.inspW, 0, dt, 0.09);     // any action: let go at once, eased
     let magOff = 0, magHand = 0;
-    if (S.inspW > 0.001 && ref && ref.inspect === "magCheck") {
+    if (S.inspW > 0.001 && def && def.id === "melee" && def.inspect) {
+      // (expansion, round 4) each melee weapon shown off its own way: the knife flipped, the bat turned...
+      const o = this.keyed(def.inspect, S.inspU), w = S.inspW;
+      px += o[0] * w; py += o[1] * w; pz += o[2] * w; rx += o[3] * w; ry += o[4] * w; rz += o[5] * w;
+    } else if (S.inspW > 0.001 && ref && ref.inspect === "magCheck") {
       // (gun reference pass) the SMG's of the clip (section 3.3, 2.2 s): turned
       // to show its left side, held, tipped down to check the magazine -- out
       // a little at 0.62, back in at 0.88 -- and home
@@ -402,8 +407,23 @@ G.ViewModel = {
       rx += (0.12 * b - 0.3 * c) * heavy * home * w;
     }
 
-    // ---- (overhaul, round 1) the knife: wind-up, then the cut at the hit frame ----
-    if (sm.meleeP != null) { S.melU = sm.meleeP; S.melHit = sm.meleeHitP || 0.2; S.melW = 1; }
+    // ---- (expansion, round 4) a swing, by its weapon's own move (js/melee.js) ----
+    // the arm drawn back, the edge across, a moment's stop on a hit, back to
+    // the ready; a quick swing off a gun: the gun dips, the weapon comes up
+    if (sm.melee) {
+      const v = sm.melee;
+      if (v.phase === "dip" || v.phase === "rise") {
+        const k = v.phase === "dip" ? A.easeInCubic(v.u) : 1 - A.easeOutCubic(v.u);
+        py -= 0.62 * k; rx -= 0.95 * k; rz += 0.45 * k; px += 0.06 * k;
+        S.melOff = null;
+      } else { S.melOff = G.Melee.pose(v); S.melOffW = 1; }
+    } else if (S.melOffW > 0) S.melOffW = A.approach(S.melOffW, 0, dt, 0.08);
+    if (S.melOff && S.melOffW > 0.001) {
+      const o = S.melOff, w = S.melOffW;
+      px += o[0] * w; py += o[1] * w; pz += o[2] * w; rx += o[3] * w; ry += o[4] * w; rz += o[5] * w;
+    }
+    // ---- (overhaul, round 1) the old knife (the melee rules off): wind-up, then the cut at the hit frame ----
+    if (sm.meleeP != null && !sm.melee) { S.melU = sm.meleeP; S.melHit = sm.meleeHitP || 0.2; S.melW = 1; }
     else S.melW = A.approach(S.melW, 0, dt, 0.08);
     if (S.melW > 0.001) {
       const u = S.melU, h = S.melHit, w = S.melW;
@@ -431,7 +451,9 @@ G.ViewModel = {
       // (gun reference pass) the clips' own: the .50 swung up on end to be put
       // away; the .45 twirled up from the left, pointed at the sky and brought
       // down; the chassis sniper brought up canted to show it off
-      const style = ref ? (p < 0.5 ? ref.holster : ref.draw) : "standard";
+      // (expansion, round 4: a melee weapon comes up with a flourish, the knife in a twirl)
+      const blade = def && def.id === "melee" && p >= 0.5 && G.Melee.on() ? (def.key === "knife" ? "spin" : "flourish") : null;
+      const style = blade || (ref ? (p < 0.5 ? ref.holster : ref.draw) : "standard");
       if (style === "swingUp") {
         const sw = A.smooth(A.seg(p, 0, 0.32)), off = A.easeInCubic(A.seg(p, 0.3, 0.5));
         py += 0.08 * sw - 0.5 * off; rx += 1.35 * sw; rz -= 0.25 * sw; px += 0.08 * sw + 0.1 * off;

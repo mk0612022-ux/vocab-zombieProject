@@ -349,12 +349,18 @@ G.UI = {
         return this.weaponLogCardHtml(w, pct.toFixed(2) + "%");
       }).join("")}</div>`;
     }
+    // (expansion, round 4) the melee slot: the knife and this level's wall weapons,
+    // never locked -- where each one hangs is on its card
+    if (G.Melee.on()) {
+      html += `<div class="weaponlog-section-title rarity-rare">${G.T("weaponlog.melee")}</div>`;
+      html += `<div class="weaponlog-grid">${G.Melee.ofLevel(levelId).map((m) => this.weaponLogMeleeHtml(m)).join("")}</div>`;
+    }
     this.el("weaponlog-content").innerHTML = html;
     // pass C: every gun sounds different, so let it be heard before it is
     // bought or picked up (a locked one too -- only its name is secret)
     this.el("weaponlog-content").querySelectorAll(".wl-listen").forEach((b) => {
       b.onclick = () => {
-        const len = G.GunAudio.preview(G.WEAPON_DEFS[b.dataset.id]);
+        const len = b.dataset.melee ? G.Melee.audio.preview(G.MELEE_WEAPONS[b.dataset.melee]) : G.GunAudio.preview(G.WEAPON_DEFS[b.dataset.id]);
         this.el("weaponlog-content").querySelectorAll(".wl-listen.playing").forEach((o) => o.classList.remove("playing"));
         b.classList.add("playing");
         clearTimeout(b._t); b._t = setTimeout(() => b.classList.remove("playing"), (len || 1) * 1000);
@@ -362,6 +368,13 @@ G.UI = {
     });
   },
   listenBtn(w) { return `<button class="btn wl-listen" data-id="${w.id}">${G.T("weaponlog.listen")}</button>`; },
+  weaponLogMeleeHtml(m) {
+    return `<div class="weaponlog-card border-rare" style="border-style:solid">
+      ${G.StatCard.html(m, { compare: G.StatCard.heldMelee() })}
+      <div class="wl-stats">${G.T("melee.where." + m.key)}${m.price ? ` · ${G.T("weaponlog.price", { p: m.price })}` : ""}</div>
+      <button class="btn wl-listen" data-melee="${m.key}">${G.T("weaponlog.listen")}</button>
+    </div>`;
+  },
   weaponLogCardHtml(w, dropChance) {
     const unlocked = (G.save.unlockedWeapons || []).includes(w.id);
     const odds = dropChance ? `<br>${G.T("weaponlog.odds", { p: dropChance })}` : "";

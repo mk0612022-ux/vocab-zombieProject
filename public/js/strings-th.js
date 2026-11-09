@@ -51,7 +51,8 @@ G.STRINGS.th = {
     "howto.body": "<p>ด้านบนของจอจะแสดง<strong>ความหมาย</strong>ของคำ — หาซอมบี้ที่ถือคำที่มีความหมายนั้นแล้วยิงเลย! (ตั้งค่า &gt; ภาษา: เลือกภาษาของคำศัพท์และภาษาของความหมาย)</p>"
       + "<ul><li><b>WASD</b> เดิน, <b>เมาส์</b> มอง, <b>คลิกซ้าย</b> ยิง, <b>กดคลิกขวาค้าง</b> เล็ง (ซูม)</li>"
       + "<li><b>R</b> รีโหลด, <b>E</b> ใช้ / เก็บของ, <b>Shift</b> วิ่ง (ใช้แถบสแตมินาสีฟ้า ซึ่งเติมกลับเมื่อหยุดวิ่ง)</li>"
-      + "<li><b>1</b> มีด (ฟันได้ไม่จำกัด), <b>2-5</b> เปลี่ยนปืน (<b>6-7</b> เมื่อมีเพิร์กช่องอาวุธเพิ่ม) หรือใช้<b>ลูกกลิ้งเมาส์</b></li>"
+      + "<li><b>1</b> ช่องอาวุธระยะประชิด (มีด หรืออาวุธที่ซื้อจากผนัง), <b>2-5</b> เปลี่ยนปืน (<b>6-7</b> เมื่อมีเพิร์กช่องอาวุธเพิ่ม) หรือใช้<b>ลูกกลิ้งเมาส์</b></li>"
+      + "<li><b>Z</b> ฟันด้วยอาวุธระยะประชิดได้ทันทีไม่ว่าถืออะไรอยู่ ใช้สแตมินา กดค้างเพื่อชาร์จไม้เบสบอล ขวาน หรือพลั่ว ผนังจะหยุดการฟัน และการฟันแนวนอนจะพลาด Crawler ถ้าไม่ก้มมอง</li>"
       + "<li><b>ESC</b> หยุดเกม</li>"
       + "<li>จอยเกม: <b>RT</b> ยิง, <b>LT</b> เล็ง, <b>A</b> กระโดด, <b>X</b> รีโหลด, <b>Y</b> ใช้, <b>LB / RB</b> เปลี่ยนปืน, <b>Menu</b> หยุดเกม</li>"
       + "<li>ยิงถูกตัว = ได้คะแนน + เงิน / ยิงผิดตัว = เสียพลังชีวิต และซอมบี้ที่เหลือจะเร็วขึ้น</li>"
@@ -104,7 +105,7 @@ G.STRINGS.th = {
     "settings.exportSave": "ส่งออกเซฟ",
     "settings.importSave": "นำเข้าเซฟ",
     "key.forward": "เดินหน้า", "key.back": "ถอยหลัง", "key.left": "ซ้าย", "key.right": "ขวา", "key.sprint": "วิ่ง", "key.jump": "กระโดด",
-    "key.reload": "รีโหลด", "key.interact": "ใช้งาน", "key.melee": "มีด", "key.slot2": "ช่องอาวุธ 2", "key.slot3": "ช่องอาวุธ 3",
+    "key.reload": "รีโหลด", "key.interact": "ใช้งาน", "key.melee": "ช่องอาวุธประชิด", "key.quickMelee": "ฟันด่วน", "key.slot2": "ช่องอาวุธ 2", "key.slot3": "ช่องอาวุธ 3",
     "key.slot4": "ช่องอาวุธ 4", "key.slot5": "ช่องอาวุธ 5", "key.slot6": "ช่องอาวุธ 6 (เพิร์ก)", "key.slot7": "ช่องอาวุธ 7 (เพิร์ก)",
     "key.pause": "หยุดเกม",
     "save.persistFailTitle": "บันทึกความก้าวหน้าไม่ได้",
@@ -970,6 +971,17 @@ G.STRINGS.th = {
     "howto.import": "นำเข้าคำศัพท์",
     // ---- weapon names ----
     "weapon.melee": "Combat Knife",
+    // (expansion, round 4) the melee slot
+    "melee.name.bat": "ไม้เบสบอล", "melee.name.machete": "มีดพร้า", "melee.name.axe": "ขวานดับเพลิง", "melee.name.crowbar": "ชะแลง", "melee.name.shovel": "พลั่วสนาม",
+    "melee.niche.knife": "เร็ว ยิงหัว ×2", "melee.niche.bat": "ผลักกระเด็น ทุบหมวกได้เร็ว", "melee.niche.machete": "แรงกับตัวที่ไม่มีเกราะ", "melee.niche.axe": "ทำลายเกราะ", "melee.niche.crowbar": "สมดุล โดนโลหะเสียงดัง", "melee.niche.shovel": "แม่นกับเป้าต่ำ",
+    "melee.where.knife": "ทุกด่าน ตั้งแต่เริ่มเล่น", "melee.where.bat": "โรงเรียน: ห้องเก็บอุปกรณ์พละ", "melee.where.machete": "โรงเรียน: โรงเก็บของข้างสวนดอกไม้แห้ง", "melee.where.axe": "โรงพยาบาล: ตู้ฉุกเฉิน", "melee.where.crowbar": "โรงพยาบาล: ห้องซ่อมบำรุง", "melee.where.shovel": "บังเกอร์: คลังเสบียง",
+    "melee.stagger.light": "ทำให้เซเบา", "melee.stagger.medium": "ทำให้เซปานกลาง", "melee.stagger.heavy": "ทำให้เซหนัก", "melee.stagger.very_heavy": "ทำให้ล้ม",
+    "melee.tag.power": "กดค้างเพื่อชาร์จ", "melee.tag.combo": "คอมโบ 2 จังหวะ",
+    "stat.speed": "ความเร็ว", "stat.reach": "ระยะฟัน", "stat.sweep": "ความกว้าง", "stat.blow": "แรงกระแทก", "stat.thrift": "สแตมินา",
+    "stat.swing": "ฟันหนึ่งครั้ง", "stat.ms": "{n} มิลลิวินาที", "stat.metres": "{n} เมตร", "stat.targets": "เป้าสูงสุด", "stat.stamina": "สแตมินา",
+    "prompt.wallMelee": "กด {key} เพื่อซื้อ {name} (${price}{short})",
+    "weaponlog.melee": "อาวุธระยะประชิด",
+    "touch.meleeLabel": "ฟัน", "touchcfg.melee": "ปุ่มฟัน",
     "weapon.pistol": "Pistol", "weapon.shotgun": "Shotgun", "weapon.smg": "SMG", "weapon.rifle": "Assault Rifle", "weapon.lmg": "LMG",
     "weapon.sniper": "Sniper", "weapon.railgun": "Piercing Railgun", "weapon.grenadelauncher": "Grenade Launcher",
     "weapon.golden_smg": "Golden Vocabulary SMG", "weapon.school_wall": "Faculty Enforcer", "weapon.hospital_wall": "Trauma Cannon",

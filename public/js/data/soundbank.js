@@ -60,6 +60,16 @@ window.G = window.G || {};
   // footsteps, by what is underfoot; the landing after a jump
   STEP.forEach((s) => { B["step." + s] = { cat: "steps", play: (p) => A().footstep(s, false, { pos: p }) }; });
   B["step.land"] = { cat: "steps", play: () => A().footstep("concrete", false, { land: true }) };
+  // (expansion, round 4) each melee weapon: its swing, a miss, a hit, a wall; four takes each (js/melee.js)
+  Object.keys(G.MELEE_WEAPONS).forEach((k) => {
+    const def = G.MELEE_WEAPONS[k], M = () => G.Melee.audio;
+    B["melee." + k + ".swing"] = { cat: "weapons", play: () => M().whoosh(def, false) };
+    B["melee." + k + ".miss"] = { cat: "weapons", play: () => M().miss(def) };
+    B["melee." + k + ".flesh"] = { cat: "weapons", play: (p) => M().flesh(def, false, p || null) };
+    B["melee." + k + ".wall"] = { cat: "weapons", play: (p) => M().wall(def, "concrete", p || null) };
+    B["melee." + k + ".draw"] = { cat: "weapons", play: () => G.Audio.group({ cat: "weapons", prio: 2, dur: 0.6 }, () => M().draw(def)) };
+  });
+  B["melee.charge"] = { cat: "weapons", play: () => G.Melee.audio.charge(G.MELEE_WEAPONS.bat, 0.6) };
   Object.keys(B).forEach((id) => { B[id].files = B[id].files || []; });
   G.SOUND_BANK = B;
   // recorded sounds in use, and where each came from (CC0) -- none yet

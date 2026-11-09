@@ -444,7 +444,7 @@ G.CONFIG = {
     raise: 0.12,                    // a lowered gun brought up to fire
     lowerUse: 0.45,                 // how long the gun stays down after pressing Use
     inspect: { light: 2.0, medium: 2.2, heavy: 2.5, very_heavy: 2.7, melee: 1.6 },
-    melee: { hit: 0.10, dur: 0.45 },   // the blade arrives this long into the swing (dur: when the knife has no fireRate)
+    melee: { hit: 0.10, dur: 0.45 },   // the blade arrives this long into the swing, and the whole swing, with the melee rules off (G.CONFIG.expansion.melee)
     recoverPad: 0.06,               // Recovering lasts the time between shots and this much more
     queueWindow: 0.35,              // a pull while the gun cannot fire yet (out of a run, coming up) still fires within this
     // nothing stays in a state longer than it could: past these it is put right (and a warning shows with ?debug=1)
@@ -468,7 +468,41 @@ G.CONFIG = {
   // gunStats: false brings back the guns' old numbers and the old way of shooting
   // (no falloff, one spread, one head multiplier); the Stat Card stays
   // diag: false stops the bug report's collecting (the report then holds no logs, errors or FPS)
-  expansion: { gunStats: true, diag: true },
+  expansion: { gunStats: true, diag: true, melee: true },
+  // ---------------- the melee slot (expansion, round 4) ----------------
+  // G.MELEE_WEAPONS has each weapon; js/melee.js is the swing.
+  melee: {
+    legacy: { damage: 35, fireRate: 450, range: 2.6 },   // the old knife, with expansion.melee off
+    comboWindow: 0.4,        // the next swing this soon after one goes the other way...
+    comboWind: 0.85,         // ...with this share of the wind-up
+    quick: { dip: 0.07, rise: 0.12 },                    // the gun down, and back up, round a quick swing
+    power: { mult: 1.8, stamina: 1.6, maxHold: 2 },      // charged: x damage, x stamina; it goes by itself after this long
+    tired: { damage: 0.6, slow: 1.3 },                   // too little stamina: it still swings, weaker and slower
+    hitstop: { light: 0.04, medium: 0.05, heavy: 0.06, very_heavy: 0.07 },   // seconds the swing stands still on a hit (x Screen Effects)
+    shake: { light: 0.004, medium: 0.006, heavy: 0.009, very_heavy: 0.013 }, // the view on a hit (x Camera Shake)
+    step: 9,                 // degrees of the edge's path between two samples
+    wallReach: 0.75,         // a wall nearer than this share of the reach stops the swing
+    lowReach: 1.6,           // a `low` weapon: its reach holds at the floor, up to this many times over
+    bounce: 0.7,             // how hard the hands come back off a wall (G.ViewModel.flinch)
+    harder: { light: "medium", medium: "heavy", heavy: "very_heavy", very_heavy: "very_heavy" },   // a charged swing's stagger
+    // path: the edge in the view, [right, up] in degrees, at the start, half way
+    //       and the end; width: the band it sweeps, across its path (three rays)
+    // ready, strike, follow: the arm, added to the carry [x, y, z, rx, ry, rz]
+    moves: {
+      stab: { path: [[3, -8], [0, -10], [-2, -12]], width: 13,
+        ready: [0.03, -0.02, 0.12, 0.25, 0, 0], strike: [-0.15, 0.1, -0.32, -1.25, 0, 0.05], follow: [-0.13, 0.08, -0.24, -1.1, 0, 0.1] },
+      sweep: { path: [[46, -10], [0, -14], [-46, -10]], width: 12,
+        ready: [0.13, 0.05, 0.08, 0.2, 0.4, -0.6], strike: [-0.1, 0, -0.18, -1.1, -0.2, 0.9], follow: [-0.34, -0.08, -0.04, -0.7, -0.9, 1.5] },
+      slash: { path: [[30, 24], [0, -2], [-26, -24]], width: 10,
+        ready: [0.16, 0.16, 0.08, 0.3, 0.4, -0.7], strike: [-0.08, -0.04, -0.2, -1, -0.1, 0.6], follow: [-0.26, -0.2, -0.06, -1.2, -0.5, 1.1] },
+      chop: { path: [[2, 34], [0, -10], [-2, -68]], width: 12,
+        ready: [0.04, 0.14, 0.05, 0.42, 0.05, -0.15], strike: [-0.06, -0.02, -0.24, -1.2, 0, 0.05], follow: [-0.06, -0.22, -0.18, -1.7, 0, 0.1] },
+      hook: { path: [[26, 8], [2, -12], [-22, -28]], width: 12,
+        ready: [0.18, 0.08, 0.1, 0.2, 0.5, -0.6], strike: [-0.06, -0.02, -0.22, -1.1, -0.1, 0.5], follow: [-0.12, -0.12, 0.02, -0.4, -0.3, 0.9] },
+      scoop: { path: [[18, -66], [6, -40], [-10, -10]], width: 14,
+        ready: [0.1, -0.1, 0.04, 0.5, 0.2, -0.2], strike: [-0.02, -0.03, -0.2, -1.2, 0, 0.1], follow: [-0.04, 0.12, -0.18, -1.5, -0.1, 0.2] },
+    },
+  },
 
   // (expansion, round 3) what the guns are held to: tools/balance.js checks
   // them and writes docs/expansion/balance-report.md. A gun's own numbers are
@@ -986,7 +1020,64 @@ Object.assign(G.WEAPON_DEFS, {
     reloadTime: 3000, auto: false, splash: true, splashRadius: 7.0, recoil: 3.0, color: 0xffd43b, accent: 0x6b3a08, level: 3, archetype: "cannon", boxOnly: true, boxTier: "elite", boxWeight: 10 },
 });
 
-G.MELEE_DEF = { id: "melee", damage: 35, fireRate: 450, range: 2.6 };
+// ---------------- The melee slot (expansion, round 4) ----------------
+// One slot, one weapon in it. Every entry's `id` is the slot's, "melee" --
+// whatever asks "is this the blade?" keeps working -- and `key` says which it
+// is. A run starts with the knife; one bought off a wall takes its place.
+//   windup / active / recover   ms: the wind-up, the edge moving, back to ready
+//   range, targets              metres from the eye; most hit by one swing
+//   stagger                     light, medium, heavy, very_heavy: what it does to a zombie
+//   stamina                     spent by a swing
+//   move                        G.CONFIG.melee.moves: the edge's path and the arm's keys
+//   head                        x damage on the head
+//   combo                       a second swing soon after goes the other way
+//   power                       hold for { time } s: a charged swing (G.CONFIG.melee.power)
+//   knock, helmet, armor        metres back; head blows that count on an Ironclad's
+//                               helmet; the share of its vest ignored
+//   unarmored, lowDamage        x damage on what wears no armour; on a Crawler or a Runt
+//   low                         reaches the floor at full range (js/melee.js)
+//   hold                        carried like G.HOLD_POSES (support: both hands)
+//   draw, inspect               the seconds of a swap; keys of the show-off
+//   sound                       js/melee.js
+G.MELEE_WEAPONS = {
+  knife: { id: "melee", key: "knife", level: 0, price: 0, move: "stab", weight: "light",
+    windup: 80, active: 60, recover: 180, range: 1.6, targets: 1, stagger: "light", stamina: 5,
+    damage: 25, head: 2, combo: true, draw: 0.34,
+    sound: { mat: "blade", swish: { f0: 3400, f1: 1500, q: 1.6, dur: 0.11, gain: 0.16 }, flesh: "stab", draw: "shing" },
+    inspect: [[0, [0, 0, 0, 0, 0, 0]], [0.2, [-0.1, 0.06, 0.06, 0.2, 0.5, 0.2]], [0.5, [-0.1, 0.1, 0.06, 0.2, 0.5 + Math.PI, 0.2]], [0.75, [-0.1, 0.06, 0.06, 0.3, 2 * Math.PI, 0.1]], [1, [0, 0, 0, 0, 2 * Math.PI, 0]]] },
+  bat: { id: "melee", key: "bat", level: 1, price: 900, move: "sweep", weight: "medium",
+    windup: 180, active: 90, recover: 320, range: 2.1, targets: 3, stagger: "heavy", stamina: 12,
+    damage: 42, head: 1.25, combo: true, power: { time: 0.6 }, knock: 1.1, helmet: 3, draw: 0.46,
+    hold: { x: 0.30, y: -0.44, z: -0.70, rx: -0.42, rz: -0.34, lead: 0, sag: 0, support: 0 },
+    sound: { mat: "wood", swish: { f0: 720, f1: 240, q: 0.8, dur: 0.24, gain: 0.26, low: 110 }, flesh: "thud", draw: "wood" },
+    inspect: [[0, [0, 0, 0, 0, 0, 0]], [0.25, [-0.08, 0.08, 0.1, 0.5, 0.3, 0.3]], [0.55, [-0.1, 0.1, 0.1, 0.55, 2.2, 0.3]], [0.8, [-0.06, 0.05, 0.05, 0.3, 3.3, 0.1]], [1, [0, 0, 0, 0, 2 * Math.PI, 0]]] },
+  machete: { id: "melee", key: "machete", level: 1, price: 1100, move: "slash", weight: "light",
+    windup: 140, active: 80, recover: 260, range: 1.9, targets: 2, stagger: "medium", stamina: 9,
+    damage: 34, head: 1.5, combo: true, unarmored: 1.35, draw: 0.38,
+    hold: { x: 0.28, y: -0.34, z: -0.68, rx: -0.3, rz: -0.12, lead: 0, sag: 0, support: 0 },
+    sound: { mat: "blade", swish: { f0: 1900, f1: 760, q: 1.2, dur: 0.16, gain: 0.2 }, flesh: "slice", draw: "shing" },
+    inspect: [[0, [0, 0, 0, 0, 0, 0]], [0.25, [-0.12, 0.1, 0.08, 0.15, 0.9, 0.5]], [0.6, [-0.12, 0.1, 0.08, 0.15, -0.5, 0.5]], [1, [0, 0, 0, 0, 0, 0]]] },
+  axe: { id: "melee", key: "axe", level: 2, price: 1800, move: "chop", weight: "heavy",
+    windup: 260, active: 100, recover: 420, range: 2.2, targets: 1, stagger: "very_heavy", stamina: 18,
+    damage: 78, head: 1.5, power: { time: 0.9 }, helmet: 3, armor: 1, low: true, draw: 0.58,
+    hold: { x: 0.28, y: -0.44, z: -0.68, rx: -0.32, rz: -0.28, lead: 0, sag: 0, support: 0 },
+    sound: { mat: "metal", swish: { f0: 560, f1: 200, q: 0.8, dur: 0.3, gain: 0.3, low: 80 }, flesh: "chop", draw: "metal" },
+    inspect: [[0, [0, 0, 0, 0, 0, 0]], [0.3, [-0.1, 0.12, 0.1, 0.5, 0.8, 0.5]], [0.65, [-0.1, 0.14, 0.12, 0.55, 0.9, 0.2]], [1, [0, 0, 0, 0, 0, 0]]] },
+  crowbar: { id: "melee", key: "crowbar", level: 2, price: 1300, move: "hook", weight: "medium",
+    windup: 170, active: 80, recover: 300, range: 2.0, targets: 2, stagger: "heavy", stamina: 11,
+    damage: 40, head: 1.5, helmet: 2, draw: 0.44,
+    hold: { x: 0.29, y: -0.38, z: -0.68, rx: -0.34, rz: -0.2, lead: 0, sag: 0, support: 0 },
+    sound: { mat: "metal", swish: { f0: 1250, f1: 430, q: 1.0, dur: 0.2, gain: 0.22, low: 140 }, flesh: "clunk", draw: "metal" },
+    inspect: [[0, [0, 0, 0, 0, 0, 0]], [0.3, [-0.1, 0.08, 0.08, 0.3, 0.6, 0.5]], [0.55, [-0.1, 0.1, 0.08, 0.3, -0.6, 0.5]], [1, [0, 0, 0, 0, 0, 0]]] },
+  shovel: { id: "melee", key: "shovel", level: 3, price: 1400, move: "scoop", weight: "medium",
+    windup: 200, active: 90, recover: 340, range: 2.0, targets: 2, stagger: "heavy", stamina: 13,
+    damage: 42, head: 1.25, power: { time: 0.75 }, low: true, lowDamage: 1.3, helmet: 2, draw: 0.5,
+    hold: { x: 0.28, y: -0.42, z: -0.66, rx: -0.28, rz: -0.26, lead: 0, sag: 0, support: 0 },
+    sound: { mat: "metal", swish: { f0: 860, f1: 300, q: 0.9, dur: 0.22, gain: 0.24, low: 120 }, flesh: "spade", draw: "metal" },
+    inspect: [[0, [0, 0, 0, 0, 0, 0]], [0.3, [-0.08, 0.1, 0.1, 0.7, 0.2, 0.4]], [0.65, [-0.08, 0.12, 0.1, 0.8, 1.3, 0.4]], [1, [0, 0, 0, 0, 0, 0]]] },
+};
+Object.values(G.MELEE_WEAPONS).forEach((m) => { m.fireRate = m.windup + m.active + m.recover; });   // (the whole swing, as a gun's time between shots)
+G.MELEE_DEF = G.MELEE_WEAPONS.knife;
 
 // damage values scaled 3.75x to match player HP going 100 -> 375 (same % dmg/hit)
 // (overhaul, round 4) ten kinds -- docs/overhaul/zombie-concepts.md. The ids of

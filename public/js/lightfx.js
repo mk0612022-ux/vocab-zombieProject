@@ -485,6 +485,12 @@
         this.box(this.game.scene, 0.13, 0.05, 2.0, this.glowMat(col, "important"), p.x, p.y - 0.78, p.z);
         rare++;
       });
+      // (expansion, round 4) a melee weapon on a wall: an amber strip at its foot,
+      // so one in a dark shed can be found
+      (W.wallMelee || []).forEach((ref) => {
+        const it = (W.interactables || []).find((i) => i.ref === ref);
+        if (it && it.mesh) this.box(this.game.scene, 0.13, 0.05, 2.0, this.glowMat(0xd9a441, "important"), it.mesh.position.x, it.mesh.position.y - 0.78, it.mesh.position.z);
+      });
       this.note("the mystery box, wall guns, crates, notes, keys, buttons, the safe, the radio, the trophy case, the coffee machine, drops", "important", true);
       if (rare) this.note("rare wall guns: a strip in their rarity's colour (" + rare + ")", "important", true);
       this.note("the doors", "important (faint, cool)", false);

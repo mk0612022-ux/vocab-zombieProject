@@ -51,7 +51,8 @@ G.STRINGS.fr = {
     "howto.body": "<p>En haut de l'écran s'affiche le <strong>sens</strong> d'un mot — trouvez le zombie qui porte le mot de ce sens et tirez-lui dessus ! (Paramètres &gt; Langue : la langue des mots, et celle de leurs sens.)</p>"
       + "<ul><li><b>WASD</b> se déplacer, <b>Souris</b> regarder, <b>Clic gauche</b> tirer, <b>Clic droit maintenu</b> viser (zoom)</li>"
       + "<li><b>R</b> recharger, <b>E</b> utiliser / ramasser, <b>Maj</b> sprinter (utilise la barre d'endurance bleue, qui se recharge quand vous vous arrêtez)</li>"
-      + "<li><b>1</b> couteau (mêlée illimitée), <b>2-5</b> changer d'arme (<b>6-7</b> avec l'atout Emplacement d'arme supplémentaire), ou la <b>molette</b></li>"
+      + "<li><b>1</b> l'emplacement de mêlée (le couteau, ou une arme achetée au mur), <b>2-5</b> changer d'arme (<b>6-7</b> avec l'atout Emplacement d'arme supplémentaire), ou la <b>molette</b></li>"
+      + "<li><b>Z</b> frappe avec l'arme de mêlée, quoi que vous teniez. Cela coûte de l'endurance ; maintenez pour charger une batte, une hache ou une pelle. Un mur arrête le coup, et un coup latéral passe au-dessus d'un Crawler si vous ne regardez pas vers le bas</li>"
       + "<li><b>Échap</b> pause</li>"
       + "<li>Manette : <b>RT</b> tirer, <b>LT</b> viser, <b>A</b> sauter, <b>X</b> recharger, <b>Y</b> utiliser, <b>LB / RB</b> changer d'arme, <b>Menu</b> pause</li>"
       + "<li>Bon zombie = points + argent / mauvais zombie = vous perdez de la vie et les autres accélèrent</li>"
@@ -104,7 +105,7 @@ G.STRINGS.fr = {
     "settings.exportSave": "Exporter",
     "settings.importSave": "Importer",
     "key.forward": "Avancer", "key.back": "Reculer", "key.left": "Gauche", "key.right": "Droite", "key.sprint": "Sprint", "key.jump": "Sauter",
-    "key.reload": "Recharger", "key.interact": "Interagir", "key.melee": "Couteau", "key.slot2": "Emplacement 2", "key.slot3": "Emplacement 3",
+    "key.reload": "Recharger", "key.interact": "Interagir", "key.melee": "Emplacement de mêlée", "key.quickMelee": "Frappe rapide", "key.slot2": "Emplacement 2", "key.slot3": "Emplacement 3",
     "key.slot4": "Emplacement 4", "key.slot5": "Emplacement 5", "key.slot6": "Emplacement 6 (atout)", "key.slot7": "Emplacement 7 (atout)",
     "key.pause": "Pause",
     "save.persistFailTitle": "Impossible d'enregistrer la progression",
@@ -970,6 +971,17 @@ G.STRINGS.fr = {
     "howto.import": "Importer du vocabulaire",
     // ---- weapon names ----
     "weapon.melee": "Combat Knife",
+    // (expansion, round 4) the melee slot
+    "melee.name.bat": "Batte de baseball", "melee.name.machete": "Machette", "melee.name.axe": "Hache d'incendie", "melee.name.crowbar": "Pied-de-biche", "melee.name.shovel": "Pelle de campagne",
+    "melee.niche.knife": "Rapide, tête x2", "melee.niche.bat": "Repousse, fend les casques", "melee.niche.machete": "Tranche ce qui n'a pas d'armure", "melee.niche.axe": "Brise l'armure", "melee.niche.crowbar": "Polyvalent, sonne sur le métal", "melee.niche.shovel": "Cibles basses",
+    "melee.where.knife": "Tous les niveaux, dès le début", "melee.where.bat": "École : la réserve de sport", "melee.where.machete": "École : la remise près du jardin de fleurs mortes", "melee.where.axe": "Hôpital : l'armoire d'urgence", "melee.where.crowbar": "Hôpital : la salle de maintenance", "melee.where.shovel": "Bunker : le dépôt de vivres",
+    "melee.stagger.light": "Déstabilise un peu", "melee.stagger.medium": "Déstabilise", "melee.stagger.heavy": "Déstabilise fort", "melee.stagger.very_heavy": "Renverse",
+    "melee.tag.power": "Maintenir pour charger", "melee.tag.combo": "Combo à deux coups",
+    "stat.speed": "Vitesse", "stat.reach": "Allonge", "stat.sweep": "Balayage", "stat.blow": "Impact", "stat.thrift": "Endurance",
+    "stat.swing": "Coup", "stat.ms": "{n} ms", "stat.metres": "{n} m", "stat.targets": "Cibles", "stat.stamina": "Endurance",
+    "prompt.wallMelee": "Appuyez sur {key} pour acheter {name} (${price}{short})",
+    "weaponlog.melee": "Armes de mêlée",
+    "touch.meleeLabel": "Mêlée", "touchcfg.melee": "Bouton de mêlée",
     "weapon.pistol": "Pistol", "weapon.shotgun": "Shotgun", "weapon.smg": "SMG", "weapon.rifle": "Assault Rifle", "weapon.lmg": "LMG",
     "weapon.sniper": "Sniper", "weapon.railgun": "Piercing Railgun", "weapon.grenadelauncher": "Grenade Launcher",
     "weapon.golden_smg": "Golden Vocabulary SMG", "weapon.school_wall": "Faculty Enforcer", "weapon.hospital_wall": "Trauma Cannon",
