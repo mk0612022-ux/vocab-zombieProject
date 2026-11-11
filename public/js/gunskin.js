@@ -28,7 +28,27 @@ window.G = window.G || {};
 
 G.GunSkin = (function () {
   const TILE = 16, N = 8;                                     // 8 tiles of 16 px in a row
-  const SURF = { matte: 0, worn: 1, bare: 2, polymer: 3, grip: 4 };
+  // (expansion, round 5) two more for the skins (js/gunskins.js): ink letters
+  // on paper ("Lexicon") and two-tone camouflage blotches
+  const SURF = { matte: 0, worn: 1, bare: 2, polymer: 3, grip: 4, letters: 5, camo: 6 };
+  // the letters' tile: a 3x5 pixel font, two staggered rows of four
+  const GLYPHS = { A: "010101111101101", B: "110101110101110", C: "011100100100011", E: "111100110100111",
+    W: "101101101111101", O: "010101101101010", R: "110101110101101", D: "110101101101110" };
+  const inked = (() => {
+    const set = new Set();
+    const put = (ch, x0, y0) => { const g = GLYPHS[ch]; for (let i = 0; i < 15; i++) if (g[i] === "1") set.add(((x0 + (i % 3)) % TILE) + "," + (y0 + Math.floor(i / 3))); };
+    "ABCE".split("").forEach((ch, i) => put(ch, i * 4, 1));
+    "WORD".split("").forEach((ch, i) => put(ch, i * 4 + 2, 9));
+    return set;
+  })();
+  // the camouflage tile: a few round blotches that wrap across its edges
+  const blotched = (() => {
+    const set = new Set(), B = [[3, 4, 3.2], [11, 2, 2.6], [9, 10, 3.6], [1, 13, 2.2], [14, 13, 2]];
+    for (let y = 0; y < TILE; y++) for (let x = 0; x < TILE; x++) {
+      if (B.some(([bx, by, r]) => { const dx = Math.min(Math.abs(x - bx), TILE - Math.abs(x - bx)), dy = Math.min(Math.abs(y - by), TILE - Math.abs(y - by)); return dx * dx + dy * dy <= r * r; })) set.add(x + "," + y);
+    }
+    return set;
+  })();
   let map = null, orm = null, worldMat = null, vmMat = null, glowMat = null;
 
   // ---------------- the tiles ----------------
@@ -59,6 +79,8 @@ G.GunSkin = (function () {
         let lum = k.lum + (rnd() - 0.5) * k.noise, rough = k.rough, metal = k.metal;
         if (name === "grip" && (x + y) % 3 === 0) { lum -= 0.16; rough = Math.min(1, rough + 0.05); }     // stipple
         if (name === "grip" && y % 4 === 0) lum -= 0.06;                                                 // ridges
+        if (name === "letters" && inked.has(x + "," + y)) { lum = k.ink; rough = k.inkRough; }            // (round 5) ink
+        if (name === "camo" && blotched.has(x + "," + y)) lum -= k.blot;                                 // (round 5) a blotch
         if (scratch.has(x + "," + y)) { lum += k.scratchLum; rough = k.scratchRough; metal = Math.max(metal, k.scratchMetal); }
         // dust settles toward the bottom of a part
         if (y >= TILE - 3 && rnd() < k.dust) { lum -= 0.07; rough = Math.min(1, rough + 0.2); metal *= 0.5; }

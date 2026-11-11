@@ -468,7 +468,41 @@ G.CONFIG = {
   // gunStats: false brings back the guns' old numbers and the old way of shooting
   // (no falloff, one spread, one head multiplier); the Stat Card stays
   // diag: false stops the bug report's collecting (the report then holds no logs, errors or FPS)
-  expansion: { gunStats: true, diag: true, melee: true },
+  expansion: { gunStats: true, diag: true, melee: true, attachments: true },
+  // (expansion, round 5) attachments, skins and what unlocks them (js/attachments.js;
+  // the tables are js/data/attachments.js)
+  //   changeInShop   during a run they can be changed in the shop (else only between runs)
+  //   rememberBox    a word is "remembered" from this memory box up (4-5, and Mastered)
+  //   sway           the drift aimed through an optic: (its sway - 1) x amp radians,
+  //                  at two slow rates (Hz); Reduce Motion keeps `reduced` of it
+  //   scopeAt        aimed this far (0-1) through a magnified optic: its ring
+  //   laserRange     metres the laser's dot reaches
+  //   clear          an optic's line of sight passes at least this far (model units)
+  //                  over anything of the gun within clearBand of it, side to side:
+  //                  where the gun stands higher (the launcher's barrel) the optic
+  //                  goes up on a riser
+  //   suppressed     the suppressed family (section 5.3 of the prompt): the crack
+  //                  band-passed to `band` Hz (`order` filter stages a side, 12 dB
+  //                  an octave each) and crackDb down, the body a sine
+  //                  f0 -> f1 Hz for dur s at gain (of the crack), the tail
+  //                  tailDb down by tail[1] s (held to tail[0]), `length` s of it
+  //                  kept, a sniper's faint crack at crackDbSniper (crack: false to
+  //                  leave it out), the action's own sound (slide, bolt) mechDb
+  //                  more forward against the shot than it was, the room's echo x echo
+  //   (how much louder a muzzle brake makes the shot: G.ATTACHMENTS.brake.loud, dB)
+  attach: {
+    changeInShop: true,
+    rememberBox: 4,
+    sway: { amp: 0.01, speed: [0.23, 0.17], reduced: 0.33 },
+    scopeAt: 0.85,
+    laserRange: 40,
+    clear: 0.005,
+    clearBand: 0.012,
+    suppressed: { band: [800, 2000], order: 3, crackDb: -12, body: { f0: 200, f1: 120, dur: 0.07, gain: 0.55 }, tail: [0.03, 0.2], tailDb: -20, length: 0.32,
+      crack: true, crackDbSniper: -24, mechDb: 6, echo: 0.25,
+      // a gun whose shot has no action's tick (the .45, the long rifle): this one, as js/gunvoice.js layers it
+      mechDefault: [{ f: 2600, q: 3, at: 0.022, tau: 0.005, g: 0.09 }] },
+  },
   // ---------------- the melee slot (expansion, round 4) ----------------
   // G.MELEE_WEAPONS has each weapon; js/melee.js is the swing.
   melee: {
@@ -628,6 +662,10 @@ G.CONFIG = {
         bare: { lum: 1.25, noise: 0.09, rough: 0.3, metal: 0.92, scratches: 6, scratchLum: 0.14, scratchRough: 0.18, scratchMetal: 1, dust: 0.15, wear: 0.5, edgeLum: 0.12, edgeRough: 0.2, edgeMetal: 1 },
         polymer: { lum: 1.25, noise: 0.06, rough: 0.68, metal: 0.02, scratches: 2, scratchLum: 0.1, scratchRough: 0.5, scratchMetal: 0.1, dust: 0.35, wear: 0.35, edgeLum: 0.1, edgeRough: 0.45, edgeMetal: 0.45 },
         grip: { lum: 1.25, noise: 0.05, rough: 0.9, metal: 0, scratches: 0, scratchLum: 0, scratchRough: 0.9, scratchMetal: 0, dust: 0.2, wear: 0.15, edgeLum: 0.06, edgeRough: 0.8, edgeMetal: 0 },
+        // (expansion, round 5) the skins' own: paper with ink letters (ink: the
+        // letters' brightness), and camouflage (blot: how much darker a blotch is)
+        letters: { lum: 1.25, noise: 0.04, rough: 0.75, metal: 0, scratches: 1, scratchLum: 0.06, scratchRough: 0.6, scratchMetal: 0, dust: 0.2, wear: 0.3, edgeLum: 0.05, edgeRough: 0.6, edgeMetal: 0.2, ink: 0.32, inkRough: 0.5 },
+        camo: { lum: 1.25, noise: 0.07, rough: 0.66, metal: 0.04, scratches: 2, scratchLum: 0.1, scratchRough: 0.5, scratchMetal: 0.2, dust: 0.3, wear: 0.35, edgeLum: 0.1, edgeRough: 0.45, edgeMetal: 0.4, blot: 0.45 },
       },
       aoReach: 0.004, aoStep: 0.17, aoMin: 0.6,     // where parts meet: darker by aoStep for each part within aoReach
       handReach: 0.055, handShade: 0.8,             // ...and under the hands

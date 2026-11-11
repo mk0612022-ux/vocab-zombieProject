@@ -2581,3 +2581,23 @@ body.modal-question .hud-statcard { display: none; }
 @media (max-width: 640px) and (min-height: 521px) {
   .touch-melee { right: calc(var(--tpad-x) + var(--tf) + var(--tb) + 18px); bottom: calc(var(--tpad-b) + var(--tb) * 0.1); }
 }
+/* (expansion, round 5) attachments and skins: the Armory's window, the chips on a card, the shop's row, the awards */
+.att-editor { display: grid; gap: 10px; text-align: left; }
+.att-row { display: grid; gap: 4px; }
+.att-row label { font-weight: 700; font-size: 0.85rem; }
+.att-row select { width: 100%; min-height: 40px; padding: 6px 8px; border-radius: 6px; background: #0b1013; color: #e8f0ea; border: 1px solid #3a5a48; font: inherit; }
+.att-row select:focus, .att-row select.pad-focus { outline: 2px solid #6bff7a; outline-offset: 1px; }
+.att-desc { font-size: 0.74rem; opacity: 0.8; }
+.att-lock { font-size: 0.72rem; opacity: 0.6; }
+.att-fam { display: flex; gap: 8px; align-items: center; font-size: 0.8rem; min-height: 36px; }
+.att-fam input { width: 20px; height: 20px; }
+.att-chip { display: inline-block; margin: 0 4px 3px 0; padding: 1px 6px; border-radius: 3px; border: 1px solid #6bff7a66; color: #bff5c6; font-size: 0.68rem; white-space: nowrap; }
+.att-chip.off { border-color: rgba(255,255,255,0.18); color: inherit; opacity: 0.6; }
+.statc-att { margin-top: 6px; }
+.statc-atteff { font-size: 0.66rem; opacity: 0.8; }
+.wl-attach { margin-top: 4px; padding: 3px 8px; font-size: 0.72rem; width: 100%; }
+.achievement-group-title { grid-column: 1 / -1; margin: 14px 0 4px; font-weight: 800; opacity: 0.85; }
+@media (max-height: 520px) {
+  .att-editor { gap: 6px; }
+  .att-row select { min-height: 34px; padding: 3px 6px; }
+}

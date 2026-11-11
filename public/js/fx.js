@@ -285,9 +285,11 @@ G.FX = (function () {
     const gun = g.weaponViewGroup, An = gun && gun.userData.anchors;
     if (gun && An && An.muzzle) { gun.updateMatrixWorld(true); tmp.copy(An.muzzle).applyMatrix4(gun.matrixWorld); }
     else { g.camera.getWorldDirection(tmp2); g.camera.getWorldPosition(tmp).addScaledVector(tmp2, 0.6); }
+    // (expansion, round 5) a suppressor: no flash at all; a compensator: a little more
+    const fk = G.Attach ? G.Attach.flash(def) : 1;
     // the sprite
-    if (flash.mesh) {
-      const m = flash.mesh, sz = m.userData.flashSize, j = 0.85 + Math.random() * 0.3;
+    if (flash.mesh && fk > 0) {
+      const m = flash.mesh, sz = m.userData.flashSize, j = (0.85 + Math.random() * 0.3) * fk;
       m.geometry = flashGeos()[Math.floor(Math.random() * F.variants) % 4];
       m.rotation.z = Math.random() * Math.PI * 2;
       m.scale.set(sz[0] * j, sz[1] * j, 1);
@@ -299,8 +301,8 @@ G.FX = (function () {
     }
     // the light: from the fixed pool, never a new one
     const every = F.lightEvery[quality()] || 0;
-    if (every && n % every === 0 && set > 0 && G.Perf && G.Perf.flash) {
-      G.Perf.flash(tmp, F.light.color, F.light.intensity * set * (fast ? F.fastLight : 1), F.light.distance, 50);
+    if (every && n % every === 0 && set > 0 && fk > 0 && G.Perf && G.Perf.flash) {
+      G.Perf.flash(tmp, F.light.color, F.light.intensity * set * fk * (fast ? F.fastLight : 1), F.light.distance, 50);
     }
     // smoke, brass
     if (!fast || n % C().smoke.everyFast === 0) smokeAt(tmp, fam === "shotgun_pump" || fam === "shotgun_semi" || fam === "special");

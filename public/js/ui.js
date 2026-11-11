@@ -235,7 +235,7 @@ G.UI = {
         <div class="achievement-icon">${unlocked ? a.icon : "🔒"}</div>
         <div><div class="achievement-name">${a.name}</div><div class="achievement-desc">${a.desc}</div></div>
       </div>`;
-    }).join("");
+    }).join("") + (G.Attach && G.Attach.on() ? G.Attach.awardsHtml() : "");     // (expansion, round 5: what learning unlocks)
   },
   showAchievementToast(id) {
     const a = G.ACHIEVEMENTS.find((x) => x.id === id);
@@ -366,6 +366,7 @@ G.UI = {
         clearTimeout(b._t); b._t = setTimeout(() => b.classList.remove("playing"), (len || 1) * 1000);
       };
     });
+    this.bindAttachBtns(this.el("weaponlog-content"), () => this.renderWeaponLog(levelId));
   },
   listenBtn(w) { return `<button class="btn wl-listen" data-id="${w.id}">${G.T("weaponlog.listen")}</button>`; },
   weaponLogMeleeHtml(m) {
@@ -386,8 +387,13 @@ G.UI = {
     return `<div class="weaponlog-card border-${w.rarity}" style="border-style:solid">
       ${G.StatCard.html(w, { compare: G.StatCard.held() })}
       <div class="wl-stats">${pen ? G.T("weapon.speedPenalty", { p: pen }) : G.T("weapon.noPenalty")}${w.price ? ` · ${G.T("weaponlog.price", { p: w.price })}` : ""}${odds}</div>
-      ${this.listenBtn(w)}
+      ${this.listenBtn(w)}${this.attachBtn(w)}
     </div>`;
+  },
+  // (expansion, round 5) the gun's attachments and skin: its window (js/attachments.js)
+  attachBtn(w) { return G.Attach && G.Attach.on() ? `<button class="btn wl-attach" data-attach="${w.id}">${G.T("att.customize")}</button>` : ""; },
+  bindAttachBtns(root, after) {
+    root.querySelectorAll("[data-attach]").forEach((b) => { b.onclick = () => G.Attach.openEditor(G.WEAPON_DEFS[b.dataset.attach], after); });
   },
 
   // ---------------- Import vocabulary ----------------
@@ -646,6 +652,20 @@ G.UI = {
       const gun = item.kind === "unlock" && G.WEAPON_DEFS[item.weapon];
       itemCard(item, { owned: !!gun && pl.gunSlots.includes(item.weapon), detail: gun ? G.StatCard.html(gun, { compare: G.StatCard.held(), name: false }) : "" });
     });
+    // (expansion, round 5) the guns carried: their attachments and skins, free
+    // (in the armory: the shop keeps its three sections)
+    if (G.Attach && G.Attach.on() && G.CONFIG.attach.changeInShop) {
+      pl.gunSlots.forEach((id) => {
+        const d = G.WEAPON_DEFS[id];
+        if (!d) return;
+        const div = document.createElement("div");
+        div.className = "shop-item shop-attach";
+        const on = G.Attach.chips(d).map((a) => `<span class="att-chip">${G.escapeHtml(G.T("att." + a + ".name"))}</span>`).join("") || `<span class="att-chip off">${G.escapeHtml(G.T("att.none"))}</span>`;
+        div.innerHTML = `<div class="shop-item-title">${G.escapeHtml(d.name)}</div><div class="shop-item-level">${G.escapeHtml(G.T("shop.attach"))}</div><div class="shop-item-desc">${on}</div><button class="btn" data-attach="${id}">${G.T("att.customize")}</button>`;
+        grid.appendChild(div);
+      });
+      this.bindAttachBtns(grid, () => this.renderShop());
+    }
   },
 
   // ---------------- Crate open ----------------
@@ -885,8 +905,12 @@ G.UI = {
     // (gun reference pass) the clips' scope: a thick low-poly tube of sixteen
     // sides, dark outside it, a duplex reticle with range ticks; the white
     // sniper's has a small red dot in the middle (GUN_REFERENCE.md 3.8)
-    if (v && !box.querySelector("svg")) {
-      const pts = (r) => Array.from({ length: 16 }, (_, i) => { const a = (i + 0.5) / 16 * Math.PI * 2; return (Math.cos(a) * r).toFixed(2) + "," + (Math.sin(a) * r).toFixed(2); }).join(" ");
+    // (expansion, round 5) a magnified optic fitted ("oct"): the low-poly
+    // octagon of its tube, and its red dot
+    const sides = kind === "oct" ? 8 : 16;
+    if (v && (!box.querySelector("svg") || box.dataset.sides !== String(sides))) {
+      box.dataset.sides = String(sides);
+      const pts = (r) => Array.from({ length: sides }, (_, i) => { const a = (i + 0.5) / sides * Math.PI * 2; return (Math.cos(a) * r).toFixed(2) + "," + (Math.sin(a) * r).toFixed(2); }).join(" ");
       const ticks = [];
       for (let d = 3; d < 12; d += 3) ticks.push(`<line x1="${d}" y1="-0.9" x2="${d}" y2="0.9"/><line x1="${-d}" y1="-0.9" x2="${-d}" y2="0.9"/><line x1="-0.9" y1="${d}" x2="0.9" y2="${d}"/>`);
       box.innerHTML = `<svg class="hud-scope-svg" viewBox="-50 -50 100 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
@@ -899,7 +923,7 @@ G.UI = {
         <circle class="hud-scope-dot" r="0.55" fill="#ff3b3b"/></svg>`;
     }
     box.classList.toggle("hidden", !v);
-    box.classList.toggle("no-dot", kind !== "white");
+    box.classList.toggle("no-dot", kind !== "white" && kind !== "oct");
     this.el("hud-crosshair").classList.toggle("hidden", !!v);
   },
   setChargeMeter(frac) {

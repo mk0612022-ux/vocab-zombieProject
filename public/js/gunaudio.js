@@ -302,47 +302,86 @@
       if (o.shotId != null) { if (this._lastShot === o.shotId) return; this._lastShot = o.shotId; }
       const p = this.profile(def), C = G.CONFIG.audio;
       const s = (o.charge != null ? 0.55 + 0.65 * o.charge : 1) * p.gain * 0.85;
+      // (expansion, round 5) a suppressor: its own buffers (G.Attach.suppressBuffer),
+      // the room's echo turned down, no far echo, no rolling tail; a brake: louder
+      const supp = !!(G.Attach && G.Attach.suppressed(def)), SC = G.CONFIG.attach.suppressed;
+      const loudK = db(G.Attach ? G.Attach.loud(def) : 0), revK = supp ? SC.echo : 1;
       const R = this.cache.get(def.id);
       if (R && R.buffers.length) {
         R.last = performance.now();
-        let v = Math.floor(Math.random() * R.buffers.length);
-        if (R.buffers.length > 1 && v === R.prev) v = (v + 1 + Math.floor(Math.random() * (R.buffers.length - 1))) % R.buffers.length;
+        let bufs = R.buffers, k = loudK;
+        if (supp) { if (R.sbuf) bufs = R.sbuf; else { k *= db(SC.crackDb); this.suppressedOf(def, R); } }
+        let v = Math.floor(Math.random() * bufs.length);
+        if (bufs.length > 1 && v === R.prev) v = (v + 1 + Math.floor(Math.random() * (bufs.length - 1))) % bufs.length;
         R.prev = v;
-        const rate = 1 + (Math.random() * 2 - 1) * C.gunPitch, gain = s * R.norm * db((Math.random() * 2 - 1) * C.gunGainDb);
-        const V = A.buffer(R.buffers[v], { cat: "weapons", prio: 1, rate, gain, rev: p.rev * 0.8, tag: "shot" });
-        if (V) {
+        const rate = 1 + (Math.random() * 2 - 1) * C.gunPitch, gain = s * k * R.norm * db((Math.random() * 2 - 1) * C.gunGainDb);
+        const V = A.buffer(bufs[v], { cat: "weapons", prio: 1, rate, gain, rev: p.rev * 0.8 * revK, tag: "shot" });
+        if (V && !supp) {
           const far = G.Acoustics && G.Acoustics.distant();
           if (far) { const sg = A.ctx.createGain(); sg.gain.value = 0.6 * s; V.gains[V.gains.length - 1].connect(sg); sg.connect(far); }
           if (p.tail) A.group({ cat: "weapons", prio: 1 }, () => this.tailLayer(A, p, s));
         }
         // (gun reference pass) and its outdoor roll, one generator a gun
-        if (p.voice) this.tailShot(def, p, s * R.norm);
+        if (p.voice && !supp) this.tailShot(def, p, s * R.norm);
         this.stats.played++;
+        if (supp) this.stats.suppressed = (this.stats.suppressed || 0) + 1;
         return;
       }
       this.stats.live++;
+      const ls = s * (supp ? db(SC.crackDb) : loudK);
       // (a gun of the clips before its buffers are ready: drawn into one at
       // once next time; this shot is its recipe on the live synthesiser)
       if (p.voice) {
-        this.liveVoice(A, p, s);
-        this.tailShot(def, p, s);
+        this.liveVoice(A, p, ls, revK);
+        if (!supp) this.tailShot(def, p, s);
         this.prepare([def.id]);
         return;
       }
       // (still drawing its buffers: live, one voice for all its layers)
-      A.group({ cat: "weapons", prio: 1, dur: 1.2, tag: "shot" }, () => this.layers(A, def, p, 0.96 + Math.random() * 0.08, s, this.liteShot(def), p.rev));
+      A.group({ cat: "weapons", prio: 1, dur: 1.2, tag: "shot" }, () => this.layers(A, def, p, 0.96 + Math.random() * 0.08, ls, this.liteShot(def), p.rev * revK, supp));
       this.prepare([def.id]);
     },
+    // (expansion, round 5) a gun's mechanical layer drawn alone (its slide, its
+    // bolt, its belt): the suppressed family keeps it at -6 dB over a shot 12 dB down
+    async renderMech(def, k) {
+      const A = G.Audio, ctx = A.ctx, OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+      const rate = ctx.sampleRate, p = this.profile(def);
+      if (p.voice) {
+        // (a gun whose shot has no action's tick of its own -- the .45, the long
+        // rifle -- gets the config's: through a suppressor the slide is heard)
+        const mech = p.voice.mech && p.voice.mech.length ? p.voice.mech : G.ViewModel.family(def) === "sniper_bolt" ? null : G.CONFIG.attach.suppressed.mechDefault;
+        if (!mech) return null;
+        return G.GunVoice.render({ mech }, { shots: [0.004], k, tail: false, sampleRate: rate, seed: Math.round(k * 1000) });
+      }
+      if (!p.mech || !MECH[p.mech] || p.mech === "none") return null;
+      const off = new OAC(1, Math.floor(rate * 1.9), rate);
+      MECH[p.mech](offlineSynth(off, off.destination, A.noiseBuffer()), p, k);
+      return off.startRendering();
+    },
+    // its suppressed buffers, from the plain ones (once a gun: they hold whatever
+    // is fitted); one job a gun, which anyone may wait for
+    suppressedOf(def, R) {
+      if (!R || R.sbuf || !G.Attach) return Promise.resolve();
+      if (R.sjob) return R.sjob;
+      R.sjob = (async () => {
+        const ks = [1, 0.985, 1.015, 0.97, 1.03, 0.993], out = [];
+        for (let i = 0; i < R.buffers.length; i++) out.push(G.Attach.suppressBuffer(R.buffers[i], def, await this.renderMech(def, ks[i] || 1).catch(() => null)));
+        R.sbuf = out;
+      })().catch(() => null).then(() => { R.sjob = null; });
+      return R.sjob;
+    },
+    // the guns in hand that wear a suppressor: their buffers drawn now, not at the first shot
+    refit(ids) { (ids || []).forEach((id) => { const d = G.WEAPON_DEFS[id], R = this.cache.get(id); if (d && R && G.Attach && G.Attach.suppressed(d)) this.suppressedOf(d, R); }); },
     // (gun reference pass) a gun of the clips', live (only until its buffers
     // are drawn): its recipe drawn on the game's own context -- the very shot
     // the buffers will hold, at their level, on the weapons bus and the reverb
-    liveVoice(A, p, s) {
+    liveVoice(A, p, s, revK) {
       const ctx = A.ctx, V = A._voiceFor({ cat: "weapons", prio: 1, tag: "shot" }, 0.9);
       if (!V) return;
       const g = ctx.createGain();
       g.gain.value = s;
       g.connect(A._out("weapons", null, V));
-      if (A.revIn) { const sg = ctx.createGain(); sg.gain.value = p.rev * 0.8; g.connect(sg); sg.connect(A.revIn); }
+      if (A.revIn) { const sg = ctx.createGain(); sg.gain.value = p.rev * 0.8 * (revK == null ? 1 : revK); g.connect(sg); sg.connect(A.revIn); }
       G.GunVoice.renderDry(ctx, g, p.voice, ctx.currentTime + 0.004, 0.97 + Math.random() * 0.06, A.noiseBuffer(), null);
       V.gains.push(g);
     },
@@ -386,8 +425,9 @@
       A.noise({ dur: p.tail.dur, filter: "lowpass", freq: p.tail.lp, freqEnd: p.tail.lpEnd, gain: p.tail.g * s * (TAIL[zone] || 0.3), attack: 0.03, at: 0.03 });
     },
     // the layers of a shot, on any synthesiser (A: G.Audio live, or an offline one);
-    // k: its pitch, s: its level, r: its reverb send (0 offline: the room is added live)
-    layers(A, def, p, k, s, lite, r) {
+    // k: its pitch, s: its level, r: its reverb send (0 offline: the room is added live);
+    // quiet: no rolling echo (a suppressor, expansion round 5)
+    layers(A, def, p, k, s, lite, r, quiet) {
       if (p.crack) A.noise({ dur: p.crack.dur, freq: p.crack.f * k, q: p.crack.q, gain: p.crack.g * s, rev: r * 0.5 });
       if (p.snap && !lite) A.noise({ dur: p.snap.dur, filter: "highpass", freq: p.snap.f * k, gain: p.snap.g * s, rev: r * 0.4 });
       if (p.body) A.tone({ type: p.body.type, freq: p.body.f0 * k, freqEnd: p.body.f1 * k, dur: p.body.dur, gain: p.body.g * s, rev: r,
@@ -398,7 +438,7 @@
       if (p.whoosh) A.noise({ dur: p.whoosh.dur, freq: p.whoosh.f0 * k, freqEnd: p.whoosh.f1 * k, q: 0.6, gain: p.whoosh.g * s, attack: 0.03, rev: r });
       if (p.ring && !lite) A.tone({ type: "triangle", freq: p.ring.f * k, dur: p.ring.dur, gain: p.ring.g, filter: { type: "bandpass", freq: p.ring.f * k, q: 8 }, rev: r });
       // (the big guns' rolling echo: live, by the room -- tailLayer)
-      if (p.tail && A === G.Audio) this.tailLayer(A, p, s);
+      if (p.tail && A === G.Audio && !quiet) this.tailLayer(A, p, s);
       (MECH[p.mech] || MECH.none)(A, p, k);
       if (!lite) p.flavors.forEach((fn) => fn(A, k, s, r));
     },
@@ -461,6 +501,7 @@
       this.stats.rendered++;
       this.stats.renderMs += performance.now() - t0;
       this.evict();
+      this.refit([def.id]);                 // (expansion, round 5: suppressed, its own buffers too)
     },
     // how loud a shot is as it is played: the drawn buffer's RMS (its first
     // 150 ms) plus the gun's own level (profile gain, as shot() plays it)
@@ -534,7 +575,16 @@
       if (!A.ctx || !p.ref || !G.GunVoice) return;
       const st = G.GunRef.boltSteps(def), B = G.GunVoice.BOLT[p.proto];
       if (!st || !B) return;
-      A.group({ cat: "weapons", prio: 2, dur: (st.settle || 1.5) + 0.25, tag }, () => Object.keys(B).forEach((k) => { if (st[k] != null) B[k](A, p.mechPitch || 1, st[k]); }));
+      // (expansion, round 5) suppressed: the bolt down only 6 dB against a shot 12 dB down
+      const SC = G.CONFIG.attach.suppressed, S = G.Attach && G.Attach.suppressed(def) ? this.scaled(A, db(SC.mechDb + SC.crackDb)) : A;
+      A.group({ cat: "weapons", prio: 2, dur: (st.settle || 1.5) + 0.25, tag }, () => Object.keys(B).forEach((k) => { if (st[k] != null) B[k](S, p.mechPitch || 1, st[k]); }));
+    },
+    // G.Audio with every tone and noise k times as loud (a group has no gain of its own)
+    scaled(A, k) {
+      const o = Object.create(A), g = (x) => Object.assign({}, x, { gain: (x.gain == null ? 0.3 : x.gain) * k });
+      o.tone = (x) => A.tone(g(x));
+      o.noise = (x) => A.noise(g(x));
+      return o;
     },
     // (gun reference pass) a casing landing (js/fx.js): its kind, what it landed on, where
     casing(kind, surface, pos) {

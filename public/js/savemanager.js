@@ -42,7 +42,7 @@ G.SaveManager = (function () {
   const SECTIONS = {
     profile: "profile", settings: "settings", checkpoint: "checkpoints", meta: "meta",
     learning: ["wordStats", "wordStatsVersion", "learn", "customWords", "importedSets"],
-    progress: ["unlockedLevels", "levelHighScores", "dailyHighScores", "endlessHighScore", "endlessHighWave", "leaderboards", "achievements", "unlockedWeapons", "notes", "bosses"],
+    progress: ["unlockedLevels", "levelHighScores", "dailyHighScores", "endlessHighScore", "endlessHighWave", "leaderboards", "achievements", "unlockedWeapons", "notes", "bosses", "attach"],
     flags: ["learnSeen", "tutorialDone", "tutorialSeen"],
   };
   function toDoc(s) {

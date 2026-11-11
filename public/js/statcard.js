@@ -71,11 +71,15 @@ G.StatCard = (function () {
     const mag = lvl ? Math.round(s.mag * (lvl.mag || 1)) : s.mag;
     const nums = numbers([["stat.mag", mag], ["stat.reserve", G.GunStats.reserve(def, mag)], ["stat.reload", T("stat.seconds", { s: s.reloadEmpty.toFixed(1) })], ["stat.rpm", s.rpm]]);
     const tags = tagsOf([s.niche ? T("niche." + s.niche) : "", G.fireModeLabel(def)]);
+    // (expansion, round 5) what is fitted and what it does (the bars and numbers already count it)
+    const fit = G.Attach && G.Attach.on() ? G.Attach.chips(def) : [];
+    const att = fit.length ? `<div class="statc-att">${fit.map((a) => `<span class="att-chip">${esc(T("att." + a + ".name"))}</span>`).join("")}`
+      + `<div class="statc-atteff">${esc(G.Attach.effects(def).join(" · "))}</div></div>` : "";
     return `<div class="stat-card${cmp ? " compare" : ""}">`
       + (opts.name === false ? "" : `<div class="statc-head"><span class="statc-name" style="color:${rc}">${esc(def.name)}</span><span class="statc-rarity">${esc(G.RARITY[def.rarity].label)}</span></div>`)
       + `<div class="statc-tags">${tags}<span class="statc-tag" style="color:${wc.color}">${esc(wc.label)}</span></div>`
       + `<div class="statc-bars">${bars}</div>`
-      + `<div class="statc-nums">${nums}</div>`
+      + `<div class="statc-nums">${nums}</div>` + att
       + (cmp ? `<div class="statc-vs">${esc(T("stat.vs", { name: cmp.name }))}</div>` : "")
       + `</div>`;
   }

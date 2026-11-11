@@ -16,7 +16,7 @@
 | `profile` | `profile` | `{ name, avatar, publicId }` ว่างจนกว่าจะถึงรอบบัญชี |
 | `settings` | `settings` | ค่าตั้งทั้งหมด รวม `keybinds`, `hudScale`, `touchLayout` (ไม่บังคับ มีเมื่อใช้ touch), `showDrawCalls` (ไม่บังคับ) |
 | `learning` | `wordStats`, `wordStatsVersion`, `learn`, `customWords`, `importedSets` | สถิติคำ, SRS, คู่คำที่สับสน, streak, ประวัติสาเหตุที่ผิด, คำของผู้เล่น |
-| `progress` | `unlockedLevels`, `levelHighScores`, `dailyHighScores`, `endlessHighScore`, `endlessHighWave`, `leaderboards`, `achievements`, `unlockedWeapons`, `notes`, `bosses` | ด่าน คะแนน ranks awards weapon log story notes บอส |
+| `progress` | `unlockedLevels`, `levelHighScores`, `dailyHighScores`, `endlessHighScore`, `endlessHighWave`, `leaderboards`, `achievements`, `unlockedWeapons`, `notes`, `bosses`, `attach` | ด่าน คะแนน ranks awards weapon log story notes บอส อุปกรณ์เสริมและสกิน (รอบ 5) |
 | `checkpoint` | `checkpoints` | `{ level1, level2, level3 }` รูปแบบเดิมของ `G.Checkpoint.snapshot` |
 | `flags` | `learnSeen`, `tutorialDone`, `tutorialSeen` | สถานะการสอนและคำแนะนำที่เคยเห็น |
 | `meta` | `meta` | ดูด้านล่าง |
@@ -44,6 +44,14 @@
 - `learn.daily`: `{ streak, best, last, nextDue, days }`
 - `learn.why[key]`: `[{ d, c, x, t }]` เก็บล่าสุดไม่เกิน `G.CONFIG.explain.history`
 - `customWords.levelN`: `[word, meaning, extra?]`
+- `attach` (รอบ 5, `public/js/attachments.js`): `{ v: 1, unlocked, loadout, family, forms, spellBest, bossesBest }`
+  - `unlocked[id]`: เลขวันที่ปลดล็อก · `id` คือ id ของอุปกรณ์ (`reddot`) หรือ `skin:<key>` (`skin:lexicon`) · ปลดล็อกแล้วอยู่ถาวร
+  - `loadout[gunId]` และ `family[family]`: `{ optic?, muzzle?, mag?, grip?, skin? }` ของปืนกระบอกนั้น หรือค่าเริ่มต้นของทั้งตระกูล (ปืนที่ไม่มีของตัวเองใช้ของตระกูล)
+  - `forms[entryId]`: รูปคำในตระกูลคำที่เคยตอบถูกโดยไม่ใช้คำใบ้ (ตัวพิมพ์เล็ก ไม่เกิน 16 รูปต่อคำ) ใช้นับ "ตระกูลคำครบ"
+  - `spellBest`: สะกดถูกติดกันมากที่สุดที่เคยทำได้ · `bossesBest`: บอสมากที่สุดที่ชนะในรอบเดียว
+  - เซฟเก่าที่ไม่มีคีย์นี้ได้ชุดว่าง (`G.Attach.normalize`) · id ที่ไม่รู้จักหรือใส่ผิดช่องถูกตัดทิ้ง
+  - merge: `unlocked` รวมทั้งสองฝั่ง (เลือกวันที่เก่ากว่า) · `loadout`/`family` ใช้ของเครื่องนี้ก่อน ฝั่งไฟล์เติมเฉพาะปืนที่เครื่องนี้ไม่มี · `forms` รวมกัน · `spellBest`/`bossesBest` เอาค่ามากกว่า
+  - ระบบนี้อ่าน `learn` อย่างเดียว ไม่เขียนกลับ
 
 ## 3. ที่เก็บ
 

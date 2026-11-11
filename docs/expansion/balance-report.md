@@ -203,3 +203,88 @@ G.MELEE_WEAPONS and G.CONFIG.melee. Times in ms: wind-up / edge moving / back to
 | axe | 2 | 1800 | chop | 260/100/420 | 780 | 2.2 | 1 | very_heavy | 18 | 78 | 1.5 | 140 | 100 | 0.36 | 1 | 1 | 1 | 1 | 1 | 1 | 2 | 1 | 1 | 1 |
 | crowbar | 2 | 1300 | hook | 170/80/300 | 550 | 2 | 2 | heavy | 11 | 40 | 1.5 | - | 73 | 0.25 | 1 | 1 | 1 | 2 | 2 | 1 | 3 | 1 | 1 | 2 |
 | shovel | 3 | 1400 | scoop | 200/90/340 | 630 | 2 | 2 | heavy | 13 | 42 | 1.25 | 76 | 67 | 0.29 | 1 | 1 | 1 | 2 | 2 | 1 | 3 | 1 | 1 | 2 |
+
+## Attachments
+
+G.ATTACHMENTS (js/data/attachments.js). The tables above are the guns as they come; a player's attachments are on top of them. Not a sidegrade: none.
+
+| attachment | slot | effects | unlocked by | sidegrade |
+|---|---|---|---|---|
+| reddot | optic | zoom x1.12, ads x1.04, sway x1.08 | remembered 25 | yes |
+| holo | optic | zoom x1.25, ads x1.08, sway x1.14 | streak 3 | yes |
+| x2 | optic | zoom x2, ads x1.15, sway x1.3 | free | yes |
+| x4 | optic | zoom x4, ads x1.25, sway x1.5 | remembered 100 | yes |
+| x8 | optic | zoom x8, ads x1.35, sway x1.75 | bosses 4 | yes |
+| suppressor | muzzle | range x0.9, flash x0, suppressed | remembered 250 | yes |
+| compensator | muzzle | recoilV x0.8, flash x1.05 | families 5 | yes |
+| brake | muzzle | recoilV x0.85, recoilH x0.85, +3 dB | families 15 | yes |
+| extended | mag | ads x1.05, mag x1.5, reload x1.1 | remembered 50 | yes |
+| fastmag | mag | mag x0.9, reload x0.8 | streak 7 | yes |
+| vgrip | grip | ads x1.08, recoilV x0.85, recoilH x0.85 | free | yes |
+| agrip | grip | ads x0.88, recoilV x1.05 | streak 14 | yes |
+| laser | grip | hip x0.75, laser dot | spellRun 20 | hip only (nothing aimed) |
+
+Each on the middle gun of each family it fits (the reserve carries as many rounds in all; a 2x-8x scope and a red dot change the aimed zoom):
+
+| family | gun | attachment | sustained | mag / reload | aim time | drift | hip spread | kick up / side | range | zoom | sound | flash |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| pistol | rebound_pistol | reddot | = | 14 / 0.9 s | +4% | +8% | = | = / = | = | x1.12 |  | = |
+| pistol | rebound_pistol | suppressor | = | 14 / 0.9 s | = | = | = | = / = | -10% |  | suppressed | none |
+| pistol | rebound_pistol | compensator | = | 14 / 0.9 s | = | = | = | -20% / = | = |  |  | +5% |
+| pistol | rebound_pistol | extended | +5% | 21 / 0.99 s | +5% | = | = | = / = | = |  |  | = |
+| pistol | rebound_pistol | fastmag | +3% | 13 / 0.72 s | = | = | = | = / = | = |  |  | = |
+| pistol | rebound_pistol | laser | = | 14 / 0.9 s | = | = | -25% | = / = | = |  |  | = |
+| smg | hall_monitor | reddot | = | 40 / 1.4 s | +4% | +8% | = | = / = | = | x1.12 |  | = |
+| smg | hall_monitor | holo | = | 40 / 1.4 s | +8% | +14% | = | = / = | = | x1.25 |  | = |
+| smg | hall_monitor | x2 | = | 40 / 1.4 s | +15% | +30% | = | = / = | = | x2 |  | = |
+| smg | hall_monitor | suppressor | = | 40 / 1.4 s | = | = | = | = / = | -10% |  | suppressed | none |
+| smg | hall_monitor | compensator | = | 40 / 1.4 s | = | = | = | -20% / = | = |  |  | +5% |
+| smg | hall_monitor | brake | = | 40 / 1.4 s | = | = | = | -15% / -15% | = |  | +3 dB | = |
+| smg | hall_monitor | extended | +7% | 60 / 1.54 s | +5% | = | = | = / = | = |  |  | = |
+| smg | hall_monitor | fastmag | +3% | 36 / 1.12 s | = | = | = | = / = | = |  |  | = |
+| smg | hall_monitor | vgrip | = | 40 / 1.4 s | +8% | = | = | -15% / -15% | = |  |  | = |
+| smg | hall_monitor | agrip | = | 40 / 1.4 s | -12% | = | = | +5% / = | = |  |  | = |
+| smg | hall_monitor | laser | = | 40 / 1.4 s | = | = | -25% | = / = | = |  |  | = |
+| rifle | service_rifle | reddot | = | 30 / 1.5 s | +4% | +8% | = | = / = | = | x1.12 |  | = |
+| rifle | service_rifle | holo | = | 30 / 1.5 s | +8% | +14% | = | = / = | = | x1.25 |  | = |
+| rifle | service_rifle | x2 | = | 30 / 1.5 s | +15% | +30% | = | = / = | = | x2 |  | = |
+| rifle | service_rifle | x4 | = | 30 / 1.5 s | +25% | +50% | = | = / = | = | x4 |  | = |
+| rifle | service_rifle | suppressor | = | 30 / 1.5 s | = | = | = | = / = | -10% |  | suppressed | none |
+| rifle | service_rifle | compensator | = | 30 / 1.5 s | = | = | = | -20% / = | = |  |  | +5% |
+| rifle | service_rifle | brake | = | 30 / 1.5 s | = | = | = | -15% / -15% | = |  | +3 dB | = |
+| rifle | service_rifle | extended | +9% | 45 / 1.65 s | +5% | = | = | = / = | = |  |  | = |
+| rifle | service_rifle | fastmag | +4% | 27 / 1.2 s | = | = | = | = / = | = |  |  | = |
+| rifle | service_rifle | vgrip | = | 30 / 1.5 s | +8% | = | = | -15% / -15% | = |  |  | = |
+| rifle | service_rifle | agrip | = | 30 / 1.5 s | -12% | = | = | +5% / = | = |  |  | = |
+| rifle | service_rifle | laser | = | 30 / 1.5 s | = | = | -25% | = / = | = |  |  | = |
+| lmg | drum_hammer | reddot | = | 70 / 2.8 s | +4% | +8% | = | = / = | = | x1.12 |  | = |
+| lmg | drum_hammer | holo | = | 70 / 2.8 s | +8% | +14% | = | = / = | = | x1.25 |  | = |
+| lmg | drum_hammer | x2 | = | 70 / 2.8 s | +15% | +30% | = | = / = | = | x2 |  | = |
+| lmg | drum_hammer | x4 | = | 70 / 2.8 s | +25% | +50% | = | = / = | = | x4 |  | = |
+| lmg | drum_hammer | compensator | = | 70 / 2.8 s | = | = | = | -20% / = | = |  |  | +5% |
+| lmg | drum_hammer | brake | = | 70 / 2.8 s | = | = | = | -15% / -15% | = |  | +3 dB | = |
+| lmg | drum_hammer | extended | +11% | 105 / 3.08 s | +5% | = | = | = / = | = |  |  | = |
+| lmg | drum_hammer | fastmag | +4% | 63 / 2.24 s | = | = | = | = / = | = |  |  | = |
+| lmg | drum_hammer | vgrip | = | 70 / 2.8 s | +8% | = | = | -15% / -15% | = |  |  | = |
+| lmg | drum_hammer | agrip | = | 70 / 2.8 s | -12% | = | = | +5% / = | = |  |  | = |
+| shotgun_pump | breach_gauge | reddot | = | 5 / 1.7 s | +4% | +8% | = | = / = | = | x1.12 |  | = |
+| shotgun_pump | breach_gauge | holo | = | 5 / 1.7 s | +8% | +14% | = | = / = | = | x1.25 |  | = |
+| shotgun_pump | breach_gauge | brake | = | 5 / 1.7 s | = | = | = | -15% / -15% | = |  | +3 dB | = |
+| shotgun_pump | breach_gauge | extended | +10% | 8 / 1.87 s | +5% | = | = | = / = | = |  |  | = |
+| shotgun_pump | breach_gauge | vgrip | = | 5 / 1.7 s | +8% | = | = | -15% / -15% | = |  |  | = |
+| shotgun_pump | breach_gauge | laser | = | 5 / 1.7 s | = | = | -25% | = / = | = |  |  | = |
+| shotgun_semi | final_bell | reddot | = | 10 / 2.4 s | +4% | +8% | = | = / = | = | x1.12 |  | = |
+| shotgun_semi | final_bell | holo | = | 10 / 2.4 s | +8% | +14% | = | = / = | = | x1.25 |  | = |
+| shotgun_semi | final_bell | brake | = | 10 / 2.4 s | = | = | = | -15% / -15% | = |  | +3 dB | = |
+| shotgun_semi | final_bell | extended | +11% | 15 / 2.64 s | +5% | = | = | = / = | = |  |  | = |
+| shotgun_semi | final_bell | vgrip | = | 10 / 2.4 s | +8% | = | = | -15% / -15% | = |  |  | = |
+| shotgun_semi | final_bell | laser | = | 10 / 2.4 s | = | = | -25% | = / = | = |  |  | = |
+| sniper_bolt | honor_roll | suppressor | = | 10 / 1.8 s | = | = | = | = / = | -10% |  | suppressed | none |
+| sniper_bolt | honor_roll | brake | = | 10 / 1.8 s | = | = | = | -15% / -15% | = |  | +3 dB | = |
+| sniper_bolt | honor_roll | extended | +6% | 15 / 1.98 s | +5% | = | = | = / = | = |  |  | = |
+| sniper_bolt | honor_roll | fastmag | +3% | 9 / 1.44 s | = | = | = | = / = | = |  |  | = |
+| sniper_bolt | honor_roll | laser | = | 10 / 1.8 s | = | = | -25% | = / = | = |  |  | = |
+| special | doomsday | reddot | = | 2 / 3 s | +4% | +8% | = | = / = | = | x1.12 |  | = |
+| special | doomsday | holo | = | 2 / 3 s | +8% | +14% | = | = / = | = | x1.25 |  | = |
+| special | doomsday | extended | +15% | 3 / 3.3 s | +5% | = | = | = / = | = |  |  | = |
+| special | doomsday | laser | = | 2 / 3 s | = | = | -25% | = / = | = |  |  | = |

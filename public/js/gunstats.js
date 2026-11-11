@@ -96,6 +96,11 @@ G.GunStats = (function () {
     const vm = G.ViewModel;
     const reloadEmpty = def.reloadTime / 1000;
     const mags = pick("reserveMags", K.reserveMags);
+    // (expansion, round 5) what is fitted (js/attachments.js): the magazine and
+    // the reload are on the def already; the aim, the spread, the range, the kick here
+    const AM = G.Attach ? G.Attach.mods(def) : { ads: 1, hip: 1, range: 1, recoilV: 1, recoilH: 1 };
+    const r2 = (v) => Math.round(v * 100) / 100, r4 = (v) => Math.round(v * 10000) / 10000;
+    const baseMag = def.attachBase ? def.attachBase.magSize : def.magSize;
     return {
       // who it is
       id: def.id, archetype: def.archetype, cls, level: def.level, rarity: def.rarity,
@@ -103,21 +108,21 @@ G.GunStats = (function () {
       // the shot
       fireMode: fireMode(def), rpm: Math.round(60000 / def.fireRate * (def.burst || 1)), interval: def.fireRate / 1000,
       damage: def.damage, headMult: Math.round(lean(pick("headMult", K.headMult), "head") * 100) / 100,
-      falloffStart: fall[0], falloffEnd: fall[1], falloffMin: fall[2],
+      falloffStart: Math.round(fall[0] * AM.range), falloffEnd: Math.round(fall[1] * AM.range), falloffMin: fall[2],
       pierce: def.pierce || 0, pellets: def.pellets || 1, pelletSpread: pellet ? (def.spread || 0.06) : 0,
       burst: def.burst || 1, charge: def.charge || null, splash: def.splash ? def.splashRadius : 0,
       // the magazine
-      mag: def.magSize, reserve: def.magSize * mags, reserveMags: mags,
+      mag: def.magSize, reserve: baseMag * mags, reserveMags: mags,
       reloadEmpty, reloadTactical: pick("reloadTactical", Math.round(reloadEmpty * SM.tacticalScale * 100) / 100),
       // in the hands
       weight: G.weaponWeight(def), weightClass: wk, moveMult: wc.speedMult,
       swapTime: Math.round((vm.switchDuration(def) / 2 + vm.drawDuration(def)) * 100) / 100,
-      adsTime: pick("adsTime", Math.round(lean(SM.aimIn[wk], "ads") * 100) / 100), sprintOut: pick("sprintOut", Math.round(lean(SM.sprintOut[wk], "sprint") * 100) / 100),
+      adsTime: r2(pick("adsTime", Math.round(lean(SM.aimIn[wk], "ads") * 100) / 100) * AM.ads), sprintOut: pick("sprintOut", Math.round(lean(SM.sprintOut[wk], "sprint") * 100) / 100),
       // where the rounds go
-      hipSpread: hip, adsSpread: pellet ? hip * 0.8 : lean(pick("ads", K.ads), "spread"),
+      hipSpread: r4(hip * AM.hip), adsSpread: pellet ? hip * 0.8 : lean(pick("ads", K.ads), "spread"),
       bloom: bloom[0], bloomMax: bloom[1], bloomDecay: bloom[2],
-      recoilV: RC ? RC.kick : Math.round(strength * 0.0099 * 10000) / 10000,
-      recoilH: RC ? Math.round(RC.kick * RC.side * 10000) / 10000 : 0,
+      recoilV: r4((RC ? RC.kick : Math.round(strength * 0.0099 * 10000) / 10000) * AM.recoilV),
+      recoilH: r4((RC ? Math.round(RC.kick * RC.side * 10000) / 10000 : 0) * AM.recoilH),
       recoilBack: RC ? RC.back : 0.33,
       recoilSeed: seedOf(def.id),
       // how it looks and sounds (the sheet only reads them)
@@ -157,7 +162,9 @@ G.GunStats = (function () {
     return s.hipSpread + (s.adsSpread - s.hipSpread) * a + (bloom || 0) * (1 - 0.4 * a);
   }
   function reserve(def, magSize) {
-    return magSize * (active() ? of(def).reserveMags : 4);
+    // (expansion, round 5: a bigger or smaller magazine fitted carries as many rounds in all)
+    const k = def && def.attachBase && def.magSize ? def.attachBase.magSize / def.magSize : 1;
+    return Math.round(magSize * k * (active() ? of(def).reserveMags : 4));
   }
   // the n-th shot of a string, sideways: -1..1, the same every time for this gun
   function pattern(def, n) {

@@ -183,7 +183,50 @@ G.Balance = (function () {
       o += "\n## " + c + "\n\n" + table(["gun", "lv", "rarity", "niche", "dmg", "rpm", "mag", "rl s", "DPS", "sust.", "score", "allowed", "body", "head", "TTK s", "w1", "w5", "w10", "w15", "w20", "T3 w20"],
         list.map((r) => [r.id, r.level, r.rarity, r.niche, r.damage + (r.pellets > 1 ? "x" + r.pellets : "") + (r.burst > 1 ? " b" + r.burst : ""), r.rpm, r.mag, r.reload, r.dps, r.sustained, r.score, r.allowed, r.stkBody, r.stkHead, r.ttkBody].concat(r.byWave, [r.tier3])));
     });
-    return o + bossTable(rows) + meleeTable();
+    return o + bossTable(rows) + meleeTable() + attachTable();
+  }
+  // ---------------- attachments (round 5) ----------------
+  // Everything above is the guns as they come (the player's own choices are
+  // left out: run() turns them off while it counts). Here each attachment on
+  // the middle gun (by sustained DPS) of each family it fits: what it gives,
+  // what it costs -- a sidegrade has at least one of each.
+  const ATT_BETTER = { zoom: (v) => v > 1, ads: (v) => v < 1, sway: (v) => v < 1, range: (v) => v > 1, recoilV: (v) => v < 1, recoilH: (v) => v < 1, mag: (v) => v > 1, reload: (v) => v < 1, hip: (v) => v < 1, flash: (v) => v < 1 };
+  function attSides(a) {
+    let b = 0, w = 0;
+    Object.keys(ATT_BETTER).forEach((k) => { if (a[k] != null && a[k] !== 1) { if (ATT_BETTER[k](a[k])) b++; else w++; } });
+    if (a.sound === "suppressed") b++;
+    if (a.loud > 0) w++;
+    if (a.laser) b++;
+    return { b, w };
+  }
+  function attachTable() {
+    if (!G.ATTACHMENTS || !G.Attach) return "";
+    const AT = G.ATTACHMENTS, keys = Object.keys(ATT_BETTER);
+    const fx = (a) => keys.filter((k) => a[k] != null).map((k) => k + " x" + a[k]).concat(a.loud ? ["+" + a.loud + " dB"] : [], a.sound ? [a.sound] : [], a.laser ? ["laser dot"] : []).join(", ");
+    const by = (id) => { const u = G.ATTACH_UNLOCKS.find((x) => x.id === id); return u ? u.kind + " " + (u.n != null ? u.n : u.share != null ? u.share : u.level) : "free"; };
+    const list = table(["attachment", "slot", "effects", "unlocked by", "sidegrade"], Object.keys(AT).map((id) => {
+      const s = attSides(AT[id]);
+      return [id, AT[id].slot, fx(AT[id]), by(id), s.b && s.w ? "yes" : id === "laser" ? "hip only (nothing aimed)" : "NO"];
+    }));
+    const pct = (a, b) => (!b || Math.abs(a / b - 1) < 1e-9 ? "=" : (a > b ? "+" : "") + Math.round((a / b - 1) * 100) + "%");
+    const rows = [];
+    Object.keys(G.ATTACH_FAMILIES).forEach((f) => {
+      const all = guns().filter((d) => G.ViewModel.family(d) === f);
+      if (!all.length) return;
+      const mid = all.slice().sort((a, b) => GS().sustained(GS().of(a)) - GS().sustained(GS().of(b)))[Math.floor(all.length / 2)];
+      const s = GS().of(mid), base = GS().sustained(s);
+      G.ATTACH_SLOTS.forEach((slot) => G.Attach.allowed(mid, slot).forEach((id) => {
+        const M = G.Attach.combine([id]);
+        const sus = GS().sustained(Object.assign({}, s, { mag: Math.max(1, Math.round(s.mag * M.mag)), reloadEmpty: s.reloadEmpty * M.reload }));
+        rows.push([f, mid.id, id, pct(sus, base), Math.max(1, Math.round(s.mag * M.mag)) + " / " + round(s.reloadEmpty * M.reload, 2) + " s", pct(s.adsTime * M.ads, s.adsTime), pct(M.sway, 1),
+          pct(s.hipSpread * M.hip, s.hipSpread), pct(M.recoilV, 1) + " / " + pct(M.recoilH, 1), pct(s.falloffEnd * M.range, s.falloffEnd), M.optic ? "x" + AT[id].zoom : "", M.loud ? "+" + M.loud + " dB" : M.sound || "", M.flash === 0 ? "none" : pct(M.flash, 1)]);
+      }));
+    });
+    const open = Object.keys(AT).filter((id) => { const s = attSides(AT[id]); return !(s.b && s.w) && id !== "laser"; });
+    return "\n## Attachments\n\nG.ATTACHMENTS (js/data/attachments.js). The tables above are the guns as they come; a player's attachments are on top of them. Not a sidegrade: "
+      + (open.length ? open.join(", ") : "none") + ".\n\n" + list
+      + "\nEach on the middle gun of each family it fits (the reserve carries as many rounds in all; a 2x-8x scope and a red dot change the aimed zoom):\n\n"
+      + table(["family", "gun", "attachment", "sustained", "mag / reload", "aim time", "drift", "hip spread", "kick up / side", "range", "zoom", "sound", "flash"], rows);
   }
   // how long a boss lasts, by what the middle gun of a rarity does: boss health
   // (G.CONFIG.boss.hpByWave) was sized for a fight of the wanted length
@@ -259,11 +302,18 @@ G.Balance = (function () {
   }
 
   function run() {
-    const rows = guns().map(rowOf);
-    scores(rows);
-    const flags = check(rows);
-    flags.forEach((f) => { f.why = explainOf(f); });
-    return { rows, flags, unexplained: flags.filter((f) => !f.why), md: report(rows, flags), csv: csv(rows), meleeCsv: meleeCsv(), melee: meleeRows(), changelog: changelog() };
+    // (round 5: the guns as they come -- the player's attachments off while counting)
+    const keep = G.CONFIG.expansion.attachments, off = !!G.Attach && keep !== false;
+    if (off) { G.CONFIG.expansion.attachments = false; G.Attach.apply(); }
+    try {
+      const rows = guns().map(rowOf);
+      scores(rows);
+      const flags = check(rows);
+      flags.forEach((f) => { f.why = explainOf(f); });
+      return { rows, flags, unexplained: flags.filter((f) => !f.why), md: report(rows, flags), csv: csv(rows), meleeCsv: meleeCsv(), melee: meleeRows(), changelog: changelog() };
+    } finally {
+      if (off) { G.CONFIG.expansion.attachments = keep; G.Attach.apply(); }
+    }
   }
   return { run, rowOf, EXPLAINED, EXPLAINED_PAIRS, distance, roundDamage };
 })();

@@ -47,6 +47,9 @@ G.defaultSave = function () {
     wordStatsVersion: 2,          // 1: keyed by the word as typed; 2: by word-bank entry id (G.migrateWordStats)
     achievements: {},             // {id: true}
     unlockedWeapons: ["pistol"],
+    // (expansion, round 5) attachments and skins: what learning unlocked {id: day},
+    // the choices per gun and per family, the forms of words answered, the best runs
+    attach: { v: 1, unlocked: {}, loadout: {}, family: {}, forms: {}, spellBest: 0, bossesBest: 0 },
     settings: {
       controlMode: "auto",        // auto | desktop | touch
       fpsCap: 60,
@@ -172,6 +175,8 @@ G.normalizeSave = function (data) {
   if (!s.unlockedLevels.includes(1)) s.unlockedLevels.unshift(1);
   if (!Array.isArray(s.unlockedWeapons)) s.unlockedWeapons = ["pistol"];
   s.unlockedWeapons = s.unlockedWeapons.filter((id) => typeof id === "string");
+  // (expansion, round 5) a save from before attachments gets the empty set; a broken one is mended
+  s.attach = G.Attach ? G.Attach.normalize(s.attach) : (s.attach && typeof s.attach === "object" ? s.attach : JSON.parse(JSON.stringify(def.attach)));
   ["wordStats", "achievements", "levelHighScores", "dailyHighScores", "importedSets", "customWords"].forEach((k) => {
     if (!s[k] || typeof s[k] !== "object" || Array.isArray(s[k])) s[k] = def[k] || {};
   });

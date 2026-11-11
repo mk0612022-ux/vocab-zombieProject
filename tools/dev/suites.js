@@ -10,7 +10,7 @@ if (G.save) G.save.settings.controlMode = "auto";
 // (a run cut off in a suite that tries the higher tiers leaves the profile there: too slow for this browser)
 if (G.save && G.save.settings.graphicsQuality !== "low") { G.save.settings.graphicsQuality = "low"; G.Game.applyGraphicsQuality(); }
 // (learning progress piled up by earlier runs turns campaign runs into spelling runs: start from none)
-if (G.save) { const d0 = G.defaultSave(); ["learn", "learnSeen", "wordStats", "checkpoints", "customWords"].forEach((k) => { G.save[k] = JSON.parse(JSON.stringify(d0[k])); }); G.save.settings.fontSize = "medium"; G.save = G.normalizeSave(G.save); G.persist(); }
+if (G.save) { const d0 = G.defaultSave(); ["learn", "learnSeen", "wordStats", "checkpoints", "customWords", "attach"].forEach((k) => { G.save[k] = JSON.parse(JSON.stringify(d0[k])); }); if (G.Attach) G.Attach.apply(); G.save.settings.fontSize = "medium"; G.save = G.normalizeSave(G.save); G.persist(); }
 // (and the words in English with Thai meanings: a run left Chinese words with Thai meanings in the profile, 2026-11, and suite 16 read the Loading screen's words as English)
 if (G.save && (G.save.settings.wordLang !== "en" || G.save.settings.meaningLang !== "th")) { G.save.settings.wordLang = "en"; G.save.settings.meaningLang = "th"; G.persist(true); }
 if (G.lang !== "en") await new Promise((r) => G.setUILang("en", { done: r }));

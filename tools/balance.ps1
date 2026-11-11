@@ -9,7 +9,10 @@ $R = Get-Random -Minimum 1000 -Maximum 99999
 & powershell -ExecutionPolicy Bypass -File "$PSScriptRoot\dev\cdp.ps1" -Url "http://localhost:$Port/tools/balance.html?r=$R" -Timeout 20 | Out-Null
 Start-Sleep -Seconds 2
 $raw = & powershell -ExecutionPolicy Bypass -File "$PSScriptRoot\dev\cdp.ps1" -Timeout 60 -File "$PSScriptRoot\dev\balance-run.js"
-$o = ($raw | ConvertFrom-Json) | ConvertFrom-Json
+$o = $null
+try { $o = ($raw | ConvertFrom-Json) | ConvertFrom-Json } catch {}
+# A page that was not ready answers null or an error: keep the old files.
+if (-not $o -or -not $o.md) { "balance did not run (page not ready?): $raw"; exit 2 }
 $enc = New-Object Text.UTF8Encoding($false)
 $dir = Join-Path $root "docs\expansion"
 [IO.File]::WriteAllText((Join-Path $dir "balance-report.md"), ($o.md -replace "`r`n", "`n"), $enc)

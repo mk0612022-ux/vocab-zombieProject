@@ -244,12 +244,17 @@ G.buildWeaponModel = function (def) {
   // the body by its own colour -- painted polymer if it has one, else metal
   S.light.userData.skin = "polymer"; S.dark.userData.skin = "grip"; S.mid.userData.skin = "worn";
   S.steel.userData.skin = "bare"; S.black.userData.skin = "matte";
+  // (expansion, round 5) the role each colour plays, by the palettes' names, for
+  // a skin (js/gunskins.js): the receiver, its furniture, magazine and barrel,
+  // steel, black -- the accent is never repainted
+  [["body", "main"], ["dark", "alt"], ["light", "dark"], ["mid", "dark"], ["steel", "metal"], ["black", "deep"], ["accent", "accent"]]
+    .forEach(([k, r]) => { S[k].userData.role = r; S[k].userData.roleSkin = S[k].userData.skin; });
   const g = new THREE.Group();
   // Parts that move on their own during a reload -- the magazine, the bolt or
   // slide, a shotgun's pump, an LMG's top cover -- are built into sub-groups
   // whose origin is their pivot. `box` takes absolute gun coordinates either
   // way; while `into` names a part it lands there, offset by the part origin.
-  let into = null;
+  let into = null, tag = null;
   const part = (x, y, z) => { const p = new THREE.Group(); p.position.set(x, y, z); g.add(p); return p; };
   const box = (w, h, d, x, y, z, m, rx, ry, rz) => {
     const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
@@ -258,6 +263,7 @@ G.buildWeaponModel = function (def) {
     if (rx) b.rotation.x = rx;
     if (ry) b.rotation.y = ry;
     if (rz) b.rotation.z = rz;
+    if (tag) b.userData[tag] = true;      // (expansion, round 5: the sights an optic replaces)
     (into || g).add(b);
     return b;
   };
@@ -295,8 +301,11 @@ G.buildWeaponModel = function (def) {
   }
   into = null;
   if (carryHandle) {
+    // (expansion, round 5: a sight's base -- it makes way for an optic too)
+    tag = "sight";
     box(bw * 0.22, 0.05, bd * 0.34, 0, bh * 0.62 + 0.06, recZ - bd * 0.05, S.dark);
     [-1, 1].forEach((s) => box(bw * 0.22, 0.07, 0.022, 0, bh * 0.62 + 0.03, recZ - bd * 0.05 + s * bd * 0.17, S.dark));
+    tag = null;
   }
 
   // ---- barrel + handguard + muzzle device ----
@@ -378,6 +387,7 @@ G.buildWeaponModel = function (def) {
 
   // ---- sights ----
   const sight = A.sight;
+  tag = "sight";
   if (sight === "iron") {
     box(0.012, 0.05, 0.012, 0, bh * 0.66 + 0.02, recZ - bd * 0.45, S.black);
     box(0.05, 0.035, 0.014, 0, bh * 0.66 + 0.012, recZ + bd * 0.4, S.black);
@@ -408,6 +418,7 @@ G.buildWeaponModel = function (def) {
     box(0.012, 0.06, 0.012, -0.03, bh * 0.66 + 0.03, recZ - bd * 0.1, S.black);
     glow(0.058, 0.05, 0.008, 0, bh * 0.66 + 0.035, recZ - bd * 0.1, 0x7fe6ff);
   }
+  tag = null;
 
   // ---- archetype extras ----
   if (A.foregrip) box(0.05, 0.11, 0.055, 0, -bh / 2 - 0.05, recZ - bd / 2 - barrelLen * 0.45, S.dark, 0.12);
@@ -499,7 +510,18 @@ G.buildWeaponModel = function (def) {
     cover: V(0, bh * 0.66, recZ - bd * 0.15),
     port: V(0, -bh / 2 - 0.02, recZ - bd * 0.15),
     muzzle: V(0, bh * 0.08, muzzleZ),
+    // (expansion, round 5) the attachments': the top of the receiver, under
+    // a pistol's barrel, the receiver's left side (a shotgun's shell holder)
+    rail: V(0, bh * 0.64, recZ - bd * 0.05),
+    under: V(0, -bh / 2, recZ - bd * 0.38),
+    side: V(-bw / 2, -bh * 0.05, recZ + bd * 0.05),
+    // where a grip goes: under the pump, the handguard or the barrel, over the support hand
+    mount: V(0, A.pump ? bh * 0.06 - bore * 1.35 : (A.handguard || A.coils) ? bh * 0.06 - bore * 0.95 : bh * 0.08 - bore * 0.5, fore.z),
   };
+  g.userData.gripPart = A.pump ? "pump" : null;
+  g.userData.railPart = archKey === "pistol" ? "bolt" : archKey === "lmg" ? "cover" : null;
+  g.userData.bore = bore;
+  g.userData.scoped = sight === "scope";
   g.userData.parts = parts;
   g.userData.archetype = archKey;
   g.userData.magKind = A.mag;
@@ -597,6 +619,10 @@ G.holdPose = function (def) {
 // merge in with the rest: two draw calls, what is lit and what glows
 G.buildWeaponMesh = function (def, o) {
   const g = G.buildWeaponModel(def);
+  // (expansion, round 5) o.loadout: the gun the player holds, with what they
+  // chose for it -- optic, muzzle, magazine, under the barrel, skin
+  // (js/attachments.js) -- built in before its boxes are merged
+  if (o && o.loadout && G.Attach) G.Attach.decorate(g, def);
   if (o && o.still) g.userData.parts = {};
   // (overhaul, round 2) its surfaces -- metal, polymer, a rubber grip, worn
   // edges, the shadows where parts meet -- and the whole gun one mesh on one

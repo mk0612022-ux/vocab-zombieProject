@@ -230,6 +230,21 @@ G.SaveFile = (function () {
     Object.keys(b).forEach((k) => { if (!(k in out) && !have[sig(b[k])]) out[k] = b[k]; });
     return out;
   }
+  // (expansion, round 5) attachments: all that was unlocked on either (the
+  // earlier day), this device's choices (the file's where it has none), the
+  // forms answered on both, the best runs
+  function mergeAttach(a, b) {
+    a = obj(a); b = obj(b);
+    return {
+      v: 1,
+      unlocked: join(a.unlocked, b.unlocked, (x, y) => Math.min(Number(x) || 0, Number(y) || 0)),
+      loadout: Object.assign({}, obj(b.loadout), obj(a.loadout)),
+      family: Object.assign({}, obj(b.family), obj(a.family)),
+      forms: join(a.forms, b.forms, (x, y) => union(Array.isArray(x) ? x : [], Array.isArray(y) ? y : [])),
+      spellBest: most(a.spellBest, b.spellBest),
+      bossesBest: most(a.bossesBest, b.bossesBest),
+    };
+  }
   function mergeBoards(a, b) {
     return join(a, b, (x, y) => {
       const seen = {}, all = x.concat(y).filter((e) => { const k = JSON.stringify(e); if (seen[k]) return false; seen[k] = true; return true; });
@@ -248,6 +263,7 @@ G.SaveFile = (function () {
       importedSets: mergeSets(a.importedSets, b.importedSets),
       unlockedLevels: union(a.unlockedLevels, b.unlockedLevels).sort((x, y) => x - y),
       unlockedWeapons: union(a.unlockedWeapons, b.unlockedWeapons),
+      attach: mergeAttach(a.attach, b.attach),
       levelHighScores: join(a.levelHighScores, b.levelHighScores, most),
       dailyHighScores: join(a.dailyHighScores, b.dailyHighScores, most),
       endlessHighScore: most(a.endlessHighScore, b.endlessHighScore),

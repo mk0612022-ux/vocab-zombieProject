@@ -56,7 +56,8 @@ G.Dialog = {
     }, 0);
   },
   moveFocus(d) {
-    const list = Array.from(this.el("dialog-box").querySelectorAll("input, textarea, button")).filter((b) => !b.disabled && b.getClientRects().length);
+    // (expansion, round 5: a list box too -- the Armory's window has them)
+    const list = Array.from(this.el("dialog-box").querySelectorAll("input, textarea, select, button")).filter((b) => !b.disabled && b.getClientRects().length);
     if (!list.length) return;
     const i = list.indexOf(document.activeElement);
     list[(i + d + list.length) % list.length].focus({ preventScroll: true });

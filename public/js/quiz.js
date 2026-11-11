@@ -151,7 +151,7 @@
       else { this.mistakes++; this.missed.push(q.pair); game.trackWrongWord(q.pair[0], q.pair[1]); }
       // its box -- 3-6 and spelling are recall answers, a hint moves nothing --
       // and a wrong word picked or typed is a pair the player confuses (E2)
-      G.Learning.answerWord(q.pair, right, { recall: q.recall, assisted: (q.hints || 0) > 0, picked: right ? null : G.Questions.picked(q, k), typed: q.spell && !right && typeof k === "string" ? G.Spell.norm(k) : null, inView: G.Questions.inView(q), skills: q.skills });
+      G.Learning.answerWord(q.pair, right, { recall: q.recall, assisted: (q.hints || 0) > 0, picked: right ? null : G.Questions.picked(q, k), typed: q.spell && !right && typeof k === "string" ? G.Spell.norm(k) : null, inView: G.Questions.inView(q), skills: q.skills, form: q.answerText || null });
       q.picked = k; q.right = right;
       if (q.spell) {
         if (!right && this.view.pad) this.view.pad.showFeedback(typeof k === "string" ? k : "", G.Questions.rightText(q), typeof k === "string" ? G.Spell.tipFor(k, q.pair) : "");

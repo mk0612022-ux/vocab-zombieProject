@@ -2083,6 +2083,7 @@
       this.lastStats = this.stats;
       G.Objectives.onBossDefeated();
       G.unlockAchievement("first_boss");
+      if (G.Attach) G.Attach.onBoss(this.run.downs.length);       // (expansion, round 5: bosses of one run)
       game.player.score += 1000 + 100 * game.wave;
       G.BossModels.dispose(b.rig);
       this.boss = null;

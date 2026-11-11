@@ -164,7 +164,7 @@ G.Notes = {
     G.persist();
     const total = this.all(key).length;
     G.UI.flashPurchaseBanner(G.T(isNew ? "notes.kept" : "notes.keptAgain"), G.T("notes.keptText", { n: list.length, total }));
-    if (list.length >= total && total > 0) G.unlockAchievement("notes_" + key);
+    if (list.length >= total && total > 0) { G.unlockAchievement("notes_" + key); if (G.Attach) G.Attach.soon(); }   // (expansion, round 5: the level's skin)
     // (round 3: three read this run is one of the third floor's steps)
     if (game.checkThirdFloorUnlock) game.checkThirdFloorUnlock();
   },

@@ -103,13 +103,15 @@ G.WeaponLab = {
       <div class="row"><button data-t="aim">${esc(T("lab.aim"))}</button><button data-a="lower">${esc(T("lab.lower"))}</button><button data-t="run">${esc(T("lab.run"))}</button></div>
       <div class="row"><span style="flex:1 1 100%">${esc(T("lab.speed"))}</span>${[1, 0.5, 0.25, 0.1].map((v) => `<button data-s="${v}" class="${v === 1 ? "on" : ""}">×${v}</button>`).join("")}</div>
       <div class="row"><button data-t="endless" class="on">${esc(T("lab.ammo"))}</button></div>
+      <div id="wlab-att"></div>
       <small>${esc(T("lab.help"))}</small>`;
     document.body.appendChild(el);
     this.panel = el;
     const sel = el.querySelector("#wlab-gun");
     sel.value = this.cur;
-    sel.onchange = () => { this.give(sel.value); sel.blur(); };
-    el.querySelectorAll("button").forEach((b) => {
+    sel.onchange = () => { this.give(sel.value); sel.blur(); setTimeout(() => this.attachPanel(), 900); };
+    this.attachPanel();
+    el.querySelectorAll("button[data-a], button[data-t], button[data-s]").forEach((b) => {
       b.onclick = () => {
         const g = G.Game, id = g.currentWeaponId();
         if (b.dataset.t) { this[b.dataset.t] = !this[b.dataset.t]; b.classList.toggle("on", this[b.dataset.t]); if (!this.hold) G.Input.mouseDown = false; if (!this.aim) G.Input.aimDown = false;
@@ -125,6 +127,50 @@ G.WeaponLab = {
         b.blur();
       };
     });
+  },
+
+  // (expansion, round 5) What the gun in hand wears -- here only, never saved
+  // (G.Attach.preview: anything that fits it, locked or not) -- and, with an
+  // optic, where it sits aimed: y and z of the optic's middle, eye its distance
+  // from the eye. Tuned here, kept in this browser ("vz-ads-tune", which the
+  // game reads first), copied out as JSON for js/data/attachments.js G.ATTACH_ADS.
+  attachPanel() {
+    const box = document.getElementById("wlab-att"), A = G.Attach;
+    if (!box || !A || this.cur.startsWith("melee:")) { if (box) box.innerHTML = ""; return; }
+    const T = (k, v) => G.T(k, v), esc = (s) => G.escapeHtml(String(s));
+    const id = this.cur, def = G.WEAPON_DEFS[id];
+    const P = A.preview || (A.preview = {}), L = P[id] || (P[id] = {});
+    const sel = (slot, list, cur) => `<select data-slot="${slot}"><option value="">${esc(T("att.none"))}</option>${list.map((x) => `<option value="${x}"${cur === x ? " selected" : ""}>${esc(slot === "skin" ? A.skinName(x) : T("att." + x + ".name"))}</option>`).join("")}</select>`;
+    let html = `<div class="row"><span style="flex:1 1 100%">${esc(T("lab.attach"))}</span></div>`
+      + G.ATTACH_SLOTS.filter((s) => A.allowed(def, s).length).map((s) => `<label>${esc(T("att.slot." + s))}${sel(s, A.allowed(def, s), L[s])}</label>`).join("")
+      + `<label>${esc(T("att.slot.skin"))}${sel("skin", Object.keys(G.GUN_SKINS).filter((k) => k !== "factory"), L.skin)}</label>`;
+    if (L.optic) {
+      const g = G.Game.weaponViewGroup, a = (g && g.userData.aim) || {};
+      html += `<div class="row"><span style="flex:1 1 100%">${esc(T("lab.adsTune"))}</span>${["y", "z", "eye"].map((k) => `<label style="flex:1 1 30%">${k}<input type="number" step="0.001" data-ads="${k}" value="${(+a[k] || 0).toFixed(3)}" style="width:100%"></label>`).join("")}</div>
+        <div class="row"><button data-ads-act="save">${esc(T("lab.adsSave"))}</button><button data-ads-act="reset">${esc(T("lab.adsReset"))}</button><button data-ads-act="copy">${esc(T("lab.adsCopy"))}</button></div>`;
+    }
+    box.innerHTML = html;
+    box.querySelectorAll("select[data-slot]").forEach((s) => { s.onchange = () => { if (s.value) L[s.dataset.slot] = s.value; else delete L[s.dataset.slot]; this.refit(); s.blur(); }; });
+    box.querySelectorAll("input[data-ads]").forEach((inp) => { inp.oninput = () => { const g = G.Game.weaponViewGroup; if (g && g.userData.aim) g.userData.aim[inp.dataset.ads] = +inp.value; }; });
+    box.querySelectorAll("[data-ads-act]").forEach((b) => { b.onclick = () => { this.adsAct(b.dataset.adsAct); b.blur(); }; });
+  },
+  refit() { G.Attach.apply(); G.Game.buildWeaponViewModel(); this.attachPanel(); },
+  adsAct(act) {
+    const L = (G.Attach.preview || {})[this.cur] || {}, key = this.cur + ":" + L.optic;
+    let own = {};
+    try { own = JSON.parse(localStorage.getItem("vz-ads-tune") || "{}") || {}; } catch (e) { own = {}; }
+    const g = G.Game.weaponViewGroup, a = g && g.userData.aim;
+    if (act === "save" && a) own[key] = { y: +(+a.y).toFixed(4), z: +(+a.z).toFixed(4), eye: +(+a.eye).toFixed(4) };
+    if (act === "reset") delete own[key];
+    if (act === "copy") {
+      const txt = JSON.stringify(Object.assign({}, G.ATTACH_ADS, own), null, 1);
+      if (navigator.clipboard) navigator.clipboard.writeText(txt).catch(() => {});
+      console.log("G.ATTACH_ADS = " + txt + ";");
+      const n = document.createElement("div"); n.className = "wlab-note"; n.textContent = G.T("lab.adsCopied"); document.body.appendChild(n); setTimeout(() => n.remove(), 1500);
+      return;
+    }
+    try { localStorage.setItem("vz-ads-tune", JSON.stringify(own)); } catch (e) { /* a private window: this session only */ }
+    this.refit();
   },
 };
 

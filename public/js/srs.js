@@ -130,7 +130,8 @@ G.Learning = {
 // (G.recordWordResult), its box, and the confused pairs -- a wrong answer
 // that was another word (`typed`, `picked`: X) is noted against it; a right
 // one with its look-alikes in view (`inView`) counts towards letting them go.
-//   opts: { recall, assisted, typed, picked, inView }
+//   opts: { recall, assisted, typed, picked, inView, form (the form of the
+//   family the question asked: expansion, round 5) }
 G.Learning.answerWord = function (pair, right, opts) {
   opts = opts || {};
   if (!pair) return null;
@@ -138,6 +139,12 @@ G.Learning.answerWord = function (pair, right, opts) {
   const r = G.SRS.answer(pair, right, opts);
   G.Learning.track(right, opts);
   if (r && r.to >= G.Learning.MASTERED && r.from < G.Learning.MASTERED) G.Learning.checkMastery();
+  // (expansion, round 5) what learning unlocks: a word into box 4, a form of
+  // its family answered right (js/attachments.js reads, never writes, the record)
+  if (G.Attach) {
+    if (r && r.to >= G.CONFIG.attach.rememberBox && r.from < G.CONFIG.attach.rememberBox) G.Attach.soon();
+    if (right && !opts.assisted) G.Attach.noteForm(pair, opts.form || pair[0]);     // (a hinted answer counts for nothing here either)
+  }
   const x = !right ? (opts.picked || (G.SRS.typedWord(opts.typed, pair) ? opts.typed : null)) : null;
   if (x && G.wordKey(x) !== G.wordKey(pair)) G.SRS.noteConfusion(pair, x);
   G.SRS.noteAnswer(pair, right, opts.inView);
@@ -158,6 +165,7 @@ G.Learning.track = function (right, opts) {
   if (skills.includes("spelling") && !opts.assisted) {
     L.spellRun = right ? (L.spellRun || 0) + 1 : 0;
     if (L.spellRun >= G.CONFIG.achievements.spellingBee) G.unlockAchievement("spelling_bee");
+    if (G.Attach) G.Attach.onSpellRun(L.spellRun);              // (expansion, round 5: its best, for the laser)
   }
 };
 // (J3) the learning achievements that come with a word Mastered
@@ -320,6 +328,7 @@ G.SRS = {
     }
     d.best = Math.max(d.best, d.streak);
     if (d.streak >= G.CONFIG.achievements.reviewStreak) G.unlockAchievement("review_streak7");
+    if (G.Attach) G.Attach.soon();                               // (expansion, round 5: the streak's unlocks)
     const S = this.data().srs, dues = Object.keys(S).map((k) => S[k].due);
     d.nextDue = dues.length ? Math.min(...dues) : null;
     // keep sixty days of history

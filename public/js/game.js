@@ -63,6 +63,9 @@ G.Game = {
     if (G.setUILang && G.save.settings.uiLang !== G.lang) G.setUILang(G.save.settings.uiLang, { quiet: true });
     // (overhaul, round 7) the answers' explanations in the languages chosen (js/explain.js)
     if (G.Explain) G.Explain.preload();
+    // (expansion, round 5) the guns' numbers with what the player fitted; what
+    // learning has unlocked since (a toast over the menu, once it is up)
+    if (G.Attach) { G.Attach.apply(); setTimeout(() => G.Attach.check(), 2500); }
     if (isFirstRun) {
       // Phones/tablets start on medium so the first frame isn't a slideshow.
       // matchMedia("pointer: coarse") is what actually catches an iPad --
@@ -966,7 +969,8 @@ G.Game = {
     if (Q.gun && this.weaponViewGroup !== Q.gun) { G.disposeObject3D(Q.gun); Q.gun = null; }
   },
   viewModelOf(def) {
-    const mesh = def.id === "melee" ? G.buildMeleeMesh(def) : G.buildWeaponMesh(def);
+    // (expansion, round 5: with the player's attachments and skin)
+    const mesh = def.id === "melee" ? G.buildMeleeMesh(def) : G.buildWeaponMesh(def, { loadout: true });
     mesh.position.set(0.3, -0.32, -0.75);
     mesh.rotation.y = -0.06;
     // from here on G.ViewModel poses it every frame
@@ -982,7 +986,7 @@ G.Game = {
       if (!this._quick || this.weaponViewGroup !== this._quick.blade) G.disposeObject3D(this.weaponViewGroup);
     }
     const def = id === "melee" ? G.meleeDef(this) : (id && G.WEAPON_DEFS[id]) || this.currentWeaponDef();
-    const mesh = def.id === "melee" ? G.buildMeleeMesh(def) : G.buildWeaponMesh(def);
+    const mesh = def.id === "melee" ? G.buildMeleeMesh(def) : G.buildWeaponMesh(def, { loadout: true });
     mesh.position.set(0.3, -0.32, -0.75);
     mesh.rotation.y = -0.06; // slight natural inward cant, typical FPS held-weapon angle
     // from here on G.ViewModel poses it every frame
@@ -1365,9 +1369,11 @@ G.Game = {
   // Automatic fire builds the gun's up to a cap (G.CONFIG.weaponSM.recoilCap).
   recoilKick(def) {
     const strength = (def && def.recoil) || Math.min(2.2, 0.35 + (def ? def.damage : 20) / 45);
+    // (expansion, round 5) a compensator, a brake, a grip: the kick up and to the side
+    const AM = G.Attach && def ? G.Attach.mods(def) : null, kv = AM ? AM.recoilV : 1, kh = AM ? AM.recoilH : 1;
     const a = this.weaponAnim, cap = G.CONFIG.weaponSM.recoilCap;
-    a.recoilPos = Math.min(cap.pos, a.recoilPos + 0.05 + strength * 0.055);
-    a.recoilRot = Math.min(cap.rot, a.recoilRot + 0.05 + strength * 0.075);
+    a.recoilPos = Math.min(cap.pos, a.recoilPos + (0.05 + strength * 0.055) * kv);
+    a.recoilRot = Math.min(cap.rot, a.recoilRot + (0.05 + strength * 0.075) * kv);
     const cr = G.save.settings.cameraRecoil;
     // (gun reference pass) a gun of the clips kicks the view by its prototype's
     // share of the screen's height (G.CONFIG.gunRef.recoil: the polymer pistol
@@ -1375,16 +1381,16 @@ G.Game = {
     // of it sideways for the LMG's and the SMG's shiver
     const ref = def && G.GunRef && G.GunRef.info(def), RC = ref && G.CONFIG.gunRef.recoil[ref.proto];
     if (RC) {
-      const kick = RC.kick * (this.camera.fov * Math.PI / 180) * (cr == null ? 1 : cr);
+      const base = RC.kick * (this.camera.fov * Math.PI / 180) * (cr == null ? 1 : cr), kick = base * kv;
       this.pitchObject.rotation.x += kick;
       this.recoilRecover += kick;
       this.recoilRate = 3 / RC.back;
       // (expansion, round 3: its sideways shiver is the gun's own pattern, the same in every string)
-      if (RC.side) { const s = G.GunStats.pattern(def, this._shotN || 0) * kick * RC.side; this.yawObject.rotation.y += s; this.recoilYaw = (this.recoilYaw || 0) + s; }
+      if (RC.side) { const s = G.GunStats.pattern(def, this._shotN || 0) * base * RC.side * kh; this.yawObject.rotation.y += s; this.recoilYaw = (this.recoilYaw || 0) + s; }
       return;
     }
     this.recoilRate = 9;
-    const kick = strength * 0.013 * (cr == null ? 1 : cr);
+    const kick = strength * 0.013 * (cr == null ? 1 : cr) * kv;
     this.pitchObject.rotation.x += kick; // view punches upward...
     this.recoilRecover += kick;          // ...and is pulled back down over the next moments
   },
@@ -2028,7 +2034,7 @@ G.Game = {
     // (vocabulary series, round 2-3) its box -- a recall answer for kinds 3-6
     // and spelling; a hint moves nothing -- and the word taken for it (E2)
     G.Learning.answerWord(c.pair, correct, { recall: q.recall, assisted: (q.hints || 0) > 0, picked: correct ? null : G.Questions.picked(q, k),
-      typed: q.spell && !correct && typeof k === "string" ? G.Spell.norm(k) : null, inView: G.Questions.inView(q), skills: q.skills });
+      typed: q.spell && !correct && typeof k === "string" ? G.Spell.norm(k) : null, inView: G.Questions.inView(q), skills: q.skills, form: q.answerText || null });
     if (!correct) {
       // the wrong-word list used to be fed `this.challenge` AFTER it had been
       // cleared, so every missed challenge was recorded under the word "null"
@@ -2613,16 +2619,19 @@ G.Game = {
     this.aimT = G.Anim.easeInOutCubic(this.aimP);
     // Category N: a sniper's `scope` is its own aimed FOV, well past the
     // general ADS zoom, and it draws a scope overlay once fully shouldered.
-    const aimedFov = def.scope || this.aimFov;
+    // (expansion, round 5: an optic's own zoom, js/attachments.js)
+    const aimedFov = G.Attach ? G.Attach.aimFov(def, this) : (def.scope || this.aimFov);
     this.camera.fov = this.baseFov + (aimedFov - this.baseFov) * this.aimT + G.Abilities.fovKick() * (1 - this.aimT);
     this.camera.updateProjectionMatrix();
     if (G.UI.setAimingVisual) G.UI.setAimingVisual(this.aimT > 0.5);
     // (gun reference pass: the clips' own sights -- the chassis sniper's peep and
     // the .50's frame are looked through as they are, zoomed; the two scoped
     // ones draw the scope's tube)
+    // (expansion, round 5: a magnified optic fitted draws its low-poly octagon)
     const ref = G.GunRef && G.GunRef.info(def), iron = ref && (ref.sight === "peep" || ref.sight === "frameU");
-    const scoped = !!def.scope && !iron && this.aimT > 0.85;
-    if (G.UI.setScopeVisual) G.UI.setScopeVisual(scoped, ref && ref.proto === "H" ? "white" : "lens");
+    const ring = G.Attach ? G.Attach.magnified(def) : null;
+    const scoped = ring ? this.aimT > G.CONFIG.attach.scopeAt : !!def.scope && !iron && this.aimT > 0.85;
+    if (G.UI.setScopeVisual) G.UI.setScopeVisual(scoped, ring || (ref && ref.proto === "H" ? "white" : "lens"));
     // (...through the scope only the world, as in the clip: the gun and the
     // hands are put away while its overlay is up -- its tube sits on the eye)
     const showVm = G.ViewModel.visible !== false && !scoped, arms = G.PlayerBody && G.PlayerBody.armRig;
@@ -2657,6 +2666,8 @@ G.Game = {
     // the gun can trail it
     G.HeadBob.update({ dt, rig: this, aimT: this.aimT, lookYaw, vel, yaw: yawNow,
       weightKey: G.ViewModel.weightKey(def), airborne });
+    // (expansion, round 5) aimed through an optic the view drifts a little; a laser's dot
+    if (G.Attach) { G.Attach.sway(this, dt, def); G.Attach.laser(this, def); }
     this.applyShake(dt);
     this.poseWeapon(dt, { def, sprinting, firing: rawFire, lookYaw, lookPitch, airborne, vel, yaw: yawNow });
 

@@ -103,6 +103,10 @@
           const a = (P.ammo || {})[id] || {}, l = (P.weaponLevels || {})[id] || {};
           pl.ammo[id] = { mag: Math.max(0, a.mag | 0), reserve: Math.max(0, a.reserve | 0) };
           pl.weaponLevels[id] = { dmg: l.dmg || 1, rate: l.rate || 1, mag: l.mag || 1 };
+          // (expansion, round 5) a magazine since made smaller (attachments changed
+          // between runs): what no longer fits goes back to the reserve
+          const size = Math.round(G.WEAPON_DEFS[id].magSize * pl.weaponLevels[id].mag);
+          if (pl.ammo[id].mag > size) { pl.ammo[id].reserve += pl.ammo[id].mag - size; pl.ammo[id].mag = size; }
         });
         pl.currentSlot = Math.max(0, Math.min(guns.length, P.currentSlot | 0));
       }

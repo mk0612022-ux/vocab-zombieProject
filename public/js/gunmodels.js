@@ -25,16 +25,24 @@ G.GunModels = (function () {
   function kit(def, I) {
     const g = new THREE.Group(), parts = {};
     const P = I.pal, mats = {};
-    let into = null;
-    // a material by colour and surface (shared within the gun)
-    const mat = (hex, skin) => {
-      const k = hex + ":" + (skin || "");
+    let into = null, tag = null;
+    // a material by colour and surface (shared within the gun); (expansion,
+    // round 5) and by its colour role, so a skin (js/gunskins.js) can repaint
+    // each role and leave the rest -- the accent, the brass, a lens -- alone
+    const mat = (hex, skin, role) => {
+      const k = hex + ":" + (skin || "") + ":" + (role || "");
       let m = mats[k];
-      if (!m) { m = G.makeBoxMat(hex); if (skin) m.userData.skin = skin; mats[k] = m; }
+      if (!m) {
+        m = G.makeBoxMat(hex); if (skin) m.userData.skin = skin;
+        if (role) { m.userData.role = role; m.userData.roleSkin = skin; }
+        mats[k] = m;
+      }
       return m;
     };
     const glow = (hex) => { const k = "glow:" + hex; return mats[k] || (mats[k] = new THREE.MeshBasicMaterial({ color: hex })); };
     const part = (name, x, y, z) => { const p = new THREE.Group(); p.position.set(x, y, z); g.add(p); parts[name] = p; return p; };
+    // (expansion, round 5) while `tag` is set ("sight"), every box is marked
+    // with it: the iron sights an optic takes the place of (js/attachments.js)
     const box = (w, h, d, x, y, z, m, rx, ry, rz) => {
       const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
       const o = into ? into.position : null;
@@ -42,6 +50,7 @@ G.GunModels = (function () {
       if (rx) b.rotation.x = rx;
       if (ry) b.rotation.y = ry;
       if (rz) b.rotation.z = rz;
+      if (tag) b.userData[tag] = true;
       (into || g).add(b);
       return b;
     };
@@ -85,17 +94,18 @@ G.GunModels = (function () {
       }
     };
     return { g, parts, P, I, mat, glow, box, cbox, oct, ring8, disc8, tri, camo, R,
-      get into() { return into; }, set into(v) { into = v; }, part };
+      get into() { return into; }, set into(v) { into = v; }, get tag() { return tag; }, set tag(v) { tag = v; }, part };
   }
   // the six colour roles every gun uses (named after the palette's)
   function roles(K) {
     const P = K.P, m = K.mat;
     const paint = (role, skin) => (P.paint && P.paint.includes(role) ? "polymer" : skin);
+    const r = (hex, skin, role, own) => { const x = m(hex, skin, role); x.userData.roleSkin = own || skin; return x; };
     return {
-      main: m(P.main, paint("main", "matte")), lit: m(P.lit, paint("lit", "worn")), dark: m(P.dark, paint("dark", "matte")), deep: m(P.deep, "matte"),
-      alt: m(P.alt, "polymer"), altLit: m(P.altLit || P.alt, "polymer"), altMid: m(P.altMid || P.alt, "polymer"), altDark: m(P.altDark || P.dark, "polymer"),
-      metal: m(P.metal, "bare"), edge: m(P.edge, "bare"), glint: m(P.glint || P.edge, "bare"),
-      grip: m(P.dark, "grip"), accent: m(K.I.accent, "polymer"),
+      main: r(P.main, paint("main", "matte"), "main", "matte"), lit: r(P.lit, paint("lit", "worn"), "lit", "worn"), dark: r(P.dark, paint("dark", "matte"), "dark", "matte"), deep: r(P.deep, "matte", "deep"),
+      alt: r(P.alt, "polymer", "alt"), altLit: r(P.altLit || P.alt, "polymer", "altLit"), altMid: r(P.altMid || P.alt, "polymer", "altMid"), altDark: r(P.altDark || P.dark, "polymer", "altDark"),
+      metal: r(P.metal, "bare", "metal"), edge: r(P.edge, "bare", "edge"), glint: r(P.glint || P.edge, "bare", "glint"),
+      grip: r(P.dark, "grip", "grip"), accent: r(K.I.accent, "polymer", "accent"),
     };
   }
   const V = (x, y, z) => new THREE.Vector3(x, y, z);
@@ -133,6 +143,16 @@ G.GunModels = (function () {
     g.userData.vmScale = VW.scale;
     g.userData.hipNudge = VW.hip;
     g.userData.aim = { y: o.sightY, z: o.sightZ, eye: VW.eye };
+    // (expansion, round 5) where attachments go: the rail an optic sits on
+    // (on a part that moves, `railPart`: the slide, the feed cover), under
+    // the barrel of a pistol, the barrel's width; a gun with its own scope
+    // takes no other optic
+    if (o.rail) g.userData.anchors.rail = o.rail;
+    if (o.under) g.userData.anchors.under = o.under;
+    if (o.mount) g.userData.anchors.mount = o.mount;          // (where a grip is fixed on: the underside over the support hand)
+    g.userData.railPart = o.railPart || null;
+    g.userData.bore = o.bore || 0.024;
+    g.userData.scoped = !!o.scoped;
     G.weldGunParts(g);
     return g;
   }
@@ -146,12 +166,14 @@ G.GunModels = (function () {
     box(0.024, 0.012, 0.075, 0.009, 0.064, -0.035, S.deep);                      // ejection port
     for (let i = 0; i < 6; i++) [-1, 1].forEach((sx) => box(0.002, 0.04, 0.006, sx * 0.0235, 0.03, 0.06 + i * 0.011, S.dark));   // rear serrations
     box(0.017, 0.017, 0.004, 0, 0.03, -0.161, S.deep);                           // the bore at the front face
+    K.tag = "sight";
     box(0.009, 0.012, 0.01, 0, 0.068, -0.145, S.deep);                           // front sight...
     box(0.006, 0.006, 0.002, 0, 0.07, -0.139, K.glow(I.glow.dot));               // ...its white dot
     box(0.042, 0.015, 0.012, 0, 0.07, 0.105, S.deep);                            // rear sight
     // the cyan "U" facing the eye
     const cy = K.glow(I.glow.cyan);
     box(0.005, 0.011, 0.002, -0.012, 0.072, 0.1115, cy); box(0.005, 0.011, 0.002, 0.012, 0.072, 0.1115, cy); box(0.029, 0.004, 0.002, 0, 0.0665, 0.1115, cy);
+    K.tag = null;
     K.into = null;
     // the frame, its light rails
     box(0.042, 0.03, 0.245, 0, -0.008, -0.01, S.alt);
@@ -170,6 +192,7 @@ G.GunModels = (function () {
     K.into = null;
     return finish(K, {
       archetype: "pistol", magKind: "short", magDepth: 0.12, reloadStyle: "pistol", sightY: 0.07, sightZ: 0.11,
+      rail: V(0, 0.0625, 0.045), railPart: "bolt", under: V(0, -0.022, -0.115), bore: 0.017,
       fore: V(-0.02, -0.12, 0.06),
       anchors: { grip: V(0, -0.105, 0.072), magWell: V(0, -0.02, 0.06), magBottom: V(0, -0.15, 0.088), bolt: V(0, 0.035, 0.03), muzzle: V(0, 0.03, -0.17), port: V(0, 0.065, -0.035), cover: V(0, 0.07, 0) },
     });
@@ -184,9 +207,11 @@ G.GunModels = (function () {
     for (let i = 0; i < 9; i++) [-1, 1].forEach((sx) => box(0.002, 0.036, 0.005, sx * 0.0205, 0.033, 0.06 + i * 0.0085, S.deep));   // fine serrations
     box(0.02, 0.012, 0.05, 0.01, 0.06, -0.04, S.deep);                             // ejection port
     box(0.015, 0.015, 0.004, 0, 0.033, -0.181, S.deep);                            // bore
+    K.tag = "sight";
     box(0.004, 0.014, 0.014, 0, 0.068, -0.165, S.deep);                            // front blade...
     box(0.004, 0.004, 0.002, 0, 0.071, -0.157, K.glow(I.glow.tritium));            // ...a green dot
     box(0.036, 0.012, 0.012, 0, 0.066, 0.1, S.deep);                               // rear notch
+    K.tag = null;
     K.into = null;
     // frame, slide stop, hammer, beavertail
     box(0.036, 0.026, 0.25, 0, -0.008, -0.03, S.main);
@@ -208,6 +233,7 @@ G.GunModels = (function () {
     K.into = null;
     return finish(K, {
       archetype: "pistol", magKind: "short", magDepth: 0.12, reloadStyle: "pistol", sightY: 0.068, sightZ: 0.106,
+      rail: V(0, 0.063, 0.045), railPart: "bolt", under: V(0, -0.021, -0.125), bore: 0.016,
       fore: V(-0.02, -0.12, 0.06),
       anchors: { grip: V(0, -0.105, 0.07), magWell: V(0, -0.02, 0.06), magBottom: V(0, -0.15, 0.09), bolt: V(0, 0.035, 0.03), muzzle: V(0, 0.033, -0.19), port: V(0, 0.06, -0.04), cover: V(0, 0.066, 0) },
     });
@@ -243,6 +269,7 @@ G.GunModels = (function () {
     box(0.036, 0.034, 0.05, 0, 0.032, -0.31, S.deep);
     [-1, 1].forEach((sx) => box(0.004, 0.02, 0.008, sx * 0.018, 0.04, -0.31, S.metal));
     // the folding front sight, its green dot
+    K.tag = "sight";
     box(0.03, 0.018, 0.02, 0, 0.08, -0.19, S.deep);
     box(0.008, 0.026, 0.008, 0, 0.098, -0.19, S.deep);
     box(0.006, 0.006, 0.003, 0, 0.11, -0.184, K.glow(I.glow.tritium));
@@ -253,6 +280,7 @@ G.GunModels = (function () {
     K.ring8(0.015, 0.006, 0.034, 0, 0.115, 0.16, S.deep);
     box(0.012, 0.0045, 0.003, -0.02, 0.115, 0.1785, K.glow(I.glow.tritium));
     box(0.012, 0.0045, 0.003, 0.02, 0.115, 0.1785, K.glow(I.glow.tritium));
+    K.tag = null;
     // charging handle (the "bolt"), on the left of the upper
     K.into = K.part("bolt", -0.035, 0.04, -0.06);
     box(0.016, 0.012, 0.022, -0.035, 0.04, -0.06, S.metal);
@@ -262,6 +290,7 @@ G.GunModels = (function () {
     box(0.05, 0.075, 0.02, 0, 0.0, 0.42, S.deep);
     return finish(K, {
       archetype: "smg", magKind: "long", magDepth: 0.26, reloadStyle: "rifle", sightY: 0.115, sightZ: 0.178,
+      rail: V(0, 0.0765, 0.07), bore: 0.03, mount: V(0, -0.13, -0.06),
       fore: V(0, -0.15, -0.1),
       anchors: { grip: V(0, -0.1, 0.12), magWell: V(0, -0.13, -0.12), magBottom: V(0, -0.37, -0.115), bolt: V(-0.035, 0.04, -0.06), muzzle: V(0, 0.032, -0.34), port: V(0, -0.1, -0.12), cover: V(0, 0.07, 0) },
     });
@@ -275,9 +304,11 @@ G.GunModels = (function () {
     [-1, 1].forEach((sx) => [0, 1, 2, 3].forEach((i) => box(0.003, 0.006, 0.006, sx * 0.0255, -0.018, -0.11 + i * 0.075, S.lit)));
     cbox(0.044, 0.024, 0.3, 0, 0.045, 0.035, S.metal, 0.008, S.lit);
     for (let i = 0; i < 4; i++) box(0.046, 0.004, 0.006, 0, 0.051, 0.17 - i * 0.012, S.deep);
+    K.tag = "sight";
     box(0.03, 0.024, 0.06, 0, 0.052, -0.135, S.main);                              // the rear sight block
     box(0.024, 0.006, 0.05, 0, 0.066, -0.132, S.lit);
     box(0.026, 0.008, 0.008, 0, 0.069, -0.108, S.deep);                             // its notch, on the line to the post
+    K.tag = null;
     // wood: the upper and lower handguards (grain in darker strips), the grip, the club-foot stock
     const W = [S.alt, S.altLit, S.altMid];
     box(0.04, 0.028, 0.2, 0, 0.042, -0.27, S.alt);
@@ -293,9 +324,11 @@ G.GunModels = (function () {
     K.oct(0.024, 0.46, 0, 0.012, -0.6, S.dark, S.lit);
     box(0.032, 0.03, 0.03, 0, 0.03, -0.39, S.main);
     box(0.026, 0.028, 0.032, 0, 0.03, -0.79, S.main);
+    K.tag = "sight";
     box(0.008, 0.05, 0.008, 0, 0.05, -0.79, S.deep);
     box(0.012, 0.03, 0.006, 0, 0.042, -0.79, S.main);
     box(0.005, 0.005, 0.004, 0, 0.073, -0.786, K.glow(I.glow.post));
+    K.tag = null;
     box(0.028, 0.028, 0.045, 0, 0.012, -0.85, S.deep);
     box(0.03, 0.012, 0.02, 0, 0.026, -0.86, S.deep, 0.5);
     // the folded bipod under the barrel
@@ -316,6 +349,7 @@ G.GunModels = (function () {
     K.into = null;
     return finish(K, {
       archetype: "rifle", magKind: "curved", magDepth: 0.25, reloadStyle: "rifle", sightY: 0.073, sightZ: -0.105,
+      rail: V(0, 0.057, 0.06), bore: 0.024, mount: V(0, -0.033, -0.29),
       fore: V(0, -0.04, -0.28),
       anchors: { grip: V(0, -0.08, 0.1), magWell: V(0, -0.035, -0.04), magBottom: V(0, -0.27, -0.13), bolt: V(0.033, 0.018, -0.02), muzzle: V(0, 0.012, -0.88), port: V(0, -0.05, -0.04), cover: V(0, 0.06, 0.03) },
     });
@@ -337,6 +371,7 @@ G.GunModels = (function () {
     // the rear sight, as the clip aims through it: a black block wider than
     // the gun with lit shoulders, a tower holding the green octagon and a slot
     // under it, two tall ears; to its right a tall post with a brass tip
+    K.tag = "sight";
     box(0.12, 0.058, 0.05, 0, 0.085, 0.19, S.deep);
     [-1, 1].forEach((sx) => box(0.03, 0.02, 0.052, sx * 0.046, 0.068, 0.19, S.lit));
     // (the tower round the window -- open through the middle, to see the front ring by)
@@ -348,6 +383,7 @@ G.GunModels = (function () {
     box(0.05, 0.007, 0.003, 0, 0.1, 0.2155, S.lit);
     box(0.016, 0.11, 0.02, 0.085, 0.15, 0.12, S.deep);
     box(0.018, 0.016, 0.022, 0.085, 0.212, 0.12, K.mat(I.pal.brass || 0xcebb75, "bare"));
+    K.tag = null;
     // the ammo box hanging under the left side, olive, its lid lit; the brass belt into the tray
     K.into = K.part("mag", -0.03, -0.045, -0.03);
     cbox(0.07, 0.11, 0.13, -0.03, -0.1, -0.03, S.alt, 0.01, S.altLit);
@@ -364,9 +400,11 @@ G.GunModels = (function () {
     box(0.042, 0.008, 0.24, 0, 0.022, -0.27, S.main);
     for (let i = 0; i < 6; i++) box(0.03, 0.002, 0.016, 0, 0.0265, -0.37 + i * 0.04, S.deep);
     box(0.05, 0.04, 0.2, 0, -0.03, -0.24, S.main);
+    K.tag = "sight";
     box(0.012, 0.11, 0.012, 0, 0.072, -0.58, S.deep);
     K.ring8(0.014, 0.004, 0.006, 0, 0.132, -0.58, S.deep);
     box(0.004, 0.014, 0.004, 0, 0.126, -0.58, S.deep);
+    K.tag = null;
     box(0.036, 0.036, 0.05, 0, 0.0, -0.645, S.deep);
     [-1, 1].forEach((sx) => box(0.004, 0.03, 0.04, sx * 0.012, 0.0, -0.66, S.dark));
     // the bipod folded, the pistol grip, the stock
@@ -382,6 +420,7 @@ G.GunModels = (function () {
     K.into = null;
     return finish(K, {
       archetype: "lmg", magKind: "drum", magDepth: 0.13, reloadStyle: "belt", sightY: 0.132, sightZ: 0.2125,
+      rail: V(0, 0.071, 0.11), railPart: "cover", bore: 0.03, mount: V(0, -0.05, -0.25),
       fore: V(0, -0.06, -0.24),
       anchors: { grip: V(0, -0.09, 0.165), magWell: V(-0.03, -0.045, -0.03), magBottom: V(-0.03, -0.16, -0.03), bolt: V(0.044, 0.0, -0.05), muzzle: V(0, 0.0, -0.67), port: V(0, -0.06, 0.0), cover: V(0, 0.075, 0.05) },
     });
@@ -390,7 +429,7 @@ G.GunModels = (function () {
   // ---------------- F: the silver .50 anti-materiel rifle (a bullpup) ----------------
   function buildF(def, I) {
     const K = kit(def, I), S = roles(K), { box, cbox } = K;
-    const silver = S.main, mid = K.mat(I.pal.mid || I.pal.dark, "worn"), cut = S.alt;
+    const silver = S.main, mid = K.mat(I.pal.mid || I.pal.dark, "worn", "mid"), cut = S.alt;
     // the long flat-sided body and its row of triangular cut-outs
     cbox(0.062, 0.12, 0.58, 0, -0.01, 0.12, silver, 0.012, S.glint);
     box(0.064, 0.03, 0.56, 0, -0.065, 0.12, mid);
@@ -407,12 +446,14 @@ G.GunModels = (function () {
     // (the clip's: aimed, a window about as tall as wide over the chevron;
     // the frame's foot, below it, is hidden by the block it stands on)
     const fr = cut, cy = K.glow(I.glow.cyan);
+    K.tag = "sight";
     [-1, 1].forEach((sx) => { box(0.013, 0.13, 0.016, sx * 0.037, 0.135, 0.05, fr); box(0.018, 0.022, 0.04, sx * 0.04, 0.078, 0.05, fr); });
     box(0.087, 0.014, 0.016, 0, 0.193, 0.05, fr);
     box(0.087, 0.026, 0.03, 0, 0.083, 0.05, fr);
     box(0.004, 0.02, 0.003, -0.012, 0.115, 0.059, cy, 0, 0, 0.45); box(0.004, 0.02, 0.003, 0.012, 0.115, 0.059, cy, 0, 0, -0.45); box(0.016, 0.004, 0.003, 0, 0.105, 0.059, cy);
     box(0.012, 0.09, 0.012, 0, 0.065, -0.62, S.deep);
     box(0.004, 0.012, 0.004, 0, 0.112, -0.62, K.glow(I.glow.post));
+    K.tag = null;
     // the forward pistol grip and trigger, the magazine behind them (a bullpup), the butt
     box(0.044, 0.12, 0.06, 0, -0.13, -0.03, S.grip, -0.22);
     box(0.024, 0.006, 0.08, 0, -0.075, -0.08, S.metal);
@@ -433,6 +474,7 @@ G.GunModels = (function () {
     K.into = null;
     return finish(K, {
       archetype: "sniper", magKind: "short", magDepth: 0.12, reloadStyle: "bolt", sightY: 0.112, sightZ: 0.06,
+      rail: V(0, 0.072, 0.06), bore: 0.034,
       fore: V(0, -0.06, -0.3),
       anchors: { grip: V(0, -0.12, -0.03), magWell: V(0, -0.07, 0.16), magBottom: V(0, -0.18, 0.16), bolt: V(0.06, -0.02, 0.27), muzzle: V(0, 0.0, -0.77), port: V(0, -0.07, 0.16), cover: V(0, 0.07, 0.1) },
     });
@@ -477,12 +519,16 @@ G.GunModels = (function () {
     let sightY;
     if (kind === "G") {
       // the octagon peep: a big box, wings either side; a green front post far out
+      K.tag = "sight";
       box(0.086, 0.058, 0.05, 0, 0.078, 0.17, S.deep);
       [-1, 1].forEach((sx) => box(0.021, 0.088, 0.05, sx * 0.053, 0.096, 0.17, S.main, 0, 0, sx * 0.08));
       K.ring8(0.021, 0.008, 0.054, 0, 0.116, 0.17, S.deep);
+      K.tag = null;
       box(0.03, 0.022, 0.03, 0, 0.032, -0.74, S.main);
+      K.tag = "sight";
       box(0.006, 0.075, 0.006, 0, 0.078, -0.74, S.deep);
       box(0.005, 0.01, 0.004, 0, 0.112, -0.737, K.glow(I.glow.post));
+      K.tag = null;
       sightY = 0.116;
     } else {
       // the scope: an octagonal tube, a flared objective, turrets, two mounts
@@ -512,6 +558,7 @@ G.GunModels = (function () {
     }
     return finish(K, {
       archetype: "sniper", magKind: "short", magDepth: 0.12, reloadStyle: "bolt", sightY, sightZ: kind === "G" ? 0.2 : 0.26,
+      rail: V(0, 0.054, 0.06), bore: 0.024, scoped: kind !== "G",
       fore: V(0, -0.05, -0.2),
       anchors: { grip: V(0, -0.095, 0.2), magWell: V(0, -0.055, 0.04), magBottom: V(0, -0.135, 0.04), bolt: V(0.065, 0.025, 0.16), muzzle: V(0, 0.02, -0.82), port: V(0, -0.06, 0.04), cover: V(0, 0.06, 0.1) },
     });
