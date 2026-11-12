@@ -306,6 +306,9 @@
       // the room's echo turned down, no far echo, no rolling tail; a brake: louder
       const supp = !!(G.Attach && G.Attach.suppressed(def)), SC = G.CONFIG.attach.suppressed;
       const loudK = db(G.Attach ? G.Attach.loud(def) : 0), revK = supp ? SC.echo : 1;
+      // (expansion, round 6) a gun forged at the Word Forge: heavier -- its sub
+      // up, its pitch down, one tail more (G.CONFIG.forge.sound)
+      const tier = G.Forge ? G.Forge.inRunTier(def.id) : 0, FS = G.CONFIG.forge && G.CONFIG.forge.sound;
       const R = this.cache.get(def.id);
       if (R && R.buffers.length) {
         R.last = performance.now();
@@ -314,8 +317,10 @@
         let v = Math.floor(Math.random() * bufs.length);
         if (bufs.length > 1 && v === R.prev) v = (v + 1 + Math.floor(Math.random() * (bufs.length - 1))) % bufs.length;
         R.prev = v;
-        const rate = 1 + (Math.random() * 2 - 1) * C.gunPitch, gain = s * k * R.norm * db((Math.random() * 2 - 1) * C.gunGainDb);
-        const V = A.buffer(bufs[v], { cat: "weapons", prio: 1, rate, gain, rev: p.rev * 0.8 * revK, tag: "shot" });
+        const rate = (1 + (Math.random() * 2 - 1) * C.gunPitch) * (tier ? FS.pitch[tier - 1] : 1), gain = s * k * R.norm * db((Math.random() * 2 - 1) * C.gunGainDb);
+        const V = A.buffer(bufs[v], { cat: "weapons", prio: 1, rate, gain, rev: p.rev * 0.8 * revK, tag: "shot", low: tier ? { db: FS.subDb[tier - 1], hz: FS.lowHz } : null });
+        if (tier) this.stats.forged = (this.stats.forged || 0) + 1;
+        if (V && tier && !supp) A.group({ cat: "weapons", prio: 1 }, () => this.forgeTail(A, s, tier));
         if (V && !supp) {
           const far = G.Acoustics && G.Acoustics.distant();
           if (far) { const sg = A.ctx.createGain(); sg.gain.value = 0.6 * s; V.gains[V.gains.length - 1].connect(sg); sg.connect(far); }
@@ -338,7 +343,7 @@
         return;
       }
       // (still drawing its buffers: live, one voice for all its layers)
-      A.group({ cat: "weapons", prio: 1, dur: 1.2, tag: "shot" }, () => this.layers(A, def, p, 0.96 + Math.random() * 0.08, ls, this.liteShot(def), p.rev * revK, supp));
+      A.group({ cat: "weapons", prio: 1, dur: 1.2, tag: "shot" }, () => this.layers(A, def, p, (0.96 + Math.random() * 0.08) * (tier ? FS.pitch[tier - 1] : 1), ls, this.liteShot(def), p.rev * revK, supp));
       this.prepare([def.id]);
     },
     // (expansion, round 5) a gun's mechanical layer drawn alone (its slide, its
@@ -423,6 +428,11 @@
     tailLayer(A, p, s) {
       const zone = (G.Acoustics && G.Acoustics.zone) || "room";
       A.noise({ dur: p.tail.dur, filter: "lowpass", freq: p.tail.lp, freqEnd: p.tail.lpEnd, gain: p.tail.g * s * (TAIL[zone] || 0.3), attack: 0.03, at: 0.03 });
+    },
+    // (expansion, round 6) a forged gun's tail more: a low roll, longer with its tier, by the space it is in
+    forgeTail(A, s, tier) {
+      const zone = (G.Acoustics && G.Acoustics.zone) || "room", F = G.CONFIG.forge.sound.tail;
+      A.noise({ dur: F.dur * (0.85 + 0.15 * tier), filter: "lowpass", freq: F.lp, freqEnd: F.lpEnd, gain: F.g[tier - 1] * s * Math.max(0.5, TAIL[zone] || 0.3), attack: 0.02, at: 0.02 });
     },
     // the layers of a shot, on any synthesiser (A: G.Audio live, or an offline one);
     // k: its pitch, s: its level, r: its reverb send (0 offline: the room is added live);

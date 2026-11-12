@@ -364,6 +364,7 @@ G.Game = {
     this.correctKills = 0;       // zombies shot on the right word (round 3: the third floor wants 50)
     this._continues = 0;         // times this run came back from its checkpoint (J4)
     if (G.Floor3) G.Floor3.reset(this);
+    if (G.Forge) G.Forge.reset(this);   // (expansion, round 6) no gun forged, no wait, no word asked yet
     if (G.Hud) G.Hud.reset();   // (overhaul, round 6) nothing of the last run stays on the HUD
     // (overhaul, round 7) the last wrong answer on each word, explained (a study session's end shows them)
     this.explainLog = {};
@@ -775,7 +776,7 @@ G.Game = {
       pair = G.weightedSample(candidates, 1)[0] || G.pick(this.wordPool);
     }
     const z = new G.Zombie(type, pos, pair, this.level.theme);
-    const hpK = G.zombieHpMult(this.wave);                   // (expansion, round 3: off until Word Forge)
+    const hpK = G.zombieHpMult(this.wave);                   // (expansion, round 3; on since round 6, with the Word Forge)
     if (hpK !== 1) { z.hp = Math.round(z.hp * hpK); z.maxHp = z.hp; }
     // how it is answered (shot, or spelt) and with which clue; a decoy is
     // shot, with its target's kind of clue (round 3: a Context look-alike
@@ -969,8 +970,8 @@ G.Game = {
     if (Q.gun && this.weaponViewGroup !== Q.gun) { G.disposeObject3D(Q.gun); Q.gun = null; }
   },
   viewModelOf(def) {
-    // (expansion, round 5: with the player's attachments and skin)
-    const mesh = def.id === "melee" ? G.buildMeleeMesh(def) : G.buildWeaponMesh(def, { loadout: true });
+    // (expansion, round 5: with the player's attachments and skin; round 6: its Word Forge tier)
+    const mesh = def.id === "melee" ? G.buildMeleeMesh(def) : G.buildWeaponMesh(def, { loadout: true, tier: G.Forge ? G.Forge.tierOf(def.id, this) : 0 });
     mesh.position.set(0.3, -0.32, -0.75);
     mesh.rotation.y = -0.06;
     // from here on G.ViewModel poses it every frame
@@ -986,7 +987,7 @@ G.Game = {
       if (!this._quick || this.weaponViewGroup !== this._quick.blade) G.disposeObject3D(this.weaponViewGroup);
     }
     const def = id === "melee" ? G.meleeDef(this) : (id && G.WEAPON_DEFS[id]) || this.currentWeaponDef();
-    const mesh = def.id === "melee" ? G.buildMeleeMesh(def) : G.buildWeaponMesh(def, { loadout: true });
+    const mesh = def.id === "melee" ? G.buildMeleeMesh(def) : G.buildWeaponMesh(def, { loadout: true, tier: G.Forge ? G.Forge.tierOf(def.id, this) : 0 });
     mesh.position.set(0.3, -0.32, -0.75);
     mesh.rotation.y = -0.06; // slight natural inward cant, typical FPS held-weapon angle
     // from here on G.ViewModel poses it every frame
@@ -1135,7 +1136,8 @@ G.Game = {
       const d = dir.clone();
       d.x += (G.rng() - 0.5) * spread; d.y += (G.rng() - 0.5) * spread; d.z += (G.rng() - 0.5) * spread;
       d.normalize();
-      if (this.raycastShoot(origin, d, dmg, def.pierce, def)) anyHit = true;
+      // (expansion, round 6: a Tier III gun of its niche goes through one more)
+      if (this.raycastShoot(origin, d, dmg, G.Forge ? G.Forge.pierceOf(def, lvl) : def.pierce, def)) anyHit = true;
     }
     if (anyHit) G.UI.showHitmarker();
     this.addBloom(def);
@@ -1217,6 +1219,8 @@ G.Game = {
       // on it -- and a head hit does double damage
       // (overhaul, round 4: an Ironclad's helmet and vest have their say -- js/zombieai.js)
       const hm = G.ZombieAI.hitMod(this, z, dmg * G.GunStats.falloff(def, hit.distance), head, dir, def);
+      // (expansion, round 6: a Tier III gun of its niche hits a head harder)
+      if (hm.head && G.Forge && def && def.id && this.player.weaponLevels[def.id]) hm.dmg *= G.Forge.headOf(this.player.weaponLevels[def.id]);
       this.damageZombie(z, hm.dmg, hit.point, { dir: dir.clone(), head: hm.head });
       if (hm.head) G.UI.showHitmarker(true);
       if (def && def.splash) this.splashDamage(hit.point, def, dmg);
@@ -2231,12 +2235,16 @@ G.Game = {
       }
       G.UI.updateShopTimer(this.shopTimer, G.save.settings.shopTime);
       G.UI.el("shop-money").textContent = this.player.money;
-      if (this.shopTimer <= 0) this.leaveShop();
+      // (expansion, round 6: the Word Forge's test, reached from the shop, keeps its clock)
+      if (G.Quiz.active) G.Quiz.update(realDt);
+      if (this.shopTimer <= 0 && !G.Quiz.active) this.leaveShop();
       return;
     }
     G.UI.updateResumeHint();
     // the end-of-wave quiz keeps its own clock while everything else is paused
     if (G.Quiz.active) G.Quiz.update(realDt);
+    // (expansion, round 6) the Word Forge: its hum, and its scene, which plays while the world waits
+    if (G.Forge) G.Forge.update(this, realDt);
     if (this.state !== "GAMEPLAY" || this.paused) return;
     // (overhaul, round 1) the gun is put away for a boss's cutscene, and
     // lowered while a question window holds the world (a reload waits)
@@ -2448,7 +2456,7 @@ G.Game = {
     // low at a quarter of a full magazine
     const melee = id === "melee", lvl = !melee && this.player.weaponLevels[id];
     const hand = {
-      name: def.name, melee, status: melee ? T("hud.melee") : G.StatCard.status(def),
+      name: def.name, melee, status: melee ? T("hud.melee") : G.StatCard.status(def, lvl),
       mag: ammoInMag, reserve: ammoReserve, lowAt: melee ? 0 : Math.max(1, Math.round(def.magSize * ((lvl && lvl.mag) || 1) * 0.25)),
       reloading: !!this.player.reloading && !melee, reloadFrac,
     };
@@ -3035,6 +3043,8 @@ G.Game = {
           });
           if (!found.ref.purchased) cardGun = wdef;
         }
+        // (expansion, round 6) the Word Forge (js/forge.js)
+        if (found.kind === "forge") label = G.Forge ? G.Forge.prompt(this) : "";
         // (expansion, round 4) a melee weapon on a wall: the one in the slot has nothing to buy
         if (found.kind === "wallmelee") {
           const mdef = G.MELEE_WEAPONS[found.ref.key], mine = this.player.melee === found.ref.key;
@@ -3097,6 +3107,8 @@ G.Game = {
       if (!found.ref.unlocked && G.Floor3) G.Floor3.interact(this, found);
     } else if (found.kind === "safe" || found.kind === "trophy" || found.kind === "coffee" || found.kind === "radio") {
       this.useReward(found.ref);
+    } else if (found.kind === "forge") {
+      if (G.Forge) G.Forge.interact(this);
     }
   },
 

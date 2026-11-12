@@ -66,6 +66,8 @@
         notesRevealed: !!game._notesRevealed,
         rewardsUsed: Object.keys(w.rewards || {}).filter((k) => w.rewards[k] && w.rewards[k].used),
         bosses: copy(G.Bosses.run),
+        // (expansion, round 6) the Word Forge: the guns' tiers are in weaponLevels; its waits and words asked here
+        forge: G.Forge ? G.Forge.state() : null,
       };
     },
     save(game) {
@@ -103,6 +105,11 @@
           const a = (P.ammo || {})[id] || {}, l = (P.weaponLevels || {})[id] || {};
           pl.ammo[id] = { mag: Math.max(0, a.mag | 0), reserve: Math.max(0, a.reserve | 0) };
           pl.weaponLevels[id] = { dmg: l.dmg || 1, rate: l.rate || 1, mag: l.mag || 1 };
+          // (expansion, round 6) its Word Forge tier, and Tier III's extra (a checkpoint from before: none)
+          const tier = Math.max(0, Math.min(3, Math.floor(Number(l.tier)) || 0));
+          if (tier) pl.weaponLevels[id].tier = tier;
+          if (l.pierce > 0) pl.weaponLevels[id].pierce = Math.min(3, Math.floor(l.pierce));
+          if (l.head > 1) pl.weaponLevels[id].head = Math.min(2, Number(l.head));
           // (expansion, round 5) a magazine since made smaller (attachments changed
           // between runs): what no longer fits goes back to the reserve
           const size = Math.round(G.WEAPON_DEFS[id].magSize * pl.weaponLevels[id].mag);
@@ -147,6 +154,8 @@
       (cp.rewardsUsed || []).forEach((k) => { if (w.rewards && w.rewards[k]) w.rewards[k].used = true; });
       // the bosses met: waves 15 and 20 bring two this run has not seen
       if (cp.bosses) G.Bosses.run = copy(cp.bosses);
+      // (expansion, round 6) the Word Forge's waits and the words its tries have asked
+      if (G.Forge) G.Forge.restore(game, cp.forge);
       game._continues = cp.continues || 0;
       game.wave = (cp.wave || this.AFTER_WAVE + 1) - 1;      // startWave() makes it the saved one
       game._checkpointDue = false;

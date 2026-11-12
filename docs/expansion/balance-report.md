@@ -2,7 +2,7 @@
 
 Made by tools/balance.ps1 from the game's own data: do not edit by hand.
 
-Zombie health by wave (G.CONFIG.zombies.hpByWave): perWave 0.08, OFF in the game for now: every wave plays as wave 1. Waves 1/5/10/15/20 read x1 x1.32 x1.72 x2.12 x2.52.
+Zombie health by wave (G.CONFIG.zombies.hpByWave): perWave 0.08, ON. Waves 1/5/10/15/20 read x1 x1.32 x1.72 x2.12 x2.52.
 The columns w1-w20 are the planned curve. T3 w20: a Tier III gun (x1.9) at wave 20, to set beside w5.
 
 ## Flags
@@ -288,3 +288,39 @@ Each on the middle gun of each family it fits (the reserve carries as many round
 | special | doomsday | holo | = | 2 / 3 s | +8% | +14% | = | = / = | = | x1.25 |  | = |
 | special | doomsday | extended | +15% | 3 / 3.3 s | +5% | = | = | = / = | = |  |  | = |
 | special | doomsday | laser | = | 2 / 3 s | = | = | -25% | = / = | = |  |  | = |
+
+## Word Forge tiers
+
+G.CONFIG.forge and G.CONFIG.balance.tiers. A tier multiplies the gun's damage, on top of the shop's Damage upgrades (the two multiply); Mk III adds its niche's extra (G.CONFIG.forge.perks). Zombie health by wave is on in the game.
+
+| tier | damage x | questions | right | written | hints | price: common / uncommon / rare / epic / secret |
+|---|---|---|---|---|---|---|
+| Mk I | 1.25 | 4 | 3 | 0 | yes | 1500 / 1650 / 1800 / 2050 / 2400 |
+| Mk II | 1.55 | 5 | 4 | 1 | yes | 3500 / 3850 / 4200 / 4750 / 5600 |
+| Mk III | 1.9 | 5 | 5 | 2 | no | 6000 / 6600 / 7200 / 8100 / 9600 |
+
+A failed try loses 50% of the price, and that gun waits for the wave to end.
+
+The middle gun of each class (by sustained DPS): its sustained DPS at each tier, and the shots to put a Shambler down (close, to the body) -- wave 1 as it comes; wave 10 as it comes / Mk I; wave 15 as it comes / Mk II; wave 20 as it comes / Mk II / Mk III.
+
+| class | gun | sust. | Mk I | Mk II | Mk III | w1 | w10 / I | w15 / II | w20 / II / III | Mk III extra |
+|---|---|---|---|---|---|---|---|---|---|---|
+| pistol | rebound_pistol | 42 | 53 | 66 | 84 | 3 | 4 / 4 | 5 / 4 | 6 / 4 / 4 | mag x1.25 |
+| smg | hall_monitor | 81 | 102 | 126 | 163 | 4 | 6 / 5 | 7 / 5 | 8 / 6 / 5 | mag x1.25 |
+| rifle | tri_burst | 90 | 113 | 140 | 172 | 2 | 4 / 3 | 5 / 3 | 6 / 4 / 3 | head x1.25 |
+| lmg | drum_hammer | 114 | 143 | 177 | 235 | 3 | 5 / 4 | 7 / 4 | 8 / 5 / 4 | mag x1.25 |
+| shotgun | breach_gauge | 62 | 78 | 97 | 125 | 1 | 1 / 1 | 2 / 1 | 2 / 1 / 1 | mag x1.25 |
+| sniper | cardiac_coil | 84 | 105 | 130 | 160 | 1 | 1 / 1 | 1 / 1 | 1 / 1 / 1 | pierce +1 |
+| antimateriel | overwatch | 121 | 152 | 188 | 230 | 1 | 1 / 1 | 1 / 1 | 1 / 1 / 1 | pierce +1 |
+| beam | prism_lance | 77 | 96 | 119 | 146 | 1 | 2 / 1 | 2 / 1 | 2 / 2 / 1 | pierce +1 |
+| energy | thunder_chalk | 100 | 125 | 156 | 191 | 1 | 1 / 1 | 1 / 1 | 1 / 1 / 1 | pierce +1 |
+| launcher | plague_thrower | 60 | 75 | 93 | 121 | 1 | 1 / 1 | 1 / 1 | 1 / 1 / 1 | mag x1.25 |
+
+Seconds to bring a boss down (the Boss fights table's rules) with the middle gun of a rarity: as it comes / Mk I / Mk II / Mk III.
+
+| boss | wanted (s) | common | uncommon | rare | epic | secret |
+|---|---|---|---|---|---|---|
+| wave 5 | 90-120 | 164 / 131 / 106 / 86 | 107 / 85 / 69 / 56 | 105 / 84 / 68 / 55 | 112 / 90 / 72 / 59 | 76 / 60 / 49 / 40 |
+| wave 10 | 120-150 | 262 / 209 / 169 / 138 | 170 / 136 / 110 / 90 | 168 / 134 / 108 / 88 | 179 / 143 / 115 / 94 | 121 / 96 / 78 / 63 |
+| wave 15 | 150-180 | 396 / 316 / 255 / 208 | 257 / 206 / 166 / 135 | 254 / 203 / 164 / 134 | 271 / 216 / 175 / 142 | 182 / 146 / 118 / 96 |
+| wave 20 | 180-240 | 435 / 348 / 281 / 229 | 283 / 226 / 183 / 149 | 279 / 224 / 180 / 147 | 298 / 238 / 192 / 157 | 200 / 160 / 129 / 106 |

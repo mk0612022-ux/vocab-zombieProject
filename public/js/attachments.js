@@ -150,8 +150,10 @@ G.Attach = (function () {
     });
   }
   // between runs always; in a run only in the shop (G.CONFIG.attach.changeInShop)
-  function editable() {
+  // or at the Word Forge (round 6: where === "forge", G.CONFIG.attach.changeAtForge)
+  function editable(where) {
     const st = G.Game && G.Game.state;
+    if (where === "forge" && (st === "GAMEPLAY" || st === "SHOP")) return C().changeAtForge !== false;
     if (st === "SHOP") return !!C().changeInShop;
     return st !== "GAMEPLAY" && st !== "PAUSE";
   }
@@ -708,7 +710,7 @@ G.Attach = (function () {
     const what = u.kind === "topic" ? T("unlock.topic", { topic: G.topicLabel(u.topic), n: b }) : T("unlock." + u.kind, { n: u.n });
     return won ? what : what + " (" + Math.min(a, b) + "/" + b + ")";
   }
-  function editorHtml(def) {
+  function editorHtml(def, where) {
     const L = loadoutOf(def), D0 = data(), own = !!D0.loadout[def.id], shared = !own && Object.keys(D0.family[familyOf(def)] || {}).length > 0;
     let P = null;
     const cond = (id) => conditionOf(id, false, P || (P = progress()));
@@ -724,14 +726,15 @@ G.Attach = (function () {
     const skins = Object.keys(G.GUN_SKINS).filter((k) => unlocked("skin:" + k));
     const skinRow = `<div class="att-row"><label for="att-skin">${esc(T("att.slot.skin"))}</label><select id="att-skin">${skins.map((k) => `<option value="${k}"${(L.skin || "factory") === k ? " selected" : ""}>${esc(skinName(k))}</option>`).join("")}</select><div class="att-desc">${esc(T("att.skinNote"))}</div></div>`;
     const fam = `<label class="att-fam"><input type="checkbox" id="att-family"${shared ? " checked" : ""}> ${esc(T("att.forFamily", { family: T("family." + familyOf(def)) }))}</label>`;
-    const note = editable() ? "" : `<div class="att-lock">${esc(T("att.onlyShop"))}</div>`;
+    const note = editable(where) ? "" : `<div class="att-lock">${esc(T("att.onlyShop"))}</div>`;
     return `<div class="att-editor">${rows || `<div class="att-desc">${esc(T("att.noneFit"))}</div>`}${skinRow}${fam}${note}</div>`;
   }
-  function openEditor(def, onDone) {
+  // opts.forge: opened at the Word Forge (round 6), where a run's guns may be changed too
+  function openEditor(def, onDone, opts) {
     if (!G.Dialog || !def) return;
-    const can = editable();
+    const where = opts && opts.forge ? "forge" : null, can = editable(where);
     G.Dialog.open({
-      title: T("att.title", { name: def.name }), body: editorHtml(def), focus: allowed(def, "optic").length ? "att-optic" : "att-skin",
+      title: T("att.title", { name: def.name }), body: editorHtml(def, where), focus: allowed(def, "optic").length ? "att-optic" : "att-skin",
       buttons: [
         { label: T("att.save"), primary: true, disabled: !can, action: () => {
           const box = document.getElementById("dialog-body"), L = {};
@@ -742,7 +745,8 @@ G.Attach = (function () {
           setAll(def.id, L, !!(fam && fam.checked));
           if (onDone) onDone();
         } },
-        { label: T("dialog.cancel"), cancel: true },
+        // (from the Word Forge: back to its window either way)
+        { label: T("dialog.cancel"), cancel: true, action: where === "forge" && onDone ? onDone : undefined },
       ],
     });
   }

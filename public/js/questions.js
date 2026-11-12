@@ -234,7 +234,7 @@ window.G = window.G || {};
   };
 
   // ---------------- drawing one ----------------
-  // els: { ask, prompt, choices } (elements); h: { pick(i), spell(text), hint(), speak(), numbered, choiceClass }
+  // els: { ask, prompt, choices } (elements); h: { pick(i), spell(text), hint(), speak(), numbered, choiceClass, noHint }
   G.QuestionView = {
     fill(els, q, h) {
       h = h || {};
@@ -255,7 +255,7 @@ window.G = window.G || {};
         box.innerHTML = '<div class="q-pad"></div>';
         pad = new G.SpellPad(box.querySelector(".q-pad"), {
           mode: G.Input.mode === "touch" || G.Input.padActive ? "tiles" : "type",
-          enterButton: true, noClue: true,
+          enterButton: true, noClue: true, noHint: !!h.noHint,          // (expansion, round 6: the Word Forge's Tier III)
           onSubmit: (t) => h.spell && h.spell(t),
           onHint: () => { if (pad.hint()) h.hint && h.hint(); },
           showCursor: () => G.Input.padActive,

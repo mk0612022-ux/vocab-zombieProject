@@ -191,9 +191,10 @@ G.CONFIG = {
   // js/zombiefactory.js (looks), js/zombieanim.js (how they move),
   // js/zombieai.js (what they do); docs/overhaul/zombie-concepts.md
   zombies: {
-    // (expansion, round 3) health by wave: x (1 + perWave a wave past the first). Off until Word Forge
-    // (round 6) gives a way to keep up; tools/balance.js shows both
-    hpByWave: { on: false, perWave: 0.08 },
+    // (expansion, round 3) health by wave: x (1 + perWave a wave past the first) -- wave 10 x1.72,
+    // wave 20 x2.52. On since round 6 (the user's choice, 2026-11-12): the Word Forge's tiers are
+    // how a gun keeps up. A boss has its own curve (G.CONFIG.boss.hpByWave)
+    hpByWave: { on: true, perWave: 0.08 },
     // the wave a kind first comes in; before it, none
     first: { fast: 3, crawler: 4, bloater: 6, screamer: 7, ironclad: 8, runt: 9, headless: 11, reacher: 12, abomination: 13 },
     // its share of a wave from then: [at its first wave, at full, the wave it is full]
@@ -468,10 +469,12 @@ G.CONFIG = {
   // gunStats: false brings back the guns' old numbers and the old way of shooting
   // (no falloff, one spread, one head multiplier); the Stat Card stays
   // diag: false stops the bug report's collecting (the report then holds no logs, errors or FPS)
-  expansion: { gunStats: true, diag: true, melee: true, attachments: true },
+  // forge: false takes the Word Forge's stations away (round 6; a gun's tier is the run's only)
+  expansion: { gunStats: true, diag: true, melee: true, attachments: true, forge: true },
   // (expansion, round 5) attachments, skins and what unlocks them (js/attachments.js;
   // the tables are js/data/attachments.js)
   //   changeInShop   during a run they can be changed in the shop (else only between runs)
+  //   changeAtForge  ...and at the Word Forge's window (round 6)
   //   rememberBox    a word is "remembered" from this memory box up (4-5, and Mastered)
   //   sway           the drift aimed through an optic: (its sway - 1) x amp radians,
   //                  at two slow rates (Hz); Reduce Motion keeps `reduced` of it
@@ -492,6 +495,7 @@ G.CONFIG = {
   //   (how much louder a muzzle brake makes the shot: G.ATTACHMENTS.brake.loud, dB)
   attach: {
     changeInShop: true,
+    changeAtForge: true,                // (round 6) ...and at the Word Forge's window
     rememberBox: 4,
     sway: { amp: 0.01, speed: [0.23, 0.17], reduced: 0.33 },
     scopeAt: 0.85,
@@ -502,6 +506,49 @@ G.CONFIG = {
       crack: true, crackDbSniper: -24, mechDb: 6, echo: 0.25,
       // a gun whose shot has no action's tick (the .45, the long rifle): this one, as js/gunvoice.js layers it
       mechDefault: [{ f: 2600, q: 3, at: 0.022, tau: 0.005, g: 0.09 }] },
+  },
+  // (expansion, round 6) the Word Forge (js/forge.js): one station a level, where a gun
+  // carried goes up a tier -- for money and a few questions on words the player has met.
+  // The damage of each tier is the stat sheet's: G.CONFIG.balance.tiers (x on the gun as it came).
+  //   price            a tier's money: base[tier - 1] x the gun's rarity
+  //   failKeep         a try failed gives back this share of the price (the rest is lost)
+  //   quiz             a tier's test: n questions, `pass` right at least, `recall` of them
+  //                    written answers (typed, or heard and typed), hints allowed or not
+  //   seconds          a question's time, before its kind's own extra (G.CONFIG.quiz.extraSeconds)
+  //   onlyBetweenWaves the station works only between waves -- then it is reached from the
+  //                    shop: a cleared wave goes straight to its quiz and the shop, there is
+  //                    no break to walk in
+  //   recentDays       "answered wrong lately" for the choice of words: within this many days
+  //   perks            Tier III's extra, by the gun's niche (G.CONFIG.balance.niches): pierce
+  //                    +n zombies a round, mag x its magazine, head x a head hit's damage
+  //   look             the band, glow and plate of a tier (I, II, III; the plate from II)
+  //   sound            a forged gun's shot: its sub +subDb dB (a low shelf at lowHz),
+  //                    its pitch x, one tail more (noise, low-passed lp -> lpEnd)
+  //   scene            the upgrade's scene, seconds (skippable once seen)
+  //   station          its glow and its hum (Hz, gain, metres it is full within)
+  forge: {
+    price: { base: [1500, 3500, 6000], rarity: { common: 1, uncommon: 1.1, rare: 1.2, epic: 1.35, legendary: 1.5, secret: 1.6 } },
+    failKeep: 0.5,
+    quiz: [
+      { n: 4, pass: 3, recall: 0, hints: true },
+      { n: 5, pass: 4, recall: 1, hints: true },
+      { n: 5, pass: 5, recall: 2, hints: false },
+    ],
+    seconds: 20,
+    onlyBetweenWaves: false,
+    recentDays: 14,
+    perks: {
+      crowd_pierce: { pierce: 1 }, long_precise: { pierce: 1 }, heavy_punch: { pierce: 1 }, charge_shot: { pierce: 1 }, boss_breaker: { pierce: 1 },
+      headhunter: { head: 1.25 }, one_tap: { head: 1.25 }, sidearm: { head: 1.25 }, tight_choke: { head: 1.25 },
+      big_mag: { mag: 1.25 }, suppress: { mag: 1.25 }, all_round: { mag: 1.25 }, rapid_tap: { mag: 1.25 }, burst_fire: { mag: 1.25 },
+      close_spray: { mag: 1.25 }, room_clear: { mag: 1.25 }, wide_scatter: { mag: 1.25 }, blast_area: { mag: 1.25 }, nimble: { mag: 1.25 },
+      fast_reload: { mag: 1.25 },
+      default: { mag: 1.25 },
+    },
+    look: { colors: [0x4fd1ff, 0xb46bff, 0xffb547] },
+    sound: { subDb: [2, 2.5, 3], pitch: [0.98, 0.975, 0.97], lowHz: 250, tail: { dur: 0.9, lp: 900, lpEnd: 110, g: [0.035, 0.05, 0.065] } },
+    scene: 2.6,
+    station: { color: 0xff8a2a, hum: { f: 55, gain: 0.045, ref: 3 } },
   },
   // ---------------- the melee slot (expansion, round 4) ----------------
   // G.MELEE_WEAPONS has each weapon; js/melee.js is the swing.

@@ -11,6 +11,10 @@
 //   G.StatCard.html(def, { compare, lvl })   compare: the gun in hand (a melee
 //                                            weapon: the one in the slot), its
 //                                            bars then show the difference
+//                                            (round 6) lvl: its run's levels
+//                                            (shop, Word Forge tier) counted in;
+//                                            from: the same gun at other levels
+//                                            -- the bars show the difference
 //   G.StatCard.held()                        the gun in hand, in a run
 //   G.StatCard.heldMelee()                   the melee slot's weapon, in a run
 //   G.StatCard.status(def)                   the HUD's label: rarity · weight
@@ -62,10 +66,11 @@ G.StatCard = (function () {
   function html(def, opts) {
     opts = opts || {};
     if (def.id === "melee") return meleeHtml(def, opts);
-    const s = G.GunStats.of(def), st = G.GunStats.stats(def), lvl = opts.lvl;
+    const lvl = opts.lvl, s = G.GunStats.of(def), st = G.GunStats.stats(def, lvl);
     const rc = hex(G.RARITY[def.rarity].color);
     const cmp = opts.compare && opts.compare.id !== def.id ? opts.compare : null;
-    const other = cmp ? G.GunStats.stats(cmp) : null;
+    const other = cmp ? G.GunStats.stats(cmp) : opts.from ? G.GunStats.stats(def, opts.from) : null;
+    const tier = lvl && G.Forge ? Math.max(0, Math.min(3, lvl.tier | 0)) : 0;
     const wc = G.weightClass(def);
     const bars = G.GunStats.KEYS.map((k) => bar(k, st[k].pct, rc, other)).join("");
     const mag = lvl ? Math.round(s.mag * (lvl.mag || 1)) : s.mag;
@@ -75,17 +80,18 @@ G.StatCard = (function () {
     const fit = G.Attach && G.Attach.on() ? G.Attach.chips(def) : [];
     const att = fit.length ? `<div class="statc-att">${fit.map((a) => `<span class="att-chip">${esc(T("att." + a + ".name"))}</span>`).join("")}`
       + `<div class="statc-atteff">${esc(G.Attach.effects(def).join(" · "))}</div></div>` : "";
-    return `<div class="stat-card${cmp ? " compare" : ""}">`
-      + (opts.name === false ? "" : `<div class="statc-head"><span class="statc-name" style="color:${rc}">${esc(def.name)}</span><span class="statc-rarity">${esc(G.RARITY[def.rarity].label)}</span></div>`)
+    return `<div class="stat-card${cmp || opts.from ? " compare" : ""}">`
+      + (opts.name === false ? "" : `<div class="statc-head"><span class="statc-name" style="color:${rc}">${esc(def.name)}${tier ? ` <span class="statc-tier t${tier}">${esc(G.Forge.labelOf(tier))}</span>` : ""}</span><span class="statc-rarity">${esc(G.RARITY[def.rarity].label)}</span></div>`)
       + `<div class="statc-tags">${tags}<span class="statc-tag" style="color:${wc.color}">${esc(wc.label)}</span></div>`
       + `<div class="statc-bars">${bars}</div>`
       + `<div class="statc-nums">${nums}</div>` + att
       + (cmp ? `<div class="statc-vs">${esc(T("stat.vs", { name: cmp.name }))}</div>` : "")
       + `</div>`;
   }
-  // (Word Forge's tier joins it in round 6)
-  function status(def) {
-    return [G.RARITY[def.rarity].label, G.weightClass(def).label].join(" · ");
+  // (round 6: lvl -- the gun's run levels: its Word Forge tier leads it, "Mk II · Rare · Medium")
+  function status(def, lvl) {
+    const tier = lvl && G.Forge ? Math.max(0, Math.min(3, lvl.tier | 0)) : 0;
+    return [tier ? G.Forge.labelOf(tier) : "", G.RARITY[def.rarity].label, G.weightClass(def).label].filter(Boolean).join(" · ");
   }
   // beside a wall gun: it needs no button, so every kind of control has it
   function showHud(def) {

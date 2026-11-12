@@ -121,7 +121,7 @@ G.AdsSheet = (function () {
     for (let i = 0; i < combos.length; i++) {
       const c = combos[i], x = (i % cols) * W, y = Math.floor(i / cols) * (H + LH);
       A.preview = { [c.d.id]: c.L }; A.apply();
-      const m = G.buildWeaponMesh(c.d, { loadout: true });
+      const m = G.buildWeaponMesh(c.d, { loadout: true, tier: c.tier || 0 });          // (round 6: a combo's Word Forge tier)
       scene.add(m); m.updateMatrixWorld(true);
       const bb = new THREE.Box3().setFromObject(m), mid = bb.getCenter(new THREE.Vector3()), size = bb.getSize(new THREE.Vector3());
       const half = Math.max(size.z / cam.aspect, size.y) / 2 * 1.25, dist = half / Math.tan(cam.fov * Math.PI / 360);

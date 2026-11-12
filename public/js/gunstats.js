@@ -216,8 +216,11 @@ G.GunStats = (function () {
     for (let i = 0; i < A.length; i++) { if (A[i] < v - 1e-9) lo++; if (A[i] <= v + 1e-9) hi++; }
     return Math.round(((lo + hi - 1) / 2) / Math.max(1, A.length - 1) * 100);
   }
-  function stats(x) {
+  // (expansion, round 6) lvl: a run's levels on it -- the shop's upgrades and the
+  // Word Forge's tier (damage, rate); ranked among the guns as they come
+  function stats(x, lvl) {
     const s = of(x), r = raw(s), out = {};
+    if (lvl) { r.damage *= lvl.dmg || 1; r.rate *= lvl.rate || 1; }
     KEYS.forEach((k) => { out[k] = { raw: r[k], pct: percentile(k, r[k]) }; });
     return out;
   }

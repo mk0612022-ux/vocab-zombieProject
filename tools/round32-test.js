@@ -233,17 +233,18 @@ G.Round32Test = (function () {
 
       // ---------------- F: health by wave ----------------
       {
+        // (on since expansion round 6 -- the user's choice, 2026-11-12, with the Word Forge)
         const H = G.CONFIG.zombies.hpByWave, keep = H.on;
-        ok("F off for now: every wave has the kind's health", H.on === false && G.zombieHpMult(20) === 1);
+        ok("F on (since round 6): the curve", H.on === true && near(G.zombieHpMult(1), 1) && near(G.zombieHpMult(20), 1 + 19 * H.perWave), G.zombieHpMult(20));
         const sw = g.wave;
         g.wave = 20;
-        const a = g.spawnZombieAt("normal", P.clone().add(new THREE.Vector3(8, 0, 0)), null);
-        const off = a.hp;
-        H.on = true;
-        ok("F on: the curve", near(G.zombieHpMult(1), 1) && near(G.zombieHpMult(20), 1 + 19 * H.perWave), G.zombieHpMult(20));
+        const on = g.spawnZombieAt("normal", P.clone().add(new THREE.Vector3(8, 0, 0)), null).hp;
+        H.on = false;
+        ok("F off: every wave has the kind's health", G.zombieHpMult(20) === 1);
+        const off = g.spawnZombieAt("normal", P.clone().add(new THREE.Vector3(9, 0, 0)), null).hp;
         H.on = keep;
         g.wave = sw;
-        ok("F a zombie of wave 20 keeps the kind's health while it is off", off === G.ZOMBIE_TYPES.normal.hp, off);
+        ok("F a zombie of wave 20: the curve's health while it is on, the kind's own while it is off", on === Math.round(G.ZOMBIE_TYPES.normal.hp * (1 + 19 * H.perWave)) && off === G.ZOMBIE_TYPES.normal.hp, on + " / " + off);
         g.clearZombies();
         ok("F a boss has its own curve", G.CONFIG.boss.hpByWave[20] === 32000);
       }

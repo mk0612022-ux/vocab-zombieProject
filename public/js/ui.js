@@ -666,6 +666,19 @@ G.UI = {
       });
       this.bindAttachBtns(grid, () => this.renderShop());
     }
+    // (expansion, round 6) the Word Forge, when it works only between waves
+    // (G.CONFIG.forge.onlyBetweenWaves): a row a gun carried, here
+    if (G.Forge && G.Forge.on() && G.CONFIG.forge.onlyBetweenWaves) {
+      pl.gunSlots.forEach((id) => {
+        const r = G.Forge.shopRow(g, id);
+        if (!r) return;
+        const div = document.createElement("div");
+        div.className = "shop-item shop-forge" + (r.ok ? "" : " locked");
+        div.innerHTML = `<div class="shop-item-title">⚒ ${G.escapeHtml(r.name)}</div><div class="shop-item-level">${G.escapeHtml(G.T("forge.title"))}</div><div class="shop-item-desc">${G.escapeHtml(r.desc)}</div><button class="btn" data-forge="${id}">${G.escapeHtml(G.T("forge.openBtn"))}</button>`;
+        grid.appendChild(div);
+      });
+      grid.querySelectorAll("[data-forge]").forEach((b) => { b.onclick = () => G.Forge.open(g, b.dataset.forge); });
+    }
   },
 
   // ---------------- Crate open ----------------

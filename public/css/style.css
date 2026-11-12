@@ -2601,3 +2601,21 @@ body.modal-question .hud-statcard { display: none; }
   .att-editor { gap: 6px; }
   .att-row select { min-height: 34px; padding: 3px 6px; }
 }
+/* (expansion, round 6) the Word Forge: its window, a gun's tier on its card, the test's summary */
+.forge-win { display: grid; gap: 8px; text-align: left; }
+.forge-money { font-weight: 700; color: #ffd27a; font-size: 0.85rem; }
+.forge-line { font-size: 0.8rem; line-height: 1.35; }
+.forge-next { color: #ffb15c; font-weight: 700; }
+.forge-fine { opacity: 0.7; font-size: 0.72rem; }
+.forge-why { color: #ff9a8a; font-weight: 700; }
+.forge-max { color: #ffd27a; font-weight: 700; }
+.forge-card .stat-card { margin: 2px 0 0; }
+.statc-tier { display: inline-block; margin-left: 4px; padding: 0 5px; border-radius: 3px; font-size: 0.7em; vertical-align: middle; border: 1px solid currentColor; }
+.statc-tier.t1 { color: #4fd1ff; } .statc-tier.t2 { color: #b46bff; } .statc-tier.t3 { color: #ffb547; }
+#quiz-verdict-sub { white-space: pre-line; }
+.quiz-forge #quiz-kicker { color: #ffb15c; }
+.shop-forge .shop-item-title { color: #ffb15c; }
+@media (max-height: 520px) {
+  .forge-win { gap: 5px; }
+  .forge-line { font-size: 0.74rem; }
+}

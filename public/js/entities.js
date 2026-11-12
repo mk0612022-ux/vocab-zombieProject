@@ -636,6 +636,8 @@ G.buildWeaponMesh = function (def, o) {
     moving.forEach((p) => G.Perf.mergeLocal(p));
     G.Perf.mergeLocal(g, [g.userData.rainbowTrim].concat(moving));
   }
+  // (expansion, round 6) o.tier: the Word Forge's mark on it -- after the merge, so it glows apart (js/forgescene.js)
+  if (o && o.tier && G.ForgeScene) G.ForgeScene.decorate(g, def, o.tier);
   if (G.save && G.save.settings && G.save.settings.colorblindMode) {
     const badge = G.buildRarityBadge(def.rarity);
     // Clears even the tallest silhouette (golden_smg's crown spikes top out

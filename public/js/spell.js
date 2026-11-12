@@ -399,7 +399,7 @@ window.G = window.G || {};
   };
   // the next right unit, the wrong ones after the right start taken out
   P.hint = function () {
-    if (!this.pair) return false;
+    if (!this.pair || this.opts.noHint) return false;              // (expansion, round 6: no help to be had)
     if (this.feedback) this.clearFeedback();
     const lowU = (s) => (this.lang === "en" || this.lang === "fr" ? String(s).toLowerCase() : String(s));
     const want = this.units.map((u) => lowU(u.ch));
@@ -520,7 +520,7 @@ window.G = window.G || {};
     }
     if (!accents) tiles.dataset.acc = "";
     // the buttons
-    const acts = [{ id: "back", label: "⌫", aria: T("spell.back") }, { id: "hint", label: "💡 " + T("spell.hint"), aria: T("spell.hint") }]
+    const acts = [{ id: "back", label: "⌫", aria: T("spell.back") }].concat(this.opts.noHint ? [] : [{ id: "hint", label: "💡 " + T("spell.hint"), aria: T("spell.hint") }])
       .concat(this.mode === "type" && this.opts.enterButton ? [{ id: "enter", label: T("spell.enter"), aria: T("spell.enter") }] : [])
       .concat((typeof this.opts.actions === "function" ? this.opts.actions() : this.opts.actions) || []);
     const sig = acts.map((a) => a.id + a.label).join("|");

@@ -1424,6 +1424,8 @@ G.buildLevelScene = function (scene, level, quality) {
         const off = 0.3 + (spec.meleeIn || 0);
         G.Melee.mount(world, scene, spec.melee, r.cx < 0 ? r.cx - r.w / 2 + off : r.cx + r.w / 2 - off, spec.baseY, r.cz + (spec.meleeOffZ || 0), r.cx < 0);
       }
+      // (expansion, round 6) the level's Word Forge (js/forge.js)
+      if (spec.forge && G.Forge) G.Forge.mount(world, scene, spec, kitApi());
       if (spec.mystery) {
         const s = 1.4;
         let mbX = spec.room.cx + spec.room.w / 2 - 2.2, mbZ = spec.room.cz - spec.room.d / 2 + 2.2;
@@ -1900,7 +1902,7 @@ G.buildLevelScene = function (scene, level, quality) {
           { key: "W1", side: "W", row: 0, light: 0, type: "classroom", num: "1A" },
           { key: "E1", side: "E", row: 0, light: 2, type: "nurse" },
           { key: "W2", side: "W", row: 1, light: 1, type: "classroom", num: "1B", gun: "hall_monitor" },
-          { key: "E2", side: "E", row: 1, light: 3, type: "science", gun: "pop_quiz" },
+          { key: "E2", side: "E", row: 1, light: 3, type: "science", gun: "pop_quiz", forge: true },
           { key: "W3", side: "W", row: 2, light: 2, type: "office", button: true },
           { key: "E3", side: "E", row: 2, light: 0, type: "classroom", num: "1C" },
           { key: "W4", side: "W", row: 3, light: 4, type: "detention", gun: "detention_slug", secret: true, hasKey: true },
@@ -1964,7 +1966,7 @@ G.buildLevelScene = function (scene, level, quality) {
         plan: [
           { key: "W1", side: "W", row: 0, light: 0, furnish: "reception" },
           { key: "E1", side: "E", row: 0, light: 2, furnish: "ward" },
-          { key: "W2", side: "W", row: 1, light: 1, furnish: "theatre", gun: "bone_saw" },
+          { key: "W2", side: "W", row: 1, light: 1, furnish: "theatre", gun: "bone_saw", forge: true },
           { key: "E2", side: "E", row: 1, light: 3, furnish: "storage", gun: "iv_repeater" },
           { key: "W3", side: "W", row: 2, light: 2, button: true, furnish: "office" },
           { key: "E3", side: "E", row: 2, light: 0, furnish: "ward", melee: "axe", meleeOffZ: 1.9 },
@@ -2008,7 +2010,7 @@ G.buildLevelScene = function (scene, level, quality) {
       plan: [
         { key: "W1", side: "W", row: 0, light: 0, furnish: "barracks" },
         { key: "E1", side: "E", row: 0, light: 2, furnish: "storage" },
-        { key: "W2", side: "W", row: 1, light: 1, furnish: "armoury", gun: "vent_ripper" },
+        { key: "W2", side: "W", row: 1, light: 1, furnish: "armoury", gun: "vent_ripper", forge: true },
         { key: "E2", side: "E", row: 1, light: 3, furnish: "generator", gun: "bolt_thrower" },
         { key: "W3", side: "W", row: 2, light: 2, button: true, furnish: "control" },
         { key: "E3", side: "E", row: 2, light: 0, secret: true, furnish: "cells", hasKey: true },

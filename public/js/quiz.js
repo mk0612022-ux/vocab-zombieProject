@@ -26,6 +26,11 @@
 // Every answer goes into the long-term word statistics and the word's memory
 // box (G.Learning.answerWord), so a word missed here comes up more often, and onto the run's list of
 // words to review. The numbers are G.CONFIG.quiz (js/config.js).
+// (expansion, round 6) The Word Forge's test is this window too: open(game,
+// done, opts) with its own questions and rules -- opts: { qs, kicker,
+// seconds, maxMistakes, noHint (no hints on a written answer), verdict:
+// { passed, failed, passedSub, failedSub, vars }, summary (a line under the
+// verdict), reviewTitle, log (kept by the caller, not in G.Quiz.history) }.
 // ===================================================================
 (function () {
   const T = (k, v) => G.T(k, v);
@@ -68,18 +73,24 @@
 
     // ---- the window ----
     // done(passed) once the player has seen the result and pressed Continue
-    open(game, done) {
-      const qs = this.build(game);
+    open(game, done, opts) {
+      opts = opts || {};
+      const qs = opts.qs || this.build(game);
       if (!qs.length) { done(true); return; }
-      this.game = game; this.done = done;
+      this.game = game; this.done = done; this.opts = opts;
+      this.maxMistakes = opts.maxMistakes != null ? opts.maxMistakes : C().maxMistakes;
       this.qs = qs; this.i = -1; this.correct = 0; this.mistakes = 0; this.missed = [];
       this.stage = "question"; this.t = 0; this.active = true;
-      this.log = { wave: game.wave, words: (game.waveWords || []).map((p) => p[0]), asked: qs.map((q) => q.pair[0]), types: qs.map((q) => q.type), missedFirst: Array.from(game.waveMissed || []) };
-      (G.Quiz.history = G.Quiz.history || []).push(this.log);
-      if (G.Quiz.history.length > 30) G.Quiz.history.shift();
+      if (opts.log) this.log = opts.log;
+      else {
+        this.log = { wave: game.wave, words: (game.waveWords || []).map((p) => p[0]), asked: qs.map((q) => q.pair[0]), types: qs.map((q) => q.type), missedFirst: Array.from(game.waveMissed || []) };
+        (G.Quiz.history = G.Quiz.history || []).push(this.log);
+        if (G.Quiz.history.length > 30) G.Quiz.history.shift();
+      }
       G.Modal.open("quiz", { pause: true, keys: (e) => this.key(e) });
       const el = (id) => document.getElementById(id);
-      el("quiz-kicker").textContent = T("quiz.kicker", { n: game.wave });
+      el("quiz-kicker").textContent = opts.kicker || T("quiz.kicker", { n: game.wave });
+      document.getElementById("screen-quiz").classList.toggle("quiz-forge", !!opts.qs);
       el("quiz-q").classList.remove("hidden");
       el("quiz-result").classList.add("hidden");
       G.UI.showScreen("screen-quiz");
@@ -92,13 +103,13 @@
       this.stage = "question"; this.t = 0;
       const q = this.qs[this.i], el = (id) => document.getElementById(id);
       // (Extra Time adds to every word question; some kinds take longer)
-      this.limit = G.Questions.seconds(q.type, C().seconds) + (G.Perks.val("extra_time") || 0);
+      this.limit = G.Questions.seconds(q.type, this.opts.seconds || C().seconds) + (G.Perks.val("extra_time") || 0);
       el("quiz-progress").textContent = T("quiz.progress", { i: this.i + 1, n: this.qs.length });
       el("quiz-q").dataset.type = q.type;
       this.view = G.QuestionView.fill({ ask: el("quiz-ask"), prompt: el("quiz-prompt"), choices: el("quiz-choices") }, q, this.handlers());
       el("quiz-feedback").innerHTML = "";
       el("quiz-feedback").className = "quiz-feedback";
-      el("quiz-hint").textContent = T(q.spell ? "quiz.hintSpell" : "quiz.hint");
+      el("quiz-hint").textContent = T(q.spell ? (this.opts.noHint ? "forge.hintNoHelp" : "quiz.hintSpell") : "quiz.hint");
       this.counters();
       this.timerBar();
       if (q.speak) this.say();
@@ -110,6 +121,7 @@
         spell: (text) => this.answer(text),
         hint: () => { const q = this.qs[this.i]; q.hints = (q.hints || 0) + 1; },
         speak: () => this.say(true),
+        noHint: !!this.opts.noHint,
       };
     },
     // the spoken word of a Listening question -- Play Once: the first time only
@@ -124,14 +136,15 @@
     answerAs(right) {
       const q = this.qs && this.qs[this.i];
       if (!q || this.stage !== "question") return;
-      if (q.spell) this.answer(right ? q.pair[0] : "qqqqq");
+      // (a gap's written form is the one to type, not the headword -- the Word Forge asks those)
+      if (q.spell) this.answer(right ? G.Questions.spellTarget(q)[0] : "qqqqq");
       else this.answer(right ? q.answer : (q.answer + 1) % q.choices.length);
     },
     counters() {
       const el = (id) => document.getElementById(id);
       el("quiz-correct").textContent = T("quiz.correct", { x: this.correct, n: this.qs.length });
-      el("quiz-mistakes").textContent = T("quiz.mistakes", { x: this.mistakes, n: C().maxMistakes });
-      el("quiz-mistakes").classList.toggle("over", this.mistakes > C().maxMistakes);
+      el("quiz-mistakes").textContent = T("quiz.mistakes", { x: this.mistakes, n: this.maxMistakes });
+      el("quiz-mistakes").classList.toggle("over", this.mistakes > this.maxMistakes);
     },
     timerBar() {
       const f = document.getElementById("quiz-timer-fill");
@@ -177,29 +190,32 @@
     },
     finish() {
       this.stage = "result";
-      const passed = this.mistakes <= C().maxMistakes;
+      const passed = this.mistakes <= this.maxMistakes;
       this.passed = passed;
       this.log.correct = this.correct; this.log.mistakes = this.mistakes; this.log.passed = passed;
       const el = (id) => document.getElementById(id);
       el("quiz-q").classList.add("hidden");
       el("quiz-result").classList.remove("hidden");
       el("quiz-result").classList.toggle("fail", !passed);
-      el("quiz-verdict").textContent = T(passed ? "quiz.passed" : "quiz.failed");
-      el("quiz-verdict-sub").textContent = T(passed ? "quiz.passedSub" : "quiz.failedSub", { x: this.correct, n: this.qs.length });
+      // (expansion, round 6: the Word Forge's own words for it, and its summary)
+      const V = this.opts.verdict, vars = Object.assign({ x: this.correct, n: this.qs.length }, (V && V.vars) || {});
+      el("quiz-verdict").textContent = T(V ? (passed ? V.passed : V.failed) : passed ? "quiz.passed" : "quiz.failed", vars);
+      el("quiz-verdict-sub").textContent = T(V ? (passed ? V.passedSub : V.failedSub) : passed ? "quiz.passedSub" : "quiz.failedSub", vars)
+        + (this.opts.summary ? "\n" + this.opts.summary(this) : "");
       // (overhaul, round 7) the review, the game still paused: the words missed
       // first, each explained in full; then the ones got right, short, each
       // with More
-      this.review(el("quiz-missed"), this.qs);
+      this.review(el("quiz-missed"), this.qs, this.opts.reviewTitle);
       G.Audio.sfx(passed ? "unlock" : "wrong");
       this.counters();
       if (G.Input.mode !== "touch") setTimeout(() => { const b = el("btn-quiz-continue"); if (b && this.active) b.focus({ preventScroll: true }); }, 0);
     },
     // the questions answered, explained (q.ex): into `box`
-    review(box, qs) {
+    review(box, qs, title) {
       const done = qs.filter((q) => q.ex);
       const wrong = done.filter((q) => !q.ex.right), right = done.filter((q) => q.ex.right);
       box.innerHTML = (wrong.length
-        ? `<div class="qm-title">${esc(T("quiz.review"))}</div>` + wrong.map((q) => `<div class="qm-row qm-xp">${G.Explain.html(q.ex, true)}</div>`).join("")
+        ? `<div class="qm-title">${esc(T(title || "quiz.review"))}</div>` + wrong.map((q) => `<div class="qm-row qm-xp">${G.Explain.html(q.ex, true)}</div>`).join("")
         : `<div class="qm-none">${esc(T("quiz.noneMissed"))}</div>`)
         + (right.length ? `<div class="qm-title qm-title-ok">${esc(T("quiz.reviewRight"))}</div>` + right.map((q, i) => `<div class="qm-right"><div class="qm-xp">${G.Explain.html(q.ex, false)}</div>${G.Explain.hasMore(q.ex) ? `<button class="btn qm-more" type="button" data-r="${i}" aria-expanded="false">${esc(T("explain.more"))}</button>` : ""}</div>`).join("") : "");
       G.VocabCard.bind(box);

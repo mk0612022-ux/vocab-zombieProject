@@ -397,7 +397,8 @@ G.Audio = {
     V.end = Math.max(V.end, t + o.dur + 0.05);
   },
   // a rendered sound (js/gunaudio.js, the sound bank's files): one buffer, one voice
-  // o: { cat, prio, pos, tag, bus, gain, rate, rev, at }
+  // o: { cat, prio, pos, tag, bus, gain, rate, rev, at, low }
+  //   low: { db, hz } (expansion, round 6: a Word Forge tier) its lows raised db
   buffer(buf, o) {
     const ctx = this.ctx;
     if (!ctx || !buf) return null;
@@ -408,12 +409,23 @@ G.Audio = {
     const src = ctx.createBufferSource(), g = ctx.createGain();
     src.buffer = buf; src.playbackRate.value = o.rate || 1;
     g.gain.value = o.gain == null ? 1 : o.gain;
-    src.connect(g); g.connect(this._out(o.bus || this.busOf(V), o.pos || V.pos, V));
+    if (o.low && o.low.db) this.lowLayer(ctx, src, g, o.low); else src.connect(g);
+    g.connect(this._out(o.bus || this.busOf(V), o.pos || V.pos, V));
     if (o.rev && this.revIn) { const sg = ctx.createGain(); sg.gain.value = o.rev; g.connect(sg); sg.connect(this.revIn); }
     src.start(t);
     V.nodes.push(src); V.gains.push(g);
     V.end = Math.max(V.end, t + dur + 0.02);
     return V;
+  },
+
+  // (expansion, round 6) a sound's lows raised `db`: src -> a low shelf at `hz`
+  // -> dest. Well below hz it is `db` louder, well above it as it was. Any
+  // context (the tests render it offline).
+  lowLayer(ctx, src, dest, low) {
+    const sh = ctx.createBiquadFilter();
+    sh.type = "lowshelf"; sh.frequency.value = low.hz || 250; sh.gain.value = low.db;
+    src.connect(sh); sh.connect(dest);
+    return sh;
   },
 
   // ---------------- listener ----------------

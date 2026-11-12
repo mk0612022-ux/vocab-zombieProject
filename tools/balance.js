@@ -183,7 +183,42 @@ G.Balance = (function () {
       o += "\n## " + c + "\n\n" + table(["gun", "lv", "rarity", "niche", "dmg", "rpm", "mag", "rl s", "DPS", "sust.", "score", "allowed", "body", "head", "TTK s", "w1", "w5", "w10", "w15", "w20", "T3 w20"],
         list.map((r) => [r.id, r.level, r.rarity, r.niche, r.damage + (r.pellets > 1 ? "x" + r.pellets : "") + (r.burst > 1 ? " b" + r.burst : ""), r.rpm, r.mag, r.reload, r.dps, r.sustained, r.score, r.allowed, r.stkBody, r.stkHead, r.ttkBody].concat(r.byWave, [r.tier3])));
     });
-    return o + bossTable(rows) + meleeTable() + attachTable();
+    return o + bossTable(rows) + meleeTable() + attachTable() + forgeTable(rows);
+  }
+  // ---------------- the Word Forge (round 6) ----------------
+  // Its tiers on the guns: what each costs and asks, what it does -- the middle
+  // gun of each class at each tier against the later waves' zombies, and the
+  // bosses at each tier.
+  function forgeTable(rows) {
+    const F = G.CONFIG.forge, B = C();
+    if (!F) return "";
+    const tiers = [1].concat(B.tiers.map((t) => t.dmg)), R = G.RARITY_ORDER, MK = ["", "Mk I", "Mk II", "Mk III"];
+    const price = (t, r) => Math.round((F.price.base[t - 1] * (F.price.rarity[r] || 1)) / 50) * 50;
+    let o = "\n## Word Forge tiers\n\nG.CONFIG.forge and G.CONFIG.balance.tiers. A tier multiplies the gun's damage, on top of the shop's Damage upgrades (the two multiply); Mk III adds its niche's extra (G.CONFIG.forge.perks). Zombie health by wave is "
+      + (G.CONFIG.zombies.hpByWave.on ? "on" : "off") + " in the game.\n\n";
+    o += table(["tier", "damage x", "questions", "right", "written", "hints", "price: " + R.join(" / ")], [1, 2, 3].map((t) => {
+      const q = F.quiz[t - 1];
+      return [MK[t], tiers[t], q.n, q.pass, q.recall, q.hints ? "yes" : "no", R.map((r) => price(t, r)).join(" / ")];
+    }));
+    o += "\nA failed try loses " + Math.round((1 - F.failKeep) * 100) + "% of the price, and that gun waits for the wave to end.\n\n";
+    const Z = G.ZOMBIE_TYPES.normal.hp, close = B.closeRange, list = [];
+    Object.keys(B.classes).forEach((c) => {
+      const cls = rows.filter((r) => r.cls === c).sort((a, b) => a.sustained - b.sustained);
+      if (!cls.length) return;
+      const r = cls[Math.floor(cls.length / 2)], s = GS().of(G.WEAPON_DEFS[r.id]), perk = F.perks[s.niche] || F.perks.default;
+      const d = roundDamage(s, close, false), stk = (w, t) => shots(Z * hpMult(w, true), d * tiers[t]);
+      const sus = (t) => round(GS().sustained(s, { dmg: tiers[t], rate: 1, mag: t === 3 && perk.mag ? perk.mag : 1 }));
+      list.push([c, r.id, sus(0), sus(1), sus(2), sus(3), stk(1, 0), stk(10, 0) + " / " + stk(10, 1), stk(15, 0) + " / " + stk(15, 2), stk(20, 0) + " / " + stk(20, 2) + " / " + stk(20, 3),
+        perk.pierce ? "pierce +" + perk.pierce : perk.head ? "head x" + perk.head : "mag x" + perk.mag]);
+    });
+    o += "The middle gun of each class (by sustained DPS): its sustained DPS at each tier, and the shots to put a Shambler down (close, to the body) -- wave 1 as it comes; wave 10 as it comes / Mk I; wave 15 as it comes / Mk II; wave 20 as it comes / Mk II / Mk III.\n\n";
+    o += table(["class", "gun", "sust.", "Mk I", "Mk II", "Mk III", "w1", "w10 / I", "w15 / II", "w20 / II / III", "Mk III extra"], list);
+    const BC = B.bossCheck, H = G.CONFIG.boss.hpByWave, mid = {};
+    R.forEach((r) => { mid[r] = median(rows.filter((x) => x.rarity === r && x.id !== "golden_smg").map((x) => x.sustained)); });
+    const fight = (w, r, t) => round(H[w] / (mid[r] * Math.pow(1.15, BC.upgrades[w]) * BC.hitShare * tiers[t]));
+    o += "\nSeconds to bring a boss down (the Boss fights table's rules) with the middle gun of a rarity: as it comes / Mk I / Mk II / Mk III.\n\n";
+    o += table(["boss", "wanted (s)"].concat(R), Object.keys(H).map(Number).map((w) => ["wave " + w, BC.target[w].join("-")].concat(R.map((r) => [0, 1, 2, 3].map((t) => fight(w, r, t)).join(" / ")))));
+    return o;
   }
   // ---------------- attachments (round 5) ----------------
   // Everything above is the guns as they come (the player's own choices are
