@@ -297,7 +297,11 @@ G.Round36Test = (function () {
         ok("E ...left half-way: the step kept", G.save.training.step === 3 && !G.save.training.done);
         TY.open();
         ok("E ...from a menu: Continue (step 4 of 11) or Start over", G.Dialog.isOpen() && $("dialog-text").textContent === T("train.resume.text", { i: 4, n: 11 }));
-        G.Dialog.choose(1); step(3);
+        // (round 9: and Cancel -- Esc backs out, nothing started, the step kept)
+        key("Escape");
+        ok("E ...Esc backs out: nothing started, the step kept", !G.Dialog.isOpen() && g.state === "MENU" && G.save.training.step === 3);
+        TY.open();
+        G.Dialog.choose(G.Dialog._o.buttons.findIndex((b) => b.primary)); step(3);
         ok("E ...Continue: step 4", g.mode === "training" && stepId() === "aim");
         g.quitToMainMenu();
         startTraining(6);

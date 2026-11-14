@@ -106,7 +106,8 @@ G.ReportStore = (function () {
     return { state: A.ctx ? A.ctx.state : "none", playing: A.ctx ? A.counts() : null };
   }
   const SETTINGS = ["uiLang", "wordLang", "meaningLang", "controlMode", "campaignStyle", "gameSpeed", "fontSize", "shopTime", "autoReload", "spellReload", "aimAssist", "gore", "reduceMotion",
-    "masterVolume", "musicVolume", "weaponsVolume", "sfxVolume", "speechMode", "explainDetail", "autoContinue", "showFpsCounter"];
+    "masterVolume", "musicVolume", "weaponsVolume", "sfxVolume", "speechMode", "explainDetail", "autoContinue", "showFpsCounter",
+    "tips"];   // (expansion, round 9: the round 7 situation tips)
   function settings() {
     const s = G.save.settings, out = {};
     SETTINGS.forEach((k) => { out[k] = s[k]; });
@@ -129,6 +130,9 @@ G.ReportStore = (function () {
         attach: G.Attach && id !== "melee" && G.WEAPON_DEFS[id] ? Object.assign({}, G.Attach.loadoutOf(G.WEAPON_DEFS[id])) : null },
       word: g.targetPair ? { word: g.targetPair[0], id: g.targetPair.id || "", clue: g.targetClue ? g.targetClue.kind : "" } : null,
       question: g.challenge ? { word: g.challenge.pair[0], type: g.challenge.q.type, timeLeft: round(g.challenge.timeLeft, 1) } : null,
+      // (expansion, round 9) in the Training Yard: which step, for how long, the hint up or not
+      training: g.mode === "training" && G.TrainingYard && G.TrainingYard.run && G.TrainingYard.run.i >= 0
+        ? { step: G.TrainingYard.run.i + 1, id: G.TrainingYard.STEPS[G.TrainingYard.run.i], secs: round(G.TrainingYard.run.t, 1), hint: !!G.TrainingYard.run.hintOn } : null,
     });
     return out;
   }

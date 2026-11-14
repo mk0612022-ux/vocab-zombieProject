@@ -7,9 +7,11 @@
 // one is being played. Mouse, touch, keys (Enter the main button, Escape
 // the cancel one, 1-3 any of them) and a controller (D-pad, A, B cancels).
 //
-//   G.Dialog.open({ title, text, body, focus, buttons: [{ label, primary, danger, cancel, disabled, action }] })
+//   G.Dialog.open({ title, text, body, focus, cls, buttons: [{ label, primary, danger, cancel, disabled, action }] })
 //     body: HTML under the text (expansion, round 1: a table, a tick box, a box
-//     to type in, which keeps its own keys); focus: the id to start on
+//     to type in, which keeps its own keys); focus: the id to start on;
+//     cls: a class of the window's own for this one time (expansion, round 9:
+//     the wider "What's new" list)
 //   G.Dialog.confirm({ title, text, yes, no, danger }, onYes)
 // ===================================================================
 G.Dialog = {
@@ -22,6 +24,9 @@ G.Dialog = {
     this._o = o;
     const esc = G.escapeHtml, box = this.el("dialog-box");
     box.classList.toggle("danger", !!o.danger);
+    if (this._cls) box.classList.remove(this._cls);
+    this._cls = o.cls || null;
+    if (this._cls) box.classList.add(this._cls);
     this.el("dialog-icon").textContent = o.icon || "";
     this.el("dialog-icon").classList.toggle("hidden", !o.icon);
     this.el("dialog-title").textContent = o.title || "";

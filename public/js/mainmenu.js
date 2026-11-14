@@ -220,6 +220,8 @@ window.G = window.G || {};
       this.wake(true);
       this.mark();
       setTimeout(() => { if (this.visible() && G.Input.mode !== "touch" && this.btns[this.focusI]) this.btns[this.focusI].focus({ preventScroll: true }); }, 0);
+      // (expansion, round 9) once after an update: what it brought (js/whatsnew.js)
+      if (G.WhatsNew) setTimeout(() => { if (this.visible()) G.WhatsNew.maybeShow(); }, (G.CONFIG.whatsNew && G.CONFIG.whatsNew.delay) || 600);
     },
     // the scene, built and its shaders compiled before it is seen
     makeScene() {

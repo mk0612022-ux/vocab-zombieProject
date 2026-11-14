@@ -603,6 +603,39 @@ G.UIAudit = {
         UI.renderLeaderboard("mode_custom"); UI.showScreen("screen-leaderboard");
       });
       await step("leaderboard: a campaign style", () => UI.renderLeaderboard("level3"));
+      // ---------------- (expansion, round 9) the expansion's screens ----------------
+      const realUpd = Game._update0 || realUpdate;
+      const runTo = (fn) => { G.Dialog.close(); G.Modal.reset(); Game.update = realUpd; fn(); Game.update = function () {}; G.Modal.reset(); Game.paused = false; Game.state = "GAMEPLAY"; UI.showScreen(null); UI.setHudVisible(true); };
+      const steps = (n) => { for (let i = 0; i < n; i++) realUpd.call(Game, 1 / 60); };
+      const longGun = Object.values(G.WEAPON_DEFS).filter((w) => w.magSize).sort((a, b) => b.name.length - a.name.length)[0];
+      await step("expansion: What's new", () => { Game.quitToMainMenu(); G.Modal.reset(); UI.goToMainMenu(); if (G.WhatsNew) G.WhatsNew.open(); });
+      await step("expansion: How to Play, the new part", () => {
+        G.Dialog.close(); G.Modal.reset(); UI.showScreen("screen-howtoplay");
+        const b3 = document.querySelector('[data-i18n-html="howto.body3"]'), sc = document.getElementById("screen-howtoplay");
+        if (b3 && sc) sc.scrollTop = b3.offsetTop;
+      });
+      await step("expansion: Settings > Data", () => { UI._settingsReturn = "screen-mainmenu"; G.SettingsUI.cat = "data"; UI.renderSettings(); UI.showScreen("screen-settings"); });
+      await step("expansion: Settings > Tips", () => G.SettingsUI.select("tips"));
+      await step("expansion: Settings > Help", () => G.SettingsUI.select("help"));
+      await step("expansion: a bug report", () => { UI.goToMainMenu(); G.BugReport.open(); });
+      await step("expansion: a word report (the longest example)", () => { G.BugReport.close(); G.WordReport.open(byId(longEx.id), { where: "log" }); });
+      await step("expansion: attachments (the longest gun name)", () => { G.Dialog.close(); G.Attach.openEditor(longGun); });
+      await step("expansion: the Training Yard's offer", () => {
+        G.Dialog.close(); G.Modal.reset(); UI.goToMainMenu();
+        G.save.training = Object.assign({}, G.save.training, { offered: false, done: false });
+        const C = G.CONFIG.training, w = C.offerNewOnly; C.offerNewOnly = false; G.TrainingYard.maybeOffer(); C.offerNewOnly = w;
+      });
+      await step("expansion: the Training Yard's resume question", () => { G.Dialog.close(); G.save.training = Object.assign({}, G.save.training, { step: 5, done: false, offered: true }); G.TrainingYard.open(); });
+      await step("expansion: the Training Yard, a step", () => { runTo(() => Game.startTraining(4)); steps(3); });
+      await step("expansion: the Training Yard, the hint", () => { G.TrainingYard.run.t = 99; steps(3); });
+      await step("expansion: the HUD tour", () => { G.TrainingYard.goTo(7); steps(50); });
+      await step("expansion: the last cards", () => { G.Modal.reset(); Game.paused = false; G.TrainingYard.goTo(10); steps(3); });
+      await step("expansion: the Word Forge's window", () => { G.Dialog.close(); Game.quitToMainMenu(); runTo(() => Game.startLevel(1)); G.Forge.open(Game, "pistol"); });
+      await step("expansion: a situation tip", () => {
+        G.Dialog.close(); G.Modal.reset(); Game.paused = false; Game.state = "GAMEPLAY";
+        G.save.settings.tips = true; G.save.tipsSeen = {}; if (G.GameTips) { G.GameTips.reset(); G.GameTips.show("ironclad"); }
+      });
+      await step("expansion: the end", () => { if (G.GameTips) G.GameTips.hide(); Game.quitToMainMenu(); G.Modal.reset(); });
     } finally {
       window.alert = realAlert; window.confirm = realConfirm; Game.update = realUpdate;
       G.save = JSON.parse(backup); G.persist();

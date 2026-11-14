@@ -1122,6 +1122,28 @@ G.STRINGS = {
     "tip.floorUnlock.title": "A new floor is open", "tip.floorUnlock.text": "Upstairs: more rooms, more guns on the walls and tougher zombies.",
     "tip.storyNote.title": "A story note", "tip.storyNote.text": "Read it with the use button. Every note you find is kept in NOTES on the main menu.",
     "tip.lowAmmo.title": "Running out of ammo", "tip.lowAmmo.text": "Zombies sometimes drop ammo boxes, and Full Ammo is in every shop. The knife never runs out.",
+    // ---- (expansion, round 9) "What's new", once after the update (js/whatsnew.js) ----
+    "news.title": "What's new", "news.intro": "This update brings {n} new things:", "news.help": "How to Play", "news.ok": "Got it",
+    "news.stats.t": "Gun stat cards", "news.stats.d": "Every gun has a card: damage, fire rate, range, handling, magazine and reload, set against the gun you hold. In the Armory, the shop and on wall guns.",
+    "news.forge.t": "Word Forge", "news.forge.d": "A station in every level: pay, pass a short quiz on words you have met, and the gun in your hands goes up to Mk I, II and III.",
+    "news.attach.t": "Attachments and skins", "news.attach.d": "Sights, suppressors, magazines, grips and gun skins, unlocked by what you learn. Fit them from the Armory.",
+    "news.melee.t": "Six melee weapons", "news.melee.d": "Knife, baseball bat, machete, fire axe, crowbar and field shovel. {melee}, the controller's B or the melee button swings.",
+    "news.train.t": "Training Yard and tips", "news.train.d": "Learn to play in 5-8 minutes with practice words that never count. Short tips the first time you meet something new.",
+    "news.save.t": "Backups and reports", "news.save.d": "Automatic backups, and your save to a file and back (Settings > Data). Report a bug ({report}) or a word: the report stays on this device until you send it.",
+    // ---- (expansion, round 9) How to Play: the new systems ----
+    "howto.body3": "<h3>Guns: stat cards and the Word Forge</h3>"
+      + "<ul><li>Every gun has a <b>stat card</b>: damage, fire rate, range, handling, magazine and reload, set against the gun in your hands. It shows in the <b>Armory</b> (Main Menu &gt; Weapons, or the pause menu), in the shop, in crates and the Mystery box, and when you look at a wall gun</li>"
+      + "<li>The <b>Word Forge</b>, a station in every level, upgrades the gun in your hands to <b>Mk I, II and III</b>: more damage, and at Mk III something extra for that kind of gun. It costs money and a short quiz on words you have already met (no hints at Mk III). Fail it and half the money comes back; that gun can try again after the wave</li></ul>"
+      + "<h3>Attachments, skins and melee weapons</h3>"
+      + "<ul><li><b>Attachments</b> (sights, suppressors, magazines, grips, lasers) and <b>gun skins</b> are unlocked by learning: words remembered, a Daily Review streak, whole word families, spelling, bosses beaten. <b>Awards</b> shows what each one needs. Fit them with <b>🔧 Attachments</b> in the Armory or at the Word Forge</li>"
+      + "<li>Six <b>melee weapons</b>: knife, baseball bat, machete, fire axe, crowbar and field shovel. All but the knife hang somewhere in the levels and are bought where they hang (the Armory says where). They take the melee slot (<b>1</b>); <b>Z</b>, the controller's <b>B</b> or the melee button swings</li></ul>"
+      + "<h3>Training Yard and tips</h3>"
+      + "<ul><li>The <b>Training Yard</b> teaches the game in 5-8 minutes, a step at a time, with easy practice words that never count in your memory boxes or statistics. Play it with the button below, from the Training tab or from Settings &gt; Tips; skip it from the pause menu</li>"
+      + "<li><b>Tips</b>: a small card the first time you meet a boss, a new kind of zombie, the perk shop, the Word Forge and more. The game does not stop for it: <b>H</b> closes it, <b>N</b> turns tips off. Settings &gt; Tips turns them on again or shows them all again</li></ul>"
+      + "<h3>Your save and reports</h3>"
+      + "<ul><li>The game keeps <b>backups</b> of your progress on this device by itself. Settings &gt; Data: <b>export</b> your save to a file (keep it, or move it to another device), <b>import</b> one, go back to a backup, or start over</li>"
+      + "<li><b>Report a bug</b>: <b>F8</b>, the pause menu or the button below. The report (what happened, the game's state, a screenshot if you want) is saved as a file for you to send: the game sends nothing by itself</li>"
+      + "<li><b>Report a word</b> with the flag on its card or explanation when a meaning or an example looks wrong. Settings &gt; Help keeps the words you flagged, ready to export. No word is changed automatically</li></ul>",
     "skin.factory": "Factory", "skin.blackSteel": "Black & Steel", "skin.woodSteel": "Wood & Steel", "skin.blackFde": "Black & Tan", "skin.silverBlack": "Silver & Black",
     "skin.odBlack": "Olive & Black", "skin.whiteBlack": "White & Black", "skin.gunmetalBrown": "Gunmetal & Brown", "skin.darkLens": "Black & Blue Lens",
     "skin.lexicon": "Lexicon", "skin.scholarGold": "Scholar Gold", "skin.level1": "School Colours", "skin.level2": "Ward White", "skin.level3": "Bunker Grey", "skin.camo": "{topic} Camo",

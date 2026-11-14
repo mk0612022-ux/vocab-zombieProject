@@ -72,6 +72,7 @@
 - **ใหม่**: `tools/round38-test.js`, หน้าต่างแนะนำ 7 ระบบ
 - **แก้**: `updater.js`, `index.html` (หน้า HELP), `strings*.js`
 - ผู้ใช้ `git push` เอง
+- **ที่ทำจริง (2026-11-14)**: ใหม่ `js/whatsnew.js` (หน้าต่าง "มีอะไรใหม่" 6 ระบบที่เสร็จแล้ว ไม่รวมบัญชีที่ยังพักไว้), `tools/round38-test.js`, `tools/perf-expansion.js` (วัดเวลาเฟรมกับระบบใหม่บน GPU จริง) · แก้ `mainmenu.js` (เปิดหน้าต่างหลังเมนูหลักขึ้น แทนที่จะแก้ `updater.js`: หน้าจอ Update Available เดิมแสดงข้อความ commit อยู่แล้ว และหน้าต่างนี้ต้องขึ้นหลังรีสตาร์ตเข้าเวอร์ชันใหม่), `dialog.js` (ตัวเลือก `cls`), `index.html` + `strings*.js` (HELP ส่วนที่ 3), `gamepad.js` (คอนโทรลเลอร์ในทัวร์ HUD และฉากอัปเกรด), `trainingyard.js` (ปุ่มยกเลิกในหน้าต่างเล่นต่อ), `bugreport.js` (ขั้นของลานฝึก, ค่า tips), `style.css` (ปุ่มขนาดนิ้วบนจอสัมผัส 44 px) · ไม่มี migration: สถานะอ่านแล้วอยู่ใน `tutorialSeen` เดิม
 
 ## 3. จุดที่ prompt ไม่ตรงกับเกม และสิ่งที่ตัดสินใจ
 

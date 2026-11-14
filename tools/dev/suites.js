@@ -3,6 +3,9 @@
 // (expansion, round 7: the Training Yard's first-time offer and the situation tips are kept
 // from popping up in the other suites -- round 36 sets them as it needs them)
 if (G.save) { G.save.training = Object.assign({}, G.save.training, { offered: true }); G.save.settings.tips = false; }
+// (expansion, round 9: and the "What's new" window read -- the profile is an old player's, so the
+// Main Menu would open it; closed if it is up already. Round 38 shows it as it needs.)
+if (G.save && G.WhatsNew) { G.save.tutorialSeen = Object.assign({}, G.save.tutorialSeen, { [G.WhatsNew.key()]: true }); G.persist(true); if (G.Dialog && G.Dialog.isOpen()) G.Dialog.close(); }
 if (G.MainMenu && G.MainMenu.visible()) G.MainMenu.toLobby();
 await new Promise((r) => setTimeout(r, 900));
 if (G.Modal.isOpen && G.Modal.isOpen("brightness")) G.BrightnessCal.ok();

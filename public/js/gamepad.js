@@ -102,7 +102,9 @@ G.Pad = {
       // (visual series, round 1) the brightness calibration
       brightness: "bcal-box",
       // (expansion, round 2) the bug report
-      bugreport: "bug-report-box" };
+      bugreport: "bug-report-box",
+      // (expansion, round 9) the Training Yard's HUD tour (round 7): its Skip and Next
+      "train-tour": "train-tour" };
     if (top && byModal[top.id]) return document.getElementById(byModal[top.id]);
     if (G.TouchCfg && G.TouchCfg.editing) return document.getElementById("touchcfg-panel");
     const cur = G.UI._currentScreen;
@@ -127,6 +129,14 @@ G.Pad = {
 
   navigate(gp, now, edge, dt) {
     const B = this.B;
+    // (expansion, round 9) the Word Forge's upgrade scene (round 6) has no button: A or B
+    // skips it once it has been seen through, as any key or a tap does
+    const top0 = G.Modal.top();
+    if (top0 && top0.id === "forge-scene") {
+      this.clearFocus();
+      if ((edge(B.A) || edge(B.B)) && G.ForgeScene && G.ForgeScene.cur && G.ForgeScene.cur.seen) G.ForgeScene.skip();
+      return;
+    }
     // round 4: the lobby carousel moves by cards and tabs, not by buttons
     // (overhaul, round 5) the Main Menu: up and down its list, A
     if (!G.Modal.isOpen() && G.MainMenu && G.MainMenu.visible()) { this.clearFocus(); G.MainMenu.pad(gp, now, edge, dt); return; }

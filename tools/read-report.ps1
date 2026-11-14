@@ -41,6 +41,12 @@ if ($null -ne $g.level) {
   $p = $g.player; $w = $g.weapon
   "HP $($p.hp)/$($p.maxHp), stamina $($p.stamina), money $($p.money), at $($p.x), $($p.y), $($p.z)"
   "weapon $($w.id): $($w.state) $($w.stateTime) s, $($w.mag)/$($w.reserve), slots $(@($w.slots) -join ', ')"
+  # (expansion, round 9) what the expansion added to a report: the melee weapon (round 4), the gun's
+  # Word Forge tier (round 6, in its levels), its attachments (round 5), the Training Yard's step (round 7)
+  $tier = if ($w.levels -and $w.levels.tier) { "Mk $($w.levels.tier)" } else { "no tier" }
+  $att = if ($w.attach) { ($w.attach.PSObject.Properties | ForEach-Object { "$($_.Name)=$($_.Value)" }) -join ' ' } else { "" }
+  "  melee $($w.melee), $tier$(if ($att) { ", attachments: $att" })"
+  if ($g.training) { "training yard: step $($g.training.step) ($($g.training.id)), $($g.training.secs) s on it, hint $($g.training.hint)" }
   if ($g.word) { "word: $($g.word.id) ($($g.word.clue))" }
   if ($g.question) { "question: $($g.question.word) ($($g.question.type)), $($g.question.timeLeft) s left" }
 }

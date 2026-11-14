@@ -473,7 +473,8 @@ G.CONFIG = {
   // trainingYard: false takes the Training Yard away -- its card, the first-time offer,
   // the Help and Settings buttons (round 7; the old first-run cards, js/tutorial.js, stay)
   // tips: false stops the situation tips (round 7, js/gametips.js)
-  expansion: { gunStats: true, diag: true, melee: true, attachments: true, forge: true, trainingYard: true, tips: true },
+  // whatsNew: false never shows the "What's new" window (round 9, js/whatsnew.js)
+  expansion: { gunStats: true, diag: true, melee: true, attachments: true, forge: true, trainingYard: true, tips: true, whatsNew: true },
   // (expansion, round 5) attachments, skins and what unlocks them (js/attachments.js;
   // the tables are js/data/attachments.js)
   //   changeInShop   during a run they can be changed in the shop (else only between runs)
@@ -593,6 +594,24 @@ G.CONFIG = {
     seconds: 10,
     lowAmmo: 1.5,
     seeAt: 22,
+  },
+  // ---------------- "What's new" (expansion, round 9; js/whatsnew.js) ----------------
+  //   id      the notes' own name: shown once to each player who played before (kept in
+  //           tutorialSeen as "news_<id>"); a new id for the next notes shows them again
+  //   delay   ms after the Main Menu comes up
+  //   items   the lines, in order: an icon and the strings news.<key>.t / news.<key>.d
+  //           (a player new to the game is not shown them: the Training Yard is offered instead)
+  whatsNew: {
+    id: "expansion1",
+    delay: 600,
+    items: [
+      { key: "stats", icon: "📊" },
+      { key: "forge", icon: "⚒️" },
+      { key: "attach", icon: "🔧" },
+      { key: "melee", icon: "🔪" },
+      { key: "train", icon: "🎓" },
+      { key: "save", icon: "💾" },
+    ],
   },
   // ---------------- the melee slot (expansion, round 4) ----------------
   // G.MELEE_WEAPONS has each weapon; js/melee.js is the swing.

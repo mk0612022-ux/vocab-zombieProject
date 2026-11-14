@@ -627,7 +627,7 @@ G.TrainingYard = (function () {
       root = document.createElement("div");
       root.id = "train-tour"; root.className = "train-tour hidden";
       root.innerHTML = `<div class="tt-spot" id="tt-spot"></div><div class="tt-box" id="tt-box" role="dialog" aria-modal="true" aria-labelledby="tt-title"><div class="tt-count" id="tt-count"></div><b id="tt-title"></b><p id="tt-text"></p>
-        <div class="tt-btns"><button type="button" class="btn" id="tt-skip"></button><button type="button" class="btn btn-primary" id="tt-next"></button></div></div>`;
+        <div class="tt-btns"><button type="button" class="btn" id="tt-skip" data-pad-back></button><button type="button" class="btn btn-primary" id="tt-next"></button></div></div>`;
       document.body.appendChild(root);
     }
     const show = () => {
@@ -895,6 +895,8 @@ G.TrainingYard = (function () {
       G.Dialog.open({
         icon: "🎯", title: T("train.title"), text: T("train.resume.text", { i: d.step + 1, n: STEPS.length }),
         buttons: [
+          // (expansion, round 9: a way back out -- Esc, the controller's B)
+          { label: T("dialog.cancel"), cancel: true },
           { label: T("train.resume.restart"), action: () => G.Game.startTraining(0) },
           { label: T("train.resume.cont"), primary: true, action: () => G.Game.startTraining(d.step) },
         ],
