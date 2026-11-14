@@ -39,6 +39,7 @@ window.G = window.G || {};
     { id: "accessibility", icon: "👁️", art: "practice-card" },
     { id: "account", icon: "👤", art: "custom-card" },
     { id: "data", icon: "💾", art: "bunker-card" },       // (expansion, round 1)
+    { id: "tips", icon: "💡", art: "daily-card" },        // (expansion, round 7)
     { id: "help", icon: "❓", art: "practice-card" },     // (expansion, round 2)
     { id: "about", icon: "ℹ️", art: "school-card" },
   ];
@@ -239,6 +240,14 @@ window.G = window.G || {};
         + `<div class="set-sub">${esc(T("data.backups"))}<small>${esc(T("data.backupsDesc", { n: G.CONFIG.save.snapshots }))}</small></div><div id="set-backups"></div>`
         + row({ id: "btn-reset-progress", name: T("data.reset"), ctl: button("btn-reset-progress", T("data.resetBtn"), "btn-danger", inRun), desc: T("data.resetDesc"), locked: inRun });
     },
+    // (expansion, round 7) the situation tips (js/gametips.js): on or off, all of
+    // them again; and the Training Yard (js/trainingyard.js), from the menus only
+    tips(s, inRun) {
+      const TY = G.TrainingYard, n = Object.keys(G.save.tipsSeen || {}).length, t = G.GameTips ? G.GameTips.IDS.length : 10;
+      return row({ id: "set-tips", name: T("settings.tips"), ctl: toggle("set-tips", s.tips !== false), desc: T("settings.tipsDesc") })
+        + row({ id: "btn-tips-reset", name: T("settings.tipsReset"), ctl: button("btn-tips-reset", T("settings.tipsResetBtn"), "", !n), desc: T("settings.tipsResetDesc", { n, t }), descId: "set-tips-seen" })
+        + (TY && TY.on() ? row({ id: "btn-train-play", name: T("settings.training"), ctl: `<span class="set-btns"><span class="set-val" id="set-train-v">${esc(TY.status())}</span>${button("btn-train-play", T("settings.trainingBtn"), "", inRun)}</span>`, desc: T("settings.trainingDesc"), locked: inRun }) : "");
+    },
     // (expansion, round 2) a bug or a word to report, and the reports kept here (js/bugreport.js)
     help() {
       return row({ id: "btn-report-bug", name: T("help.report"), ctl: button("btn-report-bug", T("help.reportBtn")), desc: T("help.reportDesc") })
@@ -313,6 +322,8 @@ window.G = window.G || {};
         "set-visboost": (v) => { s.visibilityBoost = v; if (G.Visuals && G.Visuals.ready) G.Visuals.applyGrade(G.Visuals.theme); },
         // (overhaul, round 3) the captions of what is heard
         "set-captions": (v) => { s.captions = v; if (!v && G.Captions) G.Captions.clear(); },
+        // (expansion, round 7) the situation tips
+        "set-tips": (v) => { s.tips = v; if (!v && G.GameTips) G.GameTips.hide(); },
       };
       // the volumes: heard as they move
       this.VOLS.forEach((k) => {
@@ -361,6 +372,9 @@ window.G = window.G || {};
       G.BugReport.bind();
       click("btn-privacy", () => this.openPrivacy());
       click("btn-brightcal", () => { if (G.BrightnessCal) G.BrightnessCal.open("settings"); });
+      // (expansion, round 7) every tip unseen again; the Training Yard (not in a run)
+      click("btn-tips-reset", () => { if (G.GameTips) G.GameTips.reset(); this.render(); const d = $("set-tips-seen"); if (d) this.flash(d); });
+      click("btn-train-play", () => { if (!inRun && G.TrainingYard) G.TrainingYard.open(); });
       // (C1) a look for a newer version now
       click("btn-check-update", async () => {
         const note = $("set-update-note");

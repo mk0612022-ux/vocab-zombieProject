@@ -361,6 +361,8 @@ window.G = window.G || {};
       G.UI.goToMainMenu({ lobby: true });
       if (G.Updater) { G.Updater.badge(); if (G.Updater._offerLater) G.Updater.offer(G.Updater._offerM); }
       if (G.BrightnessCal && G.save && !G.save.settings.brightnessSet && !G.Modal.isOpen()) G.BrightnessCal.open("start");
+      // (expansion, round 7) brightness already set: the Training Yard's offer straight away (once)
+      else if (G.TrainingYard) setTimeout(() => G.TrainingYard.maybeOffer(), 400);
     },
     // the lobby's Back, Esc or B
     back() {

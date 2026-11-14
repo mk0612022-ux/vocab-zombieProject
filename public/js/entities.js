@@ -1214,6 +1214,8 @@ function addChestExtras(torso, look, tw, td, th, mats) {
 }
 
 G.buildZombieMesh = function (type, variation, look) {
+  // (expansion, round 7) the Training Yard's straw dummy on its post
+  if (type === "dummy" && G.TrainingYard) return G.TrainingYard.dummyMesh();
   const def = G.ZOMBIE_TYPES[type] || G.ZOMBIE_TYPES.normal;
   const v = variation || G.randomZombieVariation();
   look = look || G.randomZombieLook(type, "school");

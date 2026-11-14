@@ -137,12 +137,17 @@ G.UI = {
   bindMainMenu() {
     G.Lobby.build();
     this.el("btn-tutorial-replay").onclick = () => { G.Tutorial.reset(); G.Game.newRun(1); };
+    // (expansion, round 7) the Training Yard, from How to Play
+    const ty = this.el("btn-help-training");
+    if (ty) { ty.onclick = () => { if (G.TrainingYard) G.TrainingYard.open(); }; ty.classList.toggle("hidden", !(G.TrainingYard && G.TrainingYard.on())); }
   },
   // (overhaul, round 5) where "back" from a page goes: the Main Menu when the
   // page was opened from it, else the lobby (after a run, the lobby's own
   // choices -- opts.tab, opts.select -- and PLAY: opts.lobby)
   menuOrigin: "home",
   goToMainMenu(opts) {
+    // (expansion, round 7) back from the languages the offer sent the player to: it comes again (once answered, never)
+    if (G.TrainingYard && G.TrainingYard._offerAgain) { G.TrainingYard._offerAgain = false; setTimeout(() => G.TrainingYard.maybeOffer(), 300); }
     if (this.menuOrigin === "home" && G.MainMenu && !(opts && (opts.lobby || opts.tab || opts.select))) { G.MainMenu.show(); return; }
     if (opts && opts.lobby) opts = null;
     this._lobbyOpts = opts || null;
@@ -542,6 +547,8 @@ G.UI = {
     this.el("btn-pause-settings").onclick = () => { this._settingsReturn = "screen-pause"; this.renderSettings(); this.showScreen("screen-settings"); };
     this.el("btn-pause-report").onclick = () => G.BugReport.open();
     this.el("btn-pause-mainmenu").onclick = () => G.Game.quitToMainMenu();
+    // (expansion, round 7) the Training Yard: skip the rest of it (asked first)
+    this.el("btn-pause-skiptrain").onclick = () => { if (G.TrainingYard) G.TrainingYard.skip(); };
   },
 
   // ---------------- Game over / Victory ----------------

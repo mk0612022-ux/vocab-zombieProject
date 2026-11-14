@@ -262,9 +262,21 @@ G.Game = {
     this.learn = G.Learn.run(session.preset, session.cards);
     this.beginRun();
   },
+  // (expansion, round 7) the Training Yard (js/trainingyard.js): its own small
+  // place, its practice words (never counted), from step `step` (its checkpoint)
+  startTraining(step) {
+    G.Bus.emit("game:level", { id: "training", mode: "training" });
+    this.mode = "training";
+    this.level = G.TrainingYard.level();
+    this.wordPool = G.TrainingYard.pairs();
+    this.learn = G.Learn.run("classic");
+    this._trainStep = step || 0;
+    this.beginRun();
+  },
   retry() {
     if (this.mode === "campaign") this.newRun(this.level.id);
     else if (this.mode === "daily") this.startDailyChallenge();
+    else if (this.mode === "training") this.startTraining(0);
     else this.startEndless();
   },
   // (J3, round 3) a campaign level from wave 1 when it has a checkpoint:
@@ -311,8 +323,8 @@ G.Game = {
     if (!this.learn) this.learn = G.Learn.run("classic");
     if (this.mode !== "study") this.study = null;
     // (a continued run does not lay out again the notes it has already read;
-    // a study session has none)
-    if (G.Notes && this.mode !== "study") G.Notes.place(this, restoring ? restoring.notesRead : null);
+    // a study session has none, nor has the Training Yard -- it tells no story)
+    if (G.Notes && this.mode !== "study" && this.mode !== "training") G.Notes.place(this, restoring ? restoring.notesRead : null);
     if (G.Details) G.Details.build(this);
     if (G.Sky) G.Sky.build(this);                 // the moon, its light and its beams
     if (G.Glass) G.Glass.build(this);             // the panes in the real windows
@@ -427,6 +439,8 @@ G.Game = {
     if (restoring) G.Checkpoint.apply(this, restoring);   // wave 10's state: the next wave is 11
     if (G.GunAudio) G.GunAudio.prepare(this.player.gunSlots);   // (overhaul, round 3: the guns in hand, drawn ahead)
     this.startWave();
+    // (expansion, round 7) the Training Yard's steps, from its checkpoint
+    if (this.mode === "training" && G.TrainingYard) G.TrainingYard.beginRun(this, this._trainStep || 0);
     if (G.Input.mode === "desktop") G.Input.requestPointerLock();
   },
 
@@ -565,6 +579,8 @@ G.Game = {
     if (G.SpellReload) G.SpellReload.reset();
     if (G.Study) G.Study.reset();
     document.body.classList.remove("study-run");
+    if (G.TrainingYard) G.TrainingYard.teardown(this);   // (expansion, round 7: its panel, what it lit)
+    if (G.GameTips) G.GameTips.hide();
     // a boss, its cutscene, its arena walls and its effects
     if (G.Cutscene) G.Cutscene.stop();
     if (G.Bosses) G.Bosses.reset(this.world ? this : null);
@@ -1447,9 +1463,13 @@ G.Game = {
     z._lastHit = info || { dir: null, head: false };
     // (overhaul, round 4: Blood & Gore -- red, a darker brown, or grey dust)
     const gore = G.ZombieFactory ? G.ZombieFactory.gore(z) : "full";
-    G.spawnHitParticles(this.scene, hitPoint, gore === "off" ? 0x8a8478 : gore === "reduced" ? 0x5a3a2a : 0x8a2a2a, G.save.settings.graphicsQuality);
+    // (expansion, round 7: a Training Yard dummy is straw -- a puff of it, a thud)
+    const straw = z.type === "dummy";
+    G.spawnHitParticles(this.scene, hitPoint, straw ? 0xc8a96a : gore === "off" ? 0x8a8478 : gore === "reduced" ? 0x5a3a2a : 0x8a2a2a, G.save.settings.graphicsQuality);
     const died = z.takeDamage(dmg);
-    if (died) { G.Audio.zombie("death", z.type, z.mesh.position); this.onZombieDeath(z); }
+    if (straw) G.Audio.sfx("body_thud", { pos: z.mesh.position.clone().setY(1.2) });
+    if (died) { if (!straw) G.Audio.zombie("death", z.type, z.mesh.position); this.onZombieDeath(z); }
+    else if (straw) z._wob = 1;                      // (it rocks on its post: js/trainingyard.js)
     else {
       if (!z._hurtSoundAt || performance.now() - z._hurtSoundAt > 350) {
         z._hurtSoundAt = performance.now();
@@ -1666,7 +1686,7 @@ G.Game = {
 
   // ---------------- Loot ----------------
   rollLootDrop(z, correct) {
-    if (this.mode === "study") return;             // (a study session has no money, ammo or crates to find)
+    if (this.mode === "study" || this.mode === "training") return;   // (a study session has no money, ammo or crates to find; the Training Yard lays out its own)
     const baseChance = z.type === "fast" ? 0.22 : 0.13;
     const chance = correct ? baseChance * 1.4 : baseChance;
     if (G.rng() > chance) return;
@@ -1679,7 +1699,8 @@ G.Game = {
     this.spawnDrop(kind, z.mesh.position.clone());
   },
 
-  spawnDrop(kind, pos) {
+  // opts.amount: a money drop's worth (else 20-50; expansion, round 7: the Training Yard's)
+  spawnDrop(kind, pos, opts) {
     // (visual series, round 3, L3: a zombie shot against the fence drops its
     // loot on this side of it, within reach)
     pos = G.clampToPlay(this.world, pos.clone(), G.CONFIG.world.dropMargin);
@@ -1692,7 +1713,9 @@ G.Game = {
     this.scene.add(mesh);
     if (G.LightFX) G.LightFX.drop(mesh);          // (visual series, round 2: something to pick up -- the important tier)
     const rarity = kind === "crate" ? G.rollRarity() : null;
-    this.drops.push({ kind, mesh, rarity, t: 0, baseY });
+    const drop = { kind, mesh, rarity, t: 0, baseY, amount: opts && opts.amount != null ? opts.amount : null };
+    this.drops.push(drop);
+    return drop;
   },
 
   collectDrop(drop) {
@@ -1704,7 +1727,7 @@ G.Game = {
     this.drops = this.drops.filter((d) => d !== drop);
     G.Audio.sfx("pickup");
     G.Tutorial.onPickup();
-    if (drop.kind === "money") this.player.money += 20 + Math.round(G.rng() * 30);
+    if (drop.kind === "money") this.player.money += drop.amount != null ? drop.amount : 20 + Math.round(G.rng() * 30);
     else if (drop.kind === "ammo") {
       // two magazines for the gun in hand -- with the knife out, for the first
       // gun (it used to be lost); a boss arena's supply box fills every gun
@@ -1851,7 +1874,8 @@ G.Game = {
   // ---------------- Wave flow ----------------
   checkWaveClear() {
     // a boss on its way, fighting, dying, or its question still open
-    if (G.Bosses.phase) return;
+    // (expansion, round 7: the Training Yard's steps say when a wave is over)
+    if (G.Bosses.phase || this.mode === "training") return;
     if (this.spawnedCount < this.requiredKills || this.zombies.length) return;
     // a boss wave's own zombies are down: now its boss
     if (this.isBossWave()) { G.Bosses.begin(this); return; }
@@ -1893,6 +1917,8 @@ G.Game = {
   // after the shop, or after a failed quiz: the checkpoint if it is due
   // (after wave 10's boss), then the next wave
   nextWave() {
+    // (expansion, round 7) the Training Yard's shop closed: its next step, not a wave
+    if (this.mode === "training" && G.TrainingYard) { G.TrainingYard.afterShop(this); return; }
     if (this._checkpointDue) { this._checkpointDue = false; if (G.Checkpoint && G.Checkpoint.save) G.Checkpoint.save(this); }
     this.startWave();
   },
@@ -1902,8 +1928,8 @@ G.Game = {
     G.Bus.emit("game:shop", { wave: this.wave });
     this.state = "SHOP";
     // (C) 45 s by default, set in Settings: 30 / 45 / 60, or no limit at all
-    // -- then the next wave waits for Ready
-    const lim = G.save.settings.shopTime;
+    // -- then the next wave waits for Ready (the Training Yard's: no limit)
+    const lim = this.mode === "training" ? 0 : G.save.settings.shopTime;
     this.shopTimer = lim > 0 ? lim : Infinity;
     // Savings Account: a cut of the money carried into the shop, capped
     this._interest = 0;
@@ -2099,6 +2125,8 @@ G.Game = {
   // ---------------- Player death / results ----------------
   checkPlayerDeath() {
     if (this.player.hp > 0) return;
+    // (expansion, round 7) nothing ends a run in the Training Yard
+    if (this.mode === "training" && G.TrainingYard) { G.TrainingYard.downed(this); return; }
     // Second Life: once a wave, the blow that would have killed you leaves
     // you on a quarter of your health instead and throws back whatever is close
     if (G.Perks.has("second_life") && !this.player.secondLifeUsed) {
@@ -2188,6 +2216,12 @@ G.Game = {
     if (G.UI.renderPauseAbilities) G.UI.renderPauseAbilities();
     if (G.Floor3) G.Floor3.renderPause(this);
     if (G.Checkpoint) G.Checkpoint.renderPause(this);
+    // (expansion, round 7) in the Training Yard: Skip in place of the logs, the
+    // journal and the old tutorial (none of them belongs to a practice run)
+    const tr = this.mode === "training";
+    ["btn-pause-vocablog", "btn-pause-weaponlog", "btn-pause-journal", "btn-pause-tutorial"].forEach((id) => { const b = G.UI.el(id); if (b) b.classList.toggle("hidden", tr); });
+    const sk = G.UI.el("btn-pause-skiptrain");
+    if (sk) sk.classList.toggle("hidden", !tr);
     G.UI.showScreen("screen-pause");
   },
   resume() {
@@ -2237,6 +2271,7 @@ G.Game = {
       G.UI.el("shop-money").textContent = this.player.money;
       // (expansion, round 6: the Word Forge's test, reached from the shop, keeps its clock)
       if (G.Quiz.active) G.Quiz.update(realDt);
+      if (G.GameTips) G.GameTips.update(this, realDt);   // (expansion, round 7: the shop's tip)
       if (this.shopTimer <= 0 && !G.Quiz.active) this.leaveShop();
       return;
     }
@@ -2245,6 +2280,8 @@ G.Game = {
     if (G.Quiz.active) G.Quiz.update(realDt);
     // (expansion, round 6) the Word Forge: its hum, and its scene, which plays while the world waits
     if (G.Forge) G.Forge.update(this, realDt);
+    // (expansion, round 7) the situation tips: put away under a window, back after it
+    if (G.GameTips && this.world) G.GameTips.update(this, dt);
     if (this.state !== "GAMEPLAY" || this.paused) return;
     // (overhaul, round 1) the gun is put away for a boss's cutscene, and
     // lowered while a question window holds the world (a reload waits)
@@ -2275,6 +2312,7 @@ G.Game = {
     this.updateShooting(dt);
     if (G.Spell) G.Spell.update(this, dt);             // (vocabulary series, round 2) the spelling pad
     if (this.mode === "study" && G.Study) G.Study.update(this, dt);
+    if (this.mode === "training" && G.TrainingYard) G.TrainingYard.update(this, dt);   // (expansion, round 7)
     this.updateZombies(worldDt);
     G.Bosses.update(this, worldDt);
     if (this.state !== "GAMEPLAY") return;             // a boss's blow can end the run
@@ -2320,7 +2358,8 @@ G.Game = {
     // cleared the field before the next spawn tick -- the playtest bot sat in
     // wave 1 with 16 of 8 spawned and no end in sight. (Round 2: a boss wave
     // sends its own zombies first; nothing more comes once its boss does.)
-    if (!G.Bosses.phase && this.spawnedCount < this.requiredKills) {
+    // (expansion, round 7: the Training Yard sends its own -- js/trainingyard.js)
+    if (!G.Bosses.phase && this.spawnedCount < this.requiredKills && this.mode !== "training") {
       G.Spawner.update(worldDt, this.world, this.zombies.length, this.level.maxAliveZombies, (type, pos, sp) => this.spawnZombieAt(type, pos, sp), this.currentDiff, this.yawObject.position, camDir);
     }
     this.checkWaveClear();
@@ -2388,6 +2427,8 @@ G.Game = {
     const fb = G.Bosses.fighting() ? G.Bosses.boss : null;
     const bossHint = fb ? (fb.choiceMeaning || G.T("hud.bossAim", { w: G.T("boss." + fb.def.id + ".weak") })) : null;
     let meaning = this.targetPair ? this.targetPair[1] : (this.zombies.length ? "-" : bossHint || G.T("hud.waiting"));
+    // (expansion, round 7) the Training Yard with nothing to shoot: the step under way
+    if (!this.targetPair && this.mode === "training" && G.TrainingYard) meaning = G.TrainingYard.idleMeaning();
     // Hint Reader: the first letter, and at level 2 how many letters
     // (round 3: the Whisper ability says more -- the first three and the length)
     const hint = G.Perks.level("perk_hint");
@@ -2404,6 +2445,7 @@ G.Game = {
     // (vocabulary series, round 2) what kind of clue this is: the word to
     // shoot, or -- nothing to shoot -- the one the spelling pad is on
     let meaningLabel = G.T("hud.shootMeaning");
+    if (!this.targetPair && this.mode === "training") meaningLabel = G.T("train.now");   // (expansion, round 7: the step under way)
     // (round 3) and which clue: the Thai, a definition (with the Thai under
     // it while the word is new, or a button for it), a sentence with a gap,
     // or only its sound
@@ -2446,7 +2488,8 @@ G.Game = {
     // level's, in the campaign), the zombies left of the wave's (BOSS while
     // one is up); a study session says how far it has got instead
     const T = G.T, boss = !!G.Bosses.phase, study = this.mode === "study" && G.Study;
-    const head = study ? { level: "", wave: G.Study.hudLabel(this), left: T("hud.zombiesLeft", { n: zombiesLeft }), boss: false } : {
+    // (expansion, round 7: the Training Yard says which step it is on)
+    const head = this.mode === "training" && G.TrainingYard ? G.TrainingYard.hudHead(this, zombiesLeft) : study ? { level: "", wave: G.Study.hudLabel(this), left: T("hud.zombiesLeft", { n: zombiesLeft }), boss: false } : {
       level: this.level.name,
       wave: (campaign ? T("hud.waveOf", { w: this.wave, n: this.level.waves }) : T("hud.wave", { w: this.wave })) + (campaign && this.wave > this.level.waves ? T("hud.overtime") : ""),
       left: boss ? T("hud.bossWave") : this.requiredKills > 0 ? T("hud.zombiesLeftOf", { n: zombiesLeft, t: this.requiredKills }) : T("hud.zombiesLeft", { n: zombiesLeft }),
@@ -2823,7 +2866,7 @@ G.Game = {
         z.attackCooldown -= dt;
         continue;
       }
-      const noBite = mod.noBite, zdt = dt * mod.speed * kindK, abTarget = mod.target;
+      const noBite = mod.noBite || z.type === "dummy", zdt = dt * mod.speed * kindK, abTarget = mod.target;   // (round 7: a dummy never bites)
       const zRegion = G.getRegionAt(this.world, z.mesh.position.x, z.mesh.position.z, z.mesh.position.y);
       let moveTarget = playerPos;
       // Mid-flight the region lookup flips between the hall (below 2.3) and
@@ -3344,8 +3387,9 @@ G.Game = {
     const p = this.yawObject.position;
 
     // growls: each zombie on its own irregular timer, only within earshot
+    // (expansion, round 7: a Training Yard dummy is straw -- it says nothing)
     for (const z of this.zombies) {
-      if (!z.alive) continue;
+      if (!z.alive || z.type === "dummy") continue;
       z._growlT = (z._growlT === undefined ? 1 + Math.random() * 4 : z._growlT) - dt;
       if (z._growlT <= 0) {
         z._growlT = (z.type === "fast" ? 2.2 : 3.5) + Math.random() * 4.5;
@@ -3692,6 +3736,7 @@ G.onKeyDown = function (e) {
   if (Game.state === "GAMEPLAY" && (e.code === kbs.replay || e.code === "KeyV")) { Game.speakCurrentWord(); return; }
   if (Game.state === "GAMEPLAY" && e.code === kbs.thaiHint) { Game.showThai(); return; }
   if (Game.state === "GAMEPLAY" && e.code === "KeyT" && G.Tutorial.current) { G.Tutorial.skip(); return; }
+  if (Game.state === "GAMEPLAY" && G.GameTips && G.GameTips.onKey(e)) return;   // (expansion, round 7: H got it, N no more tips)
   if (Game.state === "GAMEPLAY") {
     const kb = G.save.settings.keybinds;
     if (e.code === kb.pause) { Game.pause(); return; }

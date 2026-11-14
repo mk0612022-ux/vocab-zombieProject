@@ -128,6 +128,7 @@ G.defaultSave = function () {
       // lightning, a mystery box (0-1)
       weaponBob: 1,
       screenEffects: 1,
+      tips: true,                  // (expansion, round 7) the situation tips (Settings > Tips)
     },
     importedSets: {},             // {id: {name, words:[[en,th],...]}}
     customWords: { level1: [], level2: [], level3: [] },   // words the player added to each level ([[en,th] or [en,th,{definition,...}],...])
@@ -140,6 +141,11 @@ G.defaultSave = function () {
     learnSeen: {},          // the spelling intros seen, per input: intro_keys, intro_touch, intro_pad (js/study.js)
     tutorialDone: false,    // the tutorial's cards (js/tutorial.js)
     tutorialSeen: {},
+    // (expansion, round 7) the Training Yard: done, skipped, the step it was left
+    // at (its checkpoint), whether it has been offered (js/trainingyard.js); and
+    // the situation tips already shown (js/gametips.js)
+    training: { done: false, skipped: false, step: 0, offered: false, finishedAt: 0 },
+    tipsSeen: {},
     // (expansion, round 1) the player's public face (the accounts, later) and
     // the save's own record (js/savemanager.js): rev counts its writes
     profile: { name: "", avatar: null, publicId: null },
@@ -283,6 +289,15 @@ G.normalizeSave = function (data) {
   const ts = data.tutorialSeen;
   s.tutorialSeen = {};
   if (ts && typeof ts === "object" && !Array.isArray(ts)) Object.keys(ts).forEach((k) => { if (ts[k]) s.tutorialSeen[k] = true; });
+  // (expansion, round 7) the Training Yard and the tips: a save from before has
+  // neither -- not played, not offered, no tip seen; a step out of range is 0
+  const tr = data.training && typeof data.training === "object" && !Array.isArray(data.training) ? data.training : {};
+  const tStep = Math.floor(Number(tr.step)), tAt = Number(tr.finishedAt);
+  s.training = { done: !!tr.done, skipped: !!tr.skipped, step: Number.isFinite(tStep) ? Math.max(0, Math.min(10, tStep)) : 0, offered: !!tr.offered, finishedAt: Number.isFinite(tAt) && tAt > 0 ? tAt : 0 };
+  const tps = data.tipsSeen;
+  s.tipsSeen = {};
+  if (tps && typeof tps === "object" && !Array.isArray(tps)) Object.keys(tps).forEach((k) => { if (/^[a-zA-Z]{1,24}$/.test(k) && tps[k]) s.tipsSeen[k] = true; });
+  s.settings.tips = s.settings.tips !== false;
   const part = (o) => (o && typeof o === "object" && !Array.isArray(o) ? o : {});
   const text = (v, n) => (typeof v === "string" ? v.slice(0, n) : "");
   const count = (v) => { v = Number(v); return Number.isFinite(v) && v > 0 ? v : 0; };
@@ -416,6 +431,8 @@ G.wordStat = function (word) { return G.save.wordStats[G.wordKey(word)] || null;
 // recognition answer, unless `info` says otherwise ({srs: false} when the
 // caller moves the box itself through G.Learning.answerWord)
 G.recordWordResult = function (word, correct, info) {
+  // (expansion, round 7) the Training Yard's practice words: never counted
+  if (G.TrainingYard && G.TrainingYard.practice()) return;
   const w = G.wordKey(word);
   const stats = G.save.wordStats[w] || { correct: 0, wrong: 0, lastCorrect: 0 };
   if (correct) { stats.correct++; stats.lastCorrect = Date.now(); }

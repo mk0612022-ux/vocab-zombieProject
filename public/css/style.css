@@ -1059,6 +1059,9 @@ body.modal-open .hud-minimap { opacity: 0.35; }
 .lcard-text { position: absolute; left: 7px; right: 4px; bottom: 7px; display: flex; flex-direction: column; gap: 3px; }
 .lcard-title {
   font-weight: 900; line-height: 1.05; overflow-wrap: anywhere; letter-spacing: -0.02em;
+  /* (expansion, round 7: a long French word breaks with a hyphen -- APPRENTIS-SAGE -- where the
+     browser knows the language, <html lang>; overflow-wrap stays the fallback) */
+  -webkit-hyphens: auto; hyphens: auto;
   font-size: clamp(0.45rem, calc(var(--card-w) * 0.1), 1.2rem); text-transform: uppercase; text-shadow: 0 2px 8px rgba(0,0,0,0.6);
 }
 /* (wraps rather than cutting off on a phone's small cards) */
@@ -2618,4 +2621,78 @@ body.modal-question .hud-statcard { display: none; }
 @media (max-height: 520px) {
   .forge-win { gap: 5px; }
   .forge-line { font-size: 0.74rem; }
+}
+/* (expansion, round 7) the Training Yard: its panel, the arrow to the goal, what is lit, the tour of the HUD */
+.hud-train {
+  position: absolute; left: calc(12px + var(--sa-l)); top: calc(12px + var(--sa-t)); width: min(330px, 32vw); z-index: 9;
+  padding: 9px 12px 8px; border-radius: 10px; background: rgba(10,22,16,0.86); border: 1px solid #7bed9f66; border-left: 4px solid #7bed9f;
+  color: #eaf7ee; font-size: 0.84rem; line-height: 1.45; box-shadow: 0 8px 22px rgba(0,0,0,0.45); pointer-events: none;
+}
+body.touch-mode .hud-train { top: calc(66px + var(--sa-t)); width: min(300px, 36vw); font-size: 0.76rem; }
+.htr-top { font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; color: #9fe6b4; }
+.htr-title { font-weight: 800; font-size: 1rem; color: #ffe08a; margin: 2px 0 3px; }
+.htr-text kbd, .htr-hint kbd, .tt-box kbd {
+  display: inline-block; min-width: 1.5em; padding: 0 5px; margin: 0 1px; border-radius: 4px; border: 1px solid #c9d6cc88;
+  background: rgba(255,255,255,0.1); font: 700 0.85em/1.4 var(--font-ui); text-align: center; color: #fff; white-space: nowrap;
+}
+.htr-text kbd.tpad, .htr-hint kbd.tpad, .tt-box kbd.tpad { border-radius: 9px; background: #2b4a6a; border-color: #9cc4ff; }
+.ttouch { color: #ffe08a; white-space: nowrap; }
+.htr-nw { white-space: nowrap; }
+.htr-lines { list-style: none; margin: 6px 0 0; padding: 0; font-size: 0.8rem; }
+.htr-lines li { opacity: 0.85; }
+.htr-lines li.ok { color: #7bed9f; opacity: 1; }
+.htr-hint { margin-top: 6px; padding: 6px 8px; border-radius: 6px; background: rgba(255,224,138,0.12); border: 1px solid #ffe08a55; color: #fff3c4; font-size: 0.8rem; }
+.htr-arrow { position: absolute; left: 50%; top: 50%; width: 40px; height: 40px; pointer-events: none; z-index: 9; filter: drop-shadow(0 0 5px rgba(0,0,0,0.8)); }
+.htr-arrow svg { width: 100%; height: 100%; fill: none; stroke: #7bed9f; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.train-glow { outline: 3px solid #7bed9f; outline-offset: 3px; border-radius: 8px; animation: train-glow-kf 1.1s ease-in-out infinite; }
+.touch-btn.train-glow, .touch-joystick.train-glow { outline: none; box-shadow: 0 0 0 4px #7bed9f, 0 0 22px 6px rgba(123,237,159,0.6); border-radius: 50%; }
+.train-glow.still { animation: none; }
+@keyframes train-glow-kf { 0%, 100% { outline-color: #7bed9f; } 50% { outline-color: #e2ffec; } }
+@media (prefers-reduced-motion: reduce) { .train-glow { animation: none; } }
+.train-tour { position: fixed; inset: 0; z-index: 60; }
+.tt-spot { position: fixed; border-radius: 10px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.62); border: 2px solid #7bed9f; pointer-events: none; }
+.tt-box {
+  position: fixed; padding: 12px 14px; border-radius: 12px; background: #0e1418; border: 1px solid #7bed9f88; color: #eaf7ee;
+  font-size: 0.9rem; line-height: 1.45; box-shadow: 0 16px 40px rgba(0,0,0,0.6); font-family: var(--font-ui);
+}
+.tt-box b { display: block; color: #ffe08a; font-size: 1.02rem; margin-bottom: 3px; }
+.tt-box p { margin: 0; }
+.tt-count { font-size: 0.7rem; opacity: 0.7; letter-spacing: 0.08em; }
+.tt-btns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; flex-wrap: wrap; }
+.tt-btns .btn { min-height: 42px; }
+.train-offer-langs { font-size: 0.82rem; opacity: 0.85; margin: 6px 0 0; }
+.train-card-count { opacity: 0.6; font-size: 0.75rem; margin: 4px 0 0; }
+/* (expansion, round 7) a situation tip: a small card, and the play goes on */
+.game-tip {
+  position: fixed; left: calc(14px + var(--sa-l)); top: 38%; width: min(330px, 34vw); z-index: 25; padding: 10px 12px;
+  border-radius: 10px; background: rgba(14,20,26,0.93); border: 1px solid #ffd43b77; border-left: 4px solid #ffd43b;
+  color: #f0f4f2; font-family: var(--font-ui); font-size: 0.84rem; line-height: 1.45; box-shadow: 0 10px 26px rgba(0,0,0,0.5);
+}
+.game-tip.gt-away { display: none; }
+.game-tip.gt-in { animation: tip-in-kf .28s ease-out; }
+.game-tip.in-shop { top: auto; bottom: calc(16px + var(--sa-b)); }
+.gt-head { display: flex; align-items: center; gap: 8px; }
+.gt-head b { color: #ffd43b; font-size: 0.95rem; }
+.gt-icon { font-size: 1.2rem; }
+.game-tip p { margin: 4px 0 8px; }
+.gt-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.gt-btn {
+  min-height: 36px; padding: 4px 10px; border-radius: 7px; border: 1px solid #6bff7a88; background: rgba(107,255,122,0.12);
+  color: #eaffef; font: 700 0.78rem var(--font-ui); cursor: pointer; pointer-events: auto; touch-action: manipulation;
+}
+.gt-off { border-color: rgba(255,255,255,0.25); background: none; color: #c8d0cc; font-weight: 500; }
+.gt-key { display: inline-block; margin-left: 4px; padding: 0 4px; border: 1px solid currentColor; border-radius: 3px; font-size: 0.85em; opacity: 0.7; }
+body.touch-mode .game-tip { top: calc(66px + var(--sa-t)); width: min(300px, 42vw); font-size: 0.76rem; }
+@media (max-width: 760px) {
+  .hud-train { width: min(270px, 44vw); font-size: 0.72rem; padding: 6px 9px; }
+  .htr-title { font-size: 0.86rem; }
+  .htr-lines { font-size: 0.7rem; }
+}
+@media (max-height: 520px) {
+  .hud-train { font-size: 0.7rem; padding: 6px 9px; line-height: 1.35; }
+  .htr-title { font-size: 0.84rem; margin: 1px 0; }
+  .htr-lines { font-size: 0.68rem; margin-top: 3px; }
+  .htr-hint { font-size: 0.68rem; padding: 4px 6px; }
+  .game-tip { font-size: 0.72rem; padding: 7px 9px; }
+  .tt-box { font-size: 0.8rem; padding: 9px 11px; }
 }

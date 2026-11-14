@@ -245,6 +245,10 @@ G.SaveFile = (function () {
       bossesBest: most(a.bossesBest, b.bossesBest),
     };
   }
+  function mergeTraining(x, y) {
+    const done = !!(x.done || y.done);
+    return { done, skipped: !!(x.skipped || y.skipped), offered: !!(x.offered || y.offered), step: done ? 0 : most(x.step || 0, y.step || 0), finishedAt: most(x.finishedAt || 0, y.finishedAt || 0) };
+  }
   function mergeBoards(a, b) {
     return join(a, b, (x, y) => {
       const seen = {}, all = x.concat(y).filter((e) => { const k = JSON.stringify(e); if (seen[k]) return false; seen[k] = true; return true; });
@@ -276,6 +280,10 @@ G.SaveFile = (function () {
       learnSeen: Object.assign({}, b.learnSeen, a.learnSeen),
       tutorialSeen: Object.assign({}, b.tutorialSeen, a.tutorialSeen),
       tutorialDone: !!(a.tutorialDone || b.tutorialDone),
+      // (expansion, round 7) the Training Yard: done or offered on either; the
+      // step it was left at, the further one -- none once it is done
+      training: mergeTraining(a.training || {}, b.training || {}),
+      tipsSeen: Object.assign({}, b.tipsSeen, a.tipsSeen),
       profile: a.profile.name || a.profile.avatar ? a.profile : b.profile,
       meta: Object.assign({}, m, { createdAt: born.length ? Math.min.apply(null, born) : 0, playSec: most(m.playSec, n.playSec) }),
     });

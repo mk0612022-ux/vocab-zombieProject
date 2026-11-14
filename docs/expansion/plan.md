@@ -59,6 +59,7 @@
 - **แก้**: `world.js`, `game.js`, `tutorial.js`, `mainmenu.js`, `settings.js` (หมวด Tips), `strings*.js`
 - **ความเสี่ยง**: คำฝึกห้ามนับเข้า SRS — ต้องกันที่ `G.Learning.answerWord` ไม่ใช่ที่หน้าจอ · ผู้เล่นเก่าต้องไม่ถูกบังคับเข้าด่านสอน
 - **rollback**: flag `expansion.trainingYard` · `G.Tutorial` เดิมยังอยู่
+- **ที่ทำจริง (2026-11-13)**: ใหม่ `js/trainingyard.js`, `js/gametips.js`, `js/data/practicewords.js` (คำฝึก 16 คำ 4 ภาษา), `tools/round36-test.js` · แก้ `world.js` (บรรทัดเดียว: ธีม `training` สร้างด้วย `G.TrainingYard.build(kit)` จากชิ้นส่วนเดิม แทน `buildComplex`), `game.js` (โหมด `training`: `startTraining`, ไม่มี spawner, ไม่จบรอบ, ร้านค้าไม่จับเวลา, หลังร้านค้ากลับไปที่ขั้นถัดไป), `entities.js`/`zombiefx.js`/`config.js` (ซอมบี้ชนิด `dummy` หุ่นฟางยืนนิ่ง ไม่กัด), `audio.js` (ธีมเสียงตอนเช้า), `settings.js` (หมวด Tips), `lobby.js` (การ์ดในแท็บฝึกฝน), `ui.js`/`index.html` (ปุ่มใน How to Play และเมนูหยุด), `mainmenu.js`/`brightness.js` (ถามครั้งแรกหลังตั้งความสว่าง), `srs.js`/`core.js`/`explain.js` (คำฝึกไม่ถูกนับ) · `tutorial.js` **ไม่ได้แก้** (การ์ดเดิมของด่านแรกยังเหมือนเดิม) · ไม่มีหน้าจอเลือกภาษาตอนเปิดเกมครั้งแรก จึงใส่บรรทัดบอกภาษาและปุ่ม "ภาษา..." ไว้ในหน้าต่างถาม
 
 ### รอบ 8 — บัญชีและคลาวด์ (พักไว้ตามคำผู้ใช้)
 - **ใหม่**: `public/firebase-config.js`, Firebase SDK ที่ bundle แล้ว, `js/cloud.js`, `js/profile.js`, `firestore.rules`, `privacy.html`, `data-deletion.html`, `docs/expansion/ACCOUNT_SETUP.md`, `tools/round37-test.js`

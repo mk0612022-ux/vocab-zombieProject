@@ -417,6 +417,7 @@ window.G = window.G || {};
     remember(ex) {
       const L = G.save && G.save.learn;
       if (!L || !ex || ex.right) return;
+      if (G.TrainingYard && G.TrainingYard.practice()) return;   // (expansion, round 7: practice words are never kept)
       const key = G.wordKey(ex.y.pair);
       if (!key) return;
       const W = L.why = L.why || {};

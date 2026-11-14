@@ -559,6 +559,8 @@ G.ZombieFX = {
     const gore = G.ZombieFactory ? G.ZombieFactory.gore(z) : "full";
     const d = { z, t: 0, dir, floorY, scale, gore };
     if (z.type === "boss") d.mode = "topple";
+    // (expansion, round 7) a Training Yard dummy tips over and falls apart in dust
+    else if (z.type === "dummy") { d.mode = "topple"; d.gore = "off"; }
     // (round 4) a Bloater swells, then bursts (js/zombieai.js burst)
     else if (z.type === "bloater") { d.mode = "swell"; d.fuse = G.randRange(G.CONFIG.zombies.bloater.fuse[0], G.CONFIG.zombies.bloater.fuse[1]); d.base = z.mesh.scale.x; d.at = performance.now();
       G.Audio.zombie("swell", z.type, z.mesh.position.clone().setY(z.mesh.position.y + 1), { tag: "swell:" + z.uid });
@@ -619,7 +621,7 @@ G.ZombieFX = {
       } else if (d.mode === "topple") {
         fall(ease(d.t / 0.6));
         m.position.y = d.baseY - ease(d.t / 0.6) * 0.15;
-        if (d.t >= 1.0) { this.shatter(game.scene, m, d.dir, d.floorY, d.scale, 2); this.dying.splice(i, 1); }
+        if (d.t >= 1.0) { this.shatter(game.scene, m, d.dir, d.floorY, d.scale, 2, d.z.type === "dummy" ? "off" : undefined); this.dying.splice(i, 1); }
       } else if (d.mode === "swell") {
         // (overhaul, round 4) the Bloater swells -- bigger, shaking harder --
         // for its fuse (0.8-1.2 s, a sound with it), then bursts

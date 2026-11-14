@@ -45,7 +45,8 @@ G.Round4Test = (function () {
       ok("seven modes", ["school", "hospital", "bunker", "endless", "daily", "practice", "custom"].every((k) => ids.includes(k)), ids.join(","));
       ok("campaign tab: school, hospital, bunker, endless, daily", L().modes("campaign").map((m) => m.id).join() === "school,hospital,bunker,endless,daily");
       // (vocabulary series, round 2: Daily Review and Learning Modes first)
-      ok("training tab: review, learn, practice, custom", L().modes("training").map((m) => m.id).join() === "review,learn,practice,custom");
+      // (expansion, round 7: the Training Yard's card first, while its flag is on)
+      ok("training tab: (the Training Yard,) review, learn, practice, custom", L().modes("training").map((m) => m.id).join() === (G.CONFIG.expansion.trainingYard ? "tutorial," : "") + "review,learn,practice,custom");
       ok("every mode its own colours", new Set(L().MODES.map((m) => m.c1)).size === L().MODES.length);
       ok("school is FEATURED, daily a DAILY EVENT, practice TRAINING, custom CREATIVE",
         L().MODES.find((m) => m.id === "school").badge === "featured" && L().MODES.find((m) => m.id === "daily").badge === "daily" && L().MODES.find((m) => m.id === "practice").badge === "training" && L().MODES.find((m) => m.id === "custom").badge === "creative");
@@ -83,7 +84,8 @@ G.Round4Test = (function () {
 
       // keyboard (from a known start: a test run before this one can leave
       // the training tab on another card)
-      L().sel.training = 0;
+      // (expansion, round 7: on Daily Review -- the Training Yard's card is first now)
+      L().sel.training = Math.max(0, L().modes("training").findIndex((m) => m.id === "review"));
       G.UI.goToMainMenu({ tab: "campaign", select: "school" });
       key("ArrowRight"); ok("→ moves right", cur() === "hospital");
       key("KeyD"); ok("D moves right", cur() === "bunker");

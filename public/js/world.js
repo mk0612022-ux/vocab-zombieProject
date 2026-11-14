@@ -33,6 +33,13 @@ G.THEME_PALETTES = {
     fog: 0x060605, fogNear: 2.2, fogFar: 27, light: 0xff9a4d, ambient: 0x22201b,
     roomLight: [0xff9a4d, 0xff5c3d, 0x7dc9ff, 0xffcf4d, 0xff7a7a],
   },
+  // (expansion, round 7) the Training Yard on a calm morning: a pale haze far
+  // off, warm daylight, the school's cream walls and red brick
+  training: {
+    floor: 0x8a8578, floorLine: 0x6a665c, floorStain: 0x7a7468, wall: 0xc6b99e, accent: 0x7a5232,
+    fog: 0xc8d6e2, fogNear: 24, fogFar: 120, light: 0xfff2dc, ambient: 0x737882,
+    roomLight: [0xfff2dc, 0xfff2dc, 0xfff2dc, 0xfff2dc, 0xfff2dc],
+  },
 };
 
 // ---------------- Floor height (stairs / raised platforms / ramps) ----------------
@@ -2590,7 +2597,12 @@ G.buildLevelScene = function (scene, level, quality) {
   //
   // Called down here, not at the top: the plan tables are `const`, so calling
   // before their declarations hits the temporal dead zone.
-  buildComplex(levelPlan(level.theme));
+  // (expansion, round 7) the Training Yard: a yard, a corridor and a classroom,
+  // put together by js/trainingyard.js from these same pieces
+  if (level.theme === "training" && G.TrainingYard) {
+    G.TrainingYard.build({ scene, world, level, quality, pal, wallMat, M: themeMats("school"),
+      addFloor, addCeiling, addWallSeg, addWallWithGaps, addRoomWalls, addRoomDoor, addProp, addLight, addCanvasBox, addGlowBox, addFloatBox, buildSlidingDoors });
+  } else buildComplex(levelPlan(level.theme));
 
   // buildComplex sets both of these from the level plan; these are only a
   // backstop in case a plan ever omits them.

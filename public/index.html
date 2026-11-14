@@ -64,6 +64,8 @@
     <!-- (overhaul, round 8) the HUD, the inspect key, the ten zombies, the answers' explanations -->
     <div data-i18n-html="howto.body2"></div></div>
   <div class="row-center">
+    <!-- (expansion, round 7) the Training Yard (js/trainingyard.js) -->
+    <button class="btn btn-primary" id="btn-help-training" data-i18n="help.training"></button>
     <button class="btn" id="btn-tutorial-replay" data-i18n="howto.tutorial"></button>
     <button class="btn" id="btn-help-report" data-i18n="help.report"></button>
     <button class="btn" id="btn-howtoplay-back" data-i18n="common.back"></button>
@@ -693,6 +695,8 @@
     <button class="btn" id="btn-pause-journal" data-i18n="menu.journal"></button>
     <button class="btn" id="btn-pause-settings" data-i18n="menu.settings"></button>
     <button class="btn" id="btn-pause-tutorial" data-i18n="pause.tutorial"></button>
+    <!-- (expansion, round 7) shown in the Training Yard only -->
+    <button class="btn hidden" id="btn-pause-skiptrain" data-i18n="pause.skipTraining"></button>
     <button class="btn" id="btn-pause-report" data-i18n="help.report"></button>
     <button class="btn" id="btn-pause-mainmenu" data-i18n="common.mainMenu"></button>
   </div>
@@ -882,6 +886,9 @@ window.addEventListener("load", function () {
 <script defer src="js/checkpoint.js"></script>
 <script defer src="js/dialog.js"></script>
 <script defer src="js/tutorial.js"></script>
+<script defer src="js/data/practicewords.js"></script>
+<script defer src="js/trainingyard.js"></script>
+<script defer src="js/gametips.js"></script>
 <script defer src="js/ui.js"></script>
 <script defer src="js/settings.js"></script>
 <script defer src="js/dataui.js"></script>

@@ -18,7 +18,7 @@
 | `learning` | `wordStats`, `wordStatsVersion`, `learn`, `customWords`, `importedSets` | สถิติคำ, SRS, คู่คำที่สับสน, streak, ประวัติสาเหตุที่ผิด, คำของผู้เล่น |
 | `progress` | `unlockedLevels`, `levelHighScores`, `dailyHighScores`, `endlessHighScore`, `endlessHighWave`, `leaderboards`, `achievements`, `unlockedWeapons`, `notes`, `bosses`, `attach` | ด่าน คะแนน ranks awards weapon log story notes บอส อุปกรณ์เสริมและสกิน (รอบ 5) |
 | `checkpoint` | `checkpoints` | `{ level1, level2, level3 }` รูปแบบเดิมของ `G.Checkpoint.snapshot` |
-| `flags` | `learnSeen`, `tutorialDone`, `tutorialSeen` | สถานะการสอนและคำแนะนำที่เคยเห็น |
+| `flags` | `learnSeen`, `tutorialDone`, `tutorialSeen`, `training`, `tipsSeen` | สถานะการสอนและคำแนะนำที่เคยเห็น (`training`, `tipsSeen`: รอบ 7) |
 | `meta` | `meta` | ดูด้านล่าง |
 | `other` | คีย์ที่ไม่มีหมวด | กันข้อมูลหาย ถ้ารอบถัดไปเพิ่มคีย์แล้วยังไม่ได้จัดหมวด |
 
@@ -57,6 +57,12 @@
   - `forge`: `{ cooldown: {gunId: wave}, used: [wordKey], tries }` ปืนที่สอบไม่ผ่านรอจนจบเวฟนั้น และคำที่ถามไปแล้วในรอบนี้ (ไม่เกิน 400)
   - checkpoint เก่าที่ไม่มีฟิลด์เหล่านี้: ไม่มีขั้น ไม่มีการรอ (`G.Checkpoint.apply` และ `G.Forge.restore` ตรวจค่าทุกตัว)
 - `tutorialSeen.forge_scene` (รอบ 6): เคยดูฉากอัปเกรดจนจบแล้ว ครั้งต่อไปกดข้ามได้ · อยู่ในหมวด `flags` เดิม
+- `training` (รอบ 7, `public/js/trainingyard.js`): `{ done, skipped, step, offered, finishedAt }`
+  - `step`: checkpoint ของลานฝึก คือขั้นที่เล่นค้างไว้ (0-10) เล่นจบแล้วกลับเป็น 0 · `offered`: เคยถามตอนเปิดเกมครั้งแรกแล้ว (ตอบอะไรก็ตาม หรือผู้เล่นเก่าที่ไม่ต้องถาม) · `skipped`: กดข้าม · `finishedAt`: เวลาเล่นจบ (ms)
+  - เซฟเก่าที่ไม่มีคีย์นี้: ยังไม่เล่น ยังไม่ถาม · ค่าที่ผิดถูกแก้ (`step` นอกช่วงถูกบีบเข้า 0-10)
+- `tipsSeen` (รอบ 7, `public/js/gametips.js`): `{ id: true }` คำแนะนำตามสถานการณ์ที่แสดงไปแล้ว (แสดงแล้วนับว่าเห็น) · id: `boss`, `bloater`, `screamer`, `ironclad`, `perkShop`, `forge`, `attachUnlock`, `floorUnlock`, `storyNote`, `lowAmmo` · คีย์ที่ไม่ใช่ตัวอักษรล้วนถูกตัดทิ้ง
+- `settings.tips` (รอบ 7): เปิด/ปิดคำแนะนำตามสถานการณ์ ค่าเริ่มต้นเปิด (Settings > คำแนะนำ) · ตั้งค่าใหม่ไม่ต้องทำ migration
+- คำฝึกของลานฝึกไม่ถูกบันทึกที่ไหนเลย: `G.Learning.answerWord`, `G.recordWordResult`, `G.SRS.noteConfusion` และ `G.Explain.remember` ไม่ทำอะไรระหว่างเล่นลานฝึก
 
 ## 3. ที่เก็บ
 
@@ -158,6 +164,8 @@
 | Daily Review | `streak`, `last`, `nextDue` ตามฝั่งที่ทบทวนล่าสุด (วันเดียวกันใช้ streak มากกว่า) · `best` ค่ามากกว่า · `days` รวมกัน |
 | `why` | รวมกัน ตัดซ้ำ เรียงวัน เก็บล่าสุดตาม `explain.history` |
 | ด่าน ปืน รางวัล notes flags | รวมกัน |
+| `training` (รอบ 7) | `done`, `offered`, `skipped` จริงถ้าฝั่งใดฝั่งหนึ่งจริง · `step` ค่ามากกว่า (เป็น 0 ถ้าเล่นจบแล้ว) · `finishedAt` ค่ามากกว่า |
+| `tipsSeen` (รอบ 7) | รวมกัน |
 | `leaderboards` | รวมกัน ตัดรายการซ้ำ เรียงคะแนน เก็บ 10 อันดับ |
 | `customWords` | รวมกัน คำเดียวกัน (ภาษา + ตัวสะกดไม่สนตัวพิมพ์) นับครั้งเดียวทุกด่าน ถือของเครื่องนี้ |
 | `importedSets` | รวมตาม id ถือของเครื่องนี้ · เนื้อหาเดียวกันคนละ id ไม่เพิ่มซ้ำ |

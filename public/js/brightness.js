@@ -77,6 +77,8 @@ window.G = window.G || {};
       $("brightness-cal").classList.add("hidden");
       G.Modal.close("brightness");
       if (this.from === "settings" && G.SettingsUI && G.UI._currentScreen === "screen-settings") G.SettingsUI.render();
+      // (expansion, round 7) the first setup done: the Training Yard is offered, once
+      if (this.from === "start" && G.TrainingYard) setTimeout(() => G.TrainingYard.maybeOffer(), 250);
     },
     // The symbols' brightness in the scene: just above, a little above and well
     // above the night's darkest colour at the default Brightness. Worked out

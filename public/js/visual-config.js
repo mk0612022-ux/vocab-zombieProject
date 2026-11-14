@@ -45,6 +45,9 @@ G.VISUAL = {
   themeGrade: {
     hospital: { exposure: 1.3, lift: 0.35, saturation: 0.9, warmKeep: 1, midTintAmount: 0.03, highTintAmount: 0.03, vignette: 0.26 },
     bunker: { exposure: 1.35, lift: 0.3, saturation: 0.92, warmKeep: 1, midTintAmount: 0.02, highTintAmount: 0.02, vignette: 0.26 },
+    // (expansion, round 7) the Training Yard's calm morning: no navy in the shadows, warm light
+    training: { exposure: 0.96, lift: 0.04, liftEnd: 0.2, shadowColor: 0x2a2a30, saturation: 1.0, warmKeep: 1, midTint: 0xffe8cc, midTintAmount: 0.03,
+      highTint: 0xfff4e2, highTintAmount: 0.04, contrast: 1.02, vignette: 0.14 },
   },
 
   // ---- E4: the player's brightness ---------------------------------------

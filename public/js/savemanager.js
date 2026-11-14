@@ -43,7 +43,7 @@ G.SaveManager = (function () {
     profile: "profile", settings: "settings", checkpoint: "checkpoints", meta: "meta",
     learning: ["wordStats", "wordStatsVersion", "learn", "customWords", "importedSets"],
     progress: ["unlockedLevels", "levelHighScores", "dailyHighScores", "endlessHighScore", "endlessHighWave", "leaderboards", "achievements", "unlockedWeapons", "notes", "bosses", "attach"],
-    flags: ["learnSeen", "tutorialDone", "tutorialSeen"],
+    flags: ["learnSeen", "tutorialDone", "tutorialSeen", "training", "tipsSeen"],   // (training, tipsSeen: expansion, round 7)
   };
   function toDoc(s) {
     const doc = { schemaVersion: SCHEMA }, known = {};

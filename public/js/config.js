@@ -470,7 +470,10 @@ G.CONFIG = {
   // (no falloff, one spread, one head multiplier); the Stat Card stays
   // diag: false stops the bug report's collecting (the report then holds no logs, errors or FPS)
   // forge: false takes the Word Forge's stations away (round 6; a gun's tier is the run's only)
-  expansion: { gunStats: true, diag: true, melee: true, attachments: true, forge: true },
+  // trainingYard: false takes the Training Yard away -- its card, the first-time offer,
+  // the Help and Settings buttons (round 7; the old first-run cards, js/tutorial.js, stay)
+  // tips: false stops the situation tips (round 7, js/gametips.js)
+  expansion: { gunStats: true, diag: true, melee: true, attachments: true, forge: true, trainingYard: true, tips: true },
   // (expansion, round 5) attachments, skins and what unlocks them (js/attachments.js;
   // the tables are js/data/attachments.js)
   //   changeInShop   during a run they can be changed in the shop (else only between runs)
@@ -549,6 +552,47 @@ G.CONFIG = {
     sound: { subDb: [2, 2.5, 3], pitch: [0.98, 0.975, 0.97], lowHz: 250, tail: { dur: 0.9, lp: 900, lpEnd: 110, g: [0.035, 0.05, 0.065] } },
     scene: 2.6,
     station: { color: 0xff8a2a, hum: { f: 55, gain: 0.045, ref: 3 } },
+  },
+  // (expansion, round 7) the Training Yard (js/trainingyard.js): a small yard, a
+  // corridor and a classroom on a calm morning, eleven steps one after another
+  //   hintAfter     seconds on a step before its clearer hint, and what to use lit up
+  //   lookTurn      degrees to look round in step 1
+  //   sprintSeconds seconds of running in step 2
+  //   targets       right shots in step 3 (three dummies stand at a time)
+  //   aimSeconds    seconds aimed in step 4
+  //   money         step 6: bundles on the way in; together they pay the wall gun's price (the
+  //                 stat sheet's, js/gunstats.js) and `spare` more, rounded up to tens
+  //   wallGun       the gun on the corridor wall
+  //   wave          step 9's drill: how many of each kind; their bites x waveDamage
+  //   quiz          questions after the drill (step 10)
+  //   perkMoney     the money the shop after the drill opens with, at least (a perk to buy)
+  //   floorHp       a blow that would kill leaves this share of health: nothing ends a run here
+  //   offerNewOnly  the offer after the first setup only to a player who has played nothing yet
+  training: {
+    hintAfter: 20,
+    lookTurn: 120,
+    sprintSeconds: 1.2,
+    targets: 3,
+    aimSeconds: 0.6,
+    money: { bundles: 5, spare: 0.1 },
+    wallGun: "smg",
+    wave: { normal: 5, crawler: 1 },
+    waveDamage: 0.5,
+    quiz: 3,
+    perkMoney: 600,
+    floorHp: 0.2,
+    offerNewOnly: true,
+  },
+  // (expansion, round 7) the situation tips (js/gametips.js): each once a profile,
+  // a small card that does not stop the game
+  //   seconds   its time on screen (game time: none passes while paused)
+  //   lowAmmo   "ammunition running out": the gun in hand's rounds, loaded and spare,
+  //             under this many magazines
+  //   seeAt     a new kind of zombie counts as met within this many metres, in view
+  tips: {
+    seconds: 10,
+    lowAmmo: 1.5,
+    seeAt: 22,
   },
   // ---------------- the melee slot (expansion, round 4) ----------------
   // G.MELEE_WEAPONS has each weapon; js/melee.js is the swing.
@@ -1183,6 +1227,9 @@ G.ZOMBIE_TYPES = {
   headless:    { hp: 37, speed: 1.55, scale: 1.0, color: 0x5c4a3a, damage: 30, scoreValue: 20 },
   reacher:     { hp: 61, speed: 1.2, scale: 1.16, color: 0x4a5a4a, damage: 40, scoreValue: 30 },
   boss:        { hp: 900, speed: 1.0, scale: 3.0, color: 0x6b1e6b, damage: 83, scoreValue: 500 },
+  // (expansion, round 7) the Training Yard's straw target on a post: it stands
+  // still, never bites, goes down to one shot (js/trainingyard.js dummyMesh)
+  dummy:       { hp: 1, speed: 0, scale: 1.0, color: 0xb08a5a, damage: 0, scoreValue: 0 },
 };
 // the ten in the order of the concept sheet (the Zombie Gallery, ?lab=zombies)
 G.ZOMBIE_KINDS = ["normal", "fast", "crawler", "bloater", "ironclad", "runt", "abomination", "screamer", "headless", "reacher"];

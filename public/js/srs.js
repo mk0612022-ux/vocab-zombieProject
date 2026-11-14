@@ -135,6 +135,8 @@ G.Learning = {
 G.Learning.answerWord = function (pair, right, opts) {
   opts = opts || {};
   if (!pair) return null;
+  // (expansion, round 7) the Training Yard's practice words: never counted
+  if (G.TrainingYard && G.TrainingYard.practice()) return null;
   G.recordWordResult(pair, right, { srs: false });
   const r = G.SRS.answer(pair, right, opts);
   G.Learning.track(right, opts);
@@ -275,6 +277,7 @@ G.SRS = {
   noteConfusion(y, x) {
     const Y = this.key(y), X = this.key(x);
     if (!Y || !X || Y === X) return;
+    if (G.TrainingYard && G.TrainingYard.practice()) return;   // (expansion, round 7: practice words)
     const C = this.data().conf;
     const row = C[Y] = C[Y] || {};
     const c = row[X] = row[X] || { n: 0, ok: 0, off: false };

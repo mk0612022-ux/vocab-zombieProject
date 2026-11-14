@@ -1200,6 +1200,8 @@ G.Audio = {
     school: { root: 110, scale: [0, 2, 3, 5, 7, 8, 10], lead: "triangle", pad: 0.9, gap: [1.4, 3.2] },
     hospital: { root: 82.4, scale: [0, 1, 3, 5, 7, 8, 10], lead: "sine", pad: 1.1, gap: [1.1, 2.8] },
     bunker: { root: 65.4, scale: [0, 1, 3, 5, 6, 8, 10], lead: "square", pad: 1.3, gap: [0.9, 2.4] },
+    // (expansion, round 7) the Training Yard: a calm morning -- a major pentatonic, soft and sparse
+    training: { root: 130.8, scale: [0, 2, 4, 7, 9], lead: "sine", pad: 0.4, gap: [2.2, 4.4] },
   },
   // ---------------- the lobby's music (new series, round 2, E) ----------------
   // From the Start screen's tap (the gesture that lets iOS play anything)
@@ -1293,9 +1295,10 @@ G.Audio = {
     const af = ctx.createBiquadFilter(), ag = ctx.createGain();
     if (theme === "school") { af.type = "bandpass"; af.frequency.value = 500; af.Q.value = 0.6; ag.gain.value = 0.18; }        // wind
     else if (theme === "hospital") { af.type = "highpass"; af.frequency.value = 3500; ag.gain.value = 0.035; }                   // air handling hiss
+    else if (theme === "training") { af.type = "bandpass"; af.frequency.value = 650; af.Q.value = 0.5; ag.gain.value = 0.06; }   // (expansion, round 7) a light breeze
     else { af.type = "lowpass"; af.frequency.value = 140; ag.gain.value = 0.55; }                                                // machinery rumble
     const wl = ctx.createOscillator(), wlg = ctx.createGain();
-    wl.frequency.value = 0.09; wlg.gain.value = theme === "school" ? 260 : 40; wl.connect(wlg); wlg.connect(af.frequency); wl.start();
+    wl.frequency.value = 0.09; wlg.gain.value = theme === "school" ? 260 : theme === "training" ? 180 : 40; wl.connect(wlg); wlg.connect(af.frequency); wl.start();
     amb.connect(af); af.connect(ag); ag.connect(this.bus.ambient); amb.start();
     L.nodes.push(amb, wl);
     // (visual series, round 3, L1) the forest round the school: the wind in
@@ -1315,7 +1318,7 @@ G.Audio = {
       L.nodes.push(src, lfo);
       L.forest = { pan, gain: gg, S, next: ctx.currentTime + 3 };
     }
-    if (theme !== "school") {
+    if (theme !== "school" && theme !== "training") {
       // mains hum: the hospital's fluorescent tubes, the bunker's transformers
       [100, 200].forEach((f, i) => {
         const h = ctx.createOscillator(), hg = ctx.createGain();
@@ -1351,6 +1354,12 @@ G.Audio = {
     } else if (L.theme === "hospital") {
       if (r < 0.55) this.tone({ type: "sine", freq: 1500 + Math.random() * 900, freqEnd: 600, dur: 0.12, gain: 0.06, bus: "ambient" });   // drip
       else this.noise({ dur: 0.25, filter: "highpass", freq: 4000, gain: 0.06, bus: "ambient" });                                          // flicker buzz
+    } else if (L.theme === "training") {
+      // (expansion, round 7) the Training Yard's morning: a bird somewhere, a breeze through the trees
+      if (r < 0.7) {
+        const f = 2400 + Math.random() * 1400, n = 2 + Math.floor(Math.random() * 3);
+        for (let i = 0; i < n; i++) this.tone({ type: "sine", freq: f * (1 + (i % 2) * 0.18), freqEnd: f * (1.3 - (i % 2) * 0.25), dur: 0.09, gain: 0.022, bus: "ambient", at: i * 0.13 });
+      } else this.noise({ dur: 2.2, filter: "bandpass", freq: 600, freqEnd: 420, gain: 0.035, bus: "ambient", attack: 0.8 });
     } else {
       if (r < 0.45) this.tone({ type: "sine", freq: 1100 + Math.random() * 700, freqEnd: 450, dur: 0.14, gain: 0.06, bus: "ambient" });   // drip
       else if (r < 0.8) {                                                                                                                  // arcing

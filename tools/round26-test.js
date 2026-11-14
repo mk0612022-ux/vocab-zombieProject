@@ -365,7 +365,9 @@ G.Round26Test = (function () {
       G.Input.mode = mode0; G.UI.applyControlMode();
       if (G.lang !== lang0) await new Promise((res) => G.setUILang(lang0, { done: res }));
       if (G.Game.state !== "MENU") G.Game.quitToMainMenu();
-      G.save = G.normalizeSave(JSON.parse(backup)); G.persist();
+      // (written now, not in a moment: the runner closes the browser as soon as the result is in,
+      // and a restore still waiting left Auto Reload off in the profile -- suite 21 then failed, 2026-11-14)
+      G.save = G.normalizeSave(JSON.parse(backup)); G.persist(true);
       G.UI.menuOrigin = "lobby"; G.UI.goToMainMenu();
     }
     const missing = Object.keys(G._missingKeys || {});

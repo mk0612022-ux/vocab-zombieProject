@@ -484,10 +484,11 @@ G.Round12Test = (function () {
     fresh(); day(0);
     G.Lobby.open({ tab: "training", select: "review" });
     await wait(100);
-    const ids = G.Lobby.modes("training").map((m) => m.id);
+    // (expansion, round 7: the Training Yard's card comes before them)
+    const ids = G.Lobby.modes("training").map((m) => m.id).filter((id) => id !== "tutorial");
     ok("I: the Training tab has Daily Review and Learning Modes", ids[0] === "review" && ids[1] === "learn");
     ok("I: the Daily Review card: its count", /All reviewed|due today/.test(document.querySelector('.lcard[data-id="review"] .lcard-meta').textContent));
-    G.Lobby.select(1); G.Lobby.launch();
+    G.Lobby.select(G.Lobby.modes("training").findIndex((m) => m.id === "learn")); G.Lobby.launch();
     await wait(50);
     ok("I: Learning Modes: a G.Modal window, the controller's scope", G.Modal.isOpen("learnpick") && G.Pad.scope() === $("learn-box"));
     ok("I: the modes on offer: all seven (round 3), then Your own (round 4)", [...document.querySelectorAll("#learn-modes .learn-opt")].map((b) => b.dataset.preset).join() === "classic,spelling,paraphrase,listening,dictation,context,adaptive,custom");

@@ -32,6 +32,8 @@ G.Lobby = {
     { id: "daily", tab: "campaign", badge: "daily", c1: "#feca57", c2: "#ff9f1a", icon: "📅" },
     // (vocabulary series, round 2) the day's review and the learning modes;
     // `art`: whose pictures they borrow
+    // (expansion, round 7) the Training Yard (js/trainingyard.js); its own pictures (tools/art-render.js "tutorial")
+    { id: "tutorial", tab: "training", badge: "tutorial", c1: "#7bed9f", c2: "#20bf6b", icon: "🎓", flag: "trainingYard" },
     { id: "review", tab: "training", badge: "review", c1: "#48dbfb", c2: "#0a79df", icon: "🧠", art: "school" },
     { id: "learn", tab: "training", badge: "learn", c1: "#ffd43b", c2: "#e67e22", icon: "✍️", art: "practice" },
     { id: "practice", tab: "training", badge: "training", c1: "#55efc4", c2: "#00a86b", icon: "🎯" },
@@ -44,7 +46,8 @@ G.Lobby = {
   built: false,
 
   // ---------------- data ----------------
-  modes(tab) { return this.MODES.filter((m) => m.tab === (tab || this.tab)); },
+  // (a mode behind an expansion flag that is off is not shown)
+  modes(tab) { return this.MODES.filter((m) => m.tab === (tab || this.tab) && (!m.flag || !!(G.CONFIG.expansion && G.CONFIG.expansion[m.flag]))); },
   current() { return this.modes()[this.sel[this.tab]] || this.modes()[0]; },
   locked(m) { return !!m.needs && !G.save.unlockedLevels.includes(m.needs); },
   art(m, card) { return "assets/lobby/" + (m.art || m.id) + (card ? "-card" : "") + ".jpg"; },
@@ -95,6 +98,9 @@ G.Lobby = {
       rows.push([T("lobby.learning"), n[0]]);
       rows.push([T("lobby.reviewBox"), n[1]]);
       rows.push([T("lobby.masteredBox"), n[2]]);
+    } else if (m.id === "tutorial") {
+      rows.push([T("lobby.status"), G.TrainingYard ? G.TrainingYard.status() : "–"]);
+      rows.push([T("lobby.tutTime"), T("lobby.tutMinutes")]);
     } else if (m.id === "custom") {
       const n = Object.values(S.customWords || {}).reduce((a, l) => a + l.length, 0);
       rows.push([T("lobby.yourWords"), n]);
@@ -285,7 +291,7 @@ G.Lobby = {
         `<span class="lc-or"><span class="kb-only"><kbd>Enter</kbd></span><span class="pad-only"><kbd class="pad-a">A</kbd></span><span class="touch-only">${G.escapeHtml(T("lobby.tapAgain"))}</span> ${G.escapeHtml(T("lobby.moreChoices"))}</span>`;
       this.el("lobby-cp-btn").onclick = (e) => { e.stopPropagation(); this.launch({ cont: true }); };
     }
-    else el.innerHTML = `<span class="kb-only"><kbd>Enter</kbd></span><span class="pad-only"><kbd class="pad-a">A</kbd></span><span class="touch-only">${G.escapeHtml(T("lobby.tapAgain"))}</span> ${G.escapeHtml(T(m.level || m.id === "endless" || m.id === "daily" || m.id === "review" ? "lobby.play" : "lobby.open"))}`;
+    else el.innerHTML = `<span class="kb-only"><kbd>Enter</kbd></span><span class="pad-only"><kbd class="pad-a">A</kbd></span><span class="touch-only">${G.escapeHtml(T("lobby.tapAgain"))}</span> ${G.escapeHtml(T(m.level || m.id === "endless" || m.id === "daily" || m.id === "review" || m.id === "tutorial" ? "lobby.play" : "lobby.open"))}`;
   },
   // the big picture and the text: cross-faded, the new title rising in
   showPreview(instant) {
@@ -405,6 +411,7 @@ G.Lobby = {
       else if (m.id === "endless") G.Game.startEndless();
       else if (m.id === "daily") G.Game.startDailyChallenge();
       else if (m.id === "review") G.Study.openDaily();
+      else if (m.id === "tutorial" && G.TrainingYard) G.TrainingYard.open();   // (expansion, round 7)
       else if (m.id === "practice") G.Game.goToPracticeSetup();
       else if (m.id === "custom") G.CustomVocabUI.open("screen-mainmenu");
       this.el("lobby").classList.remove("launching");

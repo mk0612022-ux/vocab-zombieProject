@@ -1,10 +1,16 @@
 // Dev-only (not shipped). Runs the test suites window.__suites (numbers) in
 // order in the game's page (tools/dev/run-suites.ps1); results in window._all.
+// (expansion, round 7: the Training Yard's first-time offer and the situation tips are kept
+// from popping up in the other suites -- round 36 sets them as it needs them)
+if (G.save) { G.save.training = Object.assign({}, G.save.training, { offered: true }); G.save.settings.tips = false; }
 if (G.MainMenu && G.MainMenu.visible()) G.MainMenu.toLobby();
 await new Promise((r) => setTimeout(r, 900));
 if (G.Modal.isOpen && G.Modal.isOpen("brightness")) G.BrightnessCal.ok();
 G.Input.requestPointerLock = () => {};
 if (G.save) G.save.settings.spellReload = false;
+// (and Auto Reload on: suite 26 turns it off, and a restore not yet written when the browser was
+// closed left it off -- suite 21's empty-magazine reload then never came, 2026-11-14)
+if (G.save) G.save.settings.autoReload = true;
 // (a suite that died mid-way can leave the profile in another language or on touch controls)
 if (G.save) G.save.settings.controlMode = "auto";
 // (a run cut off in a suite that tries the higher tiers leaves the profile there: too slow for this browser)

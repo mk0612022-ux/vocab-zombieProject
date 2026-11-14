@@ -163,7 +163,8 @@ G.Round16Test = (function () {
     const keep = JSON.stringify(S());
     openSettings("screen-mainmenu", "graphics");
     const cats = Array.from(document.querySelectorAll("#set-cats .set-cat")).map((b) => b.dataset.cat);
-    ok("F ten categories down the side", cats.join() === "graphics,audio,controls,gameplay,language,accessibility,account,data,help,about", cats.join());
+    // (expansion: Data in round 1, Help in round 2, Tips in round 7)
+    ok("F eleven categories down the side", cats.join() === "graphics,audio,controls,gameplay,language,accessibility,account,data,tips,help,about", cats.join());
     ok("F one shown at a time", document.querySelectorAll("#settings-content .set-sec:not(.hidden)").length === 1);
     const where = (id) => { const e = $(id); const sec = e && e.closest(".set-sec"); return sec ? sec.id.replace("set-sec-", "") : null; };
     const lost = TABLE.filter(([, id, cat]) => where(id) !== cat);

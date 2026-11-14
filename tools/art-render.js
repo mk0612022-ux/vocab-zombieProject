@@ -141,6 +141,21 @@ G.ArtRender = {
       A.lights(g.scene, new THREE.Vector3(-10, 2.8, 12), new THREE.Vector3(-5, 2.6, 15));
       return { pos: new THREE.Vector3(-10.8, 1.65, 9.1), look: new THREE.Vector3(-4.8, 1.55, 14.4), fov: 60 };
     },
+    // (expansion, round 7) the Training Yard on its calm morning: the firing line,
+    // the three straw dummies with their words, the corridor's open end behind
+    tutorial(A, g) {
+      G.save.tutorialDone = true;
+      G.save.settings.graphicsQuality = "vhigh";
+      g.startTraining(2);
+      g.update = function () {};
+      g.zombies.forEach((z) => g.scene.remove(z.mesh)); g.zombies = [];
+      G.UI.setHudVisible(false); G.UI.setTouchControlsVisible(false); G.UI.showScreen(null);
+      G.Modal.reset();
+      A.survivor(g.scene, 2.4, 0, 12.6, -Math.PI / 2 + 0.12, "pistol", 0x3a6a8a);
+      const D = G.TrainingYard.MAP.dummies;
+      D.forEach((p, i) => A.zombie(g, "dummy", p.x, p.z, 0, 11, 0, i === 1));
+      return { pos: new THREE.Vector3(-1.2, 2.0, 16.2), look: new THREE.Vector3(9.5, 1.3, 9.8), fov: 54 };
+    },
     // custom vocabulary: the library, a zombie at the end of the aisle
     custom(A, g) {
       A.stage(1);
