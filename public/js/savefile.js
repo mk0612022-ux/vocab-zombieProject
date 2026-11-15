@@ -249,6 +249,36 @@ G.SaveFile = (function () {
     const done = !!(x.done || y.done);
     return { done, skipped: !!(x.skipped || y.skipped), offered: !!(x.offered || y.offered), step: done ? 0 : most(x.step || 0, y.step || 0), finishedAt: most(x.finishedAt || 0, y.finishedAt || 0) };
   }
+  // (story series, round 1) Story Mode, chapter by chapter: done, begun or the
+  // prologue seen on either; the further checkpoint (scene, then beat, then the
+  // newer); the scene reached, the further -- none once done; what was collected
+  // and achieved on either; this device's choices first; the answers and the
+  // time, the larger; the best time, the shorter of the two that exist
+  function mergeStory(a, b) {
+    const A = obj(obj(a).ch), B = obj(obj(b).ch), out = { ch: {} };
+    const further = (p, q) => { if (!p) return q || null; if (!q) return p; if (p.scene !== q.scene) return p.scene > q.scene ? p : q; if (p.beat !== q.beat) return p.beat > q.beat ? p : q; return (q.at || 0) > (p.at || 0) ? q : p; };
+    union(Object.keys(A), Object.keys(B)).forEach((k) => {
+      const x = obj(A[k]), y = obj(B[k]), done = !!(x.done || y.done);
+      const bests = [x.best, y.best].map(Number).filter((v) => v > 0);
+      // a checkpoint from before the chapter was last finished (on either side) belongs to a
+      // play-through that is over; one after it is a replay under way
+      const finished = most(x.finishedAt, y.finishedAt);
+      const live = (c) => (c && !(done && (Number(c.at) || 0) <= finished) ? c : null);
+      const cp = further(live(x.cp), live(y.cp));
+      const lead = cp && cp === y.cp ? y : x;          // (the play-through under way: the further checkpoint's)
+      out.ch[k] = {
+        started: !!(x.started || y.started), done, prologueDone: !!(x.prologueDone || y.prologueDone),
+        scene: done ? (cp ? cp.scene : 0) : most(x.scene, y.scene), cp,
+        choices: Object.assign({}, obj(y.choices), obj(x.choices)),
+        collected: union(Array.isArray(x.collected) ? x.collected : [], Array.isArray(y.collected) ? y.collected : []),
+        achievements: Object.assign({}, obj(y.achievements), obj(x.achievements)),
+        right: most(x.right, y.right), wrong: most(x.wrong, y.wrong), time: most(x.time, y.time),
+        best: bests.length ? Math.min.apply(null, bests) : 0, finishedAt: most(x.finishedAt, y.finishedAt), runs: most(x.runs, y.runs),
+        curTime: lead.curTime || 0, curRight: lead.curRight || 0, curWrong: lead.curWrong || 0,
+      };
+    });
+    return out;
+  }
   function mergeBoards(a, b) {
     return join(a, b, (x, y) => {
       const seen = {}, all = x.concat(y).filter((e) => { const k = JSON.stringify(e); if (seen[k]) return false; seen[k] = true; return true; });
@@ -284,6 +314,7 @@ G.SaveFile = (function () {
       // step it was left at, the further one -- none once it is done
       training: mergeTraining(a.training || {}, b.training || {}),
       tipsSeen: Object.assign({}, b.tipsSeen, a.tipsSeen),
+      story: mergeStory(a.story, b.story),   // (story series, round 1)
       profile: a.profile.name || a.profile.avatar ? a.profile : b.profile,
       meta: Object.assign({}, m, { createdAt: born.length ? Math.min.apply(null, born) : 0, playSec: most(m.playSec, n.playSec) }),
     });

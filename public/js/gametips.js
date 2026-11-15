@@ -92,7 +92,7 @@ G.GameTips = (function () {
 
   // may a card come up now: in play with nothing open (the perk tip: in the shop)
   function canShow(game, id) {
-    if (!game || game.mode === "training") return false;
+    if (!game || (game.mode === "training" || game.mode === "story")) return false;
     if (id === "perkShop") return game.state === "SHOP" && G.Modal.top() && G.Modal.top().id === "shop";
     return game.state === "GAMEPLAY" && !game.paused && !G.Modal.isOpen() && !(G.Cutscene && G.Cutscene.active);
   }
@@ -124,7 +124,7 @@ G.GameTips = (function () {
   // play puts the card away until it closes, and its time stands still meanwhile)
   function update(game, dt) {
     if (!on()) { if (cur) hide(); queue = []; return; }
-    if (!game || game.mode === "training" || !/^(GAMEPLAY|PAUSE|SHOP)$/.test(game.state)) { if (cur) hide(); return; }
+    if (!game || (game.mode === "training" || game.mode === "story") || !/^(GAMEPLAY|PAUSE|SHOP)$/.test(game.state)) { if (cur) hide(); return; }
     if (game.state === "GAMEPLAY" && !game.paused && !G.Modal.isOpen()) {
       scanT -= dt;
       if (scanT <= 0) { scanT = 0.4; scan(game); }
@@ -149,7 +149,7 @@ G.GameTips = (function () {
     G.Bus.on("game:shop", () => {
       setTimeout(() => {
         const g = G.Game;
-        if (!g || g.mode === "training" || g.state !== "SHOP" || !g._perkOffer || !g._perkOffer.length) return;
+        if (!g || (g.mode === "training" || g.mode === "story") || g.state !== "SHOP" || !g._perkOffer || !g._perkOffer.length) return;
         if (want("perkShop") && !cur && queue[0] === "perkShop" && canShow(g, "perkShop")) show(queue.shift());
       }, 350);
     }, "tips");

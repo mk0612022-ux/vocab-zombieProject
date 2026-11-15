@@ -19,6 +19,7 @@
 | `progress` | `unlockedLevels`, `levelHighScores`, `dailyHighScores`, `endlessHighScore`, `endlessHighWave`, `leaderboards`, `achievements`, `unlockedWeapons`, `notes`, `bosses`, `attach` | ด่าน คะแนน ranks awards weapon log story notes บอส อุปกรณ์เสริมและสกิน (รอบ 5) |
 | `checkpoint` | `checkpoints` | `{ level1, level2, level3 }` รูปแบบเดิมของ `G.Checkpoint.snapshot` |
 | `flags` | `learnSeen`, `tutorialDone`, `tutorialSeen`, `training`, `tipsSeen` | สถานะการสอนและคำแนะนำที่เคยเห็น (`training`, `tipsSeen`: รอบ 7) |
+| `story` | `story` | Story Mode ต่อบท (ซีรีส์ Story รอบ 1) ดูด้านล่าง |
 | `meta` | `meta` | ดูด้านล่าง |
 | `other` | คีย์ที่ไม่มีหมวด | กันข้อมูลหาย ถ้ารอบถัดไปเพิ่มคีย์แล้วยังไม่ได้จัดหมวด |
 
@@ -64,6 +65,13 @@
 - `tipsSeen` (รอบ 7, `public/js/gametips.js`): `{ id: true }` คำแนะนำตามสถานการณ์ที่แสดงไปแล้ว (แสดงแล้วนับว่าเห็น) · id: `boss`, `bloater`, `screamer`, `ironclad`, `perkShop`, `forge`, `attachUnlock`, `floorUnlock`, `storyNote`, `lowAmmo` · คีย์ที่ไม่ใช่ตัวอักษรล้วนถูกตัดทิ้ง
 - `settings.tips` (รอบ 7): เปิด/ปิดคำแนะนำตามสถานการณ์ ค่าเริ่มต้นเปิด (Settings > คำแนะนำ) · ตั้งค่าใหม่ไม่ต้องทำ migration
 - คำฝึกของลานฝึกไม่ถูกบันทึกที่ไหนเลย: `G.Learning.answerWord`, `G.recordWordResult`, `G.SRS.noteConfusion` และ `G.Explain.remember` ไม่ทำอะไรระหว่างเล่นลานฝึก
+- `story` (ซีรีส์ Story รอบ 1, `public/js/story/story.js`): `{ ch: { ch1: {...}, ch2: {...} } }` · คีย์บทต้องเป็น `ch` ตามด้วยตัวเลข 1-2 หลัก คีย์อื่นถูกตัดทิ้ง
+  - ต่อบท: `started` · `done` (เคยเล่นจบอย่างน้อยครั้งหนึ่ง เล่นซ้ำแล้วยังจริงอยู่ การเล่นซ้ำมีจุดเซฟของตัวเอง) · `prologueDone` (เล่นฉากเปิดจบแล้ว ตั้งแต่นี้มีปุ่ม Skip Prologue) · `scene` ฉากไกลสุดที่ไปถึง (0-40, เป็น 0 เมื่อจบบท) · `cp` จุดเซฟ (null = ไม่มี) · `choices` `{ id: ตัวเลือก }` (ใช้ตั้งแต่รอบ 2) · `collected` id ของสะสม ไม่เกิน 80 (รอบ 11) · `achievements` `{ id: true }` (รอบ 11) · `right`, `wrong`, `time` ยอดสะสมทุกครั้งที่เล่น (`time` เป็นวินาทีที่เล่นจริง ไม่นับ pause) · `best` เวลาจบบทที่ดีที่สุด (วินาที, 0 = ยังไม่เคยจบ) · `finishedAt` เวลาจบล่าสุด (ms) · `runs` จำนวนครั้งที่เริ่ม · `curTime`, `curRight`, `curWrong` ตัวเลขของการเล่นรอบนี้ (จากต้นบทหรือ Skip Prologue ข้ามจุดเซฟไปจนจบ) ใช้ในหน้าสรุปบท
+  - `cp`: `{ scene, beat, at, hp, guns, melee, ammo, flags, x, z, yaw }` · `beat` ขั้นในฉากที่เล่นต่อ · `at` เวลาที่บันทึก (ms) · `guns` id ปืน ไม่เกิน 10 · `ammo[gunId] = [แม็ก, สำรอง]` · `flags` ธงของฉาก ไม่เกิน 80 · `x`, `z`, `yaw` จุดที่ผู้เล่นกลับไป (null = จุดเริ่มของฉาก) · เล่นต่อจากจุดเซฟแล้วเลือดเต็มเสมอ (`hp` เก็บไว้ดูเท่านั้น)
+  - เขียนทันที (`G.persist(true)`) ตอนถึงจุดเซฟ ตอนตาย และตอนจบบท · ปิดหน้าเกมกลางฉาก: คำตอบและเวลาตั้งแต่จุดเซฟล่าสุดถูกบวกเข้ายอดของบทก่อนเขียน แต่ผู้เล่นกลับมาเล่นต่อที่จุดเซฟ
+  - เซฟเก่าที่ไม่มีคีย์นี้ได้ `{ ch: {} }` (`G.normalizeStory` ใน `core.js`) · ค่าผิดชนิดหรือเกินช่วงถูกแก้ · id ที่มีอักขระนอกจาก a-z A-Z 0-9 _ ถูกตัดทิ้ง · ไม่ต้องทำ migration (ชุดทดสอบ 39 ทดสอบกับ fixture ทั้งสองไฟล์)
+  - คำตอบใน Story Mode เข้า SRS และสถิติคำ (`learn`, `wordStats`) เหมือนโหมดอื่น หมวด `story` เก็บแค่ยอดของบท
+  - Story Mode ยังซ่อนอยู่ (`G.CONFIG.story.enabled = false`) เปิดดูได้เฉพาะหน้านั้นด้วย `index.html?story=1` · หมวดนี้ว่างจนกว่าผู้เล่นจะเริ่มบท
 
 ## 3. ที่เก็บ
 
@@ -167,6 +175,7 @@
 | ด่าน ปืน รางวัล notes flags | รวมกัน |
 | `training` (รอบ 7) | `done`, `offered`, `skipped` จริงถ้าฝั่งใดฝั่งหนึ่งจริง · `step` ค่ามากกว่า (เป็น 0 ถ้าเล่นจบแล้ว) · `finishedAt` ค่ามากกว่า |
 | `tipsSeen` (รอบ 7) | รวมกัน |
+| `story` (Story รอบ 1) | ต่อบท: `started`, `done`, `prologueDone` จริงถ้าฝั่งใดฝั่งหนึ่งจริง · `cp` จุดที่ไปไกลกว่า (ฉากก่อน แล้วขั้น แล้ว `at` ใหม่กว่า) แต่ถ้าบทจบแล้วฝั่งใดฝั่งหนึ่ง จุดเซฟที่บันทึกก่อน `finishedAt` ล่าสุดถูกทิ้ง (เป็นของรอบที่เล่นจบไปแล้ว) ส่วนจุดเซฟหลังจากนั้นคือการเล่นซ้ำที่ค้างอยู่ เก็บไว้ · `scene` ค่ามากกว่า (บทที่จบแล้ว: ฉากของจุดเซฟที่เหลือ หรือ 0) · `collected` รวมกัน · `choices`, `achievements` รวมกัน ชนกันถือของเครื่องนี้ · `right`, `wrong`, `time`, `finishedAt`, `runs` ค่ามากกว่า · `best` ค่าที่น้อยกว่า (ไม่นับ 0) · `curTime`, `curRight`, `curWrong` ของฝั่งที่ `cp` ชนะ |
 | `leaderboards` | รวมกัน ตัดรายการซ้ำ เรียงคะแนน เก็บ 10 อันดับ |
 | `customWords` | รวมกัน คำเดียวกัน (ภาษา + ตัวสะกดไม่สนตัวพิมพ์) นับครั้งเดียวทุกด่าน ถือของเครื่องนี้ |
 | `importedSets` | รวมตาม id ถือของเครื่องนี้ · เนื้อหาเดียวกันคนละ id ไม่เพิ่มซ้ำ |

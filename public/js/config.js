@@ -613,6 +613,24 @@ G.CONFIG = {
       { key: "save", icon: "💾" },
     ],
   },
+  // ---------------- Story Mode (story series; js/story/*.js, docs/story/) ----------------
+  //   enabled      false: no Story tab, no chapter can start (a save's story part stays, unused).
+  //                Off while the series is being built: players do not see a chapter of
+  //                stand-ins. index.html?story=1 turns it on for that page (G.Story.on)
+  //   chapterShare the share of a group's words from the chapter's own list; the rest are
+  //                words due anywhere in the bank (design: 60 / 40). New words stay at
+  //                G.CONFIG.waveWords.maxNew a group, as in a wave
+  //   groupKinds   what a scene's group is made of when it names no kinds
+  //   floorHp      a scene that cannot be lost (the prologue): health stops here
+  //   resetSpeed   a wrong shot speeds the zombies up (+25%, js/game.js); here that ends with
+  //                the group it happened in, not with a wave (there are none) -- decision D11
+  story: {
+    enabled: false,
+    chapterShare: 0.6,
+    groupKinds: ["normal", "normal", "fast"],
+    floorHp: 1,
+    resetSpeed: true,
+  },
   // ---------------- the melee slot (expansion, round 4) ----------------
   // G.MELEE_WEAPONS has each weapon; js/melee.js is the swing.
   melee: {

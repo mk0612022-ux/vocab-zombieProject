@@ -23,8 +23,13 @@
 // ===================================================================
 G.Lobby = {
   EASE: "cubic-bezier(0.22, 1, 0.36, 1)",
-  TABS: ["campaign", "training"],
+  // (story series, round 1) the Story tab, first, while Story Mode is on (G.Story.on)
+  TABS_ALL: ["story", "campaign", "training"],
+  get TABS() { return this.TABS_ALL.filter((t) => t !== "story" || !!(G.Story && G.Story.on())); },
   MODES: [
+    // (story series, round 1) the chapters (js/data/story/ch*.js); chapter 2 is named, still to come
+    { id: "story1", tab: "story", chapter: "ch1", badge: "story", c1: "#74b9ff", c2: "#0984e3", icon: "📖", art: "school" },
+    { id: "story2", tab: "story", chapter: "ch2", badge: "story", c1: "#b2bec3", c2: "#636e72", icon: "🏥", art: "hospital", soon: true },
     { id: "school", tab: "campaign", level: 1, badge: "featured", c1: "#ff9f43", c2: "#ee5a24", icon: "🏫" },
     { id: "hospital", tab: "campaign", level: 2, badge: "campaign", c1: "#1dd1a1", c2: "#0a8f86", icon: "🏥", needs: 2 },
     { id: "bunker", tab: "campaign", level: 3, badge: "campaign", c1: "#ff6b81", c2: "#a3203c", icon: "🛡️", needs: 3 },
@@ -40,7 +45,7 @@ G.Lobby = {
     { id: "custom", tab: "training", badge: "creative", c1: "#fd79a8", c2: "#a55eea", icon: "✏️" },
   ],
   tab: "campaign",
-  sel: { campaign: 0, training: 0 },
+  sel: { story: 0, campaign: 0, training: 0 },
   focus: "cards",                 // cards | back (overhaul, round 5)
   device: "kb",
   built: false,
@@ -49,7 +54,7 @@ G.Lobby = {
   // (a mode behind an expansion flag that is off is not shown)
   modes(tab) { return this.MODES.filter((m) => m.tab === (tab || this.tab) && (!m.flag || !!(G.CONFIG.expansion && G.CONFIG.expansion[m.flag]))); },
   current() { return this.modes()[this.sel[this.tab]] || this.modes()[0]; },
-  locked(m) { return !!m.needs && !G.save.unlockedLevels.includes(m.needs); },
+  locked(m) { return !!m.soon || (!!m.needs && !G.save.unlockedLevels.includes(m.needs)); },
   art(m, card) { return "assets/lobby/" + (m.art || m.id) + (card ? "-card" : "") + ".jpg"; },
   title(m) { return m.level ? G.getLevel(m.level).name : G.T("lobby.mode." + m.id); },
   // the level's own word families from the word bank (the player's added ones are not counted)
@@ -101,6 +106,12 @@ G.Lobby = {
     } else if (m.id === "tutorial") {
       rows.push([T("lobby.status"), G.TrainingYard ? G.TrainingYard.status() : "–"]);
       rows.push([T("lobby.tutTime"), T("lobby.tutMinutes")]);
+    } else if (m.chapter) {
+      // (story series, round 1) where the chapter is at, how long it is, the best time
+      rows.push([T("lobby.status"), G.Story ? G.Story.status(m.chapter) : "–"]);
+      rows.push([T("lobby.tutTime"), T(m.soon ? "story.status.soon" : "story.length")]);
+      const d = G.save.story && G.save.story.ch && G.save.story.ch[m.chapter];
+      if (d && d.best > 0) { const t = Math.round(d.best); rows.push([T("lobby.bestTime"), Math.floor(t / 60) + ":" + String(t % 60).padStart(2, "0")]); }
     } else if (m.id === "custom") {
       const n = Object.values(S.customWords || {}).reduce((a, l) => a + l.length, 0);
       rows.push([T("lobby.yourWords"), n]);
@@ -291,7 +302,7 @@ G.Lobby = {
         `<span class="lc-or"><span class="kb-only"><kbd>Enter</kbd></span><span class="pad-only"><kbd class="pad-a">A</kbd></span><span class="touch-only">${G.escapeHtml(T("lobby.tapAgain"))}</span> ${G.escapeHtml(T("lobby.moreChoices"))}</span>`;
       this.el("lobby-cp-btn").onclick = (e) => { e.stopPropagation(); this.launch({ cont: true }); };
     }
-    else el.innerHTML = `<span class="kb-only"><kbd>Enter</kbd></span><span class="pad-only"><kbd class="pad-a">A</kbd></span><span class="touch-only">${G.escapeHtml(T("lobby.tapAgain"))}</span> ${G.escapeHtml(T(m.level || m.id === "endless" || m.id === "daily" || m.id === "review" || m.id === "tutorial" ? "lobby.play" : "lobby.open"))}`;
+    else el.innerHTML = `<span class="kb-only"><kbd>Enter</kbd></span><span class="pad-only"><kbd class="pad-a">A</kbd></span><span class="touch-only">${G.escapeHtml(T("lobby.tapAgain"))}</span> ${G.escapeHtml(T(m.level || m.chapter || m.id === "endless" || m.id === "daily" || m.id === "review" || m.id === "tutorial" ? "lobby.play" : "lobby.open"))}`;
   },
   // the big picture and the text: cross-faded, the new title rising in
   showPreview(instant) {
@@ -412,6 +423,7 @@ G.Lobby = {
       else if (m.id === "daily") G.Game.startDailyChallenge();
       else if (m.id === "review") G.Study.openDaily();
       else if (m.id === "tutorial" && G.TrainingYard) G.TrainingYard.open();   // (expansion, round 7)
+      else if (m.chapter && G.Story) G.Story.open(m.chapter);                  // (story series, round 1)
       else if (m.id === "practice") G.Game.goToPracticeSetup();
       else if (m.id === "custom") G.CustomVocabUI.open("screen-mainmenu");
       this.el("lobby").classList.remove("launching");

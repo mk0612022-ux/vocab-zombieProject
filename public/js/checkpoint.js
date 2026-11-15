@@ -79,10 +79,11 @@
       this.toast(cp.wave);
       return cp;
     },
-    toast(wave) {
+    // (story series, round 1: `text` in place of the wave's line -- a chapter's checkpoint)
+    toast(wave, text) {
       const el = document.getElementById("hud-checkpoint");
       if (el) {
-        el.querySelector(".cp-text").textContent = T("cp.saved", { n: wave });
+        el.querySelector(".cp-text").textContent = text || T("cp.saved", { n: wave });
         el.classList.remove("hidden", "showing"); void el.offsetWidth;
         el.classList.add("showing");
         clearTimeout(this._toastT);

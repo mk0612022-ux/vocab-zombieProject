@@ -44,6 +44,7 @@ G.SaveManager = (function () {
     learning: ["wordStats", "wordStatsVersion", "learn", "customWords", "importedSets"],
     progress: ["unlockedLevels", "levelHighScores", "dailyHighScores", "endlessHighScore", "endlessHighWave", "leaderboards", "achievements", "unlockedWeapons", "notes", "bosses", "attach"],
     flags: ["learnSeen", "tutorialDone", "tutorialSeen", "training", "tipsSeen"],   // (training, tipsSeen: expansion, round 7)
+    story: "story",                                                                   // (story series, round 1: Story Mode, per chapter)
   };
   function toDoc(s) {
     const doc = { schemaVersion: SCHEMA }, known = {};

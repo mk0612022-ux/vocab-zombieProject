@@ -1591,7 +1591,7 @@ body.spell-only #touch-fire, body.spell-only #touch-ads, body.spell-only #touch-
   body.touch-mode .hud-spell .spad-clue { display: none; }
 }
 /* a study session has no money */
-body.study-run .hud-savings { display: none; }
+body.study-run .hud-savings, body.story-run .hud-savings { display: none; }   /* (story series, round 1: a chapter has no shop) */
 
 /* Spell to Reload (D2): low on the screen, so the zombies stay in view */
 .spell-reload { background: rgba(0,0,0,0.28); align-items: flex-end; padding-bottom: calc(84px + var(--sa-b)); }
@@ -2736,3 +2736,7 @@ body.touch-mode .report-box .btn,
 body.touch-mode .rp-chip,
 body.touch-mode .set-btn,
 body.touch-mode .gt-btn { min-height: 44px; }
+
+/* ===================== (story series, round 1) Story Mode ===================== */
+/* the chapter window's note while the series is being built (?story=1) */
+.story-preview { margin: 6px 0 0; padding: 6px 10px; border-radius: 8px; background: rgba(116,185,255,0.1); border: 1px solid rgba(116,185,255,0.35); color: #cfe4ff; font-size: 0.82rem; }

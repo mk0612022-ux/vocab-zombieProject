@@ -1,0 +1,274 @@
+// ===================================================================
+// Story Mode (story series, round 1): the chapters' shell
+// -------------------------------------------------------------------
+// A chapter (js/data/story/ch*.js) is played as a run of its own, mode
+// "story" (js/game.js): its map, its words, no waves, no shop, no wave clear;
+// its scenes (js/story/scenes.js) send the zombies and say what to do. Every
+// scene ends on a checkpoint (and some in the middle): a death puts the player
+// back there, and the chapter can be left and picked up again from the Story tab.
+//
+//   G.Story.on()               the flag, G.CONFIG.story.enabled -- or ?story=1 in
+//                              the address while the series is being built
+//   G.Story.chapters()         the chapters, in order
+//   G.Story.data(ch)           this player's save for a chapter (made when first asked)
+//   G.Story.status(ch)         for the lobby's card: not started / scene i of n / completed
+//   G.Story.open(ch)           from the lobby: Continue / Start over / Skip Prologue / Play
+//   G.Story.start(ch, from)    a run: from = a checkpoint, or { scene, beat } (Skip
+//                              Prologue: scene 1), or null (from the beginning)
+//   G.Story.level(ch)          the level G.Game builds (the map: the Training Yard's
+//                              until story round 4)
+//   G.Story.pairs(ch)          the chapter's words the bank has, in the player's languages
+//   G.Story.plan(game, n)      a group's words: CONFIG.story.chapterShare from the
+//                              chapter (as a wave plans them: due, learning, at most
+//                              maxNew new), the rest words due anywhere else
+//   G.Story.checkpoint / died / finish / prologueDone / sceneReached   the runner's calls
+//   G.Story.beginRun / update / teardown / hudHead / idleMeaning       js/game.js's hooks
+// The answers count in the memory boxes as everywhere else; the chapter keeps
+// its own totals (right, wrong, time) for its summary and achievements.
+// ===================================================================
+window.G = window.G || {};
+
+G.Story = (function () {
+  const T = (k, v) => G.T(k, v);
+  const C = () => G.CONFIG.story || {};
+  const chapter = (id) => (G.STORY_CHAPTERS || {})[id] || null;
+  let run = null;           // the chapter under way: { id, ch, pool, sceneI, beatI, ... }
+  let pending = null;       // what G.Game.startStory is to begin with: { id, from }
+
+  function on() { return !!C().enabled || /[?&]story=1(\b|$)/.test(location.search || ""); }
+  function chapters() { return (G.STORY_ORDER || []).map(chapter).filter(Boolean); }
+  // the save's entry for a chapter; made (with every default) the first time
+  function data(id) {
+    const st = G.save.story || (G.save.story = { ch: {} });
+    if (!st.ch) st.ch = {};
+    if (!st.ch[id]) st.ch[id] = G.normalizeStory({ ch: { [id]: {} } }).ch[id];
+    return st.ch[id];
+  }
+  const peek = (id) => (G.save && G.save.story && G.save.story.ch && G.save.story.ch[id]) || null;
+  function status(id) {
+    const c = chapter(id);
+    if (!c) return "";
+    if (c.soon) return T("story.status.soon");
+    const d = peek(id);
+    if (!d || !d.started) return T("story.status.new");
+    if (d.done && !d.cp) return T("story.status.done");
+    const i = d.cp ? d.cp.scene : d.scene;
+    return T("story.status.scene", { i: i + 1, n: c.scenes.length });
+  }
+  const sceneTitle = (c, i) => (c.scenes[i] ? T(c.scenes[i].title) : "");
+
+  // ---------------- words ----------------
+  // the chapter's words the Master Word Bank has (a family form as its headword)
+  function entries(id) {
+    const c = chapter(id), seen = new Set(), out = [];
+    if (!c || !c.words || !G.WordBank) return out;
+    c.words.main.forEach((w) => {
+      const e = G.WordBank.byId(w) || G.WordBank.lookup(w) || (G.WordBank.textOwner ? G.WordBank.textOwner(w, "en") : null);
+      if (e && !seen.has(e.id)) { seen.add(e.id); out.push(e); }
+    });
+    return out;
+  }
+  function missing(id) {
+    const c = chapter(id);
+    if (!c || !c.words || !G.WordBank) return [];
+    return c.words.main.filter((w) => !(G.WordBank.byId(w) || G.WordBank.lookup(w) || (G.WordBank.textOwner && G.WordBank.textOwner(w, "en"))));
+  }
+  function pairs(id) {
+    const wl = G.Lang.word(), ml = G.Lang.meaning();
+    return entries(id).map((e) => G.WordBank.pairOf(e, wl, ml)).filter(Boolean);
+  }
+  // a group of n zombies' words. Counted slot by slot through the run (so small
+  // groups still add up): CONFIG.story.chapterShare of the slots from the
+  // chapter -- the first of them as a wave ranks them: due, learning, at most
+  // maxNew new -- and the rest words due anywhere else in the bank; with none
+  // due there, the chapter's own. (A zombie takes one of the plan's words:
+  // js/game.js spawnZombieAt.)
+  function plan(game, n) {
+    const pool = (run && run.pool) || game.wordPool || [];
+    n = Math.max(1, n | 0);
+    if (!pool.length) return [];
+    const share = C().chapterShare, k0 = run ? run.slots || 0 : 0;
+    let nCh = 0;
+    for (let k = k0 + 1; k <= k0 + n; k++) if (Math.round(share * k) > Math.round(share * (k - 1))) nCh++;
+    if (run) run.slots = k0 + n;
+    const mine = new Set(pool.map((p) => G.wordKey(p)));
+    const elsewhere = (run && run.elsewhere) || (G.getAllBuiltinWords ? G.getAllBuiltinWords() : []).filter((p) => !mine.has(G.wordKey(p)));
+    if (run) run.elsewhere = elsewhere;
+    const ranked = G.WavePlan.build(pool, n);
+    const out = ranked.slice(0, nCh);
+    G.shuffle(G.SRS.split(elsewhere).due).slice(0, n - out.length).forEach((p) => out.push(p));
+    // (short of words due elsewhere: the chapter's own make up the group)
+    for (const p of ranked.concat(G.shuffle(pool))) { if (out.length >= n) break; if (!out.includes(p)) out.push(p); }
+    return G.shuffle(out);
+  }
+
+  // ---------------- the level ----------------
+  function level(id) {
+    const c = chapter(id);
+    return { id: "story_" + id, theme: c.map || "training", icon: "📖", waves: 1, difficulty: 0.8, spawnBaseInterval: 99, maxAliveZombies: 16, wordsKey: null, name: T(c.title), story: id };
+  }
+
+  // ---------------- from the lobby ----------------
+  function open(id) {
+    if (!on()) return;
+    const c = chapter(id);
+    if (!c || c.soon || !G.Dialog) return;
+    const d = peek(id) || {};
+    // (the main button last, as in the game's other windows: Continue, Play again / Start over, or Play)
+    // (a completed chapter played again has its checkpoints too: `done` stays, it was finished once)
+    const buttons = [{ label: T("dialog.cancel"), cancel: true }];
+    const resume = !!d.cp;
+    const skip = { label: T("story.open.skip"), action: () => start(id, { scene: 1, beat: 0, skip: true }) };
+    if (resume) {
+      buttons.push({ label: T("story.open.restart"), action: () => restart(id, true) });
+      if (d.prologueDone) buttons.push(skip);
+      buttons.push({ label: T("story.open.continue", { scene: sceneTitle(c, d.cp.scene) }), primary: true, action: () => start(id, d.cp) });
+    } else if (d.started) {
+      if (d.prologueDone) buttons.push(skip);
+      buttons.push({ label: T(d.done ? "story.open.again" : "story.open.restart"), primary: true, action: () => restart(id, false) });
+    } else buttons.push({ label: T("story.open.play"), primary: true, action: () => start(id, null) });
+    const text = resume ? T("story.open.resume", { i: d.cp.scene + 1, n: c.scenes.length, scene: sceneTitle(c, d.cp.scene) }) : T("story.open.text");
+    const body = C().enabled ? "" : `<p class="story-preview">${G.escapeHtml(T("story.preview"))}</p>`;
+    G.Dialog.open({ icon: "📖", title: T("story.chapterN", { n: c.n }) + " · " + T(c.title), text, body, buttons });
+  }
+  // start over: with a checkpoint to lose, asked first
+  function restart(id, hasCp) {
+    if (!hasCp) { start(id, null); return; }
+    G.Dialog.confirm({ title: T("story.open.restart"), text: T("story.restart.text"), yes: T("story.open.restart"), no: T("dialog.cancel") }, () => start(id, null));
+  }
+  function start(id, from) {
+    const c = chapter(id);
+    if (!c || c.soon || !G.Game || !G.Game.startStory) return;
+    const d = data(id);
+    d.started = true; d.runs = (d.runs || 0) + 1;
+    // (from the beginning, or Skip Prologue: a new play-through)
+    if (!from || from.skip) { d.cp = null; d.scene = from && from.skip ? 1 : 0; d.curTime = 0; d.curRight = 0; d.curWrong = 0; }
+    G.persist();
+    pending = { id, from: from || null };
+    G.Game.startStory(id);
+  }
+
+  // ---------------- the run ----------------
+  function beginRun(game) {
+    const p = pending || { id: "ch1", from: null };
+    pending = null;
+    const c = chapter(p.id);
+    if (!c) return;
+    const from = p.from;
+    run = { id: p.id, ch: c, game, pool: game.wordPool, flags: new Set(from && from.flags ? from.flags : []), time: 0, time0: 0,
+      right0: game.correctCount || 0, wrong0: game.wrongCount || 0, over: false, dead: false };
+    document.body.classList.add("story-run");
+    // what the checkpoint was carrying (full health: a checkpoint is a fresh start)
+    if (from && from.guns) {
+      const pl = game.player;
+      from.guns.forEach((g) => { if (G.WEAPON_DEFS[g] && !pl.gunSlots.includes(g) && G.Loadout && G.Loadout.add) G.Loadout.add(game, g); });
+      Object.keys(from.ammo || {}).forEach((g) => { if (pl.ammo[g]) { pl.ammo[g].mag = from.ammo[g][0]; pl.ammo[g].reserve = from.ammo[g][1]; } });
+      if (from.melee && from.melee !== (pl.melee || "knife") && G.Melee && G.MELEE_WEAPONS && G.MELEE_WEAPONS[from.melee]) G.Melee.give(game, from.melee);
+      pl.hp = pl.maxHp;
+    }
+    const sceneI = from ? Math.min(c.scenes.length - 1, from.scene | 0) : 0;
+    G.StoryScenes.enter(game, run, sceneI, from && !from.skip ? from.beat : 0);
+    const sc = c.scenes[sceneI], at = from && Number.isFinite(from.x) && from.x !== null ? from : sc.start;
+    if (at) {
+      game.teleportPlayer(new THREE.Vector3(at.x, 0, at.z));
+      if (Number.isFinite(at.yaw)) game.yawObject.rotation.y = at.yaw;
+      game.pitchObject.rotation.x = 0;
+    }
+    game.requiredKills = 0; game.spawnedCount = 0;
+    data(p.id).scene = Math.max(data(p.id).scene || 0, sceneI);
+    sceneCard();
+  }
+  function update(game, dt) {
+    if (!run || run.over || game.mode !== "story") return;
+    if (game.state === "GAMEPLAY" && !game.paused) run.time += dt;
+    G.StoryScenes.update(game, run, dt);
+  }
+  // the answers and the time since the last time they were counted, into the chapter's totals
+  function commit(game) {
+    if (!run) return;
+    const d = data(run.id);
+    const dr = Math.max(0, (game.correctCount || 0) - run.right0), dw = Math.max(0, (game.wrongCount || 0) - run.wrong0), dt = Math.max(0, run.time - run.time0);
+    d.right += dr; d.wrong += dw; d.time += dt;
+    d.curRight += dr; d.curWrong += dw; d.curTime += dt;
+    run.right0 = game.correctCount || 0; run.wrong0 = game.wrongCount || 0; run.time0 = run.time;
+  }
+  // the scene's name across the screen: as a run begins, and on to the next scene
+  function sceneCard() {
+    if (run && G.UI.flashPurchaseBanner) G.UI.flashPurchaseBanner(G.escapeHtml(sceneTitle(run.ch, run.sceneI)), G.escapeHtml(T("story.chapterN", { n: run.ch.n })));
+  }
+  function checkpoint(game, at) {
+    if (!run) return;
+    commit(game);
+    const d = data(run.id), pl = game.player, ammo = {};
+    pl.gunSlots.forEach((g) => { const a = pl.ammo[g]; if (a) ammo[g] = [a.mag, a.reserve]; });
+    const pos = at && Number.isFinite(at.x) ? at : null;
+    d.cp = { scene: run.sceneI, beat: run.beatI, at: Date.now(), hp: Math.max(1, pl.hp), guns: pl.gunSlots.slice(), melee: pl.melee || "knife", ammo,
+      flags: Array.from(run.flags), x: pos ? pos.x : null, z: pos ? pos.z : null, yaw: pos && Number.isFinite(pos.yaw) ? pos.yaw : null };
+    d.scene = Math.max(d.scene || 0, run.sceneI);
+    G.save.story = G.normalizeStory(G.save.story);
+    G.persist(true);
+    // (the campaign's checkpoint toast, js/checkpoint.js, with the chapter's line)
+    if (G.Checkpoint && G.Checkpoint.toast) G.Checkpoint.toast(0, T("story.checkpoint"));
+    if (G.Bus) G.Bus.emit("story:checkpoint", { ch: run.id, scene: run.sceneI, beat: run.beatI });
+  }
+  function prologueDone() { if (run) { data(run.id).prologueDone = true; G.persist(); } }
+  function sceneReached(i) { if (run) { const d = data(run.id); d.scene = Math.max(d.scene || 0, i); G.persist(); sceneCard(); } }
+
+  // the player down: a scene that cannot be lost keeps them standing; else back to the checkpoint
+  function died(game) {
+    if (!run || run.over) return false;
+    if (run.scene && run.scene.noDeath) { game.player.hp = Math.max(C().floorHp || 1, 1); return true; }
+    if (run.dead) { game.player.hp = 1; return true; }
+    run.dead = true;
+    game.player.hp = 1;
+    commit(game);
+    G.persist(true);
+    const id = run.id, d = data(id);
+    const back = d.cp ? d.cp : { scene: run.sceneI, beat: 0 };
+    G.Dialog.open({ icon: "🩸", title: T("story.death.title"), text: T("story.death.text"), buttons: [
+      { label: T("story.menu"), cancel: true, action: () => G.Game.quitToMainMenu() },
+      { label: T("story.death.retry"), primary: true, action: () => start(id, back) },
+    ] });
+    return true;
+  }
+  // the chapter's end: done, the best time, the summary (story round 10 gives it its own screen)
+  function finish(game) {
+    if (!run) return;
+    commit(game);
+    run.over = true;
+    const id = run.id, c = run.ch, d = data(id);
+    d.done = true; d.cp = null; d.scene = 0; d.finishedAt = Date.now();
+    if (d.curTime > 0) d.best = d.best > 0 ? Math.min(d.best, d.curTime) : d.curTime;
+    const total = d.curRight + d.curWrong, acc = total ? Math.round((d.curRight / total) * 100) : 0;
+    const t = Math.round(d.curTime), time = Math.floor(t / 60) + ":" + String(t % 60).padStart(2, "0");
+    G.persist(true);
+    if (G.Bus) G.Bus.emit("story:done", { ch: id, time: d.curTime, right: d.curRight, wrong: d.curWrong });
+    const next = c.next && chapter(c.next);
+    // (the next chapter: named, and its button off while it is still to come)
+    const buttons = [];
+    if (next) buttons.push({ label: T(next.soon ? "story.end.nextSoon" : "story.end.next", { title: T(next.title) }), disabled: !!next.soon, action: () => { if (!next.soon) start(next.id, null); } });
+    buttons.push({ label: T("story.menu"), primary: true, cancel: true, action: () => G.Game.quitToMainMenu() });
+    G.Dialog.open({ icon: "🏁", title: T("story.end.title"), text: T("story.end.text", { title: T(c.title), t: time, a: acc }), buttons });
+  }
+  function teardown(game) {
+    if (run && !run.over) commit(game);
+    if (run) G.persist();
+    run = null;
+    document.body.classList.remove("story-run");
+  }
+  // the HUD's top box while a chapter is played: the chapter, the scene; the objective in the word box
+  function hudHead(game, left) {
+    if (!run) return { level: "", wave: "", left: "" };
+    return { level: T("story.chapterN", { n: run.ch.n }), wave: sceneTitle(run.ch, run.sceneI), left: game.zombies.some((z) => z.alive) ? T("hud.zombiesLeft", { n: left }) : "" };
+  }
+  function idleMeaning() { return run && run.objective ? T(run.objective) : "-"; }
+  // the page going away mid-scene: the answers and the time so far into the chapter's
+  // totals (the player comes back at the checkpoint; js/savemanager.js writes the save)
+  window.addEventListener("pagehide", () => { if (run && !run.over && run.game) { commit(run.game); G.persist(true); } });
+
+  return {
+    on, chapters, chapter, data, status, entries, missing, pairs, plan, level, open, restart, start,
+    beginRun, update, commit, checkpoint, prologueDone, sceneReached, died, finish, teardown, hudHead, idleMeaning,
+    get run() { return run; }, get pending() { return pending; },
+  };
+})();

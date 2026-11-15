@@ -146,6 +146,12 @@ G.defaultSave = function () {
     // the situation tips already shown (js/gametips.js)
     training: { done: false, skipped: false, step: 0, offered: false, finishedAt: 0 },
     tipsSeen: {},
+    // (story series, round 1) Story Mode, per chapter once it is first played
+    // (js/story/story.js, G.normalizeStory below): started, done, the prologue
+    // done (Skip Prologue), the scene reached, the checkpoint, the choices kept for
+    // later chapters, what was collected, the chapter's achievements, the answers
+    // right and wrong, the time played, the best time
+    story: { ch: {} },
     // (expansion, round 1) the player's public face (the accounts, later) and
     // the save's own record (js/savemanager.js): rev counts its writes
     profile: { name: "", avatar: null, publicId: null },
@@ -154,6 +160,43 @@ G.defaultSave = function () {
 };
 
 G.save = null;
+
+// (story series, round 1) Story Mode's part of the save, made valid: a chapter
+// is "ch" and its number; everything in it of the right type and size, or its
+// default. A chapter is kept only once it has been played (G.Story.data makes it).
+G.normalizeStory = function (raw) {
+  const part = (o) => (o && typeof o === "object" && !Array.isArray(o) ? o : {});
+  const num = (v, lo, hi) => { v = Number(v); return Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : lo; };
+  const int = (v, lo, hi) => Math.floor(num(v, lo, hi));
+  const ID = /^[a-zA-Z0-9_]{1,32}$/;
+  const ids = (a, n) => (Array.isArray(a) ? Array.from(new Set(a.filter((x) => typeof x === "string" && ID.test(x)))).slice(0, n) : []);
+  const ch = part(part(raw).ch), out = { ch: {} };
+  Object.keys(ch).forEach((key) => {
+    if (!/^ch\d{1,2}$/.test(key)) return;
+    const c = part(ch[key]), cp = c.cp && typeof c.cp === "object" && !Array.isArray(c.cp) ? c.cp : null;
+    const choices = {}, ach = {};
+    Object.keys(part(c.choices)).forEach((k) => { const v = c.choices[k]; if (ID.test(k) && typeof v === "string" && ID.test(v)) choices[k] = v; });
+    Object.keys(part(c.achievements)).forEach((k) => { if (ID.test(k) && c.achievements[k]) ach[k] = true; });
+    let point = null;
+    if (cp) {
+      const ammo = {};
+      Object.keys(part(cp.ammo)).forEach((g) => { const a = cp.ammo[g]; if (ID.test(g) && Array.isArray(a) && a.length === 2) ammo[g] = [int(a[0], 0, 9999), int(a[1], 0, 99999)]; });
+      const opt = (raw, lim) => { if (raw === null || raw === undefined || raw === "") return null; const v = Number(raw); return Number.isFinite(v) ? Math.max(-lim, Math.min(lim, v)) : null; };
+      point = { scene: int(cp.scene, 0, 40), beat: int(cp.beat, 0, 200), at: num(cp.at, 0, 1e13), hp: num(cp.hp, 0, 1e4),
+        guns: ids(cp.guns, 10), melee: typeof cp.melee === "string" && ID.test(cp.melee) ? cp.melee : "", ammo, flags: ids(cp.flags, 80),
+        x: opt(cp.x, 5000), z: opt(cp.z, 5000), yaw: opt(cp.yaw, 7) };
+    }
+    out.ch[key] = {
+      started: !!c.started, done: !!c.done, prologueDone: !!c.prologueDone, scene: int(c.scene, 0, 40), cp: point,
+      choices, collected: ids(c.collected, 80), achievements: ach,
+      right: int(c.right, 0, 1e7), wrong: int(c.wrong, 0, 1e7), time: num(c.time, 0, 1e7), best: num(c.best, 0, 1e7),
+      finishedAt: num(c.finishedAt, 0, 1e13), runs: int(c.runs, 0, 1e6),
+      // this play-through (from the start or Skip Prologue to the end, over its checkpoints): the summary's figures
+      curTime: num(c.curTime, 0, 1e7), curRight: int(c.curRight, 0, 1e7), curWrong: int(c.curWrong, 0, 1e7),
+    };
+  });
+  return out;
+};
 
 // One place that turns ANY stored or imported object into a valid save:
 // fills in fields added since it was written, and repairs fields of the wrong
@@ -298,6 +341,7 @@ G.normalizeSave = function (data) {
   s.tipsSeen = {};
   if (tps && typeof tps === "object" && !Array.isArray(tps)) Object.keys(tps).forEach((k) => { if (/^[a-zA-Z]{1,24}$/.test(k) && tps[k]) s.tipsSeen[k] = true; });
   s.settings.tips = s.settings.tips !== false;
+  s.story = G.normalizeStory(data.story);   // (story series, round 1)
   const part = (o) => (o && typeof o === "object" && !Array.isArray(o) ? o : {});
   const text = (v, n) => (typeof v === "string" ? v.slice(0, n) : "");
   const count = (v) => { v = Number(v); return Number.isFinite(v) && v > 0 ? v : 0; };
