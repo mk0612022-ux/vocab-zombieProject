@@ -1517,6 +1517,7 @@ G.Game = {
       this.correctCount++;
       this.correctKills++;
       G.Audio.sfx("correct");
+      if (this.mode === "story" && G.LexiLens) G.LexiLens.onCorrect();   // (story series, round 2: "Neural pattern disrupted")
       // J3: pronounce the word once it has been earned (default), so the
       // audio reinforces the answer instead of giving it away
       if ((G.save.settings.speechMode || "after") === "after") G.Audio.speak(z.word);
@@ -2561,6 +2562,8 @@ G.Game = {
       if (Math.abs(rx) > P.deadzone) dx += rx * k;
       if (Math.abs(ry) > P.deadzone) dy += ry * k;
     }
+    // (story series, round 2) a chapter's camera turning the view, or holding it (js/story/storycam.js)
+    if (this.mode === "story" && G.StoryCam && G.StoryCam.steer(this, dt)) { dx = 0; dy = 0; }
     this.yawObject.rotation.y -= dx * 0.0022;
     this.pitchObject.rotation.x -= dy * 0.0022;
     this.pitchObject.rotation.x = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, this.pitchObject.rotation.x));
@@ -2601,6 +2604,8 @@ G.Game = {
       if (Math.abs(lx) > 0.15) mx += lx;
       if (Math.abs(ly) > 0.15) mz += ly;
     }
+    // (story series, round 2) a chapter walking the player somewhere by themselves
+    if (this.mode === "story" && G.StoryCam) { const w = G.StoryCam.feet(this, dt); if (w) { mx = w.x; mz = w.z; } }
     const len = Math.hypot(mx, mz);
     if (len > 1) { mx /= len; mz /= len; }
     // Sprint is gated by stamina (category I): held sprint only speeds you up
@@ -2661,7 +2666,9 @@ G.Game = {
     // no real "standing on geometry" physics, so the player's eye height just
     // tracks whatever height zone they're currently over, on top of jump gravity.
     const baseEyeY = 1.7 + G.getFloorHeightAt(this.world, this.yawObject.position.x, this.yawObject.position.z, this.yawObject.position.y - 1.7);
-    const jumpPressed = !feetHeld && ((G.Input.mode === "desktop" && !typing && G.Input.isDown("jump")) || G.Input.touchJump || (G.Input.padJump && !(G.Spell && G.Spell.active)));
+    // (story series, round 2: while a line is up the jump key is the dialogue's -- held, faster)
+    const storyHolds = this.mode === "story" && G.StoryDialogue && G.StoryDialogue.holdsJump();
+    const jumpPressed = !feetHeld && !storyHolds && ((G.Input.mode === "desktop" && !typing && G.Input.isDown("jump")) || G.Input.touchJump || (G.Input.padJump && !(G.Spell && G.Spell.active)));
     if (jumpPressed && this.yawObject.position.y <= baseEyeY + 0.01 && this.velocityY === 0) this.velocityY = PC.jumpSpeed;
     this.velocityY -= 9.8 * dt;
     this.yawObject.position.y += this.velocityY * dt;
@@ -3758,6 +3765,8 @@ G.onKeyDown = function (e) {
   if (Game.state === "GAMEPLAY" && e.code === kbs.thaiHint) { Game.showThai(); return; }
   if (Game.state === "GAMEPLAY" && e.code === "KeyT" && G.Tutorial.current) { G.Tutorial.skip(); return; }
   if (Game.state === "GAMEPLAY" && G.GameTips && G.GameTips.onKey(e)) return;   // (expansion, round 7: H got it, N no more tips)
+  // (story series, round 2) a chapter: the phone (T), its torch (L), Enter for the next line
+  if (Game.state === "GAMEPLAY" && Game.mode === "story" && !(G.Cutscene && G.Cutscene.active) && G.Story && G.Story.onKey(e)) return;
   if (Game.state === "GAMEPLAY") {
     const kb = G.save.settings.keybinds;
     if (e.code === kb.pause) { Game.pause(); return; }

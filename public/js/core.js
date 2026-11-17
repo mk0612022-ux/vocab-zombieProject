@@ -62,6 +62,7 @@ G.defaultSave = function () {
       headBobOff: false,          // turns the camera bob and sway off entirely
       mouseSensitivity: 1,
       keybinds: G.defaultKeybinds ? G.defaultKeybinds() : {},
+      storySubs: "full",          // (story series, round 2) a chapter's subtitles: full | key (its words only) | en (none)
       musicVolume: 0.6,
       sfxVolume: 0.8,
       ambientVolume: 0.6,         // category J4
@@ -169,6 +170,9 @@ G.normalizeStory = function (raw) {
   const num = (v, lo, hi) => { v = Number(v); return Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : lo; };
   const int = (v, lo, hi) => Math.floor(num(v, lo, hi));
   const ID = /^[a-zA-Z0-9_]{1,32}$/;
+  // (story round 2: a checkpoint's flags name what happened -- "msg:beam1", "chose:pencil")
+  const FLAG = /^[a-zA-Z0-9_:-]{1,48}$/;
+  const flagList = (a, n) => (Array.isArray(a) ? Array.from(new Set(a.filter((x) => typeof x === "string" && FLAG.test(x)))).slice(0, n) : []);
   const ids = (a, n) => (Array.isArray(a) ? Array.from(new Set(a.filter((x) => typeof x === "string" && ID.test(x)))).slice(0, n) : []);
   const ch = part(part(raw).ch), out = { ch: {} };
   Object.keys(ch).forEach((key) => {
@@ -183,7 +187,7 @@ G.normalizeStory = function (raw) {
       Object.keys(part(cp.ammo)).forEach((g) => { const a = cp.ammo[g]; if (ID.test(g) && Array.isArray(a) && a.length === 2) ammo[g] = [int(a[0], 0, 9999), int(a[1], 0, 99999)]; });
       const opt = (raw, lim) => { if (raw === null || raw === undefined || raw === "") return null; const v = Number(raw); return Number.isFinite(v) ? Math.max(-lim, Math.min(lim, v)) : null; };
       point = { scene: int(cp.scene, 0, 40), beat: int(cp.beat, 0, 200), at: num(cp.at, 0, 1e13), hp: num(cp.hp, 0, 1e4),
-        guns: ids(cp.guns, 10), melee: typeof cp.melee === "string" && ID.test(cp.melee) ? cp.melee : "", ammo, flags: ids(cp.flags, 80),
+        guns: ids(cp.guns, 10), melee: typeof cp.melee === "string" && ID.test(cp.melee) ? cp.melee : "", ammo, flags: flagList(cp.flags, 120),
         x: opt(cp.x, 5000), z: opt(cp.z, 5000), yaw: opt(cp.yaw, 7) };
     }
     out.ch[key] = {
@@ -218,6 +222,7 @@ G.normalizeSave = function (data) {
     if (Object.keys(oldKb).some((b) => oldKb[b] === code)) s.settings.keybinds[a] = "";
   });
   if (![30, 45, 60, 0].includes(s.settings.shopTime)) s.settings.shopTime = def.settings.shopTime;
+  if (!["full", "key", "en"].includes(s.settings.storySubs)) s.settings.storySubs = def.settings.storySubs;   // (story series, round 2)
   s.leaderboards = Object.assign({}, def.leaderboards, data.leaderboards || {});
   if (!Array.isArray(s.unlockedLevels)) s.unlockedLevels = [1];
   s.unlockedLevels = s.unlockedLevels.filter((n) => Number.isInteger(n) && n >= 1 && n <= 3);
@@ -539,6 +544,7 @@ G.defaultKeybinds = function () {
     replay: "Digit9", thaiHint: "Digit0",
     pause: "Escape",
     report: "F8",                              // (expansion, round 2) the bug report: a key nothing types and no browser takes
+    phone: "KeyT", flashlight: "KeyL",         // (story series, round 2) a chapter's phone and its torch (decision D5: Tab and F are taken)
   };
 };
 

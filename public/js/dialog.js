@@ -7,7 +7,7 @@
 // one is being played. Mouse, touch, keys (Enter the main button, Escape
 // the cancel one, 1-3 any of them) and a controller (D-pad, A, B cancels).
 //
-//   G.Dialog.open({ title, text, body, focus, cls, buttons: [{ label, primary, danger, cancel, disabled, action }] })
+//   G.Dialog.open({ title, text, body, focus, cls, buttons: [{ label, html, primary, danger, cancel, disabled, action }] })
 //     body: HTML under the text (expansion, round 1: a table, a tick box, a box
 //     to type in, which keeps its own keys); focus: the id to start on;
 //     cls: a class of the window's own for this one time (expansion, round 9:
@@ -35,7 +35,8 @@ G.Dialog = {
     body.innerHTML = o.body || "";
     body.classList.toggle("hidden", !o.body);
     const btns = this.el("dialog-btns");
-    btns.innerHTML = o.buttons.map((b, i) => `<button class="btn${b.primary ? " btn-primary" : ""}${b.danger ? " btn-danger" : ""}" data-i="${i}"${b.cancel ? " data-pad-back" : ""}${b.disabled ? " disabled" : ""}>${esc(b.label)}<span class="kbd-only dlg-key"> (${b.cancel ? "Esc" : b.primary ? "Enter" : i + 1})</span></button>`).join("");
+    // (story series, round 2: `html` -- a button's own markup, already escaped: a story choice's line and subtitle)
+    btns.innerHTML = o.buttons.map((b, i) => `<button class="btn${b.primary ? " btn-primary" : ""}${b.danger ? " btn-danger" : ""}" data-i="${i}"${b.cancel ? " data-pad-back" : ""}${b.disabled ? " disabled" : ""}>${b.html != null ? b.html : esc(b.label)}<span class="kbd-only dlg-key"> (${b.cancel ? "Esc" : b.primary ? "Enter" : i + 1})</span></button>`).join("");
     btns.querySelectorAll("button").forEach((b) => { b.onclick = () => this.choose(parseInt(b.dataset.i, 10)); });
     this.el("dialog").classList.remove("hidden");
     const g = G.Game;

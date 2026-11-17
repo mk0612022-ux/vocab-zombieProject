@@ -147,14 +147,15 @@ window.G = window.G || {};
     },
 
     // ---------------- the peek (a word in a story note) ----------------
-    peek(pair, form) {
+    // (story series, round 2: opts.freeze -- a word looked up in a chapter's line holds the world, as a fight may be on)
+    peek(pair, form, opts) {
       if (!pair) return;
       $("word-peek-body").innerHTML = this.miniHtml(pair, { form });
       this.bind($("word-peek-body"));
       $("word-peek").classList.remove("hidden");
       $("btn-peek-close").onclick = () => this.closePeek();
       $("btn-peek-card").onclick = () => { this.closePeek(); this.open(pair); };
-      G.Modal.open("wordpeek", { keys: (e) => {
+      G.Modal.open("wordpeek", { freeze: !!(opts && opts.freeze), keys: (e) => {
         if (e.code === "Escape" || e.code === "Backspace" || e.code === "Enter") { this.closePeek(); return true; }
         if (e.code === G.save.settings.keybinds.replay || e.code === "KeyV") { G.Audio.speak(form || pair[0]); return true; }
         return true;

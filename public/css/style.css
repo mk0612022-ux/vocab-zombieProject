@@ -2740,3 +2740,139 @@ body.touch-mode .gt-btn { min-height: 44px; }
 /* ===================== (story series, round 1) Story Mode ===================== */
 /* the chapter window's note while the series is being built (?story=1) */
 .story-preview { margin: 6px 0 0; padding: 6px 10px; border-radius: 8px; background: rgba(116,185,255,0.1); border: 1px solid rgba(116,185,255,0.35); color: #cfe4ff; font-size: 0.82rem; }
+
+/* ===================== (story series, round 2) the narrative tools ===================== */
+/* the dialogue box (js/story/dialogue.js): bottom centre, over the HUD's dock; with no dock
+   under it lower down; in the black bars when they are on */
+.story-dlg { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(152px + var(--sa-b)); z-index: 17; width: min(760px, calc(100vw - 32px)); box-sizing: border-box;
+  background: rgba(6,10,14,0.86); border: 1px solid rgba(255,255,255,0.14); border-radius: 12px; padding: 8px 16px 12px; color: #eef3f6; font-family: var(--font-ui);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.45); pointer-events: auto; }
+.story-dlg.hidden { display: none; }
+body.story-run.lens-partial .story-dlg { bottom: calc(26px + var(--sa-b)); }
+body.story-run.story-bars .story-dlg, body.story-run.story-bars.lens-partial .story-dlg { bottom: calc(12vh + 10px + var(--sa-b)); }   /* just over the bottom bar */
+/* a short screen (a phone on its side): over the HUD's dock, smaller -- above it, it would cover the middle of the view */
+@media (max-height: 520px) {
+  .story-dlg, body.story-run.lens-partial .story-dlg { bottom: calc(6px + var(--sa-b)); padding: 5px 12px 8px; }
+  body.story-run.story-bars .story-dlg, body.story-run.story-bars.lens-partial .story-dlg { bottom: calc(12vh + 6px + var(--sa-b)); }
+  .story-dlg .sd-line { font-size: 0.95rem; line-height: 1.35; }
+  .story-dlg .sd-sub { font-size: 0.82rem; margin-top: 2px; }
+  .sd-head { min-height: 20px; }
+}
+body.touch-mode .story-dlg { width: min(560px, calc(100vw - 2 * (var(--tj, 140px) + 24px))); min-width: min(320px, calc(100vw - 32px)); }
+.sd-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 24px; }
+.sd-who { font-weight: 800; font-size: 0.8rem; letter-spacing: 0.06em; text-transform: uppercase; color: #9fe6ff; }
+.story-dlg[data-who="beam"] .sd-who, .sc-q[data-who="beam"] .sd-who { color: #ffcf6b; }
+.story-dlg[data-who="min"] .sd-who, .sc-q[data-who="min"] .sd-who { color: #8affb0; }
+.story-dlg[data-who="chai"] .sd-who, .sc-q[data-who="chai"] .sd-who { color: #8fb4ff; }
+.story-dlg[data-who="invig"] .sd-who, .sc-q[data-who="invig"] .sd-who { color: #c9d3ff; }
+.story-dlg[data-who="radio"] .sd-who, .story-dlg[data-who="pa"] .sd-who { color: #ffb199; }
+.sd-lvl { font: 600 0.72rem var(--font-ui); color: #cfe9ef; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.22); border-radius: 999px; padding: 4px 11px; cursor: pointer; }
+.sd-lvl.hidden { display: none; }
+body.touch-mode .sd-lvl { min-height: 44px; min-width: 44px; padding: 4px 14px; }
+.sd-line { font-size: 1.12rem; line-height: 1.45; margin-top: 2px; }
+body.touch-mode .sd-line { font-size: 1.02rem; }
+.sd-sub, .sc-sub { font-size: 0.95rem; line-height: 1.4; color: #c9d6dc; margin-top: 4px; }
+.sd-gloss .sd-g { white-space: nowrap; }
+.sd-gloss .sd-g b { color: #ffe08a; }
+.sd-word { font: inherit; color: inherit; background: none; border: 0; border-bottom: 1px dotted rgba(255,255,255,0.45); padding: 0; margin: 0; cursor: pointer; border-radius: 0; }
+.sd-word.key, .sd-key { font-weight: 800; color: #ffe08a; border-bottom-color: rgba(255,224,138,0.7); }
+.sd-word:hover, .sd-word:focus-visible { background: rgba(255,224,138,0.16); outline: none; }
+
+/* what holding does (Space / A / a finger): faster, or -- seen before -- skip; its ring fills */
+.story-hold { position: fixed; right: calc(16px + var(--sa-r)); bottom: calc(26px + var(--sa-b)); z-index: 17; display: flex; align-items: center; gap: 8px; padding: 5px 12px 5px 5px; border-radius: 999px;
+  background: rgba(0,0,0,0.55); color: #dfeee8; font: 600 0.78rem var(--font-ui); pointer-events: none; opacity: 0.72; }
+.story-hold.hidden { display: none; }
+.story-hold.on { opacity: 1; }
+.sh-ring { width: 22px; height: 22px; border-radius: 50%; flex: none; background: conic-gradient(#ffe08a calc(var(--p, 0) * 360deg), rgba(255,255,255,0.2) 0);
+  -webkit-mask: radial-gradient(circle, transparent 6px, #000 7px); mask: radial-gradient(circle, transparent 6px, #000 7px); }
+body.touch-mode .story-hold { bottom: auto; top: calc(10px + var(--sa-t)); right: calc(var(--mm-size, 150px) + 22px + var(--sa-r)); }
+
+/* a choice: G.Dialog's window with the question and the answers as lines */
+.dialog-box.story-choice { max-width: 560px; text-align: left; }
+.dialog-box.story-choice #dialog-title:empty, .dialog-box.story-choice #dialog-text:empty { display: none; }
+.story-choice .sc-q { margin-bottom: 12px; }
+.story-choice .sc-q .sd-line { font-size: 1.08rem; }
+.story-choice .dialog-btns { flex-direction: column; align-items: stretch; }
+.story-choice .dialog-btns .btn { position: relative; display: flex; flex-direction: column; align-items: flex-start; text-align: left; gap: 2px; padding: 10px 44px 10px 14px; min-height: 44px; }
+.story-choice .dialog-btns .btn .dlg-key { position: absolute; top: 10px; right: 12px; }
+.story-choice .sc-en { font-size: 1.02rem; }
+.story-choice .sc-sub { font-size: 0.86rem; color: #b8c8cf; font-weight: 500; margin-top: 0; }
+
+/* the phone (js/story/phone.js): a window of its own, the world held */
+.story-phone { position: fixed; inset: 0; z-index: 30; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.45); padding: 16px; box-sizing: border-box; }
+.story-phone.hidden { display: none; }
+.sp-box { width: min(380px, 100%); height: min(640px, 100%); display: flex; flex-direction: column; background: #0b0f14; border: 6px solid #1b2129; border-radius: 30px;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.7); color: #e9eef2; font-family: var(--font-ui); overflow: hidden; }
+.sp-status { display: flex; justify-content: space-between; align-items: center; padding: 10px 18px 6px; font-size: 0.8rem; color: #aab6bf; }
+.sp-title { color: #e9eef2; font-size: 0.9rem; }
+.sp-tabs { display: flex; gap: 6px; padding: 6px 10px 8px; overflow-x: auto; border-bottom: 1px solid #1d252e; flex: none; }
+.sp-tab { font: 600 0.85rem var(--font-ui); color: #cfd8de; background: #141b22; border: 1px solid #26303a; border-radius: 999px; padding: 8px 12px; min-height: 44px; white-space: nowrap; cursor: pointer; }
+.sp-tab.on { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+.sp-n { display: inline-block; min-width: 18px; margin-left: 6px; padding: 1px 5px; border-radius: 9px; background: #ff4d5e; color: #fff; font-size: 0.72rem; text-align: center; }
+.sp-body { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.sp-msg { align-self: flex-start; max-width: 88%; background: #1a222b; border-radius: 16px 16px 16px 4px; padding: 9px 12px; }
+.sp-note { background: #141b22; border: 1px solid #222c36; border-radius: 12px; padding: 9px 12px; }
+.sp-app { display: block; font-size: 0.74rem; color: #8fa1ad; margin-bottom: 3px; }
+.sp-text { font-size: 0.98rem; line-height: 1.4; }
+.sp-sub { font-size: 0.85rem; color: #aebdc6; margin-top: 4px; line-height: 1.35; }
+.sp-empty { color: #8a98a3; text-align: center; margin-top: 40px; }
+.sp-bar { display: flex; gap: 8px; padding: 10px; border-top: 1px solid #1d252e; flex: none; }
+.sp-bar .btn { flex: 1; min-height: 44px; margin: 0; }
+.sp-torch[aria-pressed="true"] { background: #ffd43b; color: #1b1b1b; border-color: #ffd43b; }
+@media (max-height: 520px) { .sp-box { width: min(560px, 100%); border-radius: 18px; } }
+
+/* a message or a notification arriving: top left (the word box is top centre), a tap opens it */
+.story-toast { position: fixed; left: calc(16px + var(--sa-l)); top: calc(16px + var(--sa-t)); z-index: 18; display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+  width: min(360px, calc(100vw - 32px)); padding: 9px 14px; border-radius: 14px; background: rgba(20,26,33,0.95); border: 1px solid #2c3742; color: #eef3f6;
+  font-family: var(--font-ui); text-align: left; cursor: pointer; box-shadow: 0 10px 28px rgba(0,0,0,0.5); pointer-events: auto; }
+.story-toast.hidden { display: none; }
+.story-toast.in { animation: st-in 0.35s cubic-bezier(0.22, 1, 0.36, 1); }
+@keyframes st-in { from { transform: translateX(-24px); opacity: 0; } to { transform: none; opacity: 1; } }
+.st-app { font-size: 0.75rem; color: #8fa1ad; font-weight: 700; }
+.st-text { font-size: 0.92rem; line-height: 1.35; }
+.st-key { font-size: 0.72rem; color: #9fe6ff; }
+body.touch-mode .story-toast { top: calc(16px + var(--tp, 40px) + max(44px, var(--tb, 44px)) + var(--sa-t)); }
+
+/* the LexiLens HUD (js/story/lexilens.js): its parts as data-lens on the body says ... */
+body.story-run:not([data-lens~="word"]) .hud-meaning-box { visibility: hidden; }
+body.story-run:not([data-lens~="vitals"]) .hd-bars { visibility: hidden; }
+body.story-run:not([data-lens~="ammo"]) #hud-slots, body.story-run:not([data-lens~="ammo"]) #hud-detail, body.story-run:not([data-lens~="ammo"]) .hud-crosshair { visibility: hidden; }
+body.story-run.lens-partial .hd-top, body.story-run.lens-partial .hud-minimap, body.story-run.lens-partial #hud-abilities { visibility: hidden; }
+/* ... each part booting: a flicker in */
+@keyframes lens-boot { 0% { opacity: 0; transform: scaleY(0.15); filter: brightness(2.4); } 30% { opacity: 1; } 42% { opacity: 0.25; } 58% { opacity: 1; transform: scaleY(1); } 100% { opacity: 1; filter: none; } }
+body.lens-boot-word .hud-meaning-box, body.lens-boot-vitals .hd-bars, body.lens-boot-ammo #hud-slots, body.lens-boot-ammo #hud-detail { animation: lens-boot 0.9s ease-out; }
+/* ... the exam system's blue ... */
+body.lexilens .hud-meaning-box { border-color: rgba(79,195,255,0.6); background: linear-gradient(180deg, rgba(4,18,34,0.86), rgba(4,12,24,0.78)); box-shadow: 0 0 18px rgba(79,195,255,0.16), inset 0 0 0 1px rgba(79,195,255,0.12); }
+body.lexilens .hud-meaning-label { color: #8fd8ff; }
+body.lexilens .hud-head { color: #bfe6ff; }
+body.lexilens #hud-detail { border-color: rgba(79,195,255,0.45); }
+/* ... red and jittering when the LEXA signal spikes */
+body.lens-glitch .hud-meaning-box { border-color: #ff4d5e; background: rgba(40,6,10,0.86); animation: lens-jitter 0.12s steps(2) infinite; }
+body.lens-glitch .hud-meaning { color: #ff9aa3; text-shadow: 2px 0 rgba(0,229,255,0.8), -2px 0 rgba(255,46,77,0.9); }
+@keyframes lens-jitter { 0% { transform: translate(0, 0) skewX(0); } 50% { transform: translate(-2px, 1px) skewX(-3deg); } 100% { transform: translate(2px, -1px) skewX(2deg); } }
+body.lens-glitch #hud::after { content: ""; position: fixed; inset: 0; pointer-events: none; background: repeating-linear-gradient(0deg, rgba(255,40,70,0.07) 0 2px, transparent 2px 5px); animation: lens-scan 0.35s linear infinite; }
+@keyframes lens-scan { from { background-position: 0 0; } to { background-position: 0 10px; } }
+/* the system's lines: under the word box (at the top while there is none) */
+.lens-sys { position: fixed; left: 50%; transform: translateX(-50%); top: calc(134px + var(--sa-t)); z-index: 16; max-width: min(640px, calc(100vw - 32px)); box-sizing: border-box; text-align: center;
+  padding: 6px 14px; border-radius: 6px; background: rgba(3,16,30,0.8); border: 1px solid rgba(79,195,255,0.55); color: #c4ecff; font: 700 0.86rem var(--font-ui);
+  letter-spacing: 0.08em; pointer-events: none; text-shadow: 0 0 8px rgba(79,195,255,0.5); }
+.lens-sys.hidden { display: none; }
+.lens-sys.red { border-color: #ff4d5e; color: #ffd3d8; background: rgba(40,4,10,0.84); text-shadow: 0 0 8px rgba(255,77,94,0.6); }
+.lens-sys.in { animation: ls-in 0.3s ease-out; }
+@keyframes ls-in { from { opacity: 0; transform: translate(-50%, -6px); } to { opacity: 1; transform: translate(-50%, 0); } }
+.ls-sub { font-weight: 500; letter-spacing: 0; font-size: 0.8rem; color: #a7c7d6; margin-top: 2px; text-shadow: none; }
+body.story-run:not([data-lens~="word"]) .lens-sys { top: calc(18px + var(--sa-t)); }
+
+/* the black bars of a cinematic moment (js/story/storycam.js: the boss scenes' own, js/cutscene.js) */
+body.story-bars .cine-top, body.story-bars .cine-bottom { transform: translateY(0); }
+
+/* touch: the phone and its torch, beside the pause chip, while a chapter is played */
+.touch-story { display: none; }
+body.story-run .touch-story { display: flex; align-items: center; justify-content: center; }
+.touch-phone, .touch-torch { top: calc(8px + var(--sa-t)); width: calc(max(44px, var(--tb)) * var(--s)); height: calc(max(44px, var(--tb)) * var(--s)); background: rgba(255,255,255,0.18); }
+.touch-phone { left: calc(var(--tpad-l) + var(--tp) + 12px); }
+.touch-torch { left: calc(var(--tpad-l) + var(--tp) + 22px + max(44px, var(--tb))); }
+body.torch-on .touch-torch { background: rgba(255,212,59,0.6); border-color: #ffd43b; }
+.tb-emo { font-size: 1.35em; line-height: 1; }
+.tb-badge { position: absolute; top: -4px; right: -4px; min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box; border-radius: 9px; background: #ff4d5e; color: #fff; font-size: 0.7rem; display: flex; align-items: center; justify-content: center; }
+.tb-badge.hidden { display: none; }

@@ -23,6 +23,9 @@
 //                              maxNew new), the rest words due anywhere else
 //   G.Story.checkpoint / died / finish / prologueDone / sceneReached   the runner's calls
 //   G.Story.beginRun / update / teardown / hudHead / idleMeaning       js/game.js's hooks
+//   (round 2) G.Story.vars / chose / onKey   a line's {name}, a choice kept in the save, a
+//   chapter's keys; the narrative tools (js/story/dialogue.js, phone.js, storycam.js,
+//   lexilens.js) start with a run and stop with it
 // The answers count in the memory boxes as everywhere else; the chapter keeps
 // its own totals (right, wrong, time) for its summary and achievements.
 // ===================================================================
@@ -156,8 +159,14 @@ G.Story = (function () {
     if (!c) return;
     const from = p.from;
     run = { id: p.id, ch: c, game, pool: game.wordPool, flags: new Set(from && from.flags ? from.flags : []), time: 0, time0: 0,
-      right0: game.correctCount || 0, wrong0: game.wrongCount || 0, over: false, dead: false };
+      right0: game.correctCount || 0, wrong0: game.wrongCount || 0, over: false, dead: false,
+      keyIds: new Set(entries(p.id).map((e) => e.id)) };   // (round 2: the chapter's words, bold in its lines)
     document.body.classList.add("story-run");
+    // (round 2) the narrative tools start clean; the phone takes back what the flags say came
+    if (G.StoryDialogue) G.StoryDialogue.reset();
+    if (G.StoryCam) G.StoryCam.reset();
+    if (G.LexiLens) G.LexiLens.reset();
+    if (G.StoryPhone) G.StoryPhone.start();
     // what the checkpoint was carrying (full health: a checkpoint is a fresh start)
     if (from && from.guns) {
       const pl = game.player;
@@ -181,7 +190,40 @@ G.Story = (function () {
   function update(game, dt) {
     if (!run || run.over || game.mode !== "story") return;
     if (game.state === "GAMEPLAY" && !game.paused) run.time += dt;
+    // (round 2: the lines and what is held first -- a beat may be waiting on them)
+    if (G.StoryDialogue) G.StoryDialogue.update(game, dt);
+    if (G.LexiLens) G.LexiLens.update(dt);
+    if (G.StoryPhone) G.StoryPhone.update(game, dt);
     G.StoryScenes.update(game, run, dt);
+  }
+  // (round 2) a line's {name}: the profile's name, else a candidate number of this device's
+  function vars() {
+    const p = G.save && G.save.profile;
+    if (p && p.name) return { name: p.name };
+    const id = String((G.save && G.save.meta && G.save.meta.deviceId) || "x");
+    let h = 0;
+    for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+    return { name: "305-" + String(10 + (h % 90)) };
+  }
+  // (round 2) a choice made: kept in the chapter's save (G.normalizeStory keeps a-z 0-9 _)
+  function chose(id, value) {
+    if (!run) return;
+    const d = data(run.id), k = String(id).replace(/[^a-zA-Z0-9_]/g, "").slice(0, 32), v = String(value).replace(/[^a-zA-Z0-9_]/g, "").slice(0, 32);
+    if (k && v) { d.choices[k] = v; G.persist(); }
+  }
+  // (round 2) a chapter's keys: the phone, its torch, Enter for the next line (js/game.js G.onKeyDown)
+  function onKey(e) {
+    if (!run || run.over) return false;
+    const kb = G.save.settings.keybinds;
+    if (kb.phone && e.code === kb.phone) { if (!e.repeat && G.StoryPhone) G.StoryPhone.toggle(); return true; }
+    if (kb.flashlight && e.code === kb.flashlight) { if (!e.repeat && G.StoryPhone) G.StoryPhone.torch(); return true; }
+    return !!(G.StoryDialogue && G.StoryDialogue.onKey(e));
+  }
+  // (round 2) the lines, the turned view, the bars, the phone: gone (a death, the end, leaving)
+  function quiet() {
+    if (G.StoryDialogue) G.StoryDialogue.reset();
+    if (G.StoryCam) G.StoryCam.reset();
+    if (G.StoryPhone) G.StoryPhone.close();
   }
   // the answers and the time since the last time they were counted, into the chapter's totals
   function commit(game) {
@@ -223,6 +265,7 @@ G.Story = (function () {
     game.player.hp = 1;
     commit(game);
     G.persist(true);
+    quiet();
     const id = run.id, d = data(id);
     const back = d.cp ? d.cp : { scene: run.sceneI, beat: 0 };
     G.Dialog.open({ icon: "🩸", title: T("story.death.title"), text: T("story.death.text"), buttons: [
@@ -236,6 +279,7 @@ G.Story = (function () {
     if (!run) return;
     commit(game);
     run.over = true;
+    quiet();
     const id = run.id, c = run.ch, d = data(id);
     d.done = true; d.cp = null; d.scene = 0; d.finishedAt = Date.now();
     if (d.curTime > 0) d.best = d.best > 0 ? Math.min(d.best, d.curTime) : d.curTime;
@@ -255,6 +299,11 @@ G.Story = (function () {
     if (run) G.persist();
     run = null;
     document.body.classList.remove("story-run");
+    // (round 2: and the whole HUD back, the glasses off -- before any other mode is played)
+    if (G.StoryDialogue) G.StoryDialogue.reset();
+    if (G.StoryCam) G.StoryCam.reset();
+    if (G.StoryPhone) G.StoryPhone.stop();
+    if (G.LexiLens) G.LexiLens.reset();
   }
   // the HUD's top box while a chapter is played: the chapter, the scene; the objective in the word box
   function hudHead(game, left) {
@@ -269,6 +318,7 @@ G.Story = (function () {
   return {
     on, chapters, chapter, data, status, entries, missing, pairs, plan, level, open, restart, start,
     beginRun, update, commit, checkpoint, prologueDone, sceneReached, died, finish, teardown, hudHead, idleMeaning,
+    vars, chose, onKey,
     get run() { return run; }, get pending() { return pending; },
   };
 })();

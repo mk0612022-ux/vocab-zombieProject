@@ -44,7 +44,10 @@ window.G = window.G || {};
     { id: "about", icon: "ℹ️", art: "school-card" },
   ];
   const ACTIONS = ["forward", "back", "left", "right", "sprint", "jump", "reload", "inspect", "interact", "melee", "quickMelee", "slot2", "slot3", "slot4", "slot5", "slot6", "slot7",
-    "ability1", "ability2", "ability3", "ability4", "replay", "thaiHint", "pause", "report"];
+    "ability1", "ability2", "ability3", "ability4", "replay", "thaiHint", "pause", "report", "phone", "flashlight"];
+  // (story series, round 2) a chapter's phone and torch: listed while Story Mode is there
+  const STORY_KEYS = ["phone", "flashlight"];
+  const actions = () => ACTIONS.filter((a) => !STORY_KEYS.includes(a) || !!(G.Story && G.Story.on()));
   // (round 3) a language's name in itself: G.Lang.NAMES (js/wordbank.js)
 
   // ---------------- the pieces of a row ----------------
@@ -133,7 +136,7 @@ window.G = window.G || {};
         + row({ id: "set-padsens", name: T("settings.padSens"), ctl: slider("set-padsens", s.padSensitivity, 0.3, 2.5, 0.05, times(s.padSensitivity)),
           desc: pad ? T("settings.padConnected", { name: String(pad.id || "").replace(/\s*\(.*$/, "").slice(0, 40) }) : T("settings.padNone") })
         + `<div class="set-sub">${esc(T("settings.keybinds"))}<small>${esc(T("settings.keybindsDesc"))}</small></div>
-          <div class="keybind-grid">${ACTIONS.map((a) => `<div class="keybind-row"><span>${esc(T("key." + a))}</span><button class="btn keybind-btn" type="button" data-action="${a}">${esc(G.keyLabel(kb[a]))}</button></div>`).join("")}</div>
+          <div class="keybind-grid">${actions().map((a) => `<div class="keybind-row"><span>${esc(T("key." + a))}</span><button class="btn keybind-btn" type="button" data-action="${a}">${esc(G.keyLabel(kb[a]))}</button></div>`).join("")}</div>
           <div class="set-actions">${button("btn-reset-keybinds", T("settings.resetKeys"))}</div>`;
     },
     gameplay(s, inRun) {
@@ -174,6 +177,8 @@ window.G = window.G || {};
         + row({ id: "btn-lang-swap", name: T("settings.langSwap"), ctl: button("btn-lang-swap", "⇄ " + T("settings.langSwapBtn"), "", inRun), desc: T("settings.langSwapDesc", { a: G.Lang.label(wl), b: G.Lang.label(ml) }), locked: inRun })
         + row({ id: "set-pinyin", name: T("settings.pinyin"), ctl: toggle("set-pinyin", G.Lang.showPinyin()), desc: T("settings.pinyinDesc") })
         + row({ id: "set-strictacc", name: T("settings.strictAccents"), ctl: toggle("set-strictacc", !!s.strictAccents), desc: T("settings.strictAccentsDesc") })
+        // (story series, round 2) a chapter's subtitles (js/story/dialogue.js); there while Story Mode is
+        + row({ id: "set-storysubs", name: T("story.subs.title"), ctl: seg("set-storysubs", G.StoryDialogue ? G.StoryDialogue.level() : (s.storySubs || "full"), ["full", "key", "en"].map((v) => [v, T("story.subs." + v)])), desc: T("story.subs.desc"), hidden: !(G.Story && G.Story.on()) })
         + (notes.length ? `<p class="set-foot set-langnote" id="set-langnote">${notes.map(esc).join("<br>")}</p>` : "");
     },
     // (round 3) a new Word / Meaning Language: from the lobby only; the lists
@@ -317,6 +322,7 @@ window.G = window.G || {};
           if (G.Game.zombies) G.Game.zombies.forEach((z) => { if (z.alive) { z._label = null; z.setTarget(z.isTarget); } });
         },
         "set-strictacc": (v) => { s.strictAccents = v; },
+        "set-storysubs": (v) => { if (G.StoryDialogue) G.StoryDialogue.setLevel(v); else s.storySubs = v; },
         // (visual series, round 1, E4) seen at once, in a run or behind the menu
         "set-brightness": (v) => { s.brightness = v; s.brightnessSet = true; if (G.Visuals && G.Visuals.ready) G.Visuals.applyGrade(G.Visuals.theme); return pct(v); },
         "set-visboost": (v) => { s.visibilityBoost = v; if (G.Visuals && G.Visuals.ready) G.Visuals.applyGrade(G.Visuals.theme); },

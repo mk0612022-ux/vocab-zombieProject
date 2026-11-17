@@ -393,6 +393,18 @@ G.Perf = {
     this.flashLight = new THREE.PointLight(0xffdd66, 0, 5);
     scene.add(this.flashLight);
     this._flashUntil = 0;
+    // (story series, round 2) a Story Mode chapter's phone torch: a SpotLight that is
+    // always in the scene from the level's first frame, off at intensity 0 -- switching it
+    // never changes the light count, so no shader is built again (js/story/phone.js moves it)
+    this.torch = null;
+    const lv = G.Game && G.Game.level;
+    if (lv && lv.story && G.CONFIG.story && G.CONFIG.story.phone) {
+      const c = G.CONFIG.story.phone.torch;
+      const t = new THREE.SpotLight(c.color, 0, c.distance, c.angle, c.penumbra, c.decay);
+      t.castShadow = false;
+      scene.add(t); scene.add(t.target);
+      this.torch = t;
+    }
     world.lights = [];                                    // the old per-light flicker path is retired
   },
   // Graphics quality changed mid-run: rebuild the pool at the new size from
@@ -407,7 +419,8 @@ G.Perf = {
   disposeLightPool(scene) {
     (this.pool || []).forEach((l) => l.parent && l.parent.remove(l));
     if (this.flashLight && this.flashLight.parent) this.flashLight.parent.remove(this.flashLight);
-    this.pool = []; this.anchors = []; this.flashLight = null;
+    if (this.torch) { if (this.torch.parent) this.torch.parent.remove(this.torch); if (this.torch.target.parent) this.torch.target.parent.remove(this.torch.target); }
+    this.pool = []; this.anchors = []; this.flashLight = null; this.torch = null;
   },
   updateLights(camPos, camDir, tSec) {
     if (!this.pool || !this.pool.length) return;

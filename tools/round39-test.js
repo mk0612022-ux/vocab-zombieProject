@@ -143,8 +143,14 @@ G.Round39Test = (function () {
         step(240);
         ok("D no waves: no spawner, no zombie by itself", alive().length === 0 && g.state === "GAMEPLAY");
         ok("D ...no story notes, no shop", (!g.world.notes || !g.world.notes.length) && g.state !== "SHOP");
-        at(0, 15);
-        ok("D a zone reached: the group comes (3, its own)", alive().length === 3 && alive().every((z) => z.storyGroup === "p1"), alive().length);
+        // (story round 2: the prologue tries the narrative tools now -- suite 40 plays it through;
+        // a run's groups, words and checkpoints are tried here on scene 2, The Long Corridor)
+        g.update = g._update0; g.quitToMainMenu(); g.update = () => {}; G.Modal.reset();
+        play(() => S.start("ch1", { scene: 1, beat: 0, skip: true }));
+        h = g.buildHudState();
+        ok("D scene 2 (The Long Corridor) at its start, its objective in the HUD", S.run.sceneI === 1 && Math.abs(g.yawObject.position.z - CH.scenes[1].start.z) < 1.5 && h.head.wave === T("story.ch1.s1") && h.currentMeaning === T("story.ch1.s1.obj"));
+        at(0, -6);
+        ok("D a zone reached: the group comes (3, its own)", alive().length === 3 && alive().every((z) => z.storyGroup === "c1"), alive().length);
         // the run's slots 1-3: chapter, elsewhere, chapter
         const isCh = (p) => mine.has(G.wordKey(p));
         const wp = (g.wavePlan || []).slice(), wpCh = wp.filter(isCh);
@@ -162,24 +168,24 @@ G.Round39Test = (function () {
         ok("D the group down by its right words", alive().length === 0 && g.correctCount - r0 === real, (g.correctCount - r0) + " of " + real);
         ok("D ...no loot dropped", !(g.drops || []).length);
         const d = G.save.story.ch.ch1;
-        ok("D -> the checkpoint, the next scene (The Long Corridor)", S.run.sceneI === 1 && d.cp && d.cp.scene === 1 && d.cp.beat === 0 && d.prologueDone);
+        ok("D -> the checkpoint, the next scene (scene 3)", S.run.sceneI === 2 && d.cp && d.cp.scene === 2 && d.cp.beat === 0);
         // (written at once: the copy a reload reads -- the game closed now picks up here)
         let kept = null;
         try { kept = G.normalizeSave(JSON.parse(localStorage.getItem("vocabZombie_save_v1"))).story.ch.ch1; } catch (e) { kept = null; }
-        ok("D ...in the stored save at once (a reload continues from it)", kept && kept.cp && kept.cp.scene === 1 && kept.prologueDone && kept.started, kept && JSON.stringify(kept.cp));
+        ok("D ...in the stored save at once (a reload continues from it)", kept && kept.cp && kept.cp.scene === 2 && kept.started, kept && JSON.stringify(kept.cp));
         const toastEl = $("hud-checkpoint"), ban = $("hud-purchase-banner");
         ok("D ...the campaign's checkpoint toast says so", toastEl.classList.contains("showing") && toastEl.textContent.indexOf(T("story.checkpoint")) >= 0, toastEl.textContent);
-        ok("D ...the new scene's name across the screen (Chapter 1 / The Long Corridor)", ban.classList.contains("showing") && ban.querySelector(".pb-name").textContent === T("story.ch1.s1") && ban.querySelector(".pb-title").textContent === T("story.chapterN", { n: 1 }), ban.textContent);
+        ok("D ...the new scene's name across the screen (Chapter 1 / its title)", ban.classList.contains("showing") && ban.querySelector(".pb-name").textContent === T("story.ch1.s2") && ban.querySelector(".pb-title").textContent === T("story.chapterN", { n: 1 }), ban.textContent);
         ok("D no money in a chapter: Savings hidden (no shop)", getComputedStyle($("hud-savings")).display === "none");
         h = g.buildHudState();
-        ok("D ...its objective in the HUD", h.head.wave === T("story.ch1.s1") && h.currentMeaning === T("story.ch1.s1.obj"));
+        ok("D ...its objective in the HUD", h.head.wave === T("story.ch1.s2") && h.currentMeaning === T("story.ch1.s2.obj"));
         ok("D ...the answers counted into the chapter", d.right === real && d.curRight === real, d.right);
         await yield0();
 
         // ================= E: the checkpoint, death =================
-        ok("E the checkpoint: where (scene 2's start), the guns and their ammo, the time", d.cp.x === CH.scenes[1].start.x && d.cp.z === CH.scenes[1].start.z && d.cp.guns.includes("pistol") && Array.isArray(d.cp.ammo.pistol) && d.time > 0, JSON.stringify(d.cp));
-        at(0, -6);
-        ok("E scene 2: the corridor's group", alive().length === 3);
+        ok("E the checkpoint: where (scene 3's start), the guns and their ammo, the time", d.cp.x === CH.scenes[2].start.x && d.cp.z === CH.scenes[2].start.z && d.cp.guns.includes("pistol") && Array.isArray(d.cp.ammo.pistol) && d.time > 0, JSON.stringify(d.cp));
+        at(9, -10);
+        ok("E scene 3: the classroom's group", alive().length === 2);
         const dw0 = G.save.story.ch.ch1.wrong, shot = shoot(false);
         g.player.hp = 0; g.checkPlayerDeath(); step(2);
         ok("E killed: the window (Retry from checkpoint), the game not over", G.Dialog.isOpen() && $("dialog-title").textContent === T("story.death.title") && g.state !== "GAME_OVER");
@@ -187,7 +193,7 @@ G.Round39Test = (function () {
         g.update = real;
         G.Dialog.choose(G.Dialog._o.buttons.findIndex((b) => b.primary));
         g.update = () => {}; G.Modal.reset(); g.paused = false; g.state = "GAMEPLAY"; step(2);
-        ok("E Retry: back at the checkpoint (scene 2, its start), full health, no zombies", S.run.sceneI === 1 && Math.abs(g.yawObject.position.z - CH.scenes[1].start.z) < 1.5 && g.player.hp === g.player.maxHp && alive().length === 0);
+        ok("E Retry: back at the checkpoint (scene 3, its start), full health, no zombies", S.run.sceneI === 2 && Math.abs(g.yawObject.position.z - CH.scenes[2].start.z) < 1.5 && g.player.hp === g.player.maxHp && alive().length === 0);
         // the prologue cannot be lost
         play(() => S.start("ch1", { scene: 0, beat: 0, skip: false }));
         g.player.hp = 0; g.checkPlayerDeath(); step(2);
@@ -200,6 +206,7 @@ G.Round39Test = (function () {
       {
         const d = G.save.story.ch.ch1;
         d.cp = { scene: 2, beat: 0, at: Date.now(), hp: 100, guns: ["pistol"], melee: "knife", ammo: { pistol: [5, 30] }, flags: ["x1"], x: null, z: null, yaw: null };
+        d.prologueDone = true;   // (as if the prologue had been played: D now starts at scene 2)
         S.open("ch1"); await wait(30);
         let btns = Array.from(document.querySelectorAll("#dialog-btns button")).map((b) => b.textContent);
         ok("F a chapter left at a checkpoint: Cancel, Start over, Skip Prologue, Continue", btns.length === 4 && btns[3].indexOf(T("story.open.continue", { scene: T("story.ch1.s2") })) === 0, btns.join(" | "));
@@ -242,15 +249,19 @@ G.Round39Test = (function () {
         // played again: its own checkpoints, Continue, the pause menu's retry from there; still completed once
         g.update = real; G.Dialog.choose(2); g.update = () => {}; G.Modal.reset(); g.paused = false; g.state = "GAMEPLAY"; step(2);
         ok("G Play again: the prologue, a new play-through", S.run && S.run.sceneI === 0 && !G.save.story.ch.ch1.cp && G.save.story.ch.ch1.curTime < 1);
-        at(0, 15); clearAll(); step(2);
+        // (that play-through's checkpoints, tried from Skip Prologue: the prologue's own run is suite 40's)
+        g.update = real; g.quitToMainMenu(); g.update = () => {}; G.Modal.reset();
+        S.open("ch1"); await wait(20);
+        g.update = real; G.Dialog.choose(G.Dialog._o.buttons.findIndex((b) => b.label === T("story.open.skip"))); g.update = () => {}; G.Modal.reset(); g.paused = false; g.state = "GAMEPLAY"; step(2);
+        at(0, -6); clearAll(); step(2);
         const again = G.save.story.ch.ch1;
-        ok("G ...its first checkpoint: scene 2, the chapter still completed", again.cp && again.cp.scene === 1 && again.done && S.status("ch1") === T("story.status.scene", { i: 2, n: 9 }), S.status("ch1"));
+        ok("G ...a checkpoint of its own: scene 3, the chapter still completed", again.cp && again.cp.scene === 2 && again.done && S.status("ch1") === T("story.status.scene", { i: 3, n: 9 }), S.status("ch1"));
         g.update = real; g.retry(); g.update = () => {}; G.Modal.reset(); g.paused = false; g.state = "GAMEPLAY"; step(2);
-        ok("G ...the pause menu's retry: back at that checkpoint", S.run.sceneI === 1 && Math.abs(g.yawObject.position.z - CH.scenes[1].start.z) < 1.5);
+        ok("G ...the pause menu's retry: back at that checkpoint", S.run.sceneI === 2 && Math.abs(g.yawObject.position.z - CH.scenes[2].start.z) < 1.5);
         g.quitToMainMenu(); G.Modal.reset();
         S.open("ch1"); await wait(20);
         const rb = G.Dialog._o ? G.Dialog._o.buttons : [];
-        ok("G ...its window offers Continue (last, the main button)", rb.length === 4 && rb[3].primary && rb[3].label === T("story.open.continue", { scene: T("story.ch1.s1") }), rb.map((b) => b.label).join(" | "));
+        ok("G ...its window offers Continue (last, the main button)", rb.length === 4 && rb[3].primary && rb[3].label === T("story.open.continue", { scene: T("story.ch1.s2") }), rb.map((b) => b.label).join(" | "));
         G.Dialog.close();
         await yield0();
       }

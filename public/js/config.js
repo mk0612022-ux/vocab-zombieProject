@@ -624,12 +624,26 @@ G.CONFIG = {
   //   floorHp      a scene that cannot be lost (the prologue): health stops here
   //   resetSpeed   a wrong shot speeds the zombies up (+25%, js/game.js); here that ends with
   //                the group it happened in, not with a wave (there are none) -- decision D11
+  //   (story series, round 2: the narrative tools)
+  //   dialogue     a line stays minSec + perChar a letter (at most maxSec); held (Space, A, a
+  //                finger on the box) everything runs `fast` times as fast; a press shorter
+  //                than tapSec is "next line"; holdSkip: held this long, a cinematic part
+  //                already seen once is skipped; gapSec between two lines
+  //   phone        toastSec a notification stays; the torch (js/story/phone.js): a SpotLight
+  //                that is always in a chapter's light pool (js/perf.js), off = intensity 0
+  //   lens         the LexiLens HUD (js/story/lexilens.js): a system line's seconds, the
+  //                "Neural pattern disrupted" line's, a part's boot animation
+  //   cam          the seconds a "look at" turn takes when a beat names none
   story: {
     enabled: false,
     chapterShare: 0.6,
     groupKinds: ["normal", "normal", "fast"],
     floorHp: 1,
     resetSpeed: true,
+    dialogue: { minSec: 2.2, perChar: 0.05, maxSec: 9, fast: 4, tapSec: 0.25, holdSkip: 1.2, gapSec: 0.2 },
+    phone: { toastSec: 4.5, torch: { color: 0xfff1d6, intensity: 2.4, distance: 26, angle: 0.48, penumbra: 0.45, decay: 1.2 } },
+    lens: { sysSec: 3.2, correctSec: 1.5, bootSec: 0.9 },
+    cam: { lookSec: 1.2 },
   },
   // ---------------- the melee slot (expansion, round 4) ----------------
   // G.MELEE_WEAPONS has each weapon; js/melee.js is the swing.

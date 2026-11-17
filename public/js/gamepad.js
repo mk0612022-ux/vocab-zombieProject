@@ -9,6 +9,7 @@
 //              next weapon (the melee slot among them), View hear the word,
 //              R3 the Thai of an English clue (a helper),
 //              Menu pause, D-pad up / right / down / left the four abilities
+//              (a Story Mode chapter: D-pad up the phone, down its torch; A held, the lines faster)
 //   in windows D-pad or left stick moves between buttons, A presses the one
 //              highlighted, B backs out (keeps the loadout, resumes, "Back"),
 //              Menu pauses / resumes
@@ -72,7 +73,11 @@ G.Pad = {
       if (edge(B.VIEW)) g.speakCurrentWord();
       if (edge(B.R3)) g.showThai();             // (vocabulary series, round 3, F) the Thai of an English clue
       // round 3: the four abilities on the D-pad -- up, right, down, left
-      [B.UP, B.RIGHT, B.DOWN, B.LEFT].forEach((b, i) => { if (edge(b) && G.onAbilityPress) G.onAbilityPress(i); });
+      // (story series, round 2: a chapter has none -- decision D10 -- so up is the phone, down its torch)
+      if (g.mode === "story" && G.StoryPhone && G.Story && G.Story.run) {
+        if (edge(B.UP)) G.StoryPhone.toggle();
+        if (edge(B.DOWN)) G.StoryPhone.torch();
+      } else [B.UP, B.RIGHT, B.DOWN, B.LEFT].forEach((b, i) => { if (edge(b) && G.onAbilityPress) G.onAbilityPress(i); });
     } else {
       this.releaseHeld();
       this.navigate(gp, now, edge, dt);
@@ -104,7 +109,9 @@ G.Pad = {
       // (expansion, round 2) the bug report
       bugreport: "bug-report-box",
       // (expansion, round 9) the Training Yard's HUD tour (round 7): its Skip and Next
-      "train-tour": "train-tour" };
+      "train-tour": "train-tour",
+      // (story series, round 2) a chapter's phone (js/story/phone.js)
+      "story-phone": "story-phone-box" };
     if (top && byModal[top.id]) return document.getElementById(byModal[top.id]);
     if (G.TouchCfg && G.TouchCfg.editing) return document.getElementById("touchcfg-panel");
     const cur = G.UI._currentScreen;

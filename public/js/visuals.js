@@ -684,7 +684,8 @@
       sc.background = null;
       r.shadowMap.needsUpdate = false;
       r.clearDepth();                 // (on top of everything, whatever their depth test)
-      r.render(sc, lc);
+      // (story series, round 2: labelsOff -- the LexiLens HUD before its word part has booted, js/story/lexilens.js)
+      if (!this.labelsOff) r.render(sc, lc);
       sc.background = bg;
       sc.autoUpdate = au;
       r.autoClear = true;
