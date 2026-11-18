@@ -634,6 +634,12 @@ G.CONFIG = {
   //   lens         the LexiLens HUD (js/story/lexilens.js): a system line's seconds, the
   //                "Neural pattern disrupted" line's, a part's boot animation
   //   cam          the seconds a "look at" turn takes when a beat names none
+  //   voxel        (round 3) the chapter's blocks (js/story/voxel*.js): px a character's pixel in
+  //                metres (32 of them: 1.8 m tall; a block face's is 1/16 m); ao a block corner's
+  //                four shades (0: in a corner .. 3: open); glassOpacity the window panes';
+  //                zombies: a chapter's zombies built of blocks (false: the campaign's look);
+  //                patchIdle / patchLock the LEXA patch's glow (x its cyan; locked = the
+  //                zombie under the crosshair); chunk the grid's chunk (m, one draw call each)
   story: {
     enabled: false,
     chapterShare: 0.6,
@@ -644,6 +650,7 @@ G.CONFIG = {
     phone: { toastSec: 4.5, torch: { color: 0xfff1d6, intensity: 2.4, distance: 26, angle: 0.48, penumbra: 0.45, decay: 1.2 } },
     lens: { sysSec: 3.2, correctSec: 1.5, bootSec: 0.9 },
     cam: { lookSec: 1.2 },
+    voxel: { px: 0.05625, ao: [0.52, 0.68, 0.84, 1], glassOpacity: 0.42, zombies: true, patchIdle: 0.55, patchLock: 2.6, chunk: 16 },
   },
   // ---------------- the melee slot (expansion, round 4) ----------------
   // G.MELEE_WEAPONS has each weapon; js/melee.js is the swing.

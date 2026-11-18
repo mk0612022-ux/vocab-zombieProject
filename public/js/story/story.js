@@ -26,6 +26,10 @@
 //   (round 2) G.Story.vars / chose / onKey   a line's {name}, a choice kept in the save, a
 //   chapter's keys; the narrative tools (js/story/dialogue.js, phone.js, storycam.js,
 //   lexilens.js) start with a run and stop with it
+//   (round 3) a chapter marked preview (the voxel kit's gallery, js/story/voxelkit.js) is
+//   played the same way but nothing of it is written to the save; its zombies, as every
+//   chapter's, are built of blocks (js/story/voxelchars.js), the patch of the one under the
+//   crosshair lit each frame
 // The answers count in the memory boxes as everywhere else; the chapter keeps
 // its own totals (right, wrong, time) for its summary and achievements.
 // ===================================================================
@@ -40,8 +44,12 @@ G.Story = (function () {
 
   function on() { return !!C().enabled || /[?&]story=1(\b|$)/.test(location.search || ""); }
   function chapters() { return (G.STORY_ORDER || []).map(chapter).filter(Boolean); }
+  // (round 3) a preview -- the voxel kit's gallery: played as a chapter, nothing of it kept
+  const preview = (id) => !!(chapter(id) && chapter(id).preview);
+  let scratch = null;
   // the save's entry for a chapter; made (with every default) the first time
   function data(id) {
+    if (preview(id)) return scratch || (scratch = G.normalizeStory({ ch: { ch99: {} } }).ch.ch99);
     const st = G.save.story || (G.save.story = { ch: {} });
     if (!st.ch) st.ch = {};
     if (!st.ch[id]) st.ch[id] = G.normalizeStory({ ch: { [id]: {} } }).ch[id];
@@ -51,6 +59,7 @@ G.Story = (function () {
   function status(id) {
     const c = chapter(id);
     if (!c) return "";
+    if (c.preview) return T("story.kit.status");
     if (c.soon) return T("story.status.soon");
     const d = peek(id);
     if (!d || !d.started) return T("story.status.new");
@@ -108,7 +117,7 @@ G.Story = (function () {
   // ---------------- the level ----------------
   function level(id) {
     const c = chapter(id);
-    return { id: "story_" + id, theme: c.map || "training", icon: "📖", waves: 1, difficulty: 0.8, spawnBaseInterval: 99, maxAliveZombies: 16, wordsKey: null, name: T(c.title), story: id };
+    return { id: "story_" + id, theme: c.map || "training", icon: "📖", waves: 1, difficulty: 0.8, spawnBaseInterval: 99, maxAliveZombies: 16, wordsKey: null, name: T(c.title), story: id, kit: !!c.kit };
   }
 
   // ---------------- from the lobby ----------------
@@ -116,6 +125,7 @@ G.Story = (function () {
     if (!on()) return;
     const c = chapter(id);
     if (!c || c.soon || !G.Dialog) return;
+    if (c.preview) { start(id, null); return; }        // (round 3: the kit's gallery: straight in)
     const d = peek(id) || {};
     // (the main button last, as in the game's other windows: Continue, Play again / Start over, or Play)
     // (a completed chapter played again has its checkpoints too: `done` stays, it was finished once)
@@ -194,6 +204,9 @@ G.Story = (function () {
     if (G.StoryDialogue) G.StoryDialogue.update(game, dt);
     if (G.LexiLens) G.LexiLens.update(dt);
     if (G.StoryPhone) G.StoryPhone.update(game, dt);
+    // (round 3) the LEXA patch of the zombie under the crosshair; the kit's gallery
+    if (G.VoxelChars) G.VoxelChars.update(game);
+    if (run.ch.kit && G.VoxelKit) G.VoxelKit.update(game, dt);
     G.StoryScenes.update(game, run, dt);
   }
   // (round 2) a line's {name}: the profile's name, else a candidate number of this device's
@@ -304,6 +317,8 @@ G.Story = (function () {
     if (G.StoryCam) G.StoryCam.reset();
     if (G.StoryPhone) G.StoryPhone.stop();
     if (G.LexiLens) G.LexiLens.reset();
+    if (G.VoxelChars) G.VoxelChars.reset();
+    if (G.VoxelKit) G.VoxelKit.teardown();
   }
   // the HUD's top box while a chapter is played: the chapter, the scene; the objective in the word box
   function hudHead(game, left) {

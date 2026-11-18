@@ -2599,7 +2599,10 @@ G.buildLevelScene = function (scene, level, quality) {
   // before their declarations hits the temporal dead zone.
   // (expansion, round 7) the Training Yard: a yard, a corridor and a classroom,
   // put together by js/trainingyard.js from these same pieces
-  if (level.theme === "training" && G.TrainingYard) {
+  // (story series, round 3) the voxel kit's gallery (js/story/voxelkit.js), a hidden chapter
+  if (level.kit && G.VoxelKit) {
+    G.VoxelKit.build({ scene, world, level, quality, pal, wallMat, M: themeMats("school"), addLight, addProp, addFloatBox });
+  } else if (level.theme === "training" && G.TrainingYard) {
     G.TrainingYard.build({ scene, world, level, quality, pal, wallMat, M: themeMats("school"),
       addFloor, addCeiling, addWallSeg, addWallWithGaps, addRoomWalls, addRoomDoor, addProp, addLight, addCanvasBox, addGlowBox, addFloatBox, buildSlidingDoors });
   } else buildComplex(levelPlan(level.theme));

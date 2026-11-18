@@ -1219,6 +1219,8 @@ G.buildZombieMesh = function (type, variation, look) {
   const def = G.ZOMBIE_TYPES[type] || G.ZOMBIE_TYPES.normal;
   const v = variation || G.randomZombieVariation();
   look = look || G.randomZombieLook(type, "school");
+  // (story series, round 3) a chapter's zombie, built of blocks (js/story/voxelchars.js)
+  if (look.voxel && G.VoxelChars) return G.VoxelChars.buildZombie(type, look);
   const B = ZOMBIE_BUILD[type] || ZOMBIE_BUILD.normal;
   const K = (G.ZombieFactory && G.ZombieFactory.KIND[type]) || {};
   // (overhaul, round 4) Blood & Gore, as the setting has it for this kind;
@@ -1534,7 +1536,8 @@ G.zombieHpMult = function (wave) {
 
 let zombieUid = 0;
 // `theme` picks the wardrobe (school / hospital / bunker)
-G.Zombie = function (type, position, wordPair, theme) {
+// (story series, round 3: opts.look -- a look chosen by the caller: a chapter's named zombie)
+G.Zombie = function (type, position, wordPair, theme, opts) {
   const def = G.ZOMBIE_TYPES[type];
   this.uid = ++zombieUid;
   this.type = type;
@@ -1559,7 +1562,7 @@ G.Zombie = function (type, position, wordPair, theme) {
 
   // (overhaul, round 4: the kind's own look -- js/zombiefactory.js -- never
   // all alike with one alive)
-  this.look = G.ZombieFactory ? G.ZombieFactory.look(type, theme, G.Game) : G.randomZombieLook(type, theme);
+  this.look = (opts && opts.look) || (G.ZombieFactory ? G.ZombieFactory.look(type, theme, G.Game) : G.randomZombieLook(type, theme));
   this._sig = G.ZombieFactory ? G.ZombieFactory.signature(type, this.look) : "";
   this.mesh = G.buildZombieMesh(type, null, this.look);
   this.mesh.position.copy(position);

@@ -1145,6 +1145,8 @@ G.STRINGS = {
     "story.end.next": "Continue: {title}", "story.end.nextSoon": "{title}: coming soon",
     // ---- (story series, round 2) the narrative tools: dialogue, phone, LexiLens ----
     "story.who.beam": "Beam", "story.who.min": "Kru Min", "story.who.chai": "Sgt. Chai", "story.who.invig": "Invigilator", "story.who.radio": "Radio", "story.who.pa": "PA system",
+    "story.who.player": "You", "story.who.somsak": "Principal Somsak", "story.who.porn": "Uncle Porn", "story.who.pim": "Nurse Pim", "story.who.ek": "Coach Ek",
+    "story.who.fai": "Fai", "story.who.tonkla": "Tonkla", "story.who.nam": "Nam",
     "story.subs.title": "Story subtitles", "story.subs.desc": "How Story Mode's English lines are translated: the whole line, only the chapter's words, or not at all. Any word in a line can be tapped for its meaning.",
     "story.subs.full": "Full subtitles", "story.subs.key": "Key words only", "story.subs.en": "English only",
     "story.subs.short.full": "Subs: full", "story.subs.short.key": "Subs: key words", "story.subs.short.en": "Subs: off",
@@ -1155,6 +1157,18 @@ G.STRINGS = {
     "story.app.calendar": "Calendar", "story.app.lexa": "LEXA",
     "story.lens.correct": "CORRECT. Neural pattern disrupted.",
     "key.phone": "Phone (Story Mode)", "key.flashlight": "Flashlight (Story Mode)", "cap.phone": "Phone vibrating",
+    // ---- (story series, round 3) the voxel kit's gallery (js/story/voxelkit.js) ----
+    "lobby.mode.storykit": "Voxel kit (preview)", "lobby.meta.storykit": "Story · preview",
+    "lobby.desc.storykit": "Walk round the look of Chapter 1 before the chapter is built of it: every block, the twelve characters, the zombies, the props. Nothing here is saved.",
+    "story.kit.title": "Voxel kit (preview)", "story.kit.scene": "The kit's gallery", "story.kit.status": "Preview",
+    "story.kit.obj": "Walk round the blocks, people, zombies and props of Chapter 1. The zombie you aim at lights up its LEXA patch.",
+    // (the gallery's plates, drawn in English in the pixel font whatever the language)
+    "story.kit.blocks": "Blocks: 16 px a face", "story.kit.people": "People of Chapter 1", "story.kit.zombies": "Zombies", "story.kit.campaign": "Campaign", "story.kit.chapter": "Chapter 1",
+    // the school's signs: English in every language (the chapter teaches by them; the names: decision D12)
+    "story.sign.evac1": "EVACUATION ROUTE", "story.sign.evac2": "YOU ARE HERE", "story.sign.evac3": "EAST STAIRWELL",
+    "story.sign.pa1": "SMART PA", "story.sign.pa2": "POWERED BY NEUROLEX",
+    "story.sign.lexa1": "LEXA", "story.sign.lexa2": "FLUENT BY MORNING.", "story.sign.lexa3": "NO STUDY NEEDED.",
+    "story.sign.police": "POLICE", "story.sign.school": "PHOTCHANAWITTHAYA SCHOOL",
     // chapter 1's lines (the design's; story round 2 tries them on the stand-in prologue)
     "story.ch1.n.cal": "English Proficiency Test · 08:30 · Room 305", "story.ch1.n.ad": "LEXA v2.1 — Fluent by morning. No study needed.",
     "story.ch1.m.beam1": "I used LEXA last night. Don't tell Kru Min.", "story.ch1.m.beam2": "I feel weird... like words keep slipping away.",

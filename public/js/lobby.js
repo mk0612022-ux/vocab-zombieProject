@@ -30,6 +30,8 @@ G.Lobby = {
     // (story series, round 1) the chapters (js/data/story/ch*.js); chapter 2 is named, still to come
     { id: "story1", tab: "story", chapter: "ch1", badge: "story", c1: "#74b9ff", c2: "#0984e3", icon: "📖", art: "school" },
     { id: "story2", tab: "story", chapter: "ch2", badge: "story", c1: "#b2bec3", c2: "#636e72", icon: "🏥", art: "hospital", soon: true },
+    // (story series, round 3) the voxel kit's gallery, while the chapter's look is checked: ?kit=1
+    { id: "storykit", tab: "story", chapter: "kit", badge: "story", c1: "#fab1a0", c2: "#e17055", icon: "🧱", art: "school", dev: "kit" },
     { id: "school", tab: "campaign", level: 1, badge: "featured", c1: "#ff9f43", c2: "#ee5a24", icon: "🏫" },
     { id: "hospital", tab: "campaign", level: 2, badge: "campaign", c1: "#1dd1a1", c2: "#0a8f86", icon: "🏥", needs: 2 },
     { id: "bunker", tab: "campaign", level: 3, badge: "campaign", c1: "#ff6b81", c2: "#a3203c", icon: "🛡️", needs: 3 },
@@ -52,7 +54,7 @@ G.Lobby = {
 
   // ---------------- data ----------------
   // (a mode behind an expansion flag that is off is not shown)
-  modes(tab) { return this.MODES.filter((m) => m.tab === (tab || this.tab) && (!m.flag || !!(G.CONFIG.expansion && G.CONFIG.expansion[m.flag]))); },
+  modes(tab) { return this.MODES.filter((m) => m.tab === (tab || this.tab) && (!m.flag || !!(G.CONFIG.expansion && G.CONFIG.expansion[m.flag])) && (!m.dev || !!(G.VoxelKit && G.VoxelKit.on()))); },
   current() { return this.modes()[this.sel[this.tab]] || this.modes()[0]; },
   locked(m) { return !!m.soon || (!!m.needs && !G.save.unlockedLevels.includes(m.needs)); },
   art(m, card) { return "assets/lobby/" + (m.art || m.id) + (card ? "-card" : "") + ".jpg"; },
@@ -106,6 +108,8 @@ G.Lobby = {
     } else if (m.id === "tutorial") {
       rows.push([T("lobby.status"), G.TrainingYard ? G.TrainingYard.status() : "–"]);
       rows.push([T("lobby.tutTime"), T("lobby.tutMinutes")]);
+    } else if (m.dev === "kit") {
+      rows.push([T("lobby.status"), T("story.kit.status")]);
     } else if (m.chapter) {
       // (story series, round 1) where the chapter is at, how long it is, the best time
       rows.push([T("lobby.status"), G.Story ? G.Story.status(m.chapter) : "–"]);

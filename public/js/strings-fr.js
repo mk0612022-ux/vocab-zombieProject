@@ -1114,6 +1114,8 @@ G.STRINGS.fr = {
     "story.death.title": "Vous avez été mordu", "story.death.text": "Revenir au dernier point de sauvegarde ? Chaque mot répondu compte toujours.", "story.death.retry": "Reprendre au point de sauvegarde",
     // ---- (story series, round 2) les outils du récit : dialogues, téléphone, LexiLens ----
     "story.who.beam": "Beam", "story.who.min": "Kru Min", "story.who.chai": "Sergent Chai", "story.who.invig": "Surveillant", "story.who.radio": "Radio", "story.who.pa": "Annonce",
+    "story.who.player": "Vous", "story.who.somsak": "Proviseur Somsak", "story.who.porn": "Oncle Porn", "story.who.pim": "Infirmière Pim", "story.who.ek": "Coach Ek",
+    "story.who.fai": "Fai", "story.who.tonkla": "Tonkla", "story.who.nam": "Nam",
     "story.subs.title": "Sous-titres de l'histoire", "story.subs.desc": "Comment les répliques anglaises du mode Histoire sont traduites : la phrase entière, seulement les mots du chapitre, ou pas du tout. Touchez un mot d'une réplique pour voir son sens.",
     "story.subs.full": "Sous-titres complets", "story.subs.key": "Mots clés seulement", "story.subs.en": "Anglais seulement",
     "story.subs.short.full": "ST : complets", "story.subs.short.key": "ST : mots clés", "story.subs.short.en": "ST : non",
@@ -1124,6 +1126,18 @@ G.STRINGS.fr = {
     "story.app.calendar": "Calendrier", "story.app.lexa": "LEXA",
     "story.lens.correct": "CORRECT. Schéma neuronal interrompu.",
     "key.phone": "Téléphone (mode Histoire)", "key.flashlight": "Lampe torche (mode Histoire)", "cap.phone": "Téléphone qui vibre",
+    // ---- (story series, round 3) the voxel kit's gallery ----
+    "lobby.mode.storykit": "Kit voxel (aperçu)", "lobby.meta.storykit": "Histoire · aperçu",
+    "lobby.desc.storykit": "Faites le tour du style du chapitre 1 avant qu'il ne soit construit avec : chaque bloc, les douze personnages, les zombies, les objets. Rien n'est sauvegardé ici.",
+    "story.kit.title": "Kit voxel (aperçu)", "story.kit.scene": "La galerie du kit", "story.kit.status": "Aperçu",
+    "story.kit.obj": "Faites le tour des blocs, personnages, zombies et objets du chapitre 1. Le zombie que vous visez allume son patch LEXA.",
+    // (les plaques de la galerie : en anglais dans la police pixel, quelle que soit la langue)
+    "story.kit.blocks": "Blocks: 16 px a face", "story.kit.people": "People of Chapter 1", "story.kit.zombies": "Zombies", "story.kit.campaign": "Campaign", "story.kit.chapter": "Chapter 1",
+    // les panneaux de l'école : en anglais dans toutes les langues (le chapitre enseigne avec ; les noms : décision D12)
+    "story.sign.evac1": "EVACUATION ROUTE", "story.sign.evac2": "YOU ARE HERE", "story.sign.evac3": "EAST STAIRWELL",
+    "story.sign.pa1": "SMART PA", "story.sign.pa2": "POWERED BY NEUROLEX",
+    "story.sign.lexa1": "LEXA", "story.sign.lexa2": "FLUENT BY MORNING.", "story.sign.lexa3": "NO STUDY NEEDED.",
+    "story.sign.police": "POLICE", "story.sign.school": "PHOTCHANAWITTHAYA SCHOOL",
     "story.ch1.n.cal": "Test de niveau d'anglais · 08:30 · Salle 305", "story.ch1.n.ad": "LEXA v2.1 — Bilingue dès demain matin. Sans réviser.",
     "story.ch1.m.beam1": "J'ai utilisé LEXA hier soir. Ne le dis pas à Kru Min.", "story.ch1.m.beam2": "Je me sens bizarre... comme si les mots m'échappaient.",
     "story.ch1.c.what": "Tu as fait QUOI ?", "story.ch1.c.promise": "On avait promis. Pas de raccourcis.",

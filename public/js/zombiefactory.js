@@ -194,6 +194,8 @@ G.ZombieFactory = {
   // A look for a new zombie: its kind's outfit for the level, and never all
   // alike with one alive; a wave's first zombies spread over the outfits.
   look(type, theme, game) {
+    // (story series, round 3) a chapter's zombies are built of blocks (js/story/voxelchars.js)
+    if (game && game.level && game.level.story && G.VoxelChars && G.VoxelChars.on()) return G.VoxelChars.zombieLook(type, game);
     const C = G.CONFIG.zombies;
     const wears = this.WEARS[type] && this.WEARS[type][theme];
     const alive = game && game.zombies ? game.zombies.filter((z) => z.alive && z.look) : [];

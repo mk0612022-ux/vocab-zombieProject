@@ -1114,6 +1114,8 @@ G.STRINGS.th = {
     "story.death.title": "คุณถูกกัด", "story.death.text": "กลับไปจุดเซฟล่าสุดไหม คำที่ตอบไปแล้วยังนับอยู่ทุกคำ", "story.death.retry": "เริ่มจากจุดเซฟ",
     // ---- (story series, round 2) เครื่องมือเล่าเรื่อง: บทพูด โทรศัพท์ LexiLens ----
     "story.who.beam": "บีม", "story.who.min": "ครูมิน", "story.who.chai": "จ่าชัย", "story.who.invig": "ผู้คุมสอบ", "story.who.radio": "วิทยุ", "story.who.pa": "เสียงประกาศ",
+    "story.who.player": "คุณ", "story.who.somsak": "ผอ.สมศักดิ์", "story.who.porn": "ลุงพร", "story.who.pim": "พี่พิม", "story.who.ek": "ครูเอก",
+    "story.who.fai": "ฝ้าย", "story.who.tonkla": "ต้นกล้า", "story.who.nam": "น้ำ",
     "story.subs.title": "คำแปลในเนื้อเรื่อง", "story.subs.desc": "วิธีแปลบทพูดภาษาอังกฤษใน Story Mode: แปลทั้งประโยค แปลเฉพาะคำประจำบท หรือไม่แปล แตะคำไหนในบทพูดก็ดูความหมายได้",
     "story.subs.full": "ซับเต็ม", "story.subs.key": "แปลเฉพาะคำสำคัญ", "story.subs.en": "อังกฤษล้วน",
     "story.subs.short.full": "ซับ: เต็ม", "story.subs.short.key": "ซับ: คำสำคัญ", "story.subs.short.en": "ซับ: ปิด",
@@ -1124,6 +1126,18 @@ G.STRINGS.th = {
     "story.app.calendar": "ปฏิทิน", "story.app.lexa": "LEXA",
     "story.lens.correct": "ถูกต้อง รูปแบบสัญญาณประสาทถูกตัดขาด",
     "key.phone": "โทรศัพท์ (Story Mode)", "key.flashlight": "ไฟฉาย (Story Mode)", "cap.phone": "โทรศัพท์สั่น",
+    // ---- (story series, round 3) the voxel kit's gallery ----
+    "lobby.mode.storykit": "ชุดภาพ voxel (ตัวอย่าง)", "lobby.meta.storykit": "Story · ตัวอย่าง",
+    "lobby.desc.storykit": "เดินดูลุคของบทที่ 1 ก่อนนำไปสร้างทั้งบท: บล็อกทุกชนิด ตัวละคร 12 ตัว ซอมบี้ และพร็อพ ไม่มีอะไรในนี้ถูกบันทึก",
+    "story.kit.title": "ชุดภาพ voxel (ตัวอย่าง)", "story.kit.scene": "ห้องจัดแสดงชุดภาพ", "story.kit.status": "ตัวอย่าง",
+    "story.kit.obj": "เดินดูบล็อก ตัวละคร ซอมบี้ และพร็อพของบทที่ 1 ซอมบี้ที่เล็งอยู่จะเรืองแพตช์ LEXA",
+    // (ป้ายในห้องจัดแสดงวาดเป็นภาษาอังกฤษด้วยฟอนต์พิกเซลทุกภาษา)
+    "story.kit.blocks": "Blocks: 16 px a face", "story.kit.people": "People of Chapter 1", "story.kit.zombies": "Zombies", "story.kit.campaign": "Campaign", "story.kit.chapter": "Chapter 1",
+    // ป้ายของโรงเรียน: ภาษาอังกฤษทุกภาษา (บทนี้สอนผ่านป้าย ชื่อแบรนด์ตาม D12)
+    "story.sign.evac1": "EVACUATION ROUTE", "story.sign.evac2": "YOU ARE HERE", "story.sign.evac3": "EAST STAIRWELL",
+    "story.sign.pa1": "SMART PA", "story.sign.pa2": "POWERED BY NEUROLEX",
+    "story.sign.lexa1": "LEXA", "story.sign.lexa2": "FLUENT BY MORNING.", "story.sign.lexa3": "NO STUDY NEEDED.",
+    "story.sign.police": "POLICE", "story.sign.school": "PHOTCHANAWITTHAYA SCHOOL",
     "story.ch1.n.cal": "สอบวัดระดับภาษาอังกฤษ · 08:30 · ห้อง 305", "story.ch1.n.ad": "LEXA v2.1 — คล่องภายในเช้าเดียว ไม่ต้องอ่านหนังสือ",
     "story.ch1.m.beam1": "เมื่อคืนเราแอบใช้ LEXA อย่าบอกครูมินนะ", "story.ch1.m.beam2": "รู้สึกแปลก ๆ... เหมือนคำศัพท์ค่อย ๆ หลุดหายไป",
     "story.ch1.c.what": "นายทำอะไรนะ?", "story.ch1.c.promise": "เราสัญญากันแล้วนะ ไม่มีทางลัด",

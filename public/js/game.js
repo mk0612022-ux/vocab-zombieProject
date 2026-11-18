@@ -490,6 +490,8 @@ G.Game = {
     // (visual series: the baked surfaces' materials, the night-sky reflection,
     // the level's lights, fog and shadows)
     if (G.Visuals) G.Visuals.afterBake(this);
+    // (story series, round 3: the blocks' chunks lit per pixel too, and the atlas's roughness)
+    if (G.Voxel && this.level && this.level.story) G.Voxel.afterBake(this);
     // (round 2: the glow, the rims, the baked light spill, the pools of light,
     // the cones, the fog sheets -- before the compile, so none of it hitches later)
     if (G.LightFX) G.LightFX.afterBake(this);

@@ -1114,6 +1114,8 @@ G.STRINGS.zh = {
     "story.death.title": "你被咬了", "story.death.text": "回到上一个检查点吗？你答过的每个单词仍然有效。", "story.death.retry": "从检查点重试",
     // ---- (story series, round 2) 叙事工具：对话、手机、LexiLens ----
     "story.who.beam": "Beam", "story.who.min": "敏老师", "story.who.chai": "猜警官", "story.who.invig": "监考员", "story.who.radio": "收音机", "story.who.pa": "广播",
+    "story.who.player": "你", "story.who.somsak": "颂萨校长", "story.who.porn": "蓬大叔", "story.who.pim": "平护士", "story.who.ek": "艾克教练",
+    "story.who.fai": "Fai", "story.who.tonkla": "Tonkla", "story.who.nam": "Nam",
     "story.subs.title": "剧情字幕", "story.subs.desc": "剧情模式中英文台词的翻译方式：整句翻译、只翻译本章词汇，或不翻译。点击台词中的任何单词都能查看意思。",
     "story.subs.full": "完整字幕", "story.subs.key": "仅关键词", "story.subs.en": "仅英文",
     "story.subs.short.full": "字幕：完整", "story.subs.short.key": "字幕：关键词", "story.subs.short.en": "字幕：关",
@@ -1124,6 +1126,18 @@ G.STRINGS.zh = {
     "story.app.calendar": "日历", "story.app.lexa": "LEXA",
     "story.lens.correct": "正确。神经模式已被打断。",
     "key.phone": "手机（剧情模式）", "key.flashlight": "手电筒（剧情模式）", "cap.phone": "手机振动",
+    // ---- (story series, round 3) the voxel kit's gallery ----
+    "lobby.mode.storykit": "体素套件（预览）", "lobby.meta.storykit": "剧情 · 预览",
+    "lobby.desc.storykit": "在第 1 章用它建成之前，先走一圈看看它的样子：每种方块、十二个角色、僵尸和道具。这里的一切都不会被保存。",
+    "story.kit.title": "体素套件（预览）", "story.kit.scene": "套件展示厅", "story.kit.status": "预览",
+    "story.kit.obj": "走一圈看看第 1 章的方块、人物、僵尸和道具。你瞄准的僵尸会亮起它的 LEXA 贴片。",
+    // (展示厅的牌子：无论哪种语言都用像素字体写英文)
+    "story.kit.blocks": "Blocks: 16 px a face", "story.kit.people": "People of Chapter 1", "story.kit.zombies": "Zombies", "story.kit.campaign": "Campaign", "story.kit.chapter": "Chapter 1",
+    // 学校的标牌：所有语言都是英文（本章借它们教学；名称见决定 D12）
+    "story.sign.evac1": "EVACUATION ROUTE", "story.sign.evac2": "YOU ARE HERE", "story.sign.evac3": "EAST STAIRWELL",
+    "story.sign.pa1": "SMART PA", "story.sign.pa2": "POWERED BY NEUROLEX",
+    "story.sign.lexa1": "LEXA", "story.sign.lexa2": "FLUENT BY MORNING.", "story.sign.lexa3": "NO STUDY NEEDED.",
+    "story.sign.police": "POLICE", "story.sign.school": "PHOTCHANAWITTHAYA SCHOOL",
     "story.ch1.n.cal": "英语水平考试 · 08:30 · 305 教室", "story.ch1.n.ad": "LEXA v2.1——一夜流利，无需学习。",
     "story.ch1.m.beam1": "我昨晚用了 LEXA。别告诉敏老师。", "story.ch1.m.beam2": "我感觉怪怪的……好像单词一直在溜走。",
     "story.ch1.c.what": "你做了什么？", "story.ch1.c.promise": "我们说好的。没有捷径。",
