@@ -98,7 +98,9 @@ G.LexiLens = (function () {
   }
   function update(dt) {
     if (glitchT > 0) { glitchT -= dt; if (glitchT <= 0) { glitchT = 0; B().classList.remove("lens-glitch"); } }
-    if (cur) { curT += dt; if (curT >= cur.dur) nextSys(); }
+    // (story round 5: held -- Space, A, a finger -- the system's lines go by faster too, as the
+    // lines and the scene's waits do: the queue keeps up with the scene)
+    if (cur) { curT += dt * (G.StoryDialogue && G.StoryDialogue.fast ? G.StoryDialogue.fast() : 1); if (curT >= cur.dur) nextSys(); }
   }
   function reset() {
     shown = new Set(PARTS); apply();

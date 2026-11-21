@@ -746,7 +746,9 @@ G.Game = {
 
   // `sp`: the spawn point, whose way in (ground, locker, vent, window, desk)
   // the zombie arrives by (js/zombiefx.js)
-  spawnZombieAt(type, pos, sp) {
+  // (story series, round 5) o: { pair, practice, look } -- a scene's own word (the prologue's
+  // CLEAN / CLEAR / LEAN), counted nowhere when practice, in a look of its own (the janitor)
+  spawnZombieAt(type, pos, sp, o) {
     // (visual series, round 3, L3: never out in the forest, whoever asks -- a
     // wave, a boss calling its helpers -- a place past the fence is given up
     // for one of the level's spawn points, failing that the nearest place
@@ -766,7 +768,8 @@ G.Game = {
     const usedWords = alive.map((z) => z.word);
     const usedMeanings = alive.map((z) => (z.meaning || "").trim());
     const free = (p) => !usedWords.includes(p[0]) && !usedMeanings.includes(p[1].trim());
-    let pair = null, decoy = null;
+    let pair = o && o.pair ? o.pair : null, decoy = null;
+    const practice = !!(o && o.practice);
     // (vocabulary series, round 2, E1) a target in box 2 or higher gets a
     // look-alike on the field -- one of the run's words if it can, else a
     // decoy from the bank or the confusables lexicon
@@ -775,7 +778,7 @@ G.Game = {
     // first -- the sentence wants "indicates", not "indication" -- one at a
     // time, carrying their form (decoys: never a target, never counted)
     const tc = this.targetClue;
-    if (tp && tc && tc.kind === "cloze" && !(this.study && this.study.kind === "review")) {
+    if (!pair && tp && tc && tc.kind === "cloze" && !(this.study && this.study.kind === "review")) {
       const key = G.wordKey(tp);
       if (alive.filter((z) => z.lookAlikeFor === key).length < G.CONFIG.clues.clozeFamily) {
         const onField = new Set(alive.map((z) => z.word.toLowerCase()));
@@ -809,17 +812,18 @@ G.Game = {
       if (candidates.length === 0) candidates = this.wordPool;
       pair = G.weightedSample(candidates, 1)[0] || G.pick(this.wordPool);
     }
-    const z = new G.Zombie(type, pos, pair, this.level.theme);
+    const z = new G.Zombie(type, pos, pair, this.level.theme, o && o.look ? { look: o.look } : undefined);
     const hpK = G.zombieHpMult(this.wave);                   // (expansion, round 3; on since round 6, with the Word Forge)
     if (hpK !== 1) { z.hp = Math.round(z.hp * hpK); z.maxHp = z.hp; }
+    if (practice) z.practice = true;
     // how it is answered (shot, or spelt) and with which clue; a decoy is
     // shot, with its target's kind of clue (round 3: a Context look-alike
     // carries its form, a Listening one its Thai meaning)
-    const how = decoy ? { clue: decoy.clue || (tc && tc.kind) || "thai", answer: "shoot" } : this.learn.pick(pair);
+    const how = practice ? { clue: "thai", answer: "shoot" } : decoy ? { clue: decoy.clue || (tc && tc.kind) || "thai", answer: "shoot" } : this.learn.pick(pair);
     this.dressZombie(z, pair, how, decoy);
-    if (tp && !decoy && G.Distract.lookAlikesWanted(tp) && G.Distract.isSimilar(tp, pair)) z.lookAlikeFor = G.wordKey(tp);
+    if (!practice && tp && !decoy && G.Distract.lookAlikesWanted(tp) && G.Distract.isSimilar(tp, pair)) z.lookAlikeFor = G.wordKey(tp);
     if (decoy) { z.decoy = decoy; z.lookAlikeFor = decoy.forKey; }
-    else G.Quiz.noteWord(this, pair);                         // (the quiz asks this wave's words, A2)
+    else if (!practice) G.Quiz.noteWord(this, pair);          // (the quiz asks this wave's words, A2)
     // (a study session's second go at a word already missed: it moves no box)
     if (this.study && !decoy && this.study.done[G.wordKey(pair)]) z.retry = true;
     z.speed *= G.Spawner.spec ? G.Spawner.spec.speed : 1;   // the wave's pace (G.WAVE_TABLE): gentle early on
@@ -883,7 +887,11 @@ G.Game = {
   // The slot chosen changes at once (the HUD shows it); the gun in the hands
   // follows -- lowered, swapped, raised -- by G.WeaponSM, which also stops a
   // reload in progress. Pressed again and again, only the last one counts.
+  // (story series, round 5) a chapter's prologue: no gun in the hands yet (Sgt. Chai's comes in
+  // its part 6) -- the trigger, the sights, a reload, a swap, a swing do nothing
+  handsFree() { return this.mode === "story" && !!(G.Story && G.Story.handsFree && G.Story.handsFree()); },
   switchSlot(slot) {
+    if (this.handsFree()) return;
     if (slot === this.player.currentSlot) return;
     if (slot !== 0 && !this.player.gunSlots[slot - 1]) return;
     this.player.currentSlot = slot;
@@ -964,7 +972,7 @@ G.Game = {
       set pendingRebuild(v) { /* the machine's */ },
     };
   },
-  inspect() { return this.wsm ? this.wsm.requestInspect() : false; },
+  inspect() { return this.wsm && !this.handsFree() ? this.wsm.requestInspect() : false; },
   // (expansion, round 4) the button that holds a swing back: the trigger with
   // the weapon out, the melee button only for a quick swing off a gun
   meleeHeld(quick) {
@@ -1006,6 +1014,7 @@ G.Game = {
   viewModelOf(def) {
     // (expansion, round 5: with the player's attachments and skin; round 6: its Word Forge tier)
     const mesh = def.id === "melee" ? G.buildMeleeMesh(def) : G.buildWeaponMesh(def, { loadout: true, tier: G.Forge ? G.Forge.tierOf(def.id, this) : 0 });
+    if (this.level && this.level.story && G.VoxelGun) G.VoxelGun.apply(mesh, def);   // (story series, round 5: built of blocks)
     mesh.position.set(0.3, -0.32, -0.75);
     mesh.rotation.y = -0.06;
     // from here on G.ViewModel poses it every frame
@@ -1022,6 +1031,7 @@ G.Game = {
     }
     const def = id === "melee" ? G.meleeDef(this) : (id && G.WEAPON_DEFS[id]) || this.currentWeaponDef();
     const mesh = def.id === "melee" ? G.buildMeleeMesh(def) : G.buildWeaponMesh(def, { loadout: true, tier: G.Forge ? G.Forge.tierOf(def.id, this) : 0 });
+    if (this.level && this.level.story && G.VoxelGun) G.VoxelGun.apply(mesh, def);   // (story series, round 5: built of blocks)
     mesh.position.set(0.3, -0.32, -0.75);
     mesh.rotation.y = -0.06; // slight natural inward cant, typical FPS held-weapon angle
     // from here on G.ViewModel poses it every frame
@@ -1089,7 +1099,7 @@ G.Game = {
   // or shell by shell. Ammo goes in once, when the fresh magazine seats (or
   // a shell at a time), so a reload abandoned before that refills nothing.
   // -> true (started), "full" (nothing to do), or false
-  reload() { return this.wsm ? this.wsm.requestReload() : false; },
+  reload() { return this.wsm && !this.handsFree() ? this.wsm.requestReload() : false; },
   finishSpellReload(id, result) {
     const ammo = this.player.ammo[id], def = G.WEAPON_DEFS[id];
     if (!ammo || !def || this.state !== "GAMEPLAY") { if (this.wsm) this.wsm.endSpell(); return; }
@@ -1109,6 +1119,7 @@ G.Game = {
     const magSize = Math.round(def.magSize * ((lvl && lvl.mag) || 1));
     const add = n === "full" ? Math.max(0, Math.min(magSize - ammo.mag, ammo.reserve)) : (ammo.mag < magSize && ammo.reserve > 0 ? 1 : 0);
     ammo.mag += add; ammo.reserve -= add;
+    if (this.mode === "story" && G.Story && G.Story.run) G.Story.run.flags.add("reloaded");   // (story series, round 5: the prologue waits for one)
     return add;
   },
 
@@ -1516,7 +1527,8 @@ G.Game = {
       if (P.has("focus_time")) this._slowmoT = P.val("focus_time");
       const sh = pl.comboShield;
       if (sh && !sh.charged && ++sh.streak >= P.val("combo_shield")) { sh.charged = true; sh.streak = 0; }
-      this.correctCount++;
+      // (story series, round 5: a practice word -- the prologue's -- counts in no total, moves no box)
+      if (!z.practice) this.correctCount++;
       this.correctKills++;
       G.Audio.sfx("correct");
       if (this.mode === "story" && G.LexiLens) G.LexiLens.onCorrect();   // (story series, round 2: "Neural pattern disrupted")
@@ -1524,7 +1536,7 @@ G.Game = {
       // audio reinforces the answer instead of giving it away
       if ((G.save.settings.speechMode || "after") === "after") G.Audio.speak(z.word);
       const prevStat = G.wordStat(z.pair), prevWrong = !!prevStat && prevStat.wrong > 0;
-      this.learnRight(z, spelled);
+      if (!z.practice) this.learnRight(z, spelled);
       // (overhaul, round 7) "✓ consist of (V.) = <its meaning>" under the word box
       if (z.word) G.ExplainCard.show(G.Explain.forShot(z, true, this.targetPair, this.targetClue));
       this.player.combo++;
@@ -1545,20 +1557,24 @@ G.Game = {
       if (this.mode === "study" && G.Study) G.Study.onAnswer(this, z, true);
       this.rollLootDrop(z, true);
     } else {
-      this.wrongCount++;
+      if (!z.practice) this.wrongCount++;
       G.Audio.sfx("wrong");
       // (C2, E2) a wrong zombie shot is a wrong answer on the TARGET, and
       // the pair (target, the word shot) is one the player confuses
       const tp = this.targetPair;
-      this.learnWrongShot(z);
-      if (tp) this.trackWrongWord(tp[0], tp[1]); else if (!z.decoy) this.trackWrongWord(z.word, z.meaning);
+      if (!z.practice) {
+        this.learnWrongShot(z);
+        if (tp) this.trackWrongWord(tp[0], tp[1]); else if (!z.decoy) this.trackWrongWord(z.word, z.meaning);
+      }
       this.showConfusion(z, tp);
       // (a study session: the target's word was missed; the one shot comes again)
       if (this.mode === "study" && G.Study) G.Study.onWrongShot(this, z, tp);
       // (the end-of-wave quiz asks these first: the word shot by mistake, and
       // the one that should have been)
-      if (!z.decoy) G.Quiz.noteMissed(this, z.word);
-      if (this.targetPair) G.Quiz.noteMissed(this, this.targetPair[0]);
+      if (!z.practice) {
+        if (!z.decoy) G.Quiz.noteMissed(this, z.word);
+        if (this.targetPair) G.Quiz.noteMissed(this, this.targetPair[0]);
+      }
       // Combo Shield: one wrong answer does not cost the combo; it recharges
       // after a run of right ones
       if (pl.comboShield && pl.comboShield.charged && pl.combo > 0) {
@@ -2469,7 +2485,7 @@ G.Game = {
     // shoot, or -- nothing to shoot -- the one the spelling pad is on
     let meaningLabel = G.T("hud.shootMeaning");
     if (!this.targetPair && this.mode === "training") meaningLabel = G.T("train.now");   // (expansion, round 7: the step under way)
-    if (!this.targetPair && this.mode === "story") meaningLabel = G.T("story.objective");          // (story series, round 1)
+    if (!this.targetPair && this.mode === "story") meaningLabel = G.Story && G.Story.idleLabel ? G.Story.idleLabel() : G.T("story.objective");   // (story series, round 1; round 5: a practice question's number)
     // (round 3) and which clue: the Thai, a definition (with the Thai under
     // it while the word is new, or a button for it), a sentence with a gap,
     // or only its sound
@@ -2667,9 +2683,11 @@ G.Game = {
     // as height zones -- see G.getFloorHeightAt in world.js). The engine has
     // no real "standing on geometry" physics, so the player's eye height just
     // tracks whatever height zone they're currently over, on top of jump gravity.
-    const baseEyeY = 1.7 + G.getFloorHeightAt(this.world, this.yawObject.position.x, this.yawObject.position.z, this.yawObject.position.y - 1.7);
+    // (story series, round 5: seated at an exam desk the eyes are lower -- js/story/storycam.js seat)
+    const seatDrop = this.mode === "story" && G.StoryCam ? G.StoryCam.drop || 0 : 0;
+    const baseEyeY = 1.7 - seatDrop + G.getFloorHeightAt(this.world, this.yawObject.position.x, this.yawObject.position.z, this.yawObject.position.y - 1.7 + seatDrop);
     // (story series, round 2: while a line is up the jump key is the dialogue's -- held, faster)
-    const storyHolds = this.mode === "story" && G.StoryDialogue && G.StoryDialogue.holdsJump();
+    const storyHolds = this.mode === "story" && ((G.StoryDialogue && G.StoryDialogue.holdsJump()) || (G.StoryCam && G.StoryCam.seated));
     const jumpPressed = !feetHeld && !storyHolds && ((G.Input.mode === "desktop" && !typing && G.Input.isDown("jump")) || G.Input.touchJump || (G.Input.padJump && !(G.Spell && G.Spell.active)));
     if (jumpPressed && this.yawObject.position.y <= baseEyeY + 0.01 && this.velocityY === 0) this.velocityY = PC.jumpSpeed;
     this.velocityY -= 9.8 * dt;
@@ -2688,9 +2706,10 @@ G.Game = {
     // The time it takes follows the gun's weight (G.CONFIG.weaponSM.aimIn),
     // eased in and out.
     const def = this.currentWeaponDef();
-    const aimInput = (G.Input.aimDown || G.Input.padAim) && def.id !== "melee" && !this.challenge;
+    const handsFree = this.handsFree();                // (story series, round 5: no gun yet)
+    const aimInput = (G.Input.aimDown || G.Input.padAim) && def.id !== "melee" && !this.challenge && !handsFree;
     // (a run answered only by spelling has no trigger: the words are the shots)
-    const rawFire = !this.challenge && !feetHeld && !(this.learn && !this.learn.shoots) && ((G.Input.mode === "desktop" && G.Input.mouseDown) || G.Input.touchFire || G.Input.padFire);
+    const rawFire = !this.challenge && !feetHeld && !handsFree && !(this.learn && !this.learn.shoots) && ((G.Input.mode === "desktop" && G.Input.mouseDown) || G.Input.touchFire || G.Input.padFire);
     if (this.wsm) this.wsm.input({ moving: len > 0.05, sprinting, aimHeld: aimInput, fireHeld: rawFire });
     // (gun reference pass: off the sight while a bolt is worked -- G.ViewModel.boltBusy)
     const wantAim = aimInput && (!this.wsm || this.wsm.aimActive) && !(G.ViewModel.boltBusy && G.ViewModel.boltBusy());
@@ -2757,7 +2776,7 @@ G.Game = {
     // nothing in a swap; out of a run, the shot waits for the sprint-out;
     // during a reload a fresh pull with rounds left stops it and fires (shell
     // by shell: after the shell in the hand); an inspection just stops.
-    const edge = this._fireEdge, W = this.wsm;
+    const edge = this._fireEdge && !handsFree, W = this.wsm;
 
     // Category N: a charge weapon winds up while the trigger is held and fires
     // on release, with damage scaling from 1x to its charge multiplier.
@@ -2779,7 +2798,7 @@ G.Game = {
     }
     this._fireEdge = false;
     // (expansion, round 4) the quick-melee button: never while the feet are held or a question is up
-    if (this._meleeEdge) { this._meleeEdge = false; if (W && !this.challenge && !feetHeld) W.requestMelee(); }
+    if (this._meleeEdge) { this._meleeEdge = false; if (W && !this.challenge && !feetHeld && !handsFree) W.requestMelee(); }
 
     // remaining rounds of a burst, on their own much shorter timer
     if (this._burst) {
@@ -3118,6 +3137,8 @@ G.Game = {
         }
         // (expansion, round 6) the Word Forge (js/forge.js)
         if (found.kind === "forge") label = G.Forge ? G.Forge.prompt(this) : "";
+        // (story series, round 5) a chapter's thing to use (js/story/interact.js)
+        if (found.kind === "story") label = G.StoryUse ? G.StoryUse.prompt(found.ref, key) : "";
         // (expansion, round 4) a melee weapon on a wall: the one in the slot has nothing to buy
         if (found.kind === "wallmelee") {
           const mdef = G.MELEE_WEAPONS[found.ref.key], mine = this.player.melee === found.ref.key;
@@ -3182,6 +3203,8 @@ G.Game = {
       this.useReward(found.ref);
     } else if (found.kind === "forge") {
       if (G.Forge) G.Forge.interact(this);
+    } else if (found.kind === "story") {
+      if (G.StoryUse) G.StoryUse.use(this, found.ref);
     }
   },
 

@@ -30,6 +30,10 @@
 //   played the same way but nothing of it is written to the save; its zombies, as every
 //   chapter's, are built of blocks (js/story/voxelchars.js), the patch of the one under the
 //   crosshair lit each frame
+//   (round 5) G.Story.arm(game, on) / handsFree()   the gun in the hands, or not yet (a scene
+//   with armed: false -- the prologue until Sgt. Chai's pistol); the scene's people, things to
+//   use, practice exam and screen (js/story/cast.js, interact.js, aimquiz.js, screen.js) start
+//   and stop with a run; idleLabel() the word box's label while nothing is to be shot
 // The answers count in the memory boxes as everywhere else; the chapter keeps
 // its own totals (right, wrong, time) for its summary and achievements.
 // ===================================================================
@@ -180,6 +184,12 @@ G.Story = (function () {
     if (G.StoryCam) G.StoryCam.reset();
     if (G.LexiLens) G.LexiLens.reset();
     if (G.StoryPhone) G.StoryPhone.start();
+    // (round 5) and the scene's people, things to use, the practice exam, the screen (the last
+    // run's level is gone: nothing of it to take out of the scene)
+    if (G.StoryCast) G.StoryCast.reset();
+    if (G.StoryUse) G.StoryUse.reset(game);
+    if (G.StoryQuiz) G.StoryQuiz.reset(game);
+    if (G.StoryScreen) G.StoryScreen.reset();
     // what the checkpoint was carrying (full health: a checkpoint is a fresh start)
     if (from && from.guns) {
       const pl = game.player;
@@ -213,8 +223,27 @@ G.Story = (function () {
     // (round 4) the chapter's map: the storeys drawn, the sun over the player
     if (game.world && game.world.storyMap && game.world.storyMap.update) game.world.storyMap.update(game);
     if (G.StoryLight) G.StoryLight.update(game);
+    // (round 5) the scene's people, a press in time, the practice exam, the screen's moments
+    if (G.StoryCast) G.StoryCast.update(game, dt);
+    if (G.StoryUse) G.StoryUse.update(game, dt);
+    if (G.StoryQuiz) G.StoryQuiz.update(game, dt);
+    if (G.StoryScreen) G.StoryScreen.update(game, dt);
     G.StoryScenes.update(game, run, dt);
   }
+  // (round 5) the gun in the hands -- or not yet. Handed over (not `quiet`): it comes up as a
+  // gun drawn does, the HUD's slots and magazine showing it
+  function arm(game, on, quiet) {
+    if (!run) return;
+    const was = !run.unarmed;
+    run.unarmed = !on;
+    if (G.ViewModel && G.ViewModel.setVisible) G.ViewModel.setVisible(!!on);
+    document.body.classList.toggle("story-hands-free", !on);          // (the gun's touch buttons away: css)
+    if (on && !was && !quiet) {
+      if (game.wsm && game.wsm.requestSwitch) game.wsm.requestSwitch();
+      if (G.Audio && G.Audio.sfx) G.Audio.sfx("pickup");
+    }
+  }
+  function handsFree() { return !!(run && run.unarmed && !run.over); }
   // (round 2) a line's {name}: the profile's name, else a candidate number of this device's
   function vars() {
     const p = G.save && G.save.profile;
@@ -236,6 +265,9 @@ G.Story = (function () {
     const kb = G.save.settings.keybinds;
     if (kb.phone && e.code === kb.phone) { if (!e.repeat && G.StoryPhone) G.StoryPhone.toggle(); return true; }
     if (kb.flashlight && e.code === kb.flashlight) { if (!e.repeat && G.StoryPhone) G.StoryPhone.torch(); return true; }
+    // (round 5) a press in time, and the practice exam's answer, before the interaction key's own use
+    if (G.StoryUse && G.StoryUse.onKey(e)) return true;
+    if (G.StoryQuiz && G.StoryQuiz.active && G.StoryQuiz.onKey(e)) return true;
     return !!(G.StoryDialogue && G.StoryDialogue.onKey(e));
   }
   // (round 2) the lines, the turned view, the bars, the phone: gone (a death, the end, leaving)
@@ -326,21 +358,30 @@ G.Story = (function () {
     if (G.VoxelChars) G.VoxelChars.reset();
     if (G.VoxelKit) G.VoxelKit.teardown();
     if (G.StoryLight) G.StoryLight.reset();
+    // (round 5) the scene's people and things gone with the level; the hands' gun shown again
+    if (G.StoryCast) G.StoryCast.reset(game);
+    if (G.StoryUse) G.StoryUse.reset(game);
+    if (G.StoryQuiz) G.StoryQuiz.reset(game);
+    if (G.StoryScreen) G.StoryScreen.reset();
+    if (G.ViewModel && G.ViewModel.setVisible) G.ViewModel.setVisible(true);
+    document.body.classList.remove("story-hands-free");
   }
   // the HUD's top box while a chapter is played: the chapter, the scene; the objective in the word box
   function hudHead(game, left) {
     if (!run) return { level: "", wave: "", left: "" };
     return { level: T("story.chapterN", { n: run.ch.n }), wave: sceneTitle(run.ch, run.sceneI), left: game.zombies.some((z) => z.alive) ? T("hud.zombiesLeft", { n: left }) : "" };
   }
-  function idleMeaning() { return run && run.objective ? T(run.objective) : "-"; }
+  // (round 5: while the practice exam runs, its question and which one it is)
+  function idleMeaning() { const q = G.StoryQuiz && G.StoryQuiz.active ? G.StoryQuiz.line() : null; return q || (run && run.objective ? T(run.objective, vars()) : "-"); }
+  function idleLabel() { const l = G.StoryQuiz && G.StoryQuiz.active ? G.StoryQuiz.label() : null; return l || T("story.objective"); }
   // the page going away mid-scene: the answers and the time so far into the chapter's
   // totals (the player comes back at the checkpoint; js/savemanager.js writes the save)
   window.addEventListener("pagehide", () => { if (run && !run.over && run.game) { commit(run.game); G.persist(true); } });
 
   return {
     on, chapters, chapter, data, status, entries, missing, pairs, plan, level, open, restart, start,
-    beginRun, update, commit, checkpoint, prologueDone, sceneReached, died, finish, teardown, hudHead, idleMeaning,
-    vars, chose, onKey,
+    beginRun, update, commit, checkpoint, prologueDone, sceneReached, died, finish, teardown, hudHead, idleMeaning, idleLabel,
+    vars, chose, onKey, arm, handsFree,
     get run() { return run; }, get pending() { return pending; },
   };
 })();

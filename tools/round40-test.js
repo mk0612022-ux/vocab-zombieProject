@@ -13,9 +13,10 @@
 //   E  the camera: a turn to a point, the view locked, a walk, the bars, the world slowed
 //   F  LexiLens: the HUD's parts (and the zombies' words), the boot, the theme, a glitch, a system
 //      line and its subtitle, "Neural pattern disrupted" on a right shot
-//   G  the stand-in prologue from its alarm to Kru Min's message: every tool in order, then
-//      scene 2 with the whole HUD and the glasses on, the checkpoint keeping the phone
-//   H  a cinematic part seen once is skipped by holding Space; never the first time
+//   G  the prologue's first minute: no HUD, the alarm, the messages, Beam's thread read, the
+//      reply, the walk in to the radio's line (story round 5: the whole prologue is suite 43's)
+//   H  a cinematic part seen once (round 5: the walk in from the gate) is skipped by holding
+//      Space; never the first time
 //   I  a controller: the D-pad's up opens the phone, B closes it, down the torch
 //   J  four languages: a line's subtitle, the phone, a system line
 //   K  leaving a chapter: nothing of it left for the campaign (HUD, labels, torch, classes)
@@ -60,7 +61,9 @@ G.Round40Test = (function () {
     const lights = () => { let n = 0; g.scene.traverse((o) => { if (o.isLight) n++; }); return n; };
     const fresh = () => {
       G.save.story = { ch: {} };
-      ["story_ch1_exam", "story_ch1_corridor"].forEach((k) => { delete G.save.tutorialSeen[k]; });
+      // (a play of the prologue elsewhere in this browser leaves its cinematic parts "seen":
+      // held Space would skip them; these checks see them the first time)
+      Object.keys(G.save.tutorialSeen || {}).forEach((k) => { if (/^story_/.test(k)) delete G.save.tutorialSeen[k]; });
     };
     const quit = () => { if (G.Dialog.isOpen()) G.Dialog.close(); if (PH.isOpen()) PH.close(); g.update = real; if (g.state !== "MENU") g.quitToMainMenu(); g.update = () => {}; G.Modal.reset(); };
 
@@ -321,7 +324,7 @@ G.Round40Test = (function () {
         await yield0();
       }
 
-      // ================= G: the stand-in prologue, end to end =================
+      // ================= G: the prologue's first minute (story round 5: the whole of it is suite 43's) =================
       {
         fresh();
         play(() => S.start("ch1", null));
@@ -330,67 +333,39 @@ G.Round40Test = (function () {
         ok("G ...the alarm: the calendar's notification", PH.state.notes.join() === "cal" && vis("#story-toast"));
         until(() => PH.state.msgs.length === 2, 400);
         ok("G ...the LEXA ad, then Beam's two messages, in order", PH.state.notes.join() === "cal,ad" && PH.state.msgs.join() === "beam1,beam2");
+        PH.open("beam"); step(1); PH.close(); step(2);
         until(() => G.Dialog.isOpen(), 200);
-        ok("G ...the reply to Beam: a choice", G.Dialog.isOpen() && document.querySelectorAll("#dialog-btns button").length === 2);
+        ok("G ...Beam's thread read, then the reply to Beam: a choice", S.run.flags.has("read:beam") && G.Dialog.isOpen() && document.querySelectorAll("#dialog-btns button").length === 2);
         pick(1);
-        ok("G ...chosen, kept; the radio's line", G.save.story.ch.ch1.choices.beam === "promise" && D.current && D.current.who === "radio");
-        talkAll();
-        toZone("entry");
-        ok("G in (the zone): Beam's lost word, 3 answers", G.Dialog.isOpen() && document.querySelectorAll("#dialog-btns button").length === 3);
-        pick(0);
-        ok("G ...right: \"Pencil! Right. Pencil.\", then Kru Min", D.current && D.current.line === "story.ch1.d.beamPencil" && D.queued === 1);
-        talkAll(); step(2);
-        ok("G the exam room: the invigilator", D.current && D.current.who === "invig");
-        talkAll(); step(2);
-        ok("G ...the glasses on: the word box boots, the calibration line with the candidate", LENS.on && LENS.shown.join() === "word" && LENS.line && LENS.line.key === "story.ch1.sys.calib");
-        until(() => D.busy(), 200); talkAll(); step(2);
-        ok("G ...\"forty... for-\": the anomaly, red", LENS.line && LENS.line.key === "story.ch1.sys.anomaly" && LENS.line.red && B.classList.contains("lens-glitch"));
-        until(() => D.busy(), 200);
-        ok("G Beam changes: his lines, then the PA", D.current && D.current.who === "beam" && D.queued === 2);
-        talkAll(); step(2);
-        const vitalsNow = LENS.shown.join();
-        until(() => LENS.line && LENS.line.key === "story.ch1.sys.vital", 300);   // (after the anomaly's own time)
-        ok("G ...health and stamina boot, \"VITAL MONITORING ENABLED\" (after the anomaly's line)", vitalsNow === "word,vitals" && LENS.line && LENS.line.key === "story.ch1.sys.vital", vitalsNow);
-        until(() => B.classList.contains("story-bars"), 200);
-        ok("G the corridor: the bars, the view turned toward them, Sgt. Chai", B.classList.contains("story-bars") && CAM.turning && D.current && D.current.who === "chai");
+        until(() => D.current && D.current.who === "radio", 300);
+        ok("G ...chosen, kept; walked in from the gate to the radio's line", G.save.story.ch.ch1.choices.beam === "promise" && D.current && D.current.who === "radio" && CAM.walking);
+        // (the bars and a line: its box over the bottom bar, not across it)
+        CAM.bars(true); step(2);
         const dlgBottom = parseFloat(getComputedStyle($("story-dlg")).bottom);
-        ok("G ...the line's box over the bottom bar, not across it", dlgBottom >= window.innerHeight * 0.12, dlgBottom.toFixed(0) + " px of " + window.innerHeight);
-        until(() => !CAM.turning, 200);
-        const f = new THREE.Vector3(-Math.sin(g.yawObject.rotation.y), 0, -Math.cos(g.yawObject.rotation.y)), sp = CH.spawns.corridor3[0];
-        const to = new THREE.Vector3(sp.x - g.yawObject.position.x, 0, sp.z - g.yawObject.position.z).normalize();
-        ok("G ...facing where they will come from", f.dot(to) > 0.99, f.dot(to).toFixed(3));
-        talkAll(); step(2);
-        ok("G ...the whole HUD, the zombies' words, the bars gone, the group of 3, the world slowed", LENS.shown.length === 4 && !G.Visuals.labelsOff && !B.classList.contains("story-bars") && alive().length === 3 && g._slowmoT > 0);
-        clearAll(); step(3);
-        const d = G.save.story.ch.ch1;
-        ok("G the group down: Kru Min's message, scene 2, the checkpoint", PH.state.msgs.includes("min1") && S.run.sceneI === 1 && d.cp && d.cp.scene === 1 && d.prologueDone);
-        ok("G ...the checkpoint keeps the phone and the choice (flags)", ["ntf:cal", "ntf:ad", "msg:beam1", "msg:beam2", "msg:min1", "chose:beam", "chose:pencil"].every((x) => d.cp.flags.includes(x)), d.cp.flags.join());
-        ok("G ...scene 2: whole HUD, glasses on, no bars", LENS.shown.length === 4 && LENS.on && !B.classList.contains("story-bars"));
-        ok("G ...both cinematic parts now seen (skippable next time)", G.save.tutorialSeen.story_ch1_exam && G.save.tutorialSeen.story_ch1_corridor);
+        ok("G with the bars: the line's box over the bottom bar, not across it", dlgBottom >= window.innerHeight * 0.12, dlgBottom.toFixed(0) + " px of " + window.innerHeight);
+        CAM.bars(false);
         quit();
         await yield0();
       }
 
       // ================= H: skipping what was seen =================
       {
-        G.save.story = { ch: {} };   // (the seen flags from G stay)
-        play(() => S.start("ch1", null));
-        until(() => G.Dialog.isOpen(), 600); pick(0); talkAll();
-        toZone("entry"); pick(0); talkAll(); step(2);
+        // (story round 5: the prologue's first cinematic part is the walk in from the gate)
+        const toGate = () => { play(() => S.start("ch1", null)); until(() => PH.state.msgs.length === 2, 400); PH.open("beam"); step(1); PH.close(); step(2); until(() => G.Dialog.isOpen(), 200); pick(0); until(() => CH.scenes[0].beats[S.run.beatI] && CH.scenes[0].beats[S.run.beatI].cine === "gate", 200); step(2); };
+        G.save.story = { ch: {} };
+        G.save.tutorialSeen.story_ch1_gate = true;
+        toGate();
         const bi = S.run.beatI, b = CH.scenes[0].beats[bi];
-        ok("H replaying: at the exam part (seen before), skippable", b.cine === "exam" && SC.canSkip(S.run), bi);
+        ok("H replaying: at the walk in (seen before), skippable", b.cine === "gate" && SC.canSkip(S.run), bi);
         const kbJ = G.save.settings.keybinds.jump;
         G.Input.keys[kbJ] = true; step(Math.ceil(G.CONFIG.story.dialogue.holdSkip * 60) + 8); G.Input.keys[kbJ] = false; step(2);
-        const nb = CH.scenes[0].beats[S.run.beatI];
-        ok("H held: the exam part passed at once -- glasses on, word and vitals, no line left -- at the corridor part", nb && nb.cine === "corridor" && LENS.on && LENS.shown.join() === "word,vitals" && !D.busy(), S.run.beatI);
-        ok("H ...the corridor part skippable in its turn", SC.canSkip(S.run));
+        const p = g.yawObject.position;
+        ok("H held: the walk passed at once -- at the entrance, no line left, the seating plan next", S.run.beatI >= 12 && Math.hypot(p.x - 4.6, p.z - 9.8) < 0.8 && !D.busy() && S.run.objective === "story.ch1.obj.board", S.run.beatI + " " + p.x.toFixed(1) + "," + p.z.toFixed(1));
         quit();
-        delete G.save.tutorialSeen.story_ch1_exam;
+        delete G.save.tutorialSeen.story_ch1_gate;
         G.save.story = { ch: {} };
-        play(() => S.start("ch1", null));
-        until(() => G.Dialog.isOpen(), 600); pick(0); talkAll();
-        toZone("entry"); pick(0); talkAll(); step(2);
-        ok("H never seen: not skippable", CH.scenes[0].beats[S.run.beatI].cine === "exam" && !SC.canSkip(S.run));
+        toGate();
+        ok("H never seen: not skippable", CH.scenes[0].beats[S.run.beatI].cine === "gate" && !SC.canSkip(S.run));
         quit();
         await yield0();
       }

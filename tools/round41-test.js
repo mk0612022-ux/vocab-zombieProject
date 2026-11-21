@@ -4,7 +4,7 @@
 //      drawn in code (canvases, NearestFilter), every tile and every sheet, the pixel font
 //   B  blocks: only the faces that can be seen, the corners' AO, glass, a facing block, a
 //      box's tiles stretched or one a metre, a line turned on the top face, joined colliders
-//   C  characters: all 31 looks build; the rig (hips, knees, feet, shoulders, elbows, neck);
+//   C  characters: all 37 looks build (round 5: and the six candidates of 305); the rig (hips, knees, feet, shoulders, elbows, neck);
 //      the six boxes' sizes (8 / 8x12x4 / 4x12x4 px, 1.8 m); a face's pixels; a sheet's UVs;
 //      the LEXA patch (1, the principal's 3, none for the bitten) lit and dimmed; Blood & Gore
 //      Off: no red; the Ironclad's cap a helmet that can be knocked off
@@ -106,8 +106,8 @@ G.Round41Test = (function () {
         const ctex = VC.texture();
         numbers.charAtlasMs = Math.round(performance.now() - t1);
         ok("A the characters' atlas: a canvas drawn in code, 512 x 256, NearestFilter", ctex.image instanceof HTMLCanvasElement && ctex.image.width === 512 && ctex.image.height === 256 && ctex.magFilter === THREE.NearestFilter);
-        ok("A 31 looks on it: 12 people, the 7 who turn, 12 everyday zombies, each on a sheet of its own",
-          VC.ORDER.length === 31 && VC.CAST.length === 12 && VC.NAMED.length === 7 && VC.GENERIC.students.length + VC.GENERIC.pe.length === 12 && new Set(VC.ORDER.map((id) => VC.SLOT[id])).size === 31);
+        ok("A 37 looks on it: 12 people, the 7 who turn, 12 everyday zombies, 6 candidates (story round 5), each on a sheet of its own",
+          VC.ORDER.length === 37 && VC.CAST.length === 12 && VC.NAMED.length === 7 && VC.GENERIC.students.length + VC.GENERIC.pe.length === 12 && new Set(VC.ORDER.map((id) => VC.SLOT[id])).size === 37 && VC.GENERIC.candidates.length === 6);
         numbers.atlasKB = Math.round((128 * 256 + 512 * 256) * 4 * 4 / 3 / 1024);
       }
 
@@ -173,7 +173,7 @@ G.Round41Test = (function () {
             if (!rig || !parts || drawn(m) > 8) bad.push(id + (rig ? "" : ":rig") + (parts ? "" : ":hitboxes") + ":" + drawn(m));
           } catch (e) { bad.push(id + ":" + e.message); }
         });
-        ok("C all 31 build, each rigged as the zombies are (hips, knees, feet, shoulders, elbows, the neck), hit part by part, 8 meshes at most", !bad.length, bad.join() || "31");
+        ok("C all 37 build, each rigged as the zombies are (hips, knees, feet, shoulders, elbows, the neck), hit part by part, 8 meshes at most", !bad.length, bad.join() || "37");
         const p = models.player;
         p.updateMatrixWorld(true);
         const size = (o) => new THREE.Box3().setFromObject(o).getSize(new THREE.Vector3());

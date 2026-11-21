@@ -28,6 +28,9 @@
 // knocks its head off or bursts it into its own colours. A Crawler lies on
 // its front, pulling itself on its arms, its legs dragging behind.
 //
+// (Story round 5: and six candidates of Room 305 as they were before the LEXA signal
+// spiked -- GENERIC.candidates, each `turnsInto` the everyday zombie it becomes.)
+//
 //   G.VoxelChars.texture()             the atlas
 //   G.VoxelChars.CAST / NAMED / GENERIC the ids
 //   G.VoxelChars.build(id, o)          a character (o.zombie: its kind's eyes and rig)
@@ -122,7 +125,17 @@ G.VoxelChars = (function () {
     DEFS[id] = { skin: "tan", hair: [h[0], "black"], outfit: "pe", house: houses[i], legs: h[1], zombie: true, zskin: "cab"[i % 3], patch: 1, generic: true };
     GENERIC.pe.push(id);
   });
-  const ORDER = CAST.concat(NAMED.map((n) => n + "_z"), GENERIC.students, GENERIC.pe);
+  // (story round 5) the candidates in Room 305 before the LEXA signal spikes: students as they
+  // are, each with the patch behind the ear -- and the everyday zombie each one turns into
+  GENERIC.candidates = [];
+  [["short", "black", "trousers", "medium", "zm1"], ["bowl", "black", "trousers", "tan", "zm3"], ["spiky", "black", "trousers", "light", "zm4"],
+    ["bob", "black", null, "light", "zf1"], ["pony", "brown", null, "medium", "zf2"], ["bob", "brown", null, "tan", "zf3"]].forEach((h, i) => {
+    const id = "c" + (i + 1);
+    DEFS[id] = h[2] ? { skin: h[3], hair: [h[0], h[1]], outfit: "studentM", legs: h[2], patch: 1, generic: true, turnsInto: h[4] }
+      : { skin: h[3], hair: [h[0], h[1]], outfit: "studentF", skirt: "short", extra: h[0] === "pony" ? ["pony"] : [], patch: 1, generic: true, turnsInto: h[4] };
+    GENERIC.candidates.push(id);
+  });
+  const ORDER = CAST.concat(NAMED.map((n) => n + "_z"), GENERIC.students, GENERIC.pe, GENERIC.candidates);
   const SLOT = {};
   ORDER.forEach((id, i) => { SLOT[id] = i; });
 

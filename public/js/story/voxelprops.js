@@ -209,6 +209,14 @@ G.VoxelProps = (function () {
   // ---- the story's own ----
   B.examBox = (g) => { add(g, "cardboard", [-0.3, 0, -0.22, 0.3, 0.36, 0.22]); add(g, "paintRed", [-0.31, 0.15, -0.23, 0.31, 0.21, 0.23]); };
   B.schoolBag = (g) => { add(g, "paintBlue", [-0.18, 0, -0.1, 0.18, 0.4, 0.1]); add(g, "paintBlack", [-0.12, 0.05, 0.1, -0.08, 0.36, 0.12]); add(g, "paintBlack", [0.08, 0.05, 0.1, 0.12, 0.36, 0.12]); add(g, "paintBlue", [-0.14, 0.05, -0.16, 0.14, 0.22, -0.1]); };
+  // (story round 5) the exam's LexiLens glasses, folded on a desk: a dark frame, the lenses' blue
+  B.lexiLens = (g) => {
+    add(g, "metalDark", [-0.075, 0.0, -0.012, 0.075, 0.014, 0.012]);
+    add(g, "lightBlue", [-0.068, 0.014, -0.006, -0.008, 0.044, 0.006], { mat: "glow" });
+    add(g, "lightBlue", [0.008, 0.014, -0.006, 0.068, 0.044, 0.006], { mat: "glow" });
+    add(g, "metalDark", [-0.075, 0.044, -0.012, 0.075, 0.052, 0.012]);
+    add(g, "metalDark", [-0.078, 0.0, -0.012, -0.072, 0.012, 0.13]); add(g, "metalDark", [0.072, 0.0, -0.012, 0.078, 0.012, 0.13]);
+  };
   B.papers = (g) => { [[-0.3, -0.2, 0.3], [0.1, 0.05, -0.5], [-0.05, 0.3, 1.1], [0.35, -0.25, 0.2]].forEach(([x, z, r]) => { const m = add(g, "paper", [-0.11, 0.002, -0.15, 0.11, 0.006, 0.15]); m.position.x += x; m.position.z += z; m.rotation.y = r; }); };
   B.waterCooler = (g) => { add(g, "metal", [-0.3, 0, -0.25, 0.3, 1.1, 0.25]); add(g, "paintBlue", [-0.2, 0.75, 0.25, -0.12, 0.82, 0.3]); add(g, "paintRed", [0.12, 0.75, 0.25, 0.2, 0.82, 0.3]); add(g, "metalDark", [-0.24, 0.5, 0.2, 0.24, 0.53, 0.32]); };
   B.trashBin = (g) => { add(g, "paintGreen", [-0.22, 0, -0.22, 0.22, 0.7, 0.22]); add(g, "paintGreen", [-0.24, 0.7, -0.24, 0.24, 0.76, 0.24]); };
@@ -353,10 +361,10 @@ G.VoxelProps = (function () {
     "fireExtinguisher", "exhibitBoard", "lexaStandee", "paConsole", "medCabinet", "nurseBed", "piano", "drums", "bleachers", "vaultBox", "canteenTable", "supplyBoxes",
     "examBox", "schoolBag", "papers", "waterCooler", "trashBin", "cone", "bench", "tree", "flagpole", "stage", "podium", "guardBooth", "gate", "policeCar", "schoolVan"];
   // (round 4: the map's own, not in the gallery's list)
-  const MORE = ["deskSet", "shelf", "counter", "cabinet", "sink", "stall", "plant", "vent", "photo", "hoop", "goal", "fence", "lampPost", "wallSign", "doorFrame", "doorLeaf"];
+  const MORE = ["deskSet", "shelf", "counter", "cabinet", "sink", "stall", "plant", "vent", "photo", "hoop", "goal", "fence", "lampPost", "wallSign", "doorFrame", "doorLeaf", "lexiLens"];
   // what stands on its own (a collider) and what is on a wall or overhead (none)
   const NO_COLLIDER = new Set(["clock", "fan", "lamp", "exitSign", "emergencyLight", "evacSign", "papers", "window", "blackboard", "fireExtinguisher",
-    "vent", "photo", "wallSign", "doorFrame", "doorLeaf", "hoop", "goal", "lampPost"]);
+    "vent", "photo", "wallSign", "doorFrame", "doorLeaf", "hoop", "goal", "lampPost", "lexiLens"]);
 
   function build(id, o) {
     const g = new THREE.Group();

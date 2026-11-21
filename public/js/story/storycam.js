@@ -12,6 +12,8 @@
 //   G.StoryCam.bars(on)                         the black bars
 //   G.StoryCam.slow(game, sec)                  the world at a third of its speed (Focus Time's,
 //                                               js/game.js _slowmoT), the player not
+//   (round 5) G.StoryCam.seat(game, { x, z, yaw } | false)   sat down there: the feet held, the
+//                                               eyes lower (js/game.js reads drop); false: stood up
 // Held (js/story/dialogue.js) a turn runs `fast` times as fast; a skipped cinematic part
 // ends a turn and a walk where they were going (finish).
 // js/game.js updatePlayerMovement asks steer() before it turns the view by the input, and
@@ -21,7 +23,7 @@ window.G = window.G || {};
 
 G.StoryCam = (function () {
   const C = () => G.CONFIG.story.cam;
-  let turn = null, locked = false, go = null, barsOn = false;
+  let turn = null, locked = false, go = null, barsOn = false, seated = null, drop = 0;
   const ease = (u) => u * u * (3 - 2 * u);
   const wrap = (a) => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; };
 
@@ -53,6 +55,10 @@ G.StoryCam = (function () {
   // js/game.js, a frame: the move input to use instead of the player's (their own frame:
   // x right, z back), or null
   function feet(game, dt) {
+    // (round 5) seated: the eyes ease down (and back up when stood), the feet stay
+    const want = seated ? (C().seatDrop || 0.48) : 0;
+    if (drop !== want) drop = want > drop ? Math.min(want, drop + dt * 1.6) : Math.max(want, drop - dt * 1.6);
+    if (seated && !go) return { x: 0, z: 0 };
     if (!go) return null;
     go.t += dt;
     const e = game.yawObject.position, dx = go.x - e.x, dz = go.z - e.z, d = Math.hypot(dx, dz);
@@ -63,6 +69,13 @@ G.StoryCam = (function () {
     return { x: (-ux * fz + uz * fx) * k, z: -(ux * fx + uz * fz) * k };
   }
   function bars(on) { barsOn = !!on; document.body.classList.toggle("story-bars", barsOn); }
+  function seat(game, p) {
+    if (!p) { seated = null; return; }
+    seated = { x: p.x, z: p.z };
+    go = null;
+    if (Number.isFinite(p.x) && Number.isFinite(p.z)) game.teleportPlayer(new THREE.Vector3(p.x, game.yawObject.position.y - 1.7 + drop, p.z));
+    if (Number.isFinite(p.yaw)) game.yawObject.rotation.y = p.yaw;
+  }
   function slow(game, sec) { game._slowmoT = Math.max(game._slowmoT || 0, sec == null ? 1.5 : sec); }
   // a skipped part: where it was all going, at once
   function finish(game) {
@@ -71,8 +84,9 @@ G.StoryCam = (function () {
     if (go) { game.teleportPlayer(new THREE.Vector3(go.x, game.yawObject.position.y - 1.7, go.z)); go = null; }
   }
   function busy() { return !!turn || !!go; }
-  function reset() { turn = null; locked = false; go = null; bars(false); }
+  function reset() { turn = null; locked = false; go = null; seated = null; drop = 0; bars(false); }
 
-  return { look, steer, lock, walk, feet, bars, slow, finish, busy, reset,
-    get turning() { return !!turn; }, get walking() { return !!go; }, get locked() { return locked; }, get barsOn() { return barsOn; } };
+  return { look, steer, lock, walk, feet, bars, slow, seat, finish, busy, reset,
+    get turning() { return !!turn; }, get walking() { return !!go; }, get locked() { return locked; }, get barsOn() { return barsOn; },
+    get seated() { return !!seated; }, get drop() { return drop; } };
 })();

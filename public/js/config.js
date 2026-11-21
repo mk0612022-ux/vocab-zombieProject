@@ -642,6 +642,19 @@ G.CONFIG = {
   //                zombie under the crosshair); chunk the grid's chunk (m, one draw call each);
   //                mapChunk a chapter map's, siteChunk its grounds' (round 4: bigger -- fewer draw
   //                calls on a whole campus; the grounds' merge cells the same size)
+  //   (story series, round 5: the prologue's tools)
+  //   cam.seatDrop how much lower the eyes are sat at a desk (m)
+  //   cast         a scene's people (js/story/cast.js): walkSpeed along a path, followDist behind
+  //                the player (followSpeed at most; followLeash: further than that, brought along),
+  //                lungeSpeed / lungeStop coming at the player, seatH a chair's height, turnGlitch
+  //                the flicker as one turns
+  //   use          a press in time (js/story/interact.js): qteSec the ring takes to reach its mark,
+  //                qteWindow how close counts (x the mark's size), qteHurt a miss's cost, qteRetry
+  //   quiz         the practice exam (js/story/aimquiz.js): the answers dist metres ahead, gap
+  //                apart, rise above the eyes; aim how far off the dot still picks one (radians);
+  //                settle before the first press counts; nextRight / nextWrong the card's time
+  //   screen       (js/story/screen.js) fadeSec of the black, titleSec the title, hintSec a hint,
+  //                staticSec the radio's hiss
   story: {
     enabled: false,
     chapterShare: 0.6,
@@ -651,8 +664,12 @@ G.CONFIG = {
     dialogue: { minSec: 2.2, perChar: 0.05, maxSec: 9, fast: 4, tapSec: 0.25, holdSkip: 1.2, gapSec: 0.2 },
     phone: { toastSec: 4.5, torch: { color: 0xfff1d6, intensity: 2.4, distance: 26, angle: 0.48, penumbra: 0.45, decay: 1.2 } },
     lens: { sysSec: 3.2, correctSec: 1.5, bootSec: 0.9 },
-    cam: { lookSec: 1.2 },
+    cam: { lookSec: 1.2, seatDrop: 0.48 },
     voxel: { px: 0.05625, ao: [0.52, 0.68, 0.84, 1], glassOpacity: 0.42, zombies: true, patchIdle: 0.55, patchLock: 2.6, chunk: 16, mapChunk: 32, siteChunk: 64 },
+    cast: { walkSpeed: 1.4, followDist: 1.6, followSpeed: 3.4, followLeash: 9, lungeSpeed: 1.6, lungeStop: 0.95, seatH: 0.45, turnGlitch: 0.45 },
+    use: { qteSec: 1.6, qteWindow: 0.2, qteHurt: 12, qteRetry: 0.9 },
+    quiz: { dist: 1.9, gap: 0.82, rise: -0.05, aim: 0.2, settle: 0.35, nextRight: 1.4, nextWrong: 2.4 },
+    screen: { fadeSec: 1.2, titleSec: 4.2, hintSec: 6, staticSec: 9 },
   },
   // ---------------- the melee slot (expansion, round 4) ----------------
   // G.MELEE_WEAPONS has each weapon; js/melee.js is the swing.

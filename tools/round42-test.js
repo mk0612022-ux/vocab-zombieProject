@@ -80,7 +80,7 @@ G.Round42Test = (function () {
         ok("A the level's merge: some 4 700 meshes down to under 150", g.perfReport && g.perfReport.meshesBefore > 3000 && g.perfReport.meshesAfter < 150, JSON.stringify(g.perfReport));
         ok("A the merge kept by zone (a storey's things, the grounds')", g.scene.children.filter((o) => o.userData.mergedParts).every((o) => ["s0", "s1", "s2", "out"].includes(o.userData.zone)));
         const dm = Object.values(M.state.doorMeshes).reduce((n, mp) => n + mp.size, 0);
-        ok("A 64 doors, their leaves baked into a few meshes (a storey's, the grounds')", Object.keys(m.doors).length === 64 && dm <= 8, Object.keys(m.doors).length + " doors, " + dm + " meshes");
+        ok("A 65 doors (round 5: and 305's front door), their leaves baked into a few meshes (a storey's, the grounds')", Object.keys(m.doors).length === 65 && dm <= 8, Object.keys(m.doors).length + " doors, " + dm + " meshes");
         ok("A the regions, the waypoints, the stairs' flights (two a storey a stairwell)", w.regions.length > 80 && Object.keys(w.waypointNodes).length > 120 && w.stairs.length === 12, w.regions.length + " / " + Object.keys(w.waypointNodes).length + " / " + w.stairs.length);
         await yield0();
       }

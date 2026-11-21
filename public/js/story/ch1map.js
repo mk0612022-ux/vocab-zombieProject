@@ -85,7 +85,7 @@ G.Ch1Map = (function () {
     R("LOBBY2", 1, S("F"), "lobby", { open: true }), R("R207", 1, S("G"), "class"), R("LAB", 1, S("H"), "lab"),
     R("PE", 1, W(-5, 0), "pe"), R("STOREW", 1, W(-12, -7), "store"), R("WC2", 1, W(-19, -14), "wc"), R("NURSE", 1, Object.assign({}, NORTH_END), "nurse"),
     // the top floor (3F)
-    R("R301", 2, N("A"), "class"), R("R302", 2, N("B"), "class"), R("R303", 2, N("C"), "class"), R("R304", 2, N("D"), "class"), R("R305", 2, N("E"), "exam"),
+    R("R301", 2, N("A"), "class"), R("R302", 2, N("B"), "class"), R("R303", 2, N("C"), "class"), R("R304", 2, N("D"), "class"), R("R305", 2, N("E"), "exam", { door2: -6 }),
     R("JANITOR", 2, N("G"), "janitor"), R("STORE3", 2, N("H"), "store"),
     R("R310", 2, S("A"), "class"), R("R309", 2, S("B"), "class"), R("R308", 2, S("C"), "class"), R("R307", 2, S("D"), "class"), R("R306", 2, S("E"), "class"),
     R("LOBBY3", 2, S("F"), "lobby", { open: true }), R("WC3", 2, S("G"), "wc"), R("STORE3S", 2, S("H"), "store"),
@@ -202,6 +202,8 @@ G.Ch1Map = (function () {
       ROOMS.filter((r) => r.k === k && !r.open && !r.noDoor).forEach((r) => {
         const d = doorCellOf(r);
         for (let i = 0; i < d.w; i++) carve(d.axis === "x" ? d.x + i : d.x, d.axis === "x" ? d.x + i : d.x, d.axis === "z" ? d.z + i : d.z, d.axis === "z" ? d.z + i : d.z, 0, 1);
+        // (story round 5) a second door at the room's front (305's: the one that jams, the doc's prologue)
+        if (r.door2 != null) carve(r.door2, r.door2, d.z, d.z, 0, 1);
       });
       // windows in the outer walls: a pair of 2 m panes in every room
       ROOMS.filter((r) => r.k === k).forEach((r) => windowsOf(r, (x, z, rr) => house.set(x, y0 + rr, z, "glass")));
@@ -366,6 +368,8 @@ G.Ch1Map = (function () {
       const d = doorCellOf(r), cx = d.axis === "x" ? d.x + d.w / 2 : d.x + 0.5, cz = d.axis === "z" ? d.z + d.w / 2 : d.z + 0.5;
       const out = outsideOf(r, d, cx, cz);
       makeDoor(st, "D" + r.id, cx, F[r.k], cz, d.axis, d.w, { into: [cx * 2 - out[0], cz * 2 - out[1]], open: !r.closed, plate: r.plate, sign: r.k === 0 ? r.sign : null });
+      // (story round 5) its front door: shut (a scene opens it, or -- 305's -- never does)
+      if (r.door2 != null) { const fx = r.door2 + 0.5; makeDoor(st, "D" + r.id + "F", fx, F[r.k], cz, "x", 1, { into: [fx, cz * 2 - out[1]], open: false }); }
     });
     [1, 2].forEach((k) => makeDoor(st, "STAIRM" + (k + 1), 4.5, F[k], -2.5, "x", 3, { into: [4.5, -4], open: true, glass: true }));
     [0, 1, 2].forEach((k) => makeDoor(st, "STAIRE" + (k + 1), 24.5, F[k], 0, "z", 2, { into: [26, 0], open: true }));

@@ -11,9 +11,10 @@
 $root = Split-Path -Parent $PSScriptRoot
 # (round 3, H2: the Thai UI strings are Thai on purpose -- js/strings-th.js)
 # (overhaul, round 7: the explanations in Thai -- js/data/explain_th.js)
-$skip = @('public\js\data\bank_school.js', 'public\js\data\bank_hospital.js', 'public\js\data\bank_bunker.js', 'public\js\data\confusables.js', 'public\js\data\words_bosses.js', 'public\js\data\practicewords.js', 'public\js\strings-th.js', 'public\js\data\explain_th.js', 'public\version.json')
+# (story series, round 5: a chapter's practice words and their meanings -- js/data/story/ch1words.js)
+$skip = @('public\js\data\bank_school.js', 'public\js\data\bank_hospital.js', 'public\js\data\bank_bunker.js', 'public\js\data\confusables.js', 'public\js\data\words_bosses.js', 'public\js\data\practicewords.js', 'public\js\strings-th.js', 'public\js\data\explain_th.js', 'public\js\data\story\ch1words.js', 'public\version.json')
 $files = Get-ChildItem -Path $root -Recurse -File -Include *.js, *.html, *.css, *.json, *.ps1 |
-  Where-Object { $_.FullName -notmatch '\\(\.git|node_modules|\.wrangler|screenshots|_review)\\' }
+  Where-Object { $_.FullName -notmatch '\\(\.git|\.claude|node_modules|\.wrangler|screenshots|_review)\\' }   # (.claude: other sessions' worktrees, copies of the repo)
 $hits = 0; $scanned = 0; $skipped = @()
 foreach ($f in $files) {
   $rel = $f.FullName.Substring($root.Length + 1)

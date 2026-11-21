@@ -141,7 +141,7 @@ G.Round39Test = (function () {
         ok("D a chapter run: mode story, the chapter's own map (js/story/ch1map.js), the chapter's words", g.mode === "story" && g.level.map === "ch1" && g.level.story === "ch1" && g.wordPool.length === S.pairs("ch1").length);
         ok("D ...scene 1 (the prologue), at its start", S.run && S.run.sceneI === 0 && Math.abs(g.yawObject.position.z - CH.scenes[0].start.z) < 1.5, g.yawObject.position.z.toFixed(1));
         let h = g.buildHudState();
-        ok("D the HUD: Chapter 1, Exam Day; the objective in the word box", h.head.level === T("story.chapterN", { n: 1 }) && h.head.wave === T("story.ch1.s0") && h.currentMeaning === T("story.ch1.s0.obj") && h.meaningLabel === T("story.objective"), JSON.stringify(h.head) + " " + h.currentMeaning);
+        ok("D the HUD: Chapter 1, Exam Day; the objective (round 5: Check your phone, the prologue's first)", h.head.level === T("story.chapterN", { n: 1 }) && h.head.wave === T("story.ch1.s0") && h.currentMeaning === T("story.ch1.obj.wake") && h.meaningLabel === T("story.objective"), JSON.stringify(h.head) + " " + h.currentMeaning);
         step(240);
         ok("D no waves: no spawner, no zombie by itself", alive().length === 0 && g.state === "GAMEPLAY");
         ok("D ...no story notes, no shop", (!g.world.notes || !g.world.notes.length) && g.state !== "SHOP");
@@ -301,7 +301,7 @@ G.Round39Test = (function () {
           G.Dialog.close();
           play(() => S.start("ch1", null));
           const h = g.buildHudState();
-          ok("I " + l + ": the chapter window, the HUD's chapter and objective in this language", t.indexOf(G.STRINGS[l]["story.chapterN"].replace("{n}", "1")) === 0 && h.currentMeaning === G.STRINGS[l]["story.ch1.s0.obj"], t + " / " + h.currentMeaning);
+          ok("I " + l + ": the chapter window, the HUD's chapter and objective in this language", t.indexOf(G.STRINGS[l]["story.chapterN"].replace("{n}", "1")) === 0 && h.currentMeaning === G.STRINGS[l]["story.ch1.obj.wake"], t + " / " + h.currentMeaning);
           g.quitToMainMenu(); G.Modal.reset();
         }
       }

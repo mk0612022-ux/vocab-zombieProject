@@ -113,7 +113,11 @@ G.StoryPhone = (function () {
     document.body.appendChild(el);
     el.addEventListener("click", (e) => {
       const w = e.target.closest(".sd-word");
-      if (w) { const en = G.WordBank.byId(w.dataset.id); if (en && G.VocabCard) G.VocabCard.peek(G.WordBank.pairOf(en), w.dataset.form, { freeze: true }); return; }
+      if (w) {
+        const en = G.WordBank.byId(w.dataset.id); if (en && G.VocabCard) G.VocabCard.peek(G.WordBank.pairOf(en), w.dataset.form, { freeze: true });
+        const r = run(); if (r && !r.flags.has("tapped")) { r.flags.add("tapped"); const tip = el.querySelector(".sp-tip"); if (tip) tip.remove(); }   // (round 5: the tip has been taken)
+        return;
+      }
       const tab = e.target.closest("[data-thread]");
       if (tab) { pick(tab.dataset.thread); return; }
       if (e.target.closest("#sp-torch")) { torch(); return; }
@@ -130,6 +134,7 @@ G.StoryPhone = (function () {
   function pick(thread) {
     st.thread = thread;
     st.unread[thread] = 0;
+    st.toasts = st.toasts.filter((t) => t.thread !== thread);       // (story round 5: read: its queued toasts go)
     read(thread);
     badge();
     render();
@@ -145,11 +150,15 @@ G.StoryPhone = (function () {
     // (the window first: once it shows, isOpen() is true -- the G.Modal is what holds the world and takes the keys)
     if (!G.Modal.isOpen("story-phone")) G.Modal.open("story-phone", { freeze: true, keys });
     el.classList.remove("hidden");
-    if (st.toast && st.toast.thread === st.thread) { st.toasts = st.toasts.filter((t) => t.thread !== st.thread); nextToast(); }
+    // (story round 5: the conversation read, none of its toasts still queued pops up later)
+    st.toasts = st.toasts.filter((t) => t.thread !== st.thread);
+    if (st.toast && st.toast.thread === st.thread) nextToast();
     render();
     badge();
     beep([{ type: "sine", freq: 660, freqEnd: 880, dur: 0.08, gain: 0.03 }]);
     if (G.Input.mode !== "touch") setTimeout(() => { const b = el.querySelector(".sp-tab.on") || $("sp-close"); if (b && isOpen()) b.focus({ preventScroll: true }); }, 0);
+    // (story round 5: the phone's alarm -- the prologue's first sound -- stops once it is picked up)
+    if (G.StoryScreen && G.StoryScreen.stopLoop) G.StoryScreen.stopLoop("alarm");
     return true;
   }
   function close() {
@@ -184,6 +193,13 @@ G.StoryPhone = (function () {
     if (!st.thread) body = `<p class="sp-empty">${esc(T("story.phone.empty"))}</p>`;
     else if (st.thread === "*") body = st.notes.map((id) => { const n = ch().notices[id], text = D.en(n.text, n.vars); return `<div class="sp-note"><span class="sp-app">${esc((n.icon ? n.icon + " " : "") + T(n.app || "story.phone.notes"))}</span><div class="sp-text">${D.mark(text)}</div>${D.subHtml(n.text, n.vars, text, "sp-sub")}</div>`; }).join("");
     else body = st.msgs.filter((id) => ch().messages[id].from === st.thread).map((id) => { const m = ch().messages[id], text = D.en(m.text, m.vars); return `<div class="sp-msg"><div class="sp-text">${D.mark(text)}</div>${D.subHtml(m.text, m.vars, text, "sp-sub")}</div>`; }).join("");
+    // (story round 5) the dotted words taught where they are: a line under the thread while it has
+    // any (the bank's words in its messages), until one has been looked at
+    const r = run();
+    if (/sd-word/.test(body) && r && !r.flags.has("tapped")) {
+      const I = G.Input, key = I.padActive ? "story.hint.words.pad" : I.mode === "touch" ? "story.hint.words.touch" : "story.hint.words";
+      body += `<p class="sp-tip">${esc(T(key))}</p>`;
+    }
     const b = $("sp-body");
     b.innerHTML = body;
     b.scrollTop = b.scrollHeight;

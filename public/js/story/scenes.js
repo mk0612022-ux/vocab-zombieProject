@@ -46,6 +46,20 @@
 //   ["door", { id, open }]  a door of the chapter's map opened or shut (js/story/ch1map.js)
 // Spawn points and starts may carry a `y` (the storey's floor); a scene's `light` names
 // its light set (the time of day), put on as it begins.
+//   (round 5: the prologue's tools)
+//   { used: id }  that thing used · { quiz: id } that practice exam answered · { qte: id } that
+//   press made in time · { arrived: npc } a walk of that person's over · { near: { id, r } } the
+//   player within r of that person · { reloaded: true } a reload since the scene began
+//   ["npc", { id, ... }] a person of the scene (js/story/cast.js) · ["prop", d] / ["unprop", id]
+//   ["use", { id, at, size, prompt }] / ["unuse", id] · ["qte", { id, prompt }] (js/story/interact.js)
+//   ["quiz", { id, items }] (js/story/aimquiz.js)
+//   ["black", { on }] · ["title", { key, sub }] · ["sound", name] · ["hint", key] · ["shake", s]
+//   ["card", { id, title, rows, mark }] (js/story/screen.js)
+//   ["arm", true] the gun handed over (a scene with `armed: false` starts with none: js/game.js
+//   handsFree) · ["seat", { x, z, yaw } | false] (js/story/storycam.js)
+//   ["spawn", { ..., words: [{ word, gloss, who }], target }] a group of the scene's own words,
+//   practice (counted nowhere), one of them the target, each in the look `who` gives it
+// A scene's `cast` and `props` (js/story/cast.js) are put there as it begins, the last ones gone.
 // A beat that has been met never waits again, so a few can pass in one frame.
 // Cinematic parts: beats sharing a `cine` name. Once the player has seen one to its end
 // (G.save.tutorialSeen["story_<chapter>_<name>"]), holding Space / A / a finger skips the
@@ -79,6 +93,14 @@ G.StoryScenes = (function () {
     if (cond.looked) return skipping || !G.StoryCam.turning;
     if (cond.walked) return skipping || !G.StoryCam.walking;
     if (cond.read) return run.flags.has("read:" + cond.read);
+    // (round 5)
+    if (cond.used) return run.flags.has("used:" + cond.used);
+    if (cond.quiz) return run.flags.has("quiz:" + cond.quiz);
+    if (cond.qte) return run.flags.has("qte:" + cond.qte);
+    if (cond.card) return run.flags.has("card:" + cond.card);
+    if (cond.arrived) return skipping || !!(G.StoryCast && G.StoryCast.arrived(cond.arrived));
+    if (cond.near) return !!(G.StoryCast && G.StoryCast.near(game, cond.near.id, cond.near.r || 2));
+    if (cond.reloaded) return run.flags.has("reloaded");
     return false;
   }
   // a spawn's id (or several, or points as they are) -> the points
@@ -87,18 +109,39 @@ G.StoryScenes = (function () {
     [].concat(at || []).forEach((a) => { [].concat(typeof a === "string" ? (ch.spawns || {})[a] || [] : [a]).forEach((p) => out.push(p)); });
     return out.filter((p) => p && Number.isFinite(p.x) && Number.isFinite(p.z));
   }
+  // (round 5) a scene's own words: [word, its meaning in the player's meaning language]
+  const ownPair = (w) => [w.word, (G.StoryQuiz ? G.StoryQuiz.glossOf(w.gloss) : "") || w.word];
+  // the target made the one asked (its meaning in the word box), as js/game.js
+  // ensureTargetHasMatch would set it -- which then keeps it while it is on the field
+  function aimAt(game, pair) {
+    game.targetPair = [pair[0], pair[1]];
+    game.targetPair.id = pair[0];
+    game.targetClue = { kind: "thai", pair, cloze: null, full: "", played: 0, thaiShown: false };
+    game._attempt = { key: pair[0], wrong: false, assisted: false, retry: false };
+    game.ensureTargetHasMatch();
+  }
   function spawn(game, run, s) {
     const pts = points(run.ch, s.at), C = G.CONFIG.story;
     const kinds = s.kinds && s.kinds.length ? s.kinds : C.groupKinds;
-    const n = Math.max(1, (s.count | 0) || kinds.length);
-    game.wavePlan = G.Story.plan(game, n);
-    let made = 0;
+    const words = s.words && s.words.length ? s.words : null;
+    const n = words ? words.length : Math.max(1, (s.count | 0) || kinds.length);
+    if (!words) game.wavePlan = G.Story.plan(game, n);
+    let made = 0, target = null;
     for (let i = 0; i < n && pts.length; i++) {
       const p = pts[i % pts.length], spread = i >= pts.length ? 1.2 : 0;
       const pos = new THREE.Vector3(p.x + (Math.random() - 0.5) * spread, Number.isFinite(p.y) ? p.y : 0, p.z + (Math.random() - 0.5) * spread);
-      const z = game.spawnZombieAt(kinds[i % kinds.length], pos, null);
+      const type = kinds[i % kinds.length];
+      let o;
+      if (words) {
+        const w = words[i], pair = ownPair(w);
+        o = { pair, practice: true, look: w.who && G.VoxelChars && G.VoxelChars.on() ? G.VoxelChars.zombieLook(type, game, w.who) : null };
+        if (w.word === s.target) target = pair;
+      }
+      const z = game.spawnZombieAt(type, pos, null, o);
       if (z) { z.storyGroup = s.id; made++; }
     }
+    // (the target the scene names, not one picked at random: the prologue's question 4)
+    if (target) aimAt(game, target);
     run.groups[s.id] = made;
     // (the HUD's "zombies left": spawnZombieAt counts each one but a look-alike
     // decoy in spawnedCount; a group comes all at once, so none is still to come)
@@ -123,6 +166,7 @@ G.StoryScenes = (function () {
     else if (name === "banner") { if (G.UI.flashPurchaseBanner) G.UI.flashPurchaseBanner(esc(T(arg)), esc(T(run.scene.title))); }   // (its small line: the scene's name)
     else if (name === "spawn") spawn(game, run, arg || {});
     else if (name === "flag") run.flags.add(String(arg));
+    else if (name === "unflag") run.flags.delete(String(arg));          // (round 5: "reloaded" again from now)
     else if (name === "prologueDone") G.Story.prologueDone();
     else if (name === "checkpoint") run.pendingCp = arg || true;
     else if (name === "next") run.pendingNext = true;
@@ -141,11 +185,33 @@ G.StoryScenes = (function () {
     else if (name === "hud") G.LexiLens.parts(arg);
     else if (name === "lens") G.LexiLens.theme(!!arg);
     else if (name === "glitch") G.LexiLens.glitch(arg);
-    else if (name === "sys") { const o = typeof arg === "string" ? { key: arg } : arg || {}; G.LexiLens.sys(o.key, Object.assign(G.Story.vars(), o.vars || {}), o); }
+    else if (name === "sys") {
+      const o = typeof arg === "string" ? { key: arg } : arg || {};
+      const v = Object.assign(G.Story.vars(), o.vars || {});
+      // (round 5: a practice word's meaning in the player's meaning language -- "Shoot the word that means ...")
+      if (o.meaningOf && G.StoryQuiz) v.meaning = G.StoryQuiz.glossOf((run.ch.practice || {})[o.meaningOf]) || o.meaningOf;
+      G.LexiLens.sys(o.key, v, o);
+    }
     // (round 4) the chapter's map: a cut, the time of day, a door
     else if (name === "teleport") { const p = arg || {}; game.teleportPlayer(new THREE.Vector3(p.x, Number.isFinite(p.y) ? p.y : 0, p.z)); if (Number.isFinite(p.yaw)) game.yawObject.rotation.y = p.yaw; }
     else if (name === "light") { if (G.StoryLight) G.StoryLight.apply(game, arg); }
     else if (name === "door") { const o = arg || {}, m = game.world && game.world.storyMap; if (m && m.door) m.door(o.id, o.open !== false); }
+    // (round 5) the prologue's tools
+    else if (name === "npc") { if (G.StoryCast) G.StoryCast.act(game, run, arg); }
+    else if (name === "prop") { if (G.StoryCast) G.StoryCast.prop(game, arg); }
+    else if (name === "unprop") { if (G.StoryCast) G.StoryCast.unprop(game, arg); }
+    else if (name === "use") { if (G.StoryUse) G.StoryUse.add(game, arg); }
+    else if (name === "unuse") { if (G.StoryUse) G.StoryUse.remove(game, arg); }
+    else if (name === "qte") { if (G.StoryUse) G.StoryUse.qte(game, arg); }
+    else if (name === "quiz") { if (G.StoryQuiz) G.StoryQuiz.start(game, arg); }
+    else if (name === "black") { if (G.StoryScreen) G.StoryScreen.setBlack(arg); }
+    else if (name === "title") { if (G.StoryScreen) G.StoryScreen.showTitle(arg); }
+    else if (name === "sound") { if (G.StoryScreen) G.StoryScreen.sound(arg); }
+    else if (name === "hint") { if (G.StoryScreen) G.StoryScreen.setHint(arg); }
+    else if (name === "shake") { if (G.StoryScreen) G.StoryScreen.shake(game, arg); }
+    else if (name === "card") { if (G.StoryScreen) G.StoryScreen.card(game, run, arg); }
+    else if (name === "arm") G.Story.arm(game, arg !== false);
+    else if (name === "seat") { if (G.StoryCam) G.StoryCam.seat(game, arg); }
   }
   // the objective a scene shows at a beat: the last one a beat before it set
   function objectiveAt(scene, beatI) {
@@ -165,6 +231,13 @@ G.StoryScenes = (function () {
     if (G.StoryLight) G.StoryLight.apply(game, sc.light || run.ch.light || null);
     const map = game.world && game.world.storyMap;
     if (map && map.door && sc.doors) Object.keys(sc.doors).forEach((id) => map.door(id, !!sc.doors[id]));
+    // (round 5) its people and things; nothing of the last scene's to use or answer; the gun
+    // in the hands -- or not (the prologue's first five parts)
+    if (G.StoryCast) G.StoryCast.enter(game, run, sc);
+    if (G.StoryUse) G.StoryUse.reset(game);
+    if (G.StoryQuiz) G.StoryQuiz.reset(game);
+    if (G.StoryCam) G.StoryCam.seat(game, false);
+    G.Story.arm(game, sc.armed !== false, true);
     if (G.Bus) G.Bus.emit("story:scene", { ch: run.ch.id, scene: sc.id, i: sceneI });
   }
   // ---------------- cinematic parts ----------------
@@ -218,5 +291,5 @@ G.StoryScenes = (function () {
       game.zombies.forEach((z) => { if (z.alive) z.speedMultiplier = 1; });
     });
   }
-  return { inZone, met, points, spawn, act, objectiveAt, enter, update, canSkip, skip, seenKey };
+  return { inZone, met, points, spawn, aimAt, act, objectiveAt, enter, update, canSkip, skip, seenKey };
 })();
