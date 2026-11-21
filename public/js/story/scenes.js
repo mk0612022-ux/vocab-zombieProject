@@ -1,11 +1,12 @@
 // ===================================================================
-// Story Mode's scene runner (story series, rounds 1-2)
+// Story Mode's scene runner (story series, rounds 1-4)
 // -------------------------------------------------------------------
 // A chapter's scenes are data (js/data/story/ch*.js). A scene is a list of
 // beats, played in order; each beat waits for something, then does things:
 //   { wait: <condition>, do: [<action>, ...], cine: "<name>" }
 // A condition (none: at once):
-//   { zone: id }         the player inside the chapter's zone `id` (an x/z box, any height)
+//   { zone: id }         the player inside the chapter's zone `id` (an x/z box; with a `y`,
+//                        only on that storey -- round 4: the chapter's map has three)
 //   { cleared: group }   every zombie of that group down (once it was sent)
 //   { time: s }          s seconds of play since the beat before (held: faster)
 //   { flag: name }       a flag set (by an action; later rounds: a puzzle, a pick-up)
@@ -39,6 +40,12 @@
 //   ["lock", on] · ["walk", { x, z, speed }] · ["bars", on] · ["slow", sec]
 //   ["hud", "none" | "all" | [parts]]   the LexiLens HUD's parts (G.LexiLens)
 //   ["lens", on] · ["glitch", sec] · ["sys", key | { key, vars, dur, glitch }]
+//   (round 4)
+//   ["teleport", { x, y, z, yaw }]   the player put there (a cut between two moments)
+//   ["light", name]      the scene's light set (js/story/storylight.js) changed mid-scene
+//   ["door", { id, open }]  a door of the chapter's map opened or shut (js/story/ch1map.js)
+// Spawn points and starts may carry a `y` (the storey's floor); a scene's `light` names
+// its light set (the time of day), put on as it begins.
 // A beat that has been met never waits again, so a few can pass in one frame.
 // Cinematic parts: beats sharing a `cine` name. Once the player has seen one to its end
 // (G.save.tutorialSeen["story_<chapter>_<name>"]), holding Space / A / a finger skips the
@@ -56,6 +63,7 @@ G.StoryScenes = (function () {
     const z = ch.zones && ch.zones[id];
     if (!z) return false;
     const p = game.yawObject.position;
+    if (Number.isFinite(z.y) && Math.abs(p.y - 1.7 - z.y) > 1.8) return false;      // (round 4: its storey)
     return p.x >= z.x0 && p.x <= z.x1 && p.z >= z.z0 && p.z <= z.z1;
   }
   const groupAlive = (game, id) => game.zombies.some((z) => z.alive && z.storyGroup === id);
@@ -87,7 +95,7 @@ G.StoryScenes = (function () {
     let made = 0;
     for (let i = 0; i < n && pts.length; i++) {
       const p = pts[i % pts.length], spread = i >= pts.length ? 1.2 : 0;
-      const pos = new THREE.Vector3(p.x + (Math.random() - 0.5) * spread, 0, p.z + (Math.random() - 0.5) * spread);
+      const pos = new THREE.Vector3(p.x + (Math.random() - 0.5) * spread, Number.isFinite(p.y) ? p.y : 0, p.z + (Math.random() - 0.5) * spread);
       const z = game.spawnZombieAt(kinds[i % kinds.length], pos, null);
       if (z) { z.storyGroup = s.id; made++; }
     }
@@ -134,6 +142,10 @@ G.StoryScenes = (function () {
     else if (name === "lens") G.LexiLens.theme(!!arg);
     else if (name === "glitch") G.LexiLens.glitch(arg);
     else if (name === "sys") { const o = typeof arg === "string" ? { key: arg } : arg || {}; G.LexiLens.sys(o.key, Object.assign(G.Story.vars(), o.vars || {}), o); }
+    // (round 4) the chapter's map: a cut, the time of day, a door
+    else if (name === "teleport") { const p = arg || {}; game.teleportPlayer(new THREE.Vector3(p.x, Number.isFinite(p.y) ? p.y : 0, p.z)); if (Number.isFinite(p.yaw)) game.yawObject.rotation.y = p.yaw; }
+    else if (name === "light") { if (G.StoryLight) G.StoryLight.apply(game, arg); }
+    else if (name === "door") { const o = arg || {}, m = game.world && game.world.storyMap; if (m && m.door) m.door(o.id, o.open !== false); }
   }
   // the objective a scene shows at a beat: the last one a beat before it set
   function objectiveAt(scene, beatI) {
@@ -149,6 +161,10 @@ G.StoryScenes = (function () {
     // how it starts: the HUD's parts and the glasses (round 2)
     if (G.LexiLens) { G.LexiLens.parts(sc.hud || "all", { quiet: true }); G.LexiLens.theme(sc.lens !== false); }
     if (G.StoryCam) { G.StoryCam.lock(false); G.StoryCam.bars(false); }
+    // (round 4) its time of day, and the doors as the scene wants them
+    if (G.StoryLight) G.StoryLight.apply(game, sc.light || run.ch.light || null);
+    const map = game.world && game.world.storyMap;
+    if (map && map.door && sc.doors) Object.keys(sc.doors).forEach((id) => map.door(id, !!sc.doors[id]));
     if (G.Bus) G.Bus.emit("story:scene", { ch: run.ch.id, scene: sc.id, i: sceneI });
   }
   // ---------------- cinematic parts ----------------

@@ -188,7 +188,7 @@ G.normalizeStory = function (raw) {
       const opt = (raw, lim) => { if (raw === null || raw === undefined || raw === "") return null; const v = Number(raw); return Number.isFinite(v) ? Math.max(-lim, Math.min(lim, v)) : null; };
       point = { scene: int(cp.scene, 0, 40), beat: int(cp.beat, 0, 200), at: num(cp.at, 0, 1e13), hp: num(cp.hp, 0, 1e4),
         guns: ids(cp.guns, 10), melee: typeof cp.melee === "string" && ID.test(cp.melee) ? cp.melee : "", ammo, flags: flagList(cp.flags, 120),
-        x: opt(cp.x, 5000), z: opt(cp.z, 5000), yaw: opt(cp.yaw, 7) };
+        x: opt(cp.x, 5000), y: opt(cp.y, 500), z: opt(cp.z, 5000), yaw: opt(cp.yaw, 7) };   // (story round 4: y, the storey)
     }
     out.ch[key] = {
       started: !!c.started, done: !!c.done, prologueDone: !!c.prologueDone, scene: int(c.scene, 0, 40), cp: point,

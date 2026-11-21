@@ -37,7 +37,9 @@ G.Round39Test = (function () {
     const key = (code) => G.onKeyDown({ code, preventDefault() {}, stopPropagation() {}, repeat: false });
     const setLang = (l) => (G.lang === l ? Promise.resolve() : new Promise((r) => G.setUILang(l, { done: r })));
     const play = (fn) => { g.update = real; fn(); g.update = () => {}; G.Modal.reset(); g.paused = false; g.state = "GAMEPLAY"; G.Input.clearHeldInputs(); step(2); };
-    const at = (x, z) => { g.teleportPlayer(new THREE.Vector3(x, 0, z)); step(2); };
+    const at = (x, z, y) => { g.teleportPlayer(new THREE.Vector3(x, y || 0, z)); step(2); };
+    // (story round 4: a zone of the chapter's map, by name -- its middle, on its storey)
+    const toZone = (name) => { const q = G.STORY_CHAPTERS.ch1.zones[name]; at((q.x0 + q.x1) / 2, (q.z0 + q.z1) / 2, q.y); };
     const alive = () => g.zombies.filter((z) => z.alive);
     // shoot the zombie the question asks for (or, wrong: one it does not)
     const shoot = (right) => {
@@ -136,7 +138,7 @@ G.Round39Test = (function () {
         const dueCh = S.pairs("ch1").slice(0, 2).map((p) => G.wordKey(p));
         dueCh.forEach((k) => { G.save.learn.srs[k] = { b: 1, due: due0 - 1, last: due0 - 2 }; });
         play(() => S.start("ch1", null));
-        ok("D a chapter run: mode story, the stand-in map, the chapter's words", g.mode === "story" && g.level.theme === "training" && g.level.story === "ch1" && g.wordPool.length === S.pairs("ch1").length);
+        ok("D a chapter run: mode story, the chapter's own map (js/story/ch1map.js), the chapter's words", g.mode === "story" && g.level.map === "ch1" && g.level.story === "ch1" && g.wordPool.length === S.pairs("ch1").length);
         ok("D ...scene 1 (the prologue), at its start", S.run && S.run.sceneI === 0 && Math.abs(g.yawObject.position.z - CH.scenes[0].start.z) < 1.5, g.yawObject.position.z.toFixed(1));
         let h = g.buildHudState();
         ok("D the HUD: Chapter 1, Exam Day; the objective in the word box", h.head.level === T("story.chapterN", { n: 1 }) && h.head.wave === T("story.ch1.s0") && h.currentMeaning === T("story.ch1.s0.obj") && h.meaningLabel === T("story.objective"), JSON.stringify(h.head) + " " + h.currentMeaning);
@@ -149,7 +151,7 @@ G.Round39Test = (function () {
         play(() => S.start("ch1", { scene: 1, beat: 0, skip: true }));
         h = g.buildHudState();
         ok("D scene 2 (The Long Corridor) at its start, its objective in the HUD", S.run.sceneI === 1 && Math.abs(g.yawObject.position.z - CH.scenes[1].start.z) < 1.5 && h.head.wave === T("story.ch1.s1") && h.currentMeaning === T("story.ch1.s1.obj"));
-        at(0, -6);
+        toZone("corridor3East");
         ok("D a zone reached: the group comes (3, its own)", alive().length === 3 && alive().every((z) => z.storyGroup === "c1"), alive().length);
         // the run's slots 1-3: chapter, elsewhere, chapter
         const isCh = (p) => mine.has(G.wordKey(p));
@@ -184,8 +186,8 @@ G.Round39Test = (function () {
 
         // ================= E: the checkpoint, death =================
         ok("E the checkpoint: where (scene 3's start), the guns and their ammo, the time", d.cp.x === CH.scenes[2].start.x && d.cp.z === CH.scenes[2].start.z && d.cp.guns.includes("pistol") && Array.isArray(d.cp.ammo.pistol) && d.time > 0, JSON.stringify(d.cp));
-        at(9, -10);
-        ok("E scene 3: the classroom's group", alive().length === 2);
+        toZone("libraryBack");
+        ok("E scene 3: the group by the library's back door", alive().length === 2);
         const dw0 = G.save.story.ch.ch1.wrong, shot = shoot(false);
         g.player.hp = 0; g.checkPlayerDeath(); step(2);
         ok("E killed: the window (Retry from checkpoint), the game not over", G.Dialog.isOpen() && $("dialog-title").textContent === T("story.death.title") && g.state !== "GAME_OVER");
@@ -234,7 +236,7 @@ G.Round39Test = (function () {
         play(() => S.start("ch1", { scene: 8, beat: 0, at: 1, guns: ["pistol"], ammo: {}, flags: [], x: null, z: null, yaw: null }));
         ok("G the last scene: PROTECT", S.run.sceneI === 8 && g.buildHudState().head.wave === T("story.ch1.s8"));
         step(30);
-        at(0, 30);
+        toZone("gate");
         const e = G.save.story.ch.ch1;
         ok("G its zone: the chapter done, no checkpoint, the best time", e.done && !e.cp && e.best >= 600 && e.finishedAt > 0, e.best);
         ok("G the summary: time and accuracy (80%)", G.Dialog.isOpen() && $("dialog-title").textContent === T("story.end.title") && $("dialog-text").textContent.indexOf("80") >= 0, $("dialog-text").textContent);
@@ -253,7 +255,7 @@ G.Round39Test = (function () {
         g.update = real; g.quitToMainMenu(); g.update = () => {}; G.Modal.reset();
         S.open("ch1"); await wait(20);
         g.update = real; G.Dialog.choose(G.Dialog._o.buttons.findIndex((b) => b.label === T("story.open.skip"))); g.update = () => {}; G.Modal.reset(); g.paused = false; g.state = "GAMEPLAY"; step(2);
-        at(0, -6); clearAll(); step(2);
+        toZone("corridor3East"); clearAll(); step(2);
         const again = G.save.story.ch.ch1;
         ok("G ...a checkpoint of its own: scene 3, the chapter still completed", again.cp && again.cp.scene === 2 && again.done && S.status("ch1") === T("story.status.scene", { i: 3, n: 9 }), S.status("ch1"));
         g.update = real; g.retry(); g.update = () => {}; G.Modal.reset(); g.paused = false; g.state = "GAMEPLAY"; step(2);
@@ -274,7 +276,7 @@ G.Round39Test = (function () {
         const first = alive();
         ok("H scene 4 sends its first group at once", first.length === 2 && first.every((z) => z.storyGroup === "d1"));
         // a second group out at the same time (by hand), then a wrong shot
-        SC.spawn(g, S.run, { id: "extra", at: "classroomBack", count: 2 });
+        SC.spawn(g, S.run, { id: "extra", at: "libDoors", count: 2 });
         const hw0 = S.data("ch1").wrong;
         shoot(false);
         window.dispatchEvent(new Event("pagehide"));

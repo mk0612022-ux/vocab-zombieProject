@@ -120,9 +120,13 @@ G.ColGrid = {
   },
   insert(world, c) {
     const g = world.colGrid;
-    if (!g || c.isEmpty()) return;
+    if (!g) return;
+    // (story round 4: a box that moves is listed even while empty -- a door that starts
+    // open, its box made empty, and is shut later; left out, nothing ever bumped into it)
+    if (c.dynamic) { g.always.push(c); return; }
+    if (c.isEmpty()) return;
     const S = this.CELL;
-    if (c.dynamic || c.max.x - c.min.x > 48 || c.max.z - c.min.z > 48) { g.always.push(c); return; }
+    if (c.max.x - c.min.x > 48 || c.max.z - c.min.z > 48) { g.always.push(c); return; }
     const x0 = Math.floor(c.min.x / S), x1 = Math.floor(c.max.x / S), z0 = Math.floor(c.min.z / S), z1 = Math.floor(c.max.z / S);
     for (let x = x0; x <= x1; x++) {
       for (let z = z0; z <= z1; z++) {
@@ -2602,6 +2606,9 @@ G.buildLevelScene = function (scene, level, quality) {
   // (story series, round 3) the voxel kit's gallery (js/story/voxelkit.js), a hidden chapter
   if (level.kit && G.VoxelKit) {
     G.VoxelKit.build({ scene, world, level, quality, pal, wallMat, M: themeMats("school"), addLight, addProp, addFloatBox });
+  } else if (level.map && G.StoryMaps && G.StoryMaps[level.map]) {
+    // (story series, round 4) a chapter's own map, built of blocks (js/story/ch1map.js)
+    G.StoryMaps[level.map].build({ scene, world, level, quality, pal, addLight });
   } else if (level.theme === "training" && G.TrainingYard) {
     G.TrainingYard.build({ scene, world, level, quality, pal, wallMat, M: themeMats("school"),
       addFloor, addCeiling, addWallSeg, addWallWithGaps, addRoomWalls, addRoomDoor, addProp, addLight, addCanvasBox, addGlowBox, addFloatBox, buildSlidingDoors });

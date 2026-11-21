@@ -36,7 +36,9 @@ G.Round41Test = (function () {
     const step = (n, dt) => { for (let i = 0; i < n; i++) real.call(g, dt || 1 / 60); };
     const settle = () => { g.update = () => {}; G.Modal.reset(); g.paused = false; g.state = "GAMEPLAY"; G.Input.clearHeldInputs(); step(2); };
     const play = (fn) => { g.update = real; fn(); settle(); };
-    const at = (x, z) => { g.teleportPlayer(new THREE.Vector3(x, 0, z)); step(2); };
+    const at = (x, z, y) => { g.teleportPlayer(new THREE.Vector3(x, y || 0, z)); step(2); };
+    // (story round 4: a zone of the chapter's map, by name -- its middle, on its storey)
+    const toZone = (name) => { const q = G.STORY_CHAPTERS.ch1.zones[name]; at((q.x0 + q.x1) / 2, (q.z0 + q.z1) / 2, q.y); };
     const alive = () => g.zombies.filter((z) => z.alive);
     const quit = () => { if (G.Dialog.isOpen()) G.Dialog.close(); g.update = real; if (g.state !== "MENU") g.quitToMainMenu(); g.update = () => {}; G.Modal.reset(); };
     const drawn = (root) => { let n = 0; root.traverseVisible((o) => { if (o.isMesh && !o.userData.hit && !o.userData.outline) n++; }); return n; };
@@ -215,7 +217,7 @@ G.Round41Test = (function () {
       // ================= D: a chapter's zombies =================
       {
         play(() => S.start("ch1", { scene: 1, beat: 0, skip: true }));
-        at(0, -6);
+        toZone("corridor3East");
         step(30);
         const zs = alive();
         ok("D a chapter's zombies built of blocks (each its own look while there are others)", zs.length >= 3 && zs.every((z) => z.look.voxel && z.mesh.userData.voxel) && new Set(zs.map((z) => z.look.voxel)).size === zs.length, zs.map((z) => z.look.voxel).join());
@@ -227,7 +229,8 @@ G.Round41Test = (function () {
         ok("D a voxel zombie is fewer meshes than a campaign one", numbers.voxelZombieMeshes <= numbers.campaignZombieMeshes && numbers.voxelZombieMeshes <= 8, numbers.voxelZombieMeshes + " vs " + numbers.campaignZombieMeshes);
         // shots (js/aim.js: the parts as drawn; anything on the neck is the head)
         z.mesh.updateMatrixWorld(true);
-        const eye = new THREE.Vector3(z.mesh.position.x, 1.6, z.mesh.position.z + 4);
+        // (story round 4: from its own floor, 4 m down the corridor -- the chapter's map puts it on 3F)
+        const eye = new THREE.Vector3(z.mesh.position.x - 4, z.mesh.position.y + 1.6, z.mesh.position.z);
         const headAt = z.mesh.userData.neck.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 0.22 * z.mesh.scale.y, 0));
         const bodyAt = z.mesh.userData.upper.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 0.34 * z.mesh.scale.y, 0));
         g.camera.updateMatrixWorld();
@@ -253,7 +256,7 @@ G.Round41Test = (function () {
         // the campaign's look, if the flag says so
         G.CONFIG.story.voxel.zombies = false;
         play(() => S.start("ch1", { scene: 1, beat: 0, skip: true }));
-        at(0, -6); step(10);
+        toZone("corridor3East"); step(10);
         ok("D G.CONFIG.story.voxel.zombies false: a chapter's zombies in the campaign's look", alive().length && alive().every((q) => !q.look.voxel && !q.mesh.userData.voxel));
         G.CONFIG.story.voxel.zombies = vz0;
         quit();
@@ -299,7 +302,7 @@ G.Round41Test = (function () {
       // ================= F: the budget =================
       {
         play(() => S.start("ch1", { scene: 1, beat: 0, skip: true }));
-        at(0, -6); step(10);
+        toZone("corridor3East"); step(10);
         g.renderFrame();
         numbers.storyCalls = g.renderer.info.render.calls;
         numbers.storyTexKB = Math.round(texBytes(g.scene) / 1024);

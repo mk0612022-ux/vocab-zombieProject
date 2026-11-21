@@ -143,7 +143,10 @@ G.Perf = {
       // round 3: what can see it (js/zones.js) -- outdoors, the building's
       // shell, or indoors on which storeys -- so it can be left undrawn
       const zone = world.zoneKey ? world.zoneKey(o) : "";
-      const cell = [Math.floor(tmp.x / CELL), Math.floor(tmp.z / CELL), tmp.y > 3.9 ? 1 : 0, zone].join("|");
+      // (story round 4: a map may merge a zone in bigger cells -- world.mergeCellOf(zone): a
+      // campus's grounds, seen whole from anywhere outdoors, in fewer draw calls)
+      const CZ = (world.mergeCellOf && world.mergeCellOf(zone)) || CELL;
+      const cell = [Math.floor(tmp.x / CZ), Math.floor(tmp.z / CZ), tmp.y > 3.9 ? 1 : 0, zone].join("|");
       const g = o.geometry;
       // A multi-material box (floor slab, sign) is split by face group, so its
       // shared side/underside faces merge with everything else and only the
@@ -379,7 +382,10 @@ G.Perf = {
       anchors.push({ pos: p, color: l.color.clone(), base: l.userData.base != null ? l.userData.base : l.intensity,
         distance: l.distance || 13, phase: l.userData.phase || Math.random() * 10, speed: l.userData.speed || 1.4, intensity: 0,
         mode: l.userData.mode || null, glow: l.userData.glow || null, glowBase: l.userData.glow ? l.userData.glow.color.clone() : null,
-        priority: l.userData.priority || 0, key: l.userData.key || null, steady: !!l.userData.steady, src: l });
+        priority: l.userData.priority || 0, key: l.userData.key || null, steady: !!l.userData.steady, src: l,
+        // (story series, round 4) what kind of lamp (js/story/storylight.js recolours them by
+        // kind for each time of day) and what it was as built
+        kind: l.userData.kind || null, color0: l.color.clone(), base0: l.userData.base != null ? l.userData.base : l.intensity });
       if (l.parent) l.parent.remove(l);
     });
     this.anchors = anchors;
@@ -440,6 +446,8 @@ G.Perf = {
         const f = Math.sin(tSec * 13.1 + a.phase) + Math.sin(tSec * 29.7 + a.phase * 1.7) + 1.4 * Math.sin(tSec * 3.3 + a.phase * 0.5);
         mult = f > 0.3 ? 1 : f > -0.8 ? 0.3 : 0.04;
       }
+      // (story series, round 4) an emergency lamp: on, off, on, off (Reduce Motion: on)
+      if (a.mode === "blink") mult = !flick || Math.sin(tSec * 4.2 + a.phase * 0.3) > -0.2 ? 1 : 0.1;
       if (a.glow) a.glow.color.copy(a.glowBase).multiplyScalar(Math.min(1, 0.15 + 0.85 * mult));
       a.intensity = a.base * mult;
       const dx = a.pos.x - camPos.x, dy = (a.pos.y - camPos.y) * 1.6, dz = a.pos.z - camPos.z;

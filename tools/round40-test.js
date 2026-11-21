@@ -44,7 +44,9 @@ G.Round40Test = (function () {
     const setLang = (l) => (G.lang === l ? Promise.resolve() : new Promise((r) => G.setUILang(l, { done: r })));
     const settle = () => { g.update = () => {}; G.Modal.reset(); g.paused = false; g.state = "GAMEPLAY"; G.Input.clearHeldInputs(); step(2); };
     const play = (fn) => { g.update = real; fn(); settle(); };
-    const at = (x, z) => { g.teleportPlayer(new THREE.Vector3(x, 0, z)); step(2); };
+    const at = (x, z, y) => { g.teleportPlayer(new THREE.Vector3(x, y || 0, z)); step(2); };
+    // (story round 4: a zone of the chapter's map, by name -- its middle, on its storey)
+    const toZone = (name) => { const q = G.STORY_CHAPTERS.ch1.zones[name]; at((q.x0 + q.x1) / 2, (q.z0 + q.z1) / 2, q.y); };
     const alive = () => g.zombies.filter((z) => z.alive);
     const clearAll = () => { for (let i = 0; i < 40 && alive().length; i++) { step(1); const tp = g.targetPair; const z = alive().find((q) => tp && q.word === tp[0]); if (z) g.damageZombie(z, 9999, z.mesh.position.clone(), { dir: null, head: false }); step(2); } };
     const pick = (i) => { g.update = real; G.Dialog.choose(i); g.update = () => {}; g.paused = false; step(2); };
@@ -262,10 +264,10 @@ G.Round40Test = (function () {
         ok("E locked: the mouse does not turn the view", Math.abs(g.yawObject.rotation.y - yaw0) < 1e-6);
         CAM.lock(false); G.Input.mouseDelta.x = 300; step(2);
         ok("E unlocked: it does again", Math.abs(g.yawObject.rotation.y - yaw0) > 0.1);
-        CAM.walk(g, { x: 0, z: 6 }); step(5);
+        CAM.walk(g, { x: 5, z: 0.4 }); step(5);
         ok("E walk: the player walking by themselves", CAM.walking);
         until(() => !CAM.walking, 600);
-        ok("E ...there", Math.hypot(g.yawObject.position.x - 0, g.yawObject.position.z - 6) < 0.6, g.yawObject.position.x.toFixed(2) + "," + g.yawObject.position.z.toFixed(2));
+        ok("E ...there", Math.hypot(g.yawObject.position.x - 5, g.yawObject.position.z - 0.4) < 0.6, g.yawObject.position.x.toFixed(2) + "," + g.yawObject.position.z.toFixed(2));
         CAM.bars(true);
         // (where the slide ends: headless Edge may not run the 0.55 s transition while the page is busy)
         const bar = document.querySelector(".cine-top");
@@ -307,7 +309,7 @@ G.Round40Test = (function () {
         step(Math.ceil(G.CONFIG.story.lens.sysSec * 60) + 5);
         ok("F ...gone after its time", !vis("#lens-sys"));
         // a right shot: "CORRECT. Neural pattern disrupted."
-        at(0, -6); step(3);
+        toZone("corridor3East"); step(3);
         until(() => alive().length >= 1, 60);
         const r0 = g.correctCount;
         step(1);
@@ -333,7 +335,7 @@ G.Round40Test = (function () {
         pick(1);
         ok("G ...chosen, kept; the radio's line", G.save.story.ch.ch1.choices.beam === "promise" && D.current && D.current.who === "radio");
         talkAll();
-        at(0, 15);
+        toZone("entry");
         ok("G in (the zone): Beam's lost word, 3 answers", G.Dialog.isOpen() && document.querySelectorAll("#dialog-btns button").length === 3);
         pick(0);
         ok("G ...right: \"Pencil! Right. Pencil.\", then Kru Min", D.current && D.current.line === "story.ch1.d.beamPencil" && D.queued === 1);
@@ -354,7 +356,7 @@ G.Round40Test = (function () {
         const dlgBottom = parseFloat(getComputedStyle($("story-dlg")).bottom);
         ok("G ...the line's box over the bottom bar, not across it", dlgBottom >= window.innerHeight * 0.12, dlgBottom.toFixed(0) + " px of " + window.innerHeight);
         until(() => !CAM.turning, 200);
-        const f = new THREE.Vector3(-Math.sin(g.yawObject.rotation.y), 0, -Math.cos(g.yawObject.rotation.y)), sp = CH.spawns.yardFar[0];
+        const f = new THREE.Vector3(-Math.sin(g.yawObject.rotation.y), 0, -Math.cos(g.yawObject.rotation.y)), sp = CH.spawns.corridor3[0];
         const to = new THREE.Vector3(sp.x - g.yawObject.position.x, 0, sp.z - g.yawObject.position.z).normalize();
         ok("G ...facing where they will come from", f.dot(to) > 0.99, f.dot(to).toFixed(3));
         talkAll(); step(2);
@@ -374,7 +376,7 @@ G.Round40Test = (function () {
         G.save.story = { ch: {} };   // (the seen flags from G stay)
         play(() => S.start("ch1", null));
         until(() => G.Dialog.isOpen(), 600); pick(0); talkAll();
-        at(0, 15); pick(0); talkAll(); step(2);
+        toZone("entry"); pick(0); talkAll(); step(2);
         const bi = S.run.beatI, b = CH.scenes[0].beats[bi];
         ok("H replaying: at the exam part (seen before), skippable", b.cine === "exam" && SC.canSkip(S.run), bi);
         const kbJ = G.save.settings.keybinds.jump;
@@ -387,7 +389,7 @@ G.Round40Test = (function () {
         G.save.story = { ch: {} };
         play(() => S.start("ch1", null));
         until(() => G.Dialog.isOpen(), 600); pick(0); talkAll();
-        at(0, 15); pick(0); talkAll(); step(2);
+        toZone("entry"); pick(0); talkAll(); step(2);
         ok("H never seen: not skippable", CH.scenes[0].beats[S.run.beatI].cine === "exam" && !SC.canSkip(S.run));
         quit();
         await yield0();

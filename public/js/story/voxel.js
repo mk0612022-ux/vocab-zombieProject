@@ -73,13 +73,17 @@ G.Voxel = (function () {
   function Buf(colors) { this.p = []; this.n = []; this.uv = []; this.c = colors ? [] : null; this.i = []; this.v = 0; }
   // corners: four [x, y, z]; n: the normal; r: [u0, v0, u1, v1] and, fifth, quarter
   // turns of the picture (a lying body's faces); col: four brightnesses (or null)
+  // (the rectangle's corners in quad order -- bottom-left, bottom-right, top-right,
+  // top-left -- as indices into r: nothing made per quad, a map has 60 000 of them)
+  const UVX = [0, 2, 2, 0], UVY = [1, 1, 3, 3];
   Buf.prototype.quad = function (corners, n, r, col, flip) {
-    const uv = [[r[0], r[1]], [r[2], r[1]], [r[2], r[3]], [r[0], r[3]]], rot = r[4] || 0;
+    const rot = r[4] || 0;
     for (let k = 0; k < 4; k++) {
-      this.p.push(corners[k][0], corners[k][1], corners[k][2]);
+      const c = corners[k];
+      this.p.push(c[0], c[1], c[2]);
       this.n.push(n[0], n[1], n[2]);
-      const t = uv[(k + rot) % 4];
-      this.uv.push(t[0], t[1]);
+      const j = (k + rot) % 4;
+      this.uv.push(r[UVX[j]], r[UVY[j]]);
       if (this.c) { const b = col ? col[k] : 1; if (Array.isArray(b)) this.c.push(b[0], b[1], b[2]); else this.c.push(b, b, b); }
     }
     const o = this.v;
@@ -216,57 +220,95 @@ G.Voxel = (function () {
 
   // Into meshes. o: { origin: [x, y, z] (metres, where block 0,0,0 sits), chunk (m),
   // colliders (true: the solid blocks above the floor into world.colliders),
-  // floorY (blocks below this y are the floor: no collider), zone (userData.zone) }
+  // floorY (blocks below this y are the floor: no collider), zone (userData.zone),
+  // band (story round 4: blocks of y a chunk is also cut by -- a storey's own
+  // chunks, userData.band = floor((y + 1) / band), so a map can leave out the
+  // storeys the player cannot see), solid (story round 4: (y) => which rows get
+  // colliders -- the player's box is 2.6 m tall (js/game.js), so a 2 m doorway's
+  // lintel, or a floor one steps up onto, must not be one) }
   // Returns { meshes, faces, colliders: [Box3] }.
   Grid.prototype.build = function (scene, world, o) {
     o = o || {};
-    const org = o.origin || [0, 0, 0], CH = o.chunk || C().chunk || 16;
+    const org = o.origin || [0, 0, 0], CH = o.chunk || C().chunk || 16, BAND = o.band || 0;
     const AO = C().ao || [0.52, 0.68, 0.84, 1];
     const cells = this.cells;
-    const at = (x, y, z) => { const v = cells.get(key(x, y, z)); return v ? BY_ID[v & 255] : null; };
+    // (story round 4: the neighbours read from a dense copy of the grid's box, not
+    // the Map -- some 900 000 lookups for a map's faces and their corners)
+    let x0 = 1e9, y0 = 1e9, z0 = 1e9, x1 = -1e9, y1 = -1e9, z1 = -1e9;
+    cells.forEach((v, k) => {
+      const y = (k % KY) - OFY, kr = Math.floor(k / KY), z = (kr % KX) - OFF, x = Math.floor(kr / KX) - OFF;
+      if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; if (z < z0) z0 = z; if (z > z1) z1 = z;
+    });
+    const NX = x1 - x0 + 3, NY = y1 - y0 + 3, NZ = z1 - z0 + 3;
+    const dense = new Uint16Array(Math.max(1, NX * NY * NZ));
+    cells.forEach((v, k) => {
+      const y = (k % KY) - OFY, kr = Math.floor(k / KY), z = (kr % KX) - OFF, x = Math.floor(kr / KX) - OFF;
+      dense[((x - x0 + 1) * NZ + (z - z0 + 1)) * NY + (y - y0 + 1)] = v;
+    });
+    const at = (x, y, z) => {
+      const ix = x - x0 + 1, iy = y - y0 + 1, iz = z - z0 + 1;
+      if (ix < 0 || iy < 0 || iz < 0 || ix >= NX || iy >= NY || iz >= NZ) return null;
+      const v = dense[(ix * NZ + iz) * NY + iy];
+      return v ? BY_ID[v & 255] : null;
+    };
     const opaque = (x, y, z) => { const b = at(x, y, z); return b && !b.glass ? 1 : 0; };
     const chunks = new Map();
-    const bufOf = (cx, cz, kind) => {
-      const k = cx + "," + cz;
+    const bufOf = (cx, cz, band, kind) => {
+      const k = ((cx + 512) * 1024 + (cz + 512)) * 64 + band;
       let ch = chunks.get(k);
-      if (!ch) { ch = {}; chunks.set(k, ch); }
+      if (!ch) { ch = { band }; chunks.set(k, ch); }
       return ch[kind] || (ch[kind] = new Buf(kind !== "glass"));
+    };
+    // (story round 4: nothing made per face -- the corners, the shading and the
+    // tiles' rectangles reused; a map's 60 000 faces took over a second this way)
+    const corners = [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]], ao = [0, 0, 0, 0], col = [1, 1, 1, 1];
+    const SIG = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
+    const rects = new Map();
+    const rectOf = (name, rot) => {
+      const k = rot ? name + "@" + rot : name;
+      let r = rects.get(k);
+      if (!r) { r = VT().rect(name); if (rot) r = r.concat([rot]); rects.set(k, r); }
+      return r;
     };
     let faces = 0;
     cells.forEach((v, k) => {
-      const [x, y, z] = unkey(k), b = BY_ID[v & 255], f = (v >> 8) & 3;
+      const y = (k % KY) - OFY, kr = Math.floor(k / KY), z = (kr % KX) - OFF, x = Math.floor(kr / KX) - OFF;
+      const b = BY_ID[v & 255], f = (v >> 8) & 3;
       const kind = b.glass ? "glass" : b.glow ? "glow" : "block";
-      const buf = bufOf(Math.floor(x / CH), Math.floor(z / CH), kind);
-      FACES.forEach((F, fi) => {
+      const buf = bufOf(Math.floor(x / CH), Math.floor(z / CH), BAND ? Math.floor((y + 1) / BAND) : 0, kind);
+      for (let fi = 0; fi < 6; fi++) {
+        const F = FACES[fi];
         const nx = x + F.n[0], ny = y + F.n[1], nz = z + F.n[2];
         const nb = at(nx, ny, nz);
-        if (nb && (!nb.glass || nb === b)) return;           // hidden behind a block (or glass behind the same glass)
+        if (nb && (!nb.glass || nb === b)) continue;          // hidden behind a block (or glass behind the same glass)
         faces++;
-        const cs = F.c.map((s) => [org[0] + x + s[0], org[1] + y + s[1], org[2] + z + s[2]]);
-        let r = VT().rect(tileOf(b, fi, f));
-        if (b.rotTop && (fi === 2 || fi === 3)) r = r.concat([b.rotTop]);
-        if (kind === "glass") { buf.quad(cs, F.n, r, null); return; }
+        for (let q = 0; q < 4; q++) { const s = F.c[q], c = corners[q]; c[0] = org[0] + x + s[0]; c[1] = org[1] + y + s[1]; c[2] = org[2] + z + s[2]; }
+        const r = rectOf(tileOf(b, fi, f), b.rotTop && (fi === 2 || fi === 3) ? b.rotTop : 0);
+        if (kind === "glass") { buf.quad(corners, F.n, r, null); continue; }
         // each corner: the two blocks beside it and the one across, in front of the face
-        const ao = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([su, sv]) => {
-          const s1 = opaque(nx + F.u[0] * su, ny + F.u[1] * su, nz + F.u[2] * su);
-          const s2 = opaque(nx + F.v[0] * sv, ny + F.v[1] * sv, nz + F.v[2] * sv);
-          const cc = opaque(nx + F.u[0] * su + F.v[0] * sv, ny + F.u[1] * su + F.v[1] * sv, nz + F.u[2] * su + F.v[2] * sv);
-          return s1 && s2 ? 0 : 3 - (s1 + s2 + cc);
-        });
-        const col = kind === "glow" ? [1, 1, 1, 1] : ao.map((a) => AO[a]);
-        buf.quad(cs, F.n, r, col, ao[0] + ao[2] < ao[1] + ao[3]);
-      });
+        for (let q = 0; q < 4; q++) {
+          const su = SIG[q][0], sv = SIG[q][1], U = F.u, W = F.v;
+          const s1 = opaque(nx + U[0] * su, ny + U[1] * su, nz + U[2] * su);
+          const s2 = opaque(nx + W[0] * sv, ny + W[1] * sv, nz + W[2] * sv);
+          const cc = opaque(nx + U[0] * su + W[0] * sv, ny + U[1] * su + W[1] * sv, nz + U[2] * su + W[2] * sv);
+          ao[q] = s1 && s2 ? 0 : 3 - (s1 + s2 + cc);
+          col[q] = kind === "glow" ? 1 : AO[ao[q]];
+        }
+        buf.quad(corners, F.n, r, col, ao[0] + ao[2] < ao[1] + ao[3]);
+      }
     });
     const meshes = [];
     world.noMerge = world.noMerge || [];
     world.voxelMeshes = world.voxelMeshes || [];
     chunks.forEach((ch) => {
       Object.keys(ch).forEach((kind) => {
+        if (kind === "band") return;
         const g = ch[kind].geometry();
         const m = new THREE.Mesh(g, kind === "block" ? mat("block") : kind === "glow" ? glowBlockMat() : mat("glass"));
         m.castShadow = kind === "block";
         m.receiveShadow = kind !== "glow";
         m.userData.voxelChunk = kind;
+        m.userData.band = ch.band;
         if (o.zone) m.userData.zone = o.zone;
         scene.add(m);
         meshes.push(m);
@@ -276,7 +318,7 @@ G.Voxel = (function () {
         world.voxelMeshes.push(m);
       });
     });
-    const colliders = o.colliders === false ? [] : this.colliders(world, org, o.floorY != null ? o.floorY : 0);
+    const colliders = o.colliders === false ? [] : this.colliders(world, org, o.floorY != null ? o.floorY : 0, o.solid);
     return { meshes, faces, colliders };
   };
   // glowing blocks: unlit, the atlas, the corners' colours ignored (all 1)
@@ -288,19 +330,21 @@ G.Voxel = (function () {
   }
   // the solid blocks above the floor as a few boxes: runs along x, joined
   // along z where they match, then along y
-  Grid.prototype.colliders = function (world, org, floorY) {
+  Grid.prototype.colliders = function (world, org, floorY, solid) {
     org = org || [0, 0, 0];
-    const rows = new Map();     // "y,z" -> sorted xs
+    const rows = new Map();     // (y, z) as one number -> xs
     this.cells.forEach((v, k) => {
-      const [x, y, z] = unkey(k), b = BY_ID[v & 255];
-      if (b.open || org[1] + y < (floorY || 0)) return;
-      const rk = y + "," + z;
-      (rows.get(rk) || rows.set(rk, []).get(rk)).push(x);
+      const y = (k % KY) - OFY, kr = Math.floor(k / KY), z = (kr % KX) - OFF, x = Math.floor(kr / KX) - OFF, b = BY_ID[v & 255];
+      if (b.open || org[1] + y < (floorY || 0) || (solid && !solid(y))) return;
+      const rk = (y + OFY) * 4096 + (z + OFF);
+      let xs = rows.get(rk);
+      if (!xs) rows.set(rk, (xs = []));
+      xs.push(x);
     });
     // runs: per y, "x0,x1" -> list of z
     const perY = new Map();
     rows.forEach((xs, rk) => {
-      const [y, z] = rk.split(",").map(Number);
+      const y = Math.floor(rk / 4096) - OFY, z = (rk % 4096) - OFF;
       xs.sort((a, b) => a - b);
       let s = xs[0], p = xs[0];
       const flush = () => {

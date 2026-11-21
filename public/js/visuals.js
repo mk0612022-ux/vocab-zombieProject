@@ -1159,18 +1159,23 @@
     },
     // where the building is: the moon and the sky reach inside it only
     // through the windows
+    // (story series, round 4: a map with a building of its own -- a chapter's school, js/story/
+    // ch1map.js -- names it in world.lightFoot { rects, roof, indoor }, for any theme; the
+    // campaign's world.footprint drives more than the light, so it is left alone there)
     footprint(world, theme) {
-      const f = (world && world.footprint) || [];
+      const own = world && world.lightFoot;
+      const f = own ? own.rects || [] : (world && world.footprint) || [];
       const S = CFG().school;
       for (let i = 0; i < 4; i++) {
         const r = f[i];
         // (a little inside the walls' outer faces: those are outdoors)
-        if (r && theme === "school") U.vzFoot.value[i].set(r.minX + 0.12, r.maxX - 0.12, r.minZ + 0.12, r.maxZ - 0.12);
+        if (r && (own || theme === "school")) U.vzFoot.value[i].set(r.minX + 0.12, r.maxX - 0.12, r.minZ + 0.12, r.maxZ - 0.12);
         else U.vzFoot.value[i].set(1, 0, 1, 0);
       }
       const top = world && world.storeyY ? world.storeyY[world.storeyY.length - 1] + 3.95 : -1000;
-      U.vzRoof.value = theme === "school" ? top : -1000;
-      U.vzIndoor.value.set(S.indoor.moon, S.indoor.hemisphere);
+      U.vzRoof.value = own ? own.roof : theme === "school" ? top : -1000;
+      const K = (own && own.indoor) || S.indoor;
+      U.vzIndoor.value.set(K.moon, K.hemisphere);
     },
     fog(game, theme) {
       const F = CFG().fog, P = CFG().palette, q = this.cfgQ(G.save.settings.graphicsQuality);

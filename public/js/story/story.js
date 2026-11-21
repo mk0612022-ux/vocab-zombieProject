@@ -117,7 +117,10 @@ G.Story = (function () {
   // ---------------- the level ----------------
   function level(id) {
     const c = chapter(id);
-    return { id: "story_" + id, theme: c.map || "training", icon: "📖", waves: 1, difficulty: 0.8, spawnBaseInterval: 99, maxAliveZombies: 16, wordsKey: null, name: T(c.title), story: id, kit: !!c.kit };
+    // (round 4: `map` is the chapter's own place, js/world.js G.StoryMaps -- "training" the
+    // Training Yard's stand-in; `theme` its palette, sound and grade)
+    const map = c.map && c.map !== "training" ? c.map : null;
+    return { id: "story_" + id, theme: c.theme || "training", map, icon: "📖", waves: 1, difficulty: 0.8, spawnBaseInterval: 99, maxAliveZombies: 16, wordsKey: null, name: T(c.title), story: id, kit: !!c.kit };
   }
 
   // ---------------- from the lobby ----------------
@@ -189,7 +192,7 @@ G.Story = (function () {
     G.StoryScenes.enter(game, run, sceneI, from && !from.skip ? from.beat : 0);
     const sc = c.scenes[sceneI], at = from && Number.isFinite(from.x) && from.x !== null ? from : sc.start;
     if (at) {
-      game.teleportPlayer(new THREE.Vector3(at.x, 0, at.z));
+      game.teleportPlayer(new THREE.Vector3(at.x, Number.isFinite(at.y) ? at.y : 0, at.z));        // (round 4: and its storey)
       if (Number.isFinite(at.yaw)) game.yawObject.rotation.y = at.yaw;
       game.pitchObject.rotation.x = 0;
     }
@@ -207,6 +210,9 @@ G.Story = (function () {
     // (round 3) the LEXA patch of the zombie under the crosshair; the kit's gallery
     if (G.VoxelChars) G.VoxelChars.update(game);
     if (run.ch.kit && G.VoxelKit) G.VoxelKit.update(game, dt);
+    // (round 4) the chapter's map: the storeys drawn, the sun over the player
+    if (game.world && game.world.storyMap && game.world.storyMap.update) game.world.storyMap.update(game);
+    if (G.StoryLight) G.StoryLight.update(game);
     G.StoryScenes.update(game, run, dt);
   }
   // (round 2) a line's {name}: the profile's name, else a candidate number of this device's
@@ -258,7 +264,7 @@ G.Story = (function () {
     pl.gunSlots.forEach((g) => { const a = pl.ammo[g]; if (a) ammo[g] = [a.mag, a.reserve]; });
     const pos = at && Number.isFinite(at.x) ? at : null;
     d.cp = { scene: run.sceneI, beat: run.beatI, at: Date.now(), hp: Math.max(1, pl.hp), guns: pl.gunSlots.slice(), melee: pl.melee || "knife", ammo,
-      flags: Array.from(run.flags), x: pos ? pos.x : null, z: pos ? pos.z : null, yaw: pos && Number.isFinite(pos.yaw) ? pos.yaw : null };
+      flags: Array.from(run.flags), x: pos ? pos.x : null, y: pos && Number.isFinite(pos.y) ? pos.y : null, z: pos ? pos.z : null, yaw: pos && Number.isFinite(pos.yaw) ? pos.yaw : null };
     d.scene = Math.max(d.scene || 0, run.sceneI);
     G.save.story = G.normalizeStory(G.save.story);
     G.persist(true);
@@ -319,6 +325,7 @@ G.Story = (function () {
     if (G.LexiLens) G.LexiLens.reset();
     if (G.VoxelChars) G.VoxelChars.reset();
     if (G.VoxelKit) G.VoxelKit.teardown();
+    if (G.StoryLight) G.StoryLight.reset();
   }
   // the HUD's top box while a chapter is played: the chapter, the scene; the objective in the word box
   function hudHead(game, left) {

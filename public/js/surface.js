@@ -36,6 +36,8 @@ G.Surface = {
       const p = m.position, r = (m.userData && m.userData.radius) || 0.9;
       if (Math.abs(p.x - x) < r && Math.abs(p.z - z) < r && Math.abs(p.y - (y || 0)) < 0.6) return "water";
     }
+    // (story series, round 4) a map of blocks says what is underfoot: the block under the feet
+    if (world && world.surfaceAt) { const s = world.surfaceAt(x, z, y); if (s) return s; }
     const region = G.getRegionAt(world, x, z, y) || "";
     if (/^YARD/.test(region) || region === "") return theme === "bunker" ? "dirt" : "grass";
     if (theme === "bunker") return "concrete";

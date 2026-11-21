@@ -67,7 +67,8 @@ G.StoryCam = (function () {
   // a skipped part: where it was all going, at once
   function finish(game) {
     if (turn) { game.yawObject.rotation.y = turn.yaw0 + turn.dyaw; game.pitchObject.rotation.x = turn.pitch0 + turn.dpitch; turn = null; }
-    if (go) { game.teleportPlayer(new THREE.Vector3(go.x, 0, go.z)); go = null; }
+    // (story round 4: on the storey the player is on -- a chapter's map has three)
+    if (go) { game.teleportPlayer(new THREE.Vector3(go.x, game.yawObject.position.y - 1.7, go.z)); go = null; }
   }
   function busy() { return !!turn || !!go; }
   function reset() { turn = null; locked = false; go = null; bars(false); }

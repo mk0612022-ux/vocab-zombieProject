@@ -639,7 +639,9 @@ G.CONFIG = {
   //                four shades (0: in a corner .. 3: open); glassOpacity the window panes';
   //                zombies: a chapter's zombies built of blocks (false: the campaign's look);
   //                patchIdle / patchLock the LEXA patch's glow (x its cyan; locked = the
-  //                zombie under the crosshair); chunk the grid's chunk (m, one draw call each)
+  //                zombie under the crosshair); chunk the grid's chunk (m, one draw call each);
+  //                mapChunk a chapter map's, siteChunk its grounds' (round 4: bigger -- fewer draw
+  //                calls on a whole campus; the grounds' merge cells the same size)
   story: {
     enabled: false,
     chapterShare: 0.6,
@@ -650,7 +652,7 @@ G.CONFIG = {
     phone: { toastSec: 4.5, torch: { color: 0xfff1d6, intensity: 2.4, distance: 26, angle: 0.48, penumbra: 0.45, decay: 1.2 } },
     lens: { sysSec: 3.2, correctSec: 1.5, bootSec: 0.9 },
     cam: { lookSec: 1.2 },
-    voxel: { px: 0.05625, ao: [0.52, 0.68, 0.84, 1], glassOpacity: 0.42, zombies: true, patchIdle: 0.55, patchLock: 2.6, chunk: 16 },
+    voxel: { px: 0.05625, ao: [0.52, 0.68, 0.84, 1], glassOpacity: 0.42, zombies: true, patchIdle: 0.55, patchLock: 2.6, chunk: 16, mapChunk: 32, siteChunk: 64 },
   },
   // ---------------- the melee slot (expansion, round 4) ----------------
   // G.MELEE_WEAPONS has each weapon; js/melee.js is the swing.

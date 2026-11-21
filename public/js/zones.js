@@ -50,6 +50,7 @@ G.Zones = {
 
   // ---- sorting (before the merge) ----------------------------------------
   prepare(world) {
+    if (world.ownZones) return;                       // (story round 4: a story map sorts its own -- js/story/ch1map.js)
     world.zoneKey = null;
     if (!world.footprint) return;                     // only the school has zones
     // the rooms with doors: what is inside one is seen only through them

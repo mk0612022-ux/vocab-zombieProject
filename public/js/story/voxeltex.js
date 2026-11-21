@@ -532,12 +532,55 @@ G.VoxelTex = (function () {
       if (latin) text(ctx, l, Math.round((c.width - textWidth(l, sc)) / 2), y0 + i * lineH, sc, hexCss(fg));
       else { ctx.fillStyle = hexCss(fg); ctx.font = "bold " + (7 * sc) + "px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "top"; ctx.fillText(l, c.width / 2, y0 + i * lineH); }
     });
+    // (story round 4: onto a map's shared sheet of signs when one is given -- one
+    // material for all of them, so the level's merge bakes them together)
+    const uv = o.atlas ? o.atlas.put(c) : null;
+    if (uv) return { tex: o.atlas.tex, w: c.width, h: c.height, uv, atlas: o.atlas };
     const t = new THREE.CanvasTexture(c);
     t.magFilter = THREE.NearestFilter;
     t.minFilter = THREE.LinearFilter;
     t.generateMipmaps = false;
     return { tex: t, w: c.width, h: c.height };
   }
+  // a sheet the signs of a map are drawn on, packed in rows (story round 4):
+  // put(canvas) -> its [u0, v0, u1, v1], or null when the sheet is full;
+  // mat(glow) the sheet's two shared materials (lit, glowing)
+  function atlas(W, H) {
+    const c = document.createElement("canvas");
+    c.width = W || 1024; c.height = H || 1024;
+    const ctx = c.getContext("2d"), GAP = 2;
+    const t = new THREE.CanvasTexture(c);
+    t.magFilter = THREE.NearestFilter; t.minFilter = THREE.LinearFilter; t.generateMipmaps = false;
+    let x = 0, y = 0, rowH = 0, n = 0;
+    const mats = {};
+    return {
+      canvas: c, tex: t,
+      put(src) {
+        const w = src.width + GAP * 2, h = src.height + GAP * 2;
+        if (w > c.width) return null;
+        if (x + w > c.width) { x = 0; y += rowH; rowH = 0; }
+        if (y + h > c.height) return null;
+        // (the sign stretched under itself first: its own edge colour round it,
+        // which is what a far, filtered look picks up)
+        ctx.drawImage(src, x, y, w, h);
+        ctx.drawImage(src, x + GAP, y + GAP);
+        const r = [(x + GAP) / c.width, 1 - (y + GAP + src.height) / c.height, (x + GAP + src.width) / c.width, 1 - (y + GAP) / c.height];
+        x += w; rowH = Math.max(rowH, h); n++;
+        t.needsUpdate = true;
+        return r;
+      },
+      mat(glow) {
+        const k = glow ? "glow" : "lit";
+        if (mats[k]) return mats[k];
+        const m = glow ? new THREE.MeshBasicMaterial({ map: t }) : new THREE.MeshLambertMaterial({ map: t });
+        if (glow) m.userData.vzGlow = "sign";
+        m.userData.shared = true; m.name = "voxel-signs-" + k;
+        return (mats[k] = m);
+      },
+      get count() { return n; },
+      get used() { return (y + rowH) / c.height; },
+    };
+  }
 
-  return { TILES, IDX, GLOW, T, COLS, ROWS, texture, rect, surface, canvas: getCanvas, text, textWidth, hasGlyphs, sign, mul, mix, rngOf, get made() { return !!tex; } };
+  return { TILES, IDX, GLOW, T, COLS, ROWS, texture, rect, surface, canvas: getCanvas, text, textWidth, hasGlyphs, sign, atlas, mul, mix, rngOf, get made() { return !!tex; } };
 })();

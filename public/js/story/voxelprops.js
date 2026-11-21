@@ -34,15 +34,23 @@ G.VoxelProps = (function () {
   }
   // a sign: a thin dark frame and its face in front (lit, or glowing with o.glow);
   // o.pxm: the plate's pixels a metre, its width from its text (every letter one size)
+  // (story round 4: while a map is built, onto its shared sheet -- useAtlas)
+  let sheet = null;
   function sign(lines, w, o) {
     o = o || {};
-    const s = G.VoxelTex.sign(lines, o);
+    const s = G.VoxelTex.sign(lines, sheet && o.atlas !== false ? Object.assign({ atlas: sheet }, o) : o);
     if (o.pxm) w = s.w / o.pxm;
     const h = w * (s.h / s.w), g = new THREE.Group();
     add(g, o.frame || "metalDark", [-w / 2 - 0.03, -h / 2 - 0.03, -0.04, w / 2 + 0.03, h / 2 + 0.03, 0]);
-    const mat = o.glow ? new THREE.MeshBasicMaterial({ map: s.tex }) : new THREE.MeshLambertMaterial({ map: s.tex });
-    if (o.glow) mat.userData.vzGlow = "sign";
-    const face = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
+    let mat;
+    if (s.uv) mat = s.atlas.mat(!!o.glow);
+    else {
+      mat = o.glow ? new THREE.MeshBasicMaterial({ map: s.tex }) : new THREE.MeshLambertMaterial({ map: s.tex });
+      if (o.glow) mat.userData.vzGlow = "sign";
+    }
+    const geo = new THREE.PlaneGeometry(w, h);
+    if (s.uv) { const a = geo.attributes.uv; for (let i = 0; i < a.count; i++) a.setXY(i, a.getX(i) > 0.5 ? s.uv[2] : s.uv[0], a.getY(i) > 0.5 ? s.uv[3] : s.uv[1]); }
+    const face = new THREE.Mesh(geo, mat);
     face.position.z = 0.004;
     g.add(face);
     g.userData.size = [w, h];
@@ -275,11 +283,80 @@ G.VoxelProps = (function () {
     [[-1, 1.7], [1, 1.7], [-1, -1.7], [1, -1.7]].forEach(([x, z]) => wheel(g, x, z));
   };
 
+  // ---- (story round 4) the chapter's map ----
+  // a desk and its chair in one, for rooms full of them (fewer pieces than the two apart)
+  B.deskSet = (g) => {
+    add(g, "plank", [-0.3, 0.7, -0.22, 0.3, 0.74, 0.22]);
+    add(g, "metalDark", [-0.27, 0, -0.19, -0.24, 0.7, 0.19]); add(g, "metalDark", [0.24, 0, -0.19, 0.27, 0.7, 0.19]);
+    add(g, "plank", [-0.2, 0.43, 0.35, 0.2, 0.46, 0.73]); add(g, "plank", [-0.2, 0.62, 0.73, 0.2, 0.86, 0.76]);
+    add(g, "metalDark", [-0.18, 0, 0.37, 0.18, 0.43, 0.4]); add(g, "metalDark", [-0.18, 0, 0.7, 0.18, 0.62, 0.73]);
+  };
+  B.shelf = (g, o) => {
+    const w = (o && o.w) || 1.2;
+    add(g, "metal", [-w / 2, 0, -0.25, -w / 2 + 0.05, 1.9, 0.25]); add(g, "metal", [w / 2 - 0.05, 0, -0.25, w / 2, 1.9, 0.25]);
+    [0.1, 0.65, 1.2, 1.75].forEach((y) => add(g, "metal", [-w / 2, y, -0.25, w / 2, y + 0.04, 0.25]));
+    add(g, "cardboard", [-w / 2 + 0.1, 0.14, -0.2, -w / 2 + 0.5, 0.44, 0.15]); add(g, "paintBlue", [0.0, 0.69, -0.15, 0.3, 0.95, 0.15]); add(g, "cardboard", [-0.2, 1.24, -0.2, 0.35, 1.5, 0.18]);
+  };
+  B.counter = (g, o) => {
+    const w = (o && o.w) || 3;
+    add(g, { all: "woodDark", front: "paintWhite" }, [-w / 2, 0, -0.3, w / 2, 0.95, 0.3]);
+    add(g, "metal", [-w / 2 - 0.02, 0.95, -0.34, w / 2 + 0.02, 1.0, 0.34]);
+  };
+  B.cabinet = (g) => { add(g, { all: "metalDark", front: "metal" }, [-0.25, 0, -0.3, 0.25, 1.3, 0.3]); [0.35, 0.75, 1.1].forEach((y) => add(g, "paintBlack", [-0.06, y, 0.3, 0.06, y + 0.03, 0.32])); };
+  B.sink = (g) => { add(g, "paintWhite", [-0.3, 0.75, -0.25, 0.3, 0.9, 0.25]); add(g, "metal", [-0.03, 0.9, -0.2, 0.03, 1.1, -0.12]); add(g, "metalDark", [-0.08, 0, -0.08, 0.08, 0.75, 0.08]); };
+  B.stall = (g) => { add(g, "paintGrey", [-0.55, 0, -0.03, 0.55, 2.0, 0.03]); add(g, "paintGrey", [-0.03, 0, 0, 0.03, 2.0, 1.4]); };
+  B.plant = (g) => { add(g, "paintOrange", [-0.2, 0, -0.2, 0.2, 0.35, 0.2]); add(g, "leaves", [-0.32, 0.35, -0.32, 0.32, 0.95, 0.32]); };
+  B.vent = (g) => { add(g, { all: "paintWhite", front: "corrugated" }, [-0.5, 2.5, -0.08, 0.5, 2.8, 0]); };
+  B.photo = (g) => {
+    // the janitor's photographs with the students, year by year (the doc's 1-1): frames of colour
+    [[-0.5, 1.7], [0.1, 1.75], [-0.25, 1.25], [0.4, 1.3]].forEach(([x, y], i) => { add(g, "woodDark", [x - 0.2, y - 0.15, -0.03, x + 0.2, y + 0.15, 0]); add(g, ["handmade", "paper", "handmadeB", "paper"][i], [x - 0.16, y - 0.11, 0, x + 0.16, y + 0.11, 0.01]); });
+  };
+  B.hoop = (g) => {
+    add(g, "metalDark", [-0.08, 0, -0.08, 0.08, 3.4, 0.08]);
+    add(g, "paintWhite", [-0.9, 2.9, 0.05, 0.9, 3.95, 0.1]); add(g, "paintRed", [-0.3, 3.0, 0.1, 0.3, 3.04, 0.5]);
+  };
+  B.goal = (g) => {
+    add(g, "paintWhite", [-3.66, 0, -0.06, -3.54, 2.44, 0.06]); add(g, "paintWhite", [3.54, 0, -0.06, 3.66, 2.44, 0.06]); add(g, "paintWhite", [-3.66, 2.38, -0.06, 3.66, 2.5, 0.06]);
+    add(g, "paintGrey", [-3.6, 2.38, -1.6, 3.6, 2.42, 0.0]);
+  };
+  // a run of fence (o.len metres along x): posts and rails, waist high
+  B.fence = (g, o) => {
+    const len = (o && o.len) || 6;
+    add(g, "metal", [-len / 2, 0.95, -0.03, len / 2, 1.02, 0.03]); add(g, "metal", [-len / 2, 0.45, -0.03, len / 2, 0.52, 0.03]);
+    for (let x = -len / 2; x <= len / 2 + 1e-6; x += 2) add(g, "metalDark", [x - 0.05, 0, -0.05, x + 0.05, 1.1, 0.05]);
+  };
+  B.lampPost = (g) => { add(g, "metalDark", [-0.08, 0, -0.08, 0.08, 4.2, 0.08]); add(g, "metalDark", [-0.08, 4.1, -0.08, 0.08, 4.2, 0.7]); add(g, "lamp", [-0.15, 3.95, 0.45, 0.15, 4.1, 0.75], { mat: "glow" }); };
+  // a sign on a wall: o.key (a string, read in English) or o.text / o.lines; o.bg its
+  // colour; o.h its height over the floor (o.y is where place() stands it)
+  B.wallSign = (g, o) => {
+    o = o || {};
+    const lines = [].concat(o.lines || (o.key ? SIGN(o.key) : o.text || ""));
+    const s = sign(lines, o.w || 1.2, { bg: o.bg != null ? o.bg : 0x1f3a6b, fg: o.fg, scale: 2, pxm: o.pxm });
+    s.position.set(0, o.h != null ? o.h : 1.7, 0.01);
+    g.add(s);
+  };
+  // a door's frame (merged with the room) and, apart, its leaf (it swings: js/story/ch1map.js)
+  B.doorFrame = (g, o) => {
+    const h = ((o && o.w) || 1) / 2;
+    add(g, "woodDark", [-h - 0.08, 0, -0.1, -h, 2.08, 0.1]); add(g, "woodDark", [h, 0, -0.1, h + 0.08, 2.08, 0.1]); add(g, "woodDark", [-h - 0.08, 2.0, -0.1, h + 0.08, 2.08, 0.1]);
+    if (o && o.label) { const s = sign(String(o.label), 0.36, { bg: 0x1f3a6b, scale: 2 }); s.position.set(0, 2.25, 0.11); g.add(s); const s2 = sign(String(o.label), 0.36, { bg: 0x1f3a6b, scale: 2 }); s2.position.set(0, 2.25, -0.11); s2.rotation.y = Math.PI; g.add(s2); }
+  };
+  B.doorLeaf = (g, o) => {
+    const glass = o && o.glass, w = (o && o.w) || 1;
+    // (hinged at its left edge: the group's origin; the leaf reaches +x)
+    if (glass) { add(g, "metal", [0, 0, -0.03, 0.06, 2, 0.03]); add(g, "metal", [w - 0.06, 0, -0.03, w, 2, 0.03]); add(g, "metal", [0, 1.94, -0.03, w, 2, 0.03]); add(g, "metal", [0, 0, -0.03, w, 0.1, 0.03]); add(g, "glass", [0.06, 0.1, -0.01, w - 0.06, 1.94, 0.01], { mat: "glass" }); add(g, "paintRed", [0.06, 1.0, 0.02, w - 0.06, 1.06, 0.035]); return; }
+    add(g, { all: "woodDark", front: "doorBottom", back: "doorBottom" }, [0, 0, -0.04, w, 1, 0.04]);
+    add(g, { all: "woodDark", front: "doorTop", back: "doorTop" }, [0, 1, -0.04, w, 2, 0.04]);
+  };
+
   const LIST = ["desk", "chair", "teacherDesk", "blackboard", "clock", "fan", "lamp", "bookshelf", "door", "locker", "window", "exitSign", "emergencyLight", "evacSign",
     "fireExtinguisher", "exhibitBoard", "lexaStandee", "paConsole", "medCabinet", "nurseBed", "piano", "drums", "bleachers", "vaultBox", "canteenTable", "supplyBoxes",
     "examBox", "schoolBag", "papers", "waterCooler", "trashBin", "cone", "bench", "tree", "flagpole", "stage", "podium", "guardBooth", "gate", "policeCar", "schoolVan"];
+  // (round 4: the map's own, not in the gallery's list)
+  const MORE = ["deskSet", "shelf", "counter", "cabinet", "sink", "stall", "plant", "vent", "photo", "hoop", "goal", "fence", "lampPost", "wallSign", "doorFrame", "doorLeaf"];
   // what stands on its own (a collider) and what is on a wall or overhead (none)
-  const NO_COLLIDER = new Set(["clock", "fan", "lamp", "exitSign", "emergencyLight", "evacSign", "papers", "window", "blackboard", "fireExtinguisher"]);
+  const NO_COLLIDER = new Set(["clock", "fan", "lamp", "exitSign", "emergencyLight", "evacSign", "papers", "window", "blackboard", "fireExtinguisher",
+    "vent", "photo", "wallSign", "doorFrame", "doorLeaf", "hoop", "goal", "lampPost"]);
 
   function build(id, o) {
     const g = new THREE.Group();
@@ -288,14 +365,28 @@ G.VoxelProps = (function () {
     g.userData.prop = id;
     return g;
   }
+  // (story round 4) a prop of one look built once, then cloned -- its geometry
+  // shared: a map's 360 desks were 4 800 boxes built one by one, most of its
+  // build time. Not what moves (a fan's blades: its userData holds them).
+  // Emptied with each new sheet of signs (useAtlas): a map's own.
+  const made = new Map();
+  const PLACING = { y: 1, still: 1, collider: 1 };
+  function make(id, o) {
+    const k = id + "|" + JSON.stringify(o, (key, v) => (PLACING[key] ? undefined : v));
+    let t = made.get(k);
+    if (!t) { t = build(id, o); if (t.userData.moves) return t; made.set(k, t); }
+    return t.clone();
+  }
   function place(kit, id, x, z, ry, o) {
     o = o || {};
-    const g = build(id, o);
+    const g = make(id, o);
     g.position.set(x, o.y || 0, z);
     if (ry) g.rotation.y = ry;
     kit.scene.add(g);
     const w = kit.world;
-    if (g.userData.moves) (w.noMerge = w.noMerge || []).push(g);
+    // (o.still: a fan in a room nobody looks into stays still, and merges with the room)
+    if (g.userData.moves && !o.still) (w.noMerge = w.noMerge || []).push(g);
+    if (o.still) g.userData.spin = null;
     if (o.collider !== false && !NO_COLLIDER.has(id)) {
       g.updateMatrixWorld(true);
       const b = new THREE.Box3().setFromObject(g);
@@ -307,5 +398,7 @@ G.VoxelProps = (function () {
     return g;
   }
 
-  return { LIST, NO_COLLIDER, build, place, sign, add };
+  // a map's sheet of signs (G.VoxelTex.atlas) while it is built; null after
+  const useAtlas = (a) => { sheet = a || null; made.clear(); };
+  return { LIST, MORE, NO_COLLIDER, build, place, sign, add, useAtlas };
 })();

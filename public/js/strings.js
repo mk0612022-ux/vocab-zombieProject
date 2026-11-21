@@ -1169,6 +1169,10 @@ G.STRINGS = {
     "story.sign.pa1": "SMART PA", "story.sign.pa2": "POWERED BY NEUROLEX",
     "story.sign.lexa1": "LEXA", "story.sign.lexa2": "FLUENT BY MORNING.", "story.sign.lexa3": "NO STUDY NEEDED.",
     "story.sign.police": "POLICE", "story.sign.school": "PHOTCHANAWITTHAYA SCHOOL",
+    "story.sign.examTitle": "ENGLISH PROFICIENCY TEST", "story.sign.sponsored": "SPONSORED BY NEUROLEX", "story.sign.sponsorLib1": "THIS LIBRARY IS PROUDLY", "story.sign.sponsorLib2": "SPONSORED BY NEUROLEX",
+    "story.sign.lexaPoster1": "WHY STUDY WHEN", "story.sign.lexaPoster2": "YOU CAN DOWNLOAD?", "story.sign.handPoster1": "WORDS YOU LEARN", "story.sign.handPoster2": "ARE YOURS FOREVER.",
+    "story.sign.notice1": "IF YOU HAVE HEADACHES OR FORGET WORDS", "story.sign.notice2": "AFTER USING LEXA, SEE THE SCHOOL NURSE.", "story.sign.notice3": "IGNORING THESE SYMPTOMS MAY HAVE", "story.sign.notice4": "SERIOUS CONSEQUENCES.",
+    "story.sign.emergencyExit": "EMERGENCY EXIT", "story.sign.pr": "PR ROOM", "story.sign.admin": "ADMIN OFFICE", "story.sign.principal": "PRINCIPAL", "story.sign.canteen": "CANTEEN",
     // chapter 1's lines (the design's; story round 2 tries them on the stand-in prologue)
     "story.ch1.n.cal": "English Proficiency Test · 08:30 · Room 305", "story.ch1.n.ad": "LEXA v2.1 — Fluent by morning. No study needed.",
     "story.ch1.m.beam1": "I used LEXA last night. Don't tell Kru Min.", "story.ch1.m.beam2": "I feel weird... like words keep slipping away.",
