@@ -248,6 +248,6 @@ G.StoryDialogue = (function () {
     if (hold) hold.classList.add("hidden");
   }
 
-  return { say, ask, busy, next, clear, update, onKey, holdsJump, fast, level, setLevel, cycle, en, sub, mark, glosses, subText, subHtml, reset,
+  return { say, ask, busy, next, clear, update, onKey, holdsJump, fast, level, setLevel, cycle, en, sub, mark, glosses, subText, subHtml, reset, ensure,
     get current() { return cur; }, get queued() { return queue.length; } };
 })();

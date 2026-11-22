@@ -332,11 +332,17 @@ G.Ch1Map = (function () {
       const d = doorCellOf(r), cx = d.axis === "x" ? d.x + d.w / 2 : d.x + 0.5, cz = d.axis === "z" ? d.z + d.w / 2 : d.z + 0.5;
       const dn = "D" + r.id;
       node(dn, cx, F[r.k], cz);
-      link(r.id, dn);
       const out = outsideOf(r, d, cx, cz), c = corridorAt(r.k, out[0], out[1]);
-      if (c) link(dn, c);
+      // (story round 6) a node a metre each side of the doorway: a zombie leaving a room heads
+      // straight out through it before it turns for the corridor -- with only the doorway's own
+      // node it turned while still in line with the wall and slid along its inside, back and forth
+      // (the 3F toilets' Shamblers in 1-1)
+      node(dn + "I", 2 * cx - out[0], F[r.k], 2 * cz - out[1]); node(dn + "O", out[0], F[r.k], out[1]);
+      link(r.id, dn + "I"); link(dn + "I", dn); link(dn, dn + "O");
+      if (c) link(dn + "O", c);
     });
-    node("DLIBBACK", -39.5, F[1], 5.5); link("LIBRARY", "DLIBBACK"); link("DLIBBACK", "C2L");
+    node("DLIBBACK", -39.5, F[1], 5.5); node("DLIBBACKI", -38.4, F[1], 5.5); node("DLIBBACKO", -40.6, F[1], 5.5);
+    link("LIBRARY", "DLIBBACKI"); link("DLIBBACKI", "DLIBBACK"); link("DLIBBACK", "DLIBBACKO"); link("DLIBBACKO", "C2L");
     node("DKITCHEN", -42.5, 0, -19.5); link("KITCHEN", "DKITCHEN"); link("DKITCHEN", "CANTEEN");
     // the stairwells (after the corridors: their doorways link to them)
     Object.keys(STAIRS).forEach((id) => stairwell(st, id, kit, zone, region, node, link));
@@ -393,7 +399,11 @@ G.Ch1Map = (function () {
 
     // ================= the map's own hooks =================
     world.storyMap = { door: (id, open) => setDoor(st, id, open), doors: st.doors, update: (game) => update(st, game), rooms: ROOMS, regionOf: (x, y, z) => G.getRegionAt(world, x, z, y), stats: st.stats, inFoot,
-      zoneOf: (x, y, z) => zoneAt(st, x, y, z), get shown() { return st.shown; }, get mode() { return st.mode; } };
+      zoneOf: (x, y, z) => zoneAt(st, x, y, z), get shown() { return st.shown; }, get mode() { return st.mode; },
+      // (story round 6) a storey's plan for the evacuation sign (js/story/screen.js planSvg), and where
+      // a door is (js/story/interact.js: a door the player opens by hand)
+      plan: (k) => ({ rooms: ROOMS.filter((r) => r.k === k), corridors: corridors(k), stairs: STAIRS, main: MAIN, wing: WING }),
+      doorInfo: (id) => { const d = st.doors[id]; return d ? { id, x: d.x, y: d.y, z: d.z, axis: d.axis, w: d.w, open: d.open } : null; } };
     world.surfaceAt = (x, z, y) => surfaceAt(st, x, z, y);
     // the light indoors (js/visuals.js footprint, per pixel on every graphics level): inside the
     // building, under its roof, only a little of the sun and the sky's light (G.StoryLight.INDOOR)

@@ -85,6 +85,37 @@ G.StoryScreen = (function () {
       a.noise({ dur: 0.09, freq: 2400, freqEnd: 900, q: 1.2, gain: 0.12, at: 0.02 });
       a.tone({ type: "triangle", freq: 120, freqEnd: 55, dur: 0.25, gain: 0.12 });
     });
+    // (round 6) the crowd behind the glass: a chord that cuts in, low strings under it
+    else if (name === "sting") a.group({ cat: "sfx", prio: 2, pos: null, dur: 1.8 }, () => {
+      [233, 247, 349].forEach((f, i) => a.tone({ type: "sawtooth", freq: f, freqEnd: f * 0.97, dur: 1.4, gain: 0.035, at: i * 0.012, filter: { type: "lowpass", freq: 1800 } }));
+      a.tone({ type: "sine", freq: 58, freqEnd: 46, dur: 1.6, gain: 0.12 });
+      a.noise({ dur: 0.25, freq: 3000, freqEnd: 600, q: 0.8, gain: 0.08 });
+    });
+    // the crowbar in a door's gap: a creak, the frame giving, the leaf knocked free
+    else if (name === "pry") a.group({ cat: "sfx", prio: 2, pos: null, dur: 1.2 }, () => {
+      a.tone({ type: "sawtooth", freq: 140, freqEnd: 230, dur: 0.45, gain: 0.05, filter: { type: "bandpass", freq: 900, q: 4 } });
+      a.noise({ dur: 0.12, freq: 1800, freqEnd: 500, q: 1.5, gain: 0.2, at: 0.46 });
+      a.tone({ type: "square", freq: 880, freqEnd: 620, dur: 0.18, gain: 0.03, at: 0.47, filter: { type: "bandpass", freq: 2400, q: 6 } });
+      a.tone({ type: "triangle", freq: 110, freqEnd: 60, dur: 0.3, gain: 0.12, at: 0.5 });
+    });
+    // a door swung open by hand, and one slammed
+    else if (name === "door") a.group({ cat: "sfx", prio: 2, pos: null, dur: 0.9 }, () => {
+      a.noise({ dur: 0.05, freq: 1400, freqEnd: 900, q: 2, gain: 0.08 });
+      a.tone({ type: "sawtooth", freq: 320, freqEnd: 410, dur: 0.5, gain: 0.018, at: 0.05, filter: { type: "bandpass", freq: 1200, q: 8 } });
+    });
+    else if (name === "slam") a.group({ cat: "sfx", prio: 2, pos: null, dur: 0.6 }, () => {
+      a.noise({ dur: 0.14, freq: 600, freqEnd: 120, q: 0.8, gain: 0.3 });
+      a.tone({ type: "triangle", freq: 90, freqEnd: 50, dur: 0.22, gain: 0.14 });
+    });
+  }
+  // (round 6) a fist on the glass, where it is (js/story/cast.js: the crowd at the main stairs)
+  function thud(pos) {
+    const a = A();
+    if (!a) return;
+    a.group({ cat: "sfx", prio: 3, pos, dur: 0.4 }, () => {
+      a.noise({ dur: 0.07, freq: 420 + Math.random() * 160, freqEnd: 140, q: 0.9, gain: 0.16, pos });
+      a.tone({ type: "sine", freq: 1700 + Math.random() * 500, dur: 0.05, gain: 0.012, at: 0.01, pos });
+    });
   }
   // a loop stopped (the phone picked up: js/story/phone.js open -- the world is held while it is)
   function stopLoop(name) { delete loops[name]; }
@@ -121,14 +152,66 @@ G.StoryScreen = (function () {
   // ---------------- a card to read (the seating plan) ----------------
   // { id, icon, title (a key), rows: [[cell, cell, ...]] -- "{name}" the candidate's -- mark: the
   // row to light (the player's own), note }: G.Dialog's window, the world held; closed: "card:<id>"
+  // (round 6) a card's parts, in this order: `plan` (a storey's evacuation plan, drawn from the
+  // map), `lines` (in-world English -- a notice, a note on a locker, a photo's caption -- its
+  // bank words to tap, its subtitle at the dialogue's level), `rows` (a table), `note`
   function card(game, run, o) {
     o = o || {};
     if (!G.Dialog) return;
-    const v = G.Story.vars(), fill = (s) => String(s).replace(/\{name\}/g, v.name);
-    const rows = (o.rows || []).map((r, i) => `<tr${i === o.mark ? ' class="sc-me"' : ""}>${r.map((c) => `<td>${esc(fill(G.STRINGS.en[c] != null ? G.STRINGS.en[c] : c))}</td>`).join("")}</tr>`).join("");
-    const body = `<table class="story-card">${rows}</table>${o.note ? `<p class="story-card-note">${esc(T(o.note, v))}</p>` : ""}`;
+    const v = G.Story.vars(), fill = (s) => String(s).replace(/\{name\}/g, v.name), D = G.StoryDialogue;
+    let body = "";
+    if (o.plan) body += planSvg(game, o.plan);
+    if (o.lines && D) {
+      if (D.ensure) D.ensure();                    // (its taps on a word: the dialogue's, on the window's body)
+      body += o.lines.map((k) => { const text = D.en(k, v); return `<div class="story-card-line"><p class="scl-en">${D.mark(text)}</p>${D.subHtml(k, v, text, "scl-sub")}</div>`; }).join("");
+    }
+    if (o.rows) body += `<table class="story-card">${o.rows.map((r, i) => `<tr${i === o.mark ? ' class="sc-me"' : ""}>${r.map((c) => `<td>${esc(fill(G.STRINGS.en[c] != null ? G.STRINGS.en[c] : c))}</td>`).join("")}</tr>`).join("")}</table>`;
+    if (o.note) body += `<p class="story-card-note">${esc(T(o.note, v))}</p>`;
     const done = () => { if (run && run.flags) run.flags.add("card:" + (o.id || "card")); };
-    G.Dialog.open({ icon: o.icon || "📋", title: T(o.title || "story.card.title"), body, buttons: [{ label: T("dialog.ok"), primary: true, cancel: true, action: done }] });
+    G.Dialog.open({ icon: o.icon || "📋", title: T(o.title || "story.card.title"), body, cls: o.plan ? "story-plan-dialog" : "", buttons: [{ label: T("dialog.ok"), primary: true, cancel: true, action: done }] });
+  }
+  // A storey's evacuation plan, as it hangs on the wall (north up, east right): the rooms with
+  // their numbers, the corridors, the stairs, where the player stands, the way out in green.
+  //   { storey: k, here: { x, z }, route: [[x, z], ...], exit: "E" }   (the map's own boxes:
+  //   js/story/ch1map.js plan(k); its words the in-world English of the signs)
+  function planSvg(game, p) {
+    const M = game && game.world && game.world.storyMap, P = M && M.plan ? M.plan(p.storey) : null;
+    if (!P) return "";
+    const en = (k) => esc((G.STRINGS.en && G.STRINGS.en[k]) || k);
+    const x0 = Math.min(P.main.x0, P.wing.x0) - 1.5, x1 = Math.max(P.main.x1, P.wing.x1) + 2.5, z0 = Math.min(P.main.z0, P.wing.z0) - 5, z1 = Math.max(P.main.z1, P.wing.z1) + 2.5;
+    const R = (b, cls) => `<rect class="${cls}" x="${b.x0}" y="${b.z0}" width="${b.x1 + 1 - b.x0}" height="${b.z1 + 1 - b.z0}"/>`;
+    const label = (x, z, t, cls, size) => `<text class="${cls || "pl-t"}" x="${x.toFixed(2)}" y="${z.toFixed(2)}" font-size="${size || 1.5}">${t}</text>`;
+    const NAMES = { janitor: "story.sign.janitor", store: "story.sign.store", wc: "story.sign.wc" };
+    let s = `<svg class="story-plan" viewBox="${x0} ${z0} ${x1 - x0} ${z1 - z0}" role="img" aria-label="${en("story.sign.evac1")}">`;
+    s += `<rect class="pl-bg" x="${x0}" y="${z0}" width="${x1 - x0}" height="${z1 - z0}"/>`;
+    s += label((x0 + x1) / 2, z0 + 2.6, en("story.sign.evac1"), "pl-title", 2.4);
+    s += R(P.main, "pl-house") + R(P.wing, "pl-house");
+    P.corridors.forEach((c) => { s += R(c, "pl-corr"); });
+    P.rooms.forEach((r) => {
+      if (r.open) return;                            // (a lobby: open to the corridor)
+      s += R(r, "pl-room");
+      const t = r.plate || (NAMES[r.type] ? en(NAMES[r.type]) : "");
+      if (t) s += label((r.x0 + r.x1 + 1) / 2, (r.z0 + r.z1 + 1) / 2 + 0.55, esc(t), "pl-t", r.plate ? 1.6 : 1.05);
+    });
+    Object.keys(P.stairs).forEach((id) => {
+      const c = P.stairs[id].cells, b = { x0: c.x[0], x1: c.x[1], z0: c.z[0], z1: c.z[1] };
+      s += R(b, "pl-stairs" + (id === p.exit ? " pl-exit" : ""));
+      const key = id === "M" ? "story.sign.mainStairs" : id === "E" ? "story.sign.evac3" : "story.sign.stairs";
+      // (the main stairs' name and the way out's over their boxes -- the route's arrow ends in the
+      // east stairwell's; the back stairs' in theirs)
+      const over = id === "M" || id === p.exit;
+      s += label((b.x0 + b.x1 + 1) / 2, over ? b.z0 - 0.6 : (b.z0 + b.z1 + 1) / 2 + 0.5, en(key), "pl-t pl-small" + (id === p.exit ? " pl-green" : ""), 1.1);
+    });
+    if (p.exit && P.stairs[p.exit]) { const c = P.stairs[p.exit].cells; s += label((c.x[0] + c.x[1] + 1) / 2, c.z[1] + 3.6, en("story.sign.emergencyExit"), "pl-t pl-green", 1.2); }
+    if (p.route && p.route.length > 1) {
+      s += `<defs><marker id="pl-arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="pl-arrowhead"/></marker></defs>`;
+      s += `<polyline class="pl-route" points="${p.route.map((q) => q[0] + "," + q[1]).join(" ")}" marker-end="url(#pl-arrow)"/>`;
+    }
+    if (p.here) {
+      s += `<circle class="pl-here" cx="${p.here.x}" cy="${p.here.z}" r="1.1"/>`;
+      s += label(p.here.x, p.here.z + 3.1, en("story.sign.evac2"), "pl-t pl-red", 1.2);
+    }
+    return s + "</svg>";
   }
   function shake(game, o) {
     o = typeof o === "number" ? { sec: o } : o || {};
@@ -163,6 +246,6 @@ G.StoryScreen = (function () {
     hintT = 0; titleT = 0; objKey = null;
   }
 
-  return { setBlack, showTitle, setHint, sound, shake, card, stopLoop, update, reset,
+  return { setBlack, showTitle, setHint, sound, thud, shake, card, planSvg, stopLoop, update, reset,
     get state() { return { black: !!(black && black.classList.contains("on")), title: titleT > 0, hint: hintT > 0 ? (hint && hint.textContent) : "", loops: Object.keys(loops) }; } };
 })();

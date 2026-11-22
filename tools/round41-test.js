@@ -62,6 +62,18 @@ G.Round41Test = (function () {
     };
     const isRed = (c) => c && c.r > c.g * 1.6 && c.r > c.b * 1.6 && c.r > 0.15;
 
+    // (story round 6: scenes 1-1 and 1-2 are the design's now -- the run's shell this suite tries
+    // (zones, groups, checkpoints, a scene's HUD) goes on the stand-ins it was written for, put back after)
+    const CHS = G.STORY_CHAPTERS.ch1.scenes, real12 = CHS.slice(1, 3);
+    CHS.splice(1, 2,
+      { id: "s1", title: "story.ch1.s1", objective: "story.ch1.s1.obj", start: { x: -1.5, y: 8, z: 0.4, yaw: -Math.PI / 2 }, clock: "08:50", light: "alarm", beats: [
+        { do: [["objective", "story.ch1.s1.obj"]] },
+        { wait: { zone: "corridor3East" }, do: [["banner", "story.ph.group"], ["spawn", { id: "c1", at: "corridor3Far", count: 3 }]] },
+        { wait: { cleared: "c1" }, do: [["banner", "story.ph.clear"], ["checkpoint"], ["next"]] }] },
+      { id: "s2", title: "story.ch1.s2", objective: "story.ch1.s2.obj", start: { x: 25.5, y: 4, z: -0.5, yaw: Math.PI / 2 }, clock: "09:10", light: "blackout", beats: [
+        { do: [["objective", "story.ch1.s2.obj"]] },
+        { wait: { zone: "libraryBack" }, do: [["spawn", { id: "r1", at: "wing2", count: 2 }]] },
+        { wait: { cleared: "r1" }, do: [["checkpoint"], ["next"]] }] });
     try {
       G.CONFIG.story.enabled = true;
       // ================= A: the campaign first, then the atlases =================
@@ -322,6 +334,7 @@ G.Round41Test = (function () {
     } catch (e) {
       ok("no exception", false, e.message + " " + (e.stack || "").split("\n").slice(0, 3).join(" | "));
     } finally {
+      CHS.splice(1, 2, ...real12);
       G.CONFIG.story.enabled = enabled0;
       G.CONFIG.story.voxel.zombies = vz0;
       g.update = real;

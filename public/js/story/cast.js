@@ -16,7 +16,7 @@
 //   G.StoryCast.act(game, run, o)         a scene's ["npc", { id, ... }]:
 //       walk: { x, z } | [{ x, z }, ...], speed   along a path, the floor's height under it
 //       face: "player" | { x, z } | yaw            turned (eased)
-//       pose: stand | sit | floor | carry | zombie | slump
+//       pose: stand | sit | floor | carry | zombie | slump | scratch | bang (round 6: fists on glass)
 //       follow: true | false                       behind the player, on the way they walked
 //       talk: seconds                              the head and a hand moving with a line
 //       turn: look                                 its zombie self (a flicker of blue first)
@@ -53,6 +53,7 @@ G.StoryCast = (function () {
       pos: new THREE.Vector3(at.x || 0, y, at.z || 0), floorY: y, yaw: d.yaw || 0, wantYaw: null, faceP: null,
       pose: d.pose || "stand", path: null, speed: 0, walkSpeed: C().walkSpeed || 1.4, follow: !!d.follow, arrived: false,
       talkT: 0, label: null, flicker: false, lunge: false, knock: 0, hidden: !!d.hidden, glitchT: 0, moved: 0,
+      phase: d.phase != null ? d.phase : Math.random() * 6, rate: d.rate || 2.6 + Math.random() * 0.9, near: false, hit: false,   // (round 6: "bang")
     };
     n.model = build(n.who, n.zombie);
     n.model.position.copy(n.pos); n.model.rotation.y = n.yaw;
@@ -86,7 +87,9 @@ G.StoryCast = (function () {
     if (!o || !o.word || !G.makeWordSprite) return;
     const s = G.makeWordSprite(String(o.word), { color: o.color || "#ffffff" });
     s.layers.set(0);
-    s.material.depthTest = false;
+    // (over everything -- the warning the glasses give -- unless `depth`: then walls hide it, as they do in
+    // 1-1, where Sgt. Chai stays by the lockers and the player walks the whole floor; round 6)
+    s.material.depthTest = !!o.depth;
     s.renderOrder = 7;
     const k = 1 / (n.model.scale.x || 1);
     s.position.set(0, (n.model.userData.top || 1.8) + 0.32, 0);
@@ -94,6 +97,7 @@ G.StoryCast = (function () {
     n.model.add(s);
     n.label = s;
     n.flicker = !!o.flicker;
+    n.labelDepth = !!o.depth;
   }
   // something held in front of it (Sgt. Chai's sealed box of exam papers): a prop on the model
   function carry(n, kind) {
@@ -110,7 +114,7 @@ G.StoryCast = (function () {
   function turn(game, n, look) {
     if (look === true) { const D = G.VoxelChars.DEFS[n.who] || {}; look = D.turnsInto || (G.VoxelChars.DEFS[n.who + "_z"] ? n.who + "_z" : "zm1"); }
     if (n.held) { n.model.remove(n.held); n.held = null; }
-    const old = n.model, label = n.label ? { word: n.labelWord, flicker: n.flicker } : null;
+    const old = n.model, label = n.label ? { word: n.labelWord, flicker: n.flicker, depth: n.labelDepth } : null;
     if (n.label) setLabel(n, null);
     n.who = look; n.zombie = n.zombie || null;
     n.model = build(look, null);
@@ -157,6 +161,18 @@ G.StoryCast = (function () {
     if (!d || !d.id || !G.VoxelProps || !game.scene) return null;
     unprop(game, d.id);
     const at = d.at || {}, o = Object.assign({}, d.o || {}, { y: Number.isFinite(at.y) ? at.y : 0, collider: false });
+    // (round 6) a melee weapon lying about -- the janitor's crowbar: the game's own model of it
+    if (d.melee) {
+      const def = G.MELEE_WEAPONS && G.MELEE_WEAPONS[d.melee];
+      if (!def || !G.buildMeleeMesh) return null;
+      const g = G.buildMeleeMesh(def);
+      g.scale.setScalar(d.scale || 1.35);
+      g.position.set(at.x || 0, (Number.isFinite(at.y) ? at.y : 0) + (d.lift || 0), at.z || 0);
+      g.rotation.set(d.rx || 0, d.yaw || 0, d.rz || 0);
+      game.scene.add(g);
+      props[d.id] = { g, col: null, own: true };
+      return g;
+    }
     const g = G.VoxelProps.place({ scene: game.scene, world: game.world }, d.kind, at.x || 0, at.z || 0, d.yaw || 0, o);
     let col = null;
     if (d.collider !== false && !G.VoxelProps.NO_COLLIDER.has(d.kind)) {
@@ -171,7 +187,7 @@ G.StoryCast = (function () {
     const p = props[id];
     if (!p) return;
     if (p.col && G.ColGrid) G.ColGrid.remove(game.world, p.col);
-    dispose(p.g);
+    dispose(p.g, !!p.own);
     delete props[id];
   }
 
@@ -257,6 +273,16 @@ G.StoryCast = (function () {
       if (u.upper) u.upper.rotation.x = 0.35;
       L.armL.shoulder.rotation.set(-1.2, 0, 0.3); L.armR.shoulder.rotation.set(-1.0, 0, -0.1);
       dy = (C().seatH || 0.45) - hipY;
+    } else if (n.pose === "bang") {
+      // (round 6) packed against glass, fists on it: each at its own beat (its phase), the body
+      // swaying into the blows -- the crowd at the main stairs. A blow near the player is heard.
+      const t0 = (u.npc ? u.npc.t : 0) + (n.phase || 0), b = Math.max(0, Math.sin(t0 * (n.rate || 3.1)));
+      L.armL.shoulder.rotation.set(-2.2 + b * 0.55, 0, 0.12); L.armR.shoulder.rotation.set(-2.05 + Math.max(0, Math.sin(t0 * (n.rate || 3.1) + 1.7)) * 0.55, 0, -0.12);
+      if (u.upper) u.upper.rotation.x = 0.12 + b * 0.08;
+      if (u.neck) u.neck.rotation.set(0.1, Math.sin(t0 * 0.7) * 0.25, 0.1);
+      const hit = b > 0.97;
+      if (hit && !n.hit && n.near && G.StoryScreen) G.StoryScreen.thud(n.pos);
+      n.hit = hit;
     } else if (u.upper && u.upper.rotation.x) u.upper.rotation.x = 0;
     if (n.pose !== "floor" && L.legR.hip.rotation.z) L.legR.hip.rotation.z = 0;
     return dy;
@@ -337,6 +363,8 @@ G.StoryCast = (function () {
       m.rotation.y = n.yaw;
       const vis = !n.hidden && seen(game, n);
       if (m.visible !== vis) m.visible = vis;
+      // (a blow on the glass is heard within a dozen metres, on the player's storey)
+      n.near = vis && Math.hypot(n.pos.x - pp.x, n.pos.z - pp.z) < 12 && Math.abs(n.pos.y - (pp.y - 1.7)) < 2;
       if (n.glitchT > 0) { n.glitchT -= dt; m.scale.setScalar((G.VoxelChars.full(n.who).scale || 1) * (1 + (Math.random() - 0.5) * 0.08)); if (n.glitchT <= 0) m.scale.setScalar(G.VoxelChars.full(n.who).scale || 1); }
       if (n.label) n.label.material.opacity = n.flicker ? (Math.sin(t * 17) > 0.2 ? 0.95 : 0.25) : 1;
     });

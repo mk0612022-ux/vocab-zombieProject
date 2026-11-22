@@ -2582,6 +2582,9 @@ G.Game = {
     }
     // (story series, round 2) a chapter's camera turning the view, or holding it (js/story/storycam.js)
     if (this.mode === "story" && G.StoryCam && G.StoryCam.steer(this, dt)) { dx = 0; dy = 0; }
+    // (story series, round 6) at a letter lock the look, the feet and the gun are the lock's (js/story/wheellock.js)
+    const atLock = this.mode === "story" && !!(G.StoryLock && G.StoryLock.holds());
+    if (atLock) { dx = 0; dy = 0; }
     this.yawObject.rotation.y -= dx * 0.0022;
     this.pitchObject.rotation.x -= dy * 0.0022;
     this.pitchObject.rotation.x = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, this.pitchObject.rotation.x));
@@ -2599,7 +2602,7 @@ G.Game = {
     // the bar, so the arrow keys walk (D1); spelling to reload: the player
     // stands still until it is answered (D2)
     const typing = G.Spell && G.Spell.typing();
-    const feetHeld = G.Modal.isOpen("spellreload");
+    const feetHeld = G.Modal.isOpen("spellreload") || atLock;
     if (feetHeld) { /* standing still */ }
     else if (G.Input.mode === "desktop") {
       if (typing) {
@@ -2687,7 +2690,7 @@ G.Game = {
     const seatDrop = this.mode === "story" && G.StoryCam ? G.StoryCam.drop || 0 : 0;
     const baseEyeY = 1.7 - seatDrop + G.getFloorHeightAt(this.world, this.yawObject.position.x, this.yawObject.position.z, this.yawObject.position.y - 1.7 + seatDrop);
     // (story series, round 2: while a line is up the jump key is the dialogue's -- held, faster)
-    const storyHolds = this.mode === "story" && ((G.StoryDialogue && G.StoryDialogue.holdsJump()) || (G.StoryCam && G.StoryCam.seated));
+    const storyHolds = this.mode === "story" && ((G.StoryDialogue && G.StoryDialogue.holdsJump()) || (G.StoryCam && G.StoryCam.seated) || atLock);
     const jumpPressed = !feetHeld && !storyHolds && ((G.Input.mode === "desktop" && !typing && G.Input.isDown("jump")) || G.Input.touchJump || (G.Input.padJump && !(G.Spell && G.Spell.active)));
     if (jumpPressed && this.yawObject.position.y <= baseEyeY + 0.01 && this.velocityY === 0) this.velocityY = PC.jumpSpeed;
     this.velocityY -= 9.8 * dt;
@@ -2707,7 +2710,7 @@ G.Game = {
     // eased in and out.
     const def = this.currentWeaponDef();
     const handsFree = this.handsFree();                // (story series, round 5: no gun yet)
-    const aimInput = (G.Input.aimDown || G.Input.padAim) && def.id !== "melee" && !this.challenge && !handsFree;
+    const aimInput = (G.Input.aimDown || G.Input.padAim) && def.id !== "melee" && !this.challenge && !handsFree && !feetHeld;
     // (a run answered only by spelling has no trigger: the words are the shots)
     const rawFire = !this.challenge && !feetHeld && !handsFree && !(this.learn && !this.learn.shoots) && ((G.Input.mode === "desktop" && G.Input.mouseDown) || G.Input.touchFire || G.Input.padFire);
     if (this.wsm) this.wsm.input({ moving: len > 0.05, sprinting, aimHeld: aimInput, fireHeld: rawFire });
@@ -2776,7 +2779,7 @@ G.Game = {
     // nothing in a swap; out of a run, the shot waits for the sprint-out;
     // during a reload a fresh pull with rounds left stops it and fires (shell
     // by shell: after the shell in the hand); an inspection just stops.
-    const edge = this._fireEdge && !handsFree, W = this.wsm;
+    const edge = this._fireEdge && !handsFree && !feetHeld, W = this.wsm;
 
     // Category N: a charge weapon winds up while the trigger is held and fires
     // on release, with damage scaling from 1x to its charge multiplier.
@@ -3087,7 +3090,9 @@ G.Game = {
       // exceeded the 1.0 pickup radius -- items could never be collected no
       // matter how close the player walked to them.
       const dx = d.mesh.position.x - playerPos.x, dz = d.mesh.position.z - playerPos.z;
-      if (Math.hypot(dx, dz) < 1.0) this.collectDrop(d);
+      // (story series, round 6: and on the drop's own floor -- a box of rounds on 3F is not picked
+      // up by walking under it on 2F; the feet against the floor it was dropped on)
+      if (Math.hypot(dx, dz) < 1.0 && Math.abs(playerPos.y - 1.7 - (d.baseY || 0)) < 1.6) this.collectDrop(d);
     }
   },
 

@@ -2936,3 +2936,61 @@ body.story-run:not([data-lens~="word"]) .lens-sys { top: calc(56px + var(--sa-t)
    trigger back while the practice exam is answered with it */
 body.story-hands-free #touch-ads, body.story-hands-free #touch-reload, body.story-hands-free #touch-melee { display: none !important; }
 body.story-hands-free:not(.story-quiz) #touch-fire { display: none !important; }
+/* (story round 6) a card's in-world English (a notice, a note, a caption): its words to tap, its subtitle */
+.story-card-line { margin: 4px 0 10px; }
+.scl-en { margin: 0; padding: 10px 14px; border-radius: 6px; background: #f3f1e8; color: #20242c; font: 700 1rem/1.45 var(--font-ui); }
+.scl-en .sd-word { color: #0b5aa8; }
+.scl-sub { margin: 6px 2px 0; color: #c9d6dc; font-size: 0.9rem; }
+/* the evacuation plan, as it hangs on the wall: north up */
+.story-plan-dialog { max-width: min(760px, calc(100vw - 24px)); }
+.story-plan { display: block; width: 100%; height: auto; margin: 0 0 10px; border-radius: 6px; }
+.story-plan .pl-bg { fill: #f4f6f1; }
+.story-plan .pl-house { fill: #d9ddd6; stroke: #4a5048; stroke-width: 0.35; }
+.story-plan .pl-corr { fill: #ffffff; }
+.story-plan .pl-room { fill: #e8ebe4; stroke: #6a7166; stroke-width: 0.18; }
+.story-plan .pl-stairs { fill: #c9d4dc; stroke: #6a7166; stroke-width: 0.18; }
+.story-plan .pl-exit { fill: #bfe8c9; stroke: #1f9a4a; stroke-width: 0.35; }
+.story-plan .pl-t { fill: #2a2f2a; font-family: var(--font-ui); font-weight: 800; text-anchor: middle; }
+.story-plan .pl-small { font-weight: 700; }
+.story-plan .pl-green { fill: #13803a; }
+.story-plan .pl-red { fill: #c8202a; }
+.story-plan .pl-title { fill: #13803a; font-family: var(--font-ui); font-weight: 900; text-anchor: middle; letter-spacing: 0.08em; }
+.story-plan .pl-route { fill: none; stroke: #1f9a4a; stroke-width: 0.8; stroke-dasharray: 1.6 0.9; stroke-linejoin: round; }
+.story-plan .pl-arrowhead { fill: #1f9a4a; }
+.story-plan .pl-here { fill: #e0202a; stroke: #ffffff; stroke-width: 0.35; }
+/* a letter lock (js/story/wheellock.js): the world goes on behind it */
+.story-lock { position: fixed; left: 50%; bottom: calc(96px + var(--sa-b)); transform: translateX(-50%); z-index: 18; width: min(640px, calc(100vw - 24px)); box-sizing: border-box;
+  padding: 12px 14px 10px; border-radius: 12px; background: rgba(10,16,22,0.9); border: 1px solid rgba(143,216,255,0.35); box-shadow: 0 10px 30px rgba(0,0,0,0.45); color: #eef6fa; font-family: var(--font-ui); }
+.story-lock.hidden { display: none; }
+.sl-head { font: 800 0.95rem var(--font-ui); letter-spacing: 0.06em; color: #8fd8ff; text-align: center; }
+.sl-clue { margin: 6px 0 8px; text-align: center; }
+.sl-en { margin: 0; font: 700 0.98rem var(--font-ui); color: #ffffff; }
+.sl-sub { margin: 3px 0 0; font-size: 0.85rem; color: #b9c8d0; }
+.sl-wheels { display: flex; justify-content: center; gap: 6px; touch-action: none; }
+.sl-wheel { display: flex; flex-direction: column; align-items: center; width: 52px; padding: 2px 0; border-radius: 8px; background: #1a222a; border: 2px solid #2e3a44; cursor: pointer; user-select: none; }
+.sl-wheel.sel { border-color: #ffd43b; box-shadow: 0 0 10px rgba(255,212,59,0.35); }
+.sl-wheel.ok { border-color: #5dd27a; background: #173322; }
+.sl-wheel.bad { border-color: #ff4d5e; background: #3a171c; }
+.sl-wheel.sel.ok, .sl-wheel.sel.bad { box-shadow: 0 0 10px rgba(255,212,59,0.35); }
+.sl-prev, .sl-next { font: 700 0.85rem var(--font-ui); color: #5f6e78; line-height: 1.2; }
+.sl-cur { font: 900 1.6rem/1.15 ui-monospace, monospace; color: #ffffff; }
+.sl-arrow { width: 100%; min-width: 0; min-height: 30px; padding: 0; border: 0; background: transparent; color: #8fd8ff; font-size: 0.9rem; cursor: pointer; }
+.sl-msg { min-height: 1.3em; margin: 6px 0 2px; text-align: center; font: 700 0.9rem var(--font-ui); }
+.sl-msg.ok { color: #7dffa8; }
+.sl-msg.bad { color: #ff8a95; }
+.sl-btns { display: flex; justify-content: center; gap: 10px; margin-top: 4px; }
+.sl-btns .btn { min-width: 120px; min-height: 44px; }
+.sl-keys { margin-top: 6px; text-align: center; font-size: 0.78rem; color: #93a4ae; }
+body.touch-mode .sl-wheel { width: min(64px, calc((100vw - 60px) / 9)); }
+body.touch-mode .sl-arrow { min-height: 40px; }
+@media (max-width: 560px) { .sl-wheel { width: calc((100vw - 64px) / 9); } .sl-cur { font-size: 1.3rem; } }
+/* at the lock: the gun's touch buttons and the stick away -- its own buttons are there */
+body.story-lock-open #touch-fire, body.story-lock-open #touch-ads, body.story-lock-open #touch-reload, body.story-lock-open #touch-melee,
+body.story-lock-open #touch-joystick, body.story-lock-open #touch-jump, body.story-lock-open #touch-sprint, body.story-lock-open #touch-abilities { display: none !important; }
+body.story-lock-open .story-hint { display: none; }
+/* a zombie whispering its word */
+.story-whisper { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(176px + var(--sa-b)); z-index: 15; padding: 3px 12px; border-radius: 6px;
+  background: rgba(8,14,20,0.62); color: #cfe3d4; font: italic 600 0.88rem var(--font-ui); pointer-events: none; }
+.story-whisper.hidden { display: none; }
+.story-whisper.in { animation: ls-in 0.25s ease-out; }
+body.touch-mode .story-whisper { bottom: calc(52% + var(--sa-b)); }

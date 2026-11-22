@@ -42,6 +42,15 @@ G.Pad = {
     // (vocabulary series, round 2, D3) spelling in play: the D-pad moves over
     // the letters, A places one, B takes one back, X a hint, LB / RB the
     // next zombie; the sticks still walk and look, Y still uses, Menu pauses
+    // (story series, round 6) at a letter lock: the D-pad picks and turns the wheels, A tries the
+    // word, B steps back; nothing else (js/story/wheellock.js)
+    if (playing && G.StoryLock && G.StoryLock.holds()) {
+      this.clearFocus();
+      I.padFire = false; I.padJump = false; I.padAim = false; I.padMelee = false; I.padSprint = false;
+      G.StoryLock.padInput(gp, now, edge, dt);
+      this.prev = now;
+      return;
+    }
     if (playing && G.Spell && G.Spell.padInput(gp, now, edge, dt)) {
       this.clearFocus();
       I.padFire = false; I.padJump = false;

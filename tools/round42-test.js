@@ -55,6 +55,18 @@ G.Round42Test = (function () {
     const R = 0.35;
     const free = (x, z, h) => !G.ColGrid.near(g.world, x, z, 1.2, []).some((c) => !c.isEmpty() && x - R < c.max.x && x + R > c.min.x && z - R < c.max.z && z + R > c.min.z && h + 0.1 < c.max.y && h + 2.6 > c.min.y);
 
+    // (story round 6: scenes 1-1 and 1-2 are the design's now -- the run's shell this suite tries
+    // (zones, groups, checkpoints, a scene's HUD) goes on the stand-ins it was written for, put back after)
+    const CHS = G.STORY_CHAPTERS.ch1.scenes, real12 = CHS.slice(1, 3);
+    CHS.splice(1, 2,
+      { id: "s1", title: "story.ch1.s1", objective: "story.ch1.s1.obj", start: { x: -1.5, y: 8, z: 0.4, yaw: -Math.PI / 2 }, clock: "08:50", light: "alarm", beats: [
+        { do: [["objective", "story.ch1.s1.obj"]] },
+        { wait: { zone: "corridor3East" }, do: [["banner", "story.ph.group"], ["spawn", { id: "c1", at: "corridor3Far", count: 3 }]] },
+        { wait: { cleared: "c1" }, do: [["banner", "story.ph.clear"], ["checkpoint"], ["next"]] }] },
+      { id: "s2", title: "story.ch1.s2", objective: "story.ch1.s2.obj", start: { x: 25.5, y: 4, z: -0.5, yaw: Math.PI / 2 }, clock: "09:10", light: "blackout", beats: [
+        { do: [["objective", "story.ch1.s2.obj"]] },
+        { wait: { zone: "libraryBack" }, do: [["spawn", { id: "r1", at: "wing2", count: 2 }]] },
+        { wait: { cleared: "r1" }, do: [["checkpoint"], ["next"]] }] });
     try {
       G.CONFIG.story.enabled = true;
       G.save.story = { ch: {} };
@@ -174,10 +186,19 @@ G.Round42Test = (function () {
           return !pts.some(([x, z]) => reached(seen, x, z, y));
         }).map((r) => r.id);
         ok("C ...into every room with an open door (3 storeys)", missRoom.length === 0, missRoom.join());
-        const missZone = Object.keys(CH.zones).filter((k) => { const q = CH.zones[k]; return !reached(seen, (q.x0 + q.x1) / 2, (q.z0 + q.z1) / 2, q.y); });
+        // (story round 6: a zone is an area -- somewhere in it reached, on a metre's grid across it; a
+        // room's zone, 1-1's 302 and 307, has its desks in the middle)
+        const missZone = Object.keys(CH.zones).filter((k) => {
+          const q = CH.zones[k];
+          for (let x = q.x0 + 0.5; x <= q.x1 - 0.5; x += 1) for (let z = q.z0 + 0.5; z <= q.z1 - 0.5; z += 1) if (reached(seen, x, z, q.y)) return false;
+          return !reached(seen, (q.x0 + q.x1) / 2, (q.z0 + q.z1) / 2, q.y);
+        });
         ok("C ...every zone of the chapter", missZone.length === 0, missZone.join());
         const missSp = [];
-        Object.keys(CH.spawns).forEach((k) => CH.spawns[k].forEach((p, i) => { if (!reached(seen, p.x, p.z, p.y || 0)) missSp.push(k + i); }));
+        // (story round 6: one inside a room shut until a scene opens it -- 1-2's store room Shambler -- is
+        // tried in D, on its floor and clear, not walked to from the gate)
+        const inShut = (p) => M.ROOMS.some((r) => r.closed && M.F[r.k] === (p.y || 0) && p.x >= r.x0 && p.x <= r.x1 + 1 && p.z >= r.z0 && p.z <= r.z1 + 1);
+        Object.keys(CH.spawns).forEach((k) => CH.spawns[k].forEach((p, i) => { if (!inShut(p) && !reached(seen, p.x, p.z, p.y || 0)) missSp.push(k + i); }));
         ok("C ...every spawn point (where groups come from)", missSp.length === 0, missSp.join());
         const missStart = CH.scenes.map((s, i) => (reached(seen, s.start.x, s.start.z, s.start.y || 0) ? null : i)).filter((i) => i !== null);
         ok("C ...every scene's start", missStart.length === 0, missStart.join());
@@ -421,6 +442,7 @@ G.Round42Test = (function () {
     } catch (e) {
       ok("no exception", false, e.message + " " + (e.stack || "").split("\n").slice(0, 3).join(" | "));
     } finally {
+      CHS.splice(1, 2, ...real12);
       G.CONFIG.story.enabled = enabled0;
       g.update = real;
       G.Input.requestPointerLock = lock0;

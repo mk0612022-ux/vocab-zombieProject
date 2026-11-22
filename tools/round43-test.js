@@ -305,7 +305,9 @@ G.Round43Test = (function () {
         await until(() => run0().scene.id === "s1", 600);
         const d = S.data("ch1");
         ok("H the prologue done (Skip Prologue from now on), a checkpoint at scene 1's start", run0().scene.id === "s1" && d.prologueDone && d.cp && d.cp.scene === 1 && Array.isArray(d.cp.guns) && d.cp.guns.includes("pistol"));
-        ok("H scene 1: armed, the whole HUD, its people and things gone with the prologue", !g.handsFree() && parts() === "ammo,labels,vitals,word" && CAST.ids().length === 0 && CAST.propIds().length === 0 && USE.ids().length === 0);
+        // (story round 6: scene 1-1 has people and things of its own -- Sgt. Chai still by the lockers, the crowd at the glass)
+        ok("H scene 1: armed, the whole HUD; the prologue's people and things gone with it (1-1's own there: Sgt. Chai still by the lockers)", !g.handsFree() && parts() === "ammo,labels,vitals,word"
+          && !["beam", "invig", "c1", "c2", "c3", "c4", "c5", "c6", "min", "chai2"].some((id) => CAST.get(id)) && !CAST.propIds().includes("car") && !USE.has("kick") && !USE.has("board") && !!CAST.get("chai") && CAST.get("chai").labelWord === "PROTECT", CAST.ids().join());
         numbers.prologueSec = +(frames / 60).toFixed(0);
         numbers.realSec = Math.round((performance.now() - t0) / 1000);
         note("H");

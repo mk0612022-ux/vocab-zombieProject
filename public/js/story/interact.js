@@ -9,6 +9,11 @@
 //       hand button, the controller's X) says `prompt`; used, the run's flag "used:<id>" (a
 //       scene waits { used: id }) -- and it is gone
 //   ["unuse", id]
+//   (round 6) a use may wait for something: { need: <condition>, promptNo, deny } -- until the
+//       condition holds (a crowbar in the melee slot) it says `promptNo` and, used, sets only
+//       "tried:<id>" and shows the hint `deny`; { blocked: true, deny } never opens
+//   ["doors", { ids, prompt, blocked: { id: hint } }]   the map's doors opened by hand: a use in
+//       each doorway, "used:door:<id>" once open (a scene's rule: a Shambler behind one of them)
 //   ["qte", { id, prompt, sec, window, hurt }]   a press in time: a ring closes on its mark
 //       over `sec`; pressed while within `window` of it -- the interaction key, Space, the
 //       trigger, A, X, a tap anywhere on it -- the flag "qte:<id>". Too early, too late, or
@@ -39,10 +44,24 @@ G.StoryUse = (function () {
     mesh.matrixAutoUpdate = false;
     mesh.updateMatrix();
     mesh.updateMatrixWorld(true);
-    const ref = { id: o.id, prompt: o.prompt || "story.use.generic", used: false, keep: !!o.keep, sound: o.sound || "click" };
+    const ref = { id: o.id, prompt: o.prompt || "story.use.generic", used: false, keep: !!o.keep, sound: o.sound || "click",
+      need: o.need || null, promptNo: o.promptNo || null, deny: o.deny || null, blocked: !!o.blocked, door: o.door || null, onUse: typeof o.onUse === "function" ? o.onUse : null };
     const it = { mesh, kind: "story", ref };
     (game.world.interactables = game.world.interactables || []).push(it);
     points[o.id] = it;
+  }
+  // (round 6) the map's doors the player opens by hand: a use point in each doorway ("used:door:<id>"
+  // once it is open). `blocked`: { id: hint } -- one that will not open, tried ("tried:door:<id>")
+  function doors(game, o) {
+    const M = game.world && game.world.storyMap;
+    if (!M || !M.doorInfo) return;
+    [].concat(o.ids || []).forEach((id) => {
+      const d = M.doorInfo(id);
+      if (!d || d.open) return;
+      const deny = o.blocked && o.blocked[id];
+      add(game, { id: "door:" + id, door: id, at: { x: d.x, y: d.y, z: d.z }, size: d.axis === "x" ? [d.w, 2.1, 0.7] : [0.7, 2.1, d.w],
+        prompt: deny ? (o.promptBlocked || "story.use.openDoor") : (o.prompt || "story.use.openDoor"), sound: deny ? "rattle" : "", blocked: !!deny, deny: deny || null });
+    });
   }
   function remove(game, id) {
     const it = points[id];
@@ -52,13 +71,34 @@ G.StoryUse = (function () {
     it.mesh.geometry.dispose(); it.mesh.material.dispose();
     delete points[id];
   }
-  function prompt(ref, key) { return ref && !ref.used ? T(ref.prompt, { key }) : ""; }
+  // (round 6) `need`: a condition (js/story/scenes.js) -- until it holds the point says `promptNo`
+  // and, used, only "tried:<id>" and its `deny` hint (a jammed door before the crowbar); `blocked`:
+  // never (a door barricaded from the other side)
+  function can(ref) {
+    if (ref.blocked) return false;
+    const r = run();
+    return !ref.need || !r || !G.StoryScenes || G.StoryScenes.met(G.Game, r, ref.need);
+  }
+  function prompt(ref, key) { return ref && !ref.used ? T(can(ref) ? ref.prompt : ref.promptNo || ref.prompt, { key }) : ""; }
   function use(game, ref) {
     const r = run();
     if (!ref || ref.used || !r) return;
+    if (!can(ref)) {
+      r.flags.add("tried:" + ref.id);
+      if (ref.deny && G.StoryScreen) G.StoryScreen.setHint(ref.deny);
+      if (G.Audio && G.Audio.sfx) G.Audio.sfx(ref.sound === "rattle" ? "rattle" : "deny");
+      return;
+    }
+    // (round 6) a use of its own (the letter lock's: js/story/wheellock.js) -- the point stays
+    if (ref.onUse) { r.flags.add("used:" + ref.id); ref.onUse(game, ref); return; }
     if (!ref.keep) ref.used = true;
     r.flags.add("used:" + ref.id);
-    if (G.Audio && G.Audio.sfx && ref.sound) G.Audio.sfx(ref.sound);
+    if (ref.door) {
+      // a door of the map's, opened by hand
+      const M = game.world && game.world.storyMap;
+      if (M && M.door) M.door(ref.door, true);
+      if (G.StoryScreen) G.StoryScreen.sound("door");
+    } else if (G.Audio && G.Audio.sfx && ref.sound) G.Audio.sfx(ref.sound);
     if (!ref.keep) remove(game, ref.id);
   }
 
@@ -141,6 +181,6 @@ G.StoryUse = (function () {
     if (el) el.classList.add("hidden");
   }
 
-  return { add, remove, prompt, use, qte, onKey, update, reset,
+  return { add, remove, doors, can, prompt, use, qte, onKey, update, reset,
     get qteActive() { return !!(q && !q.done); }, get qte0() { return q; }, has: (id) => !!points[id], ids: () => Object.keys(points) };
 })();

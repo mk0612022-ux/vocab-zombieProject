@@ -10,7 +10,8 @@
 // with its time of day (`light`, js/story/storylight.js); rounds 5-10
 // replace each scene's beats with the design's -- round 5 the prologue
 // (its people, things to use, practice exam: js/story/cast.js, interact.js,
-// aimquiz.js, screen.js).
+// aimquiz.js, screen.js); round 6 scenes 1-1 and 1-2 (a scene's rules `on`, doors
+// opened by hand, the letter lock: js/story/wheellock.js, the whispers: whisper.js).
 //   practice       (round 5) words the prologue uses that the bank does not have, with
 //                  their meanings in the four meaning languages: practice, counted nowhere
 //
@@ -58,8 +59,22 @@ G.STORY_CHAPTERS.ch1 = {
     stairsFoot: { x0: 0, x1: 8.5, z0: -3.8, z1: 1.5, y: 0 },
     r305: { x0: -7, x1: 0, z0: -9, z1: -3.3, y: 8 },
     corr305: { x0: -8, x1: 3, z0: -2.2, z1: 1.8, y: 8 },
+    // (round 6) 1-1 on 3F: in front of the main stairs' glass, the corridor past it in two parts, rooms
+    // 302 and 307, the east door; the foot of the east stairs on 2F (the save point)
+    mainStairs3: { x0: 1, x1: 8, z0: -2, z1: 1.9, y: 8 },
+    c3mid: { x0: 8.5, x1: 13, z0: -2, z1: 2, y: 8 },
+    c3east: { x0: 13, x1: 24, z0: -2, z1: 2, y: 8 },
+    r302: { x0: -31, x1: -24, z0: -9, z1: -3, y: 8 },
+    r307: { x0: -15, x1: -8, z0: 3, z1: 9, y: 8 },
+    eastDoor3: { x0: 21, x1: 24.2, z0: -2, z1: 2, y: 8 },
+    eastStairs2: { x0: 24.6, x1: 27.2, z0: -3, z1: 2, y: 4 },
+    // 1-2 on 2F: just inside the library's back door
+    libraryIn: { x0: -39, x1: -34, z0: 3, z1: 9, y: 4 },
   },
   spawns: {
+    // (round 6) out of the 3F toilets; hiding in the 2F store room
+    wc3: [{ x: 12.5, y: 8, z: 6.8 }, { x: 11, y: 8, z: 7.8 }],
+    store2In: [{ x: 14.4, y: 4, z: -6.6 }],
     corridor3: [{ x: 7, y: 8, z: -0.8 }, { x: 9, y: 8, z: 0.8 }, { x: 11, y: 8, z: -0.4 }],
     corridor3Far: [{ x: 17, y: 8, z: -0.8 }, { x: 19, y: 8, z: 0.8 }, { x: 21, y: 8, z: 0 }],
     wing2: [{ x: -42.5, y: 4, z: -12 }, { x: -42.5, y: 4, z: -15 }, { x: -42.5, y: 4, z: -9 }],
@@ -77,6 +92,9 @@ G.STORY_CHAPTERS.ch1 = {
     beam1: { from: "beam", text: "story.ch1.m.beam1" },
     beam2: { from: "beam", text: "story.ch1.m.beam2" },
     min1: { from: "min", text: "story.ch1.m.min1" },
+    // (round 6) 1-1: are you OK, and her answer to the reply; 1-2: the directions, the back door's clue, the hint
+    min2: { from: "min", text: "story.ch1.m.min2" }, min3a: { from: "min", text: "story.ch1.m.min3a" }, min3b: { from: "min", text: "story.ch1.m.min3b" },
+    min4: { from: "min", text: "story.ch1.m.min4" }, min5: { from: "min", text: "story.ch1.m.min5" }, min6: { from: "min", text: "story.ch1.m.min6" },
   },
   notices: {
     cal: { app: "story.app.calendar", icon: "📅", text: "story.ch1.n.cal" },
@@ -184,7 +202,9 @@ G.STORY_CHAPTERS.ch1 = {
           ["prop", { id: "pp3", kind: "papers", at: { x: 1.8, y: 8, z: 0.8 }, yaw: 2.1 }], ["prop", { id: "box", kind: "examBox", at: { x: -0.2, y: 8, z: 1.35 }, yaw: 0.4, collider: false }]] },
         // ---- 6. the corridor and the first gun (3:05-3:45): aim, shoot the words, the card on a wrong one, reload
         { wait: { zone: "corr305" }, cine: "chai", do: [["hint", null], ["bars", true], ["look", { x: -1.5, y: 8.7, z: 1.4, sec: 0.8 }], ["npc", { id: "chai2", talk: 3 }],
-          ["say", [{ who: "chai", line: "story.ch1.d.chaiTake" }]]] },
+          ["say", [{ who: "chai", line: "story.ch1.d.chaiTake" }]],
+          // (round 6) the room's door slams behind the player as they turn to Sgt. Chai: what is in 305 stays there
+          ["door", { id: "DR305", open: false }], ["sound", "slam"]] },
         { wait: { said: true }, cine: "chai", do: [["arm", true], ["hud", "all"], ["sys", { key: "story.ch1.sys.resumed", meaningOf: "clean", now: true }], ["bars", false],
           ["spawn", { id: "p1", at: "corridor3", kinds: ["normal", "normal", "normal"], target: "clean",
             words: [{ word: "clean", gloss: CH1_PRACTICE.clean, who: "porn" }, { word: "clear", gloss: CH1_PRACTICE.clear }, { word: "lean", gloss: CH1_PRACTICE.lean }] }],
@@ -196,19 +216,128 @@ G.STORY_CHAPTERS.ch1 = {
         { wait: { read: "min" }, do: [["hint", null], ["title", { key: "story.title.brand", sub: "story.title.ch1" }], ["objective", "story.ch1.obj.library"]] },
         { wait: { time: 4.6 }, do: [["prologueDone"], ["checkpoint"], ["next"]] },
       ] },
-    { id: "s1", title: "story.ch1.s1", objective: "story.ch1.s1.obj", start: { x: -1.5, y: 8, z: 0.4, yaw: -Math.PI / 2 }, clock: "08:50", light: "alarm",
+    // (round 6) 1-1 The Long Corridor, as the design has it (5-6 minutes): the evacuation plan (the
+    // objective once it is read), the crowd behind the main stairs' glass, Kru Min's text, Shamblers
+    // in twos and threes, rooms 302 and 307 to look into, the janitor's crowbar and his photos, the
+    // east stairwell's jammed door pried open. What can happen in any order is the scene's rules (`on`).
+    { id: "s1", title: "story.ch1.s1", objective: "story.ch1.s1.obj0", start: { x: -1.5, y: 8, z: 0.4, yaw: -Math.PI / 2 }, clock: "08:50", light: "alarm",
+      // 3F: the stairs shut (the main stairs' glass, the jammed east door, the back stairs), 302 and 307
+      // open to look into, the janitor's room and the toilets open; the other rooms shut
+      doors: { STAIRM3: false, STAIRE3: false, STAIRB3: false, DR305: false, DR305F: false, DR301: false, DR302: true, DR303: false, DR304: false,
+        DR306: false, DR307: true, DR308: false, DR309: false, DR310: false, DJANITOR: true, DSTORE3: false, DWC3: true, DSTORE3S: false,
+        DR311: false, DR312: false, DWC3W: false, DR313: false },
+      props: [
+        // (the prologue's corridor, as it was left: the lockers Sgt. Chai leans on, the exam papers)
+        { id: "lockers", kind: "locker", at: { x: -1.5, y: 8, z: 1.75 }, yaw: Math.PI, o: { n: 2 } },
+        { id: "pp1", kind: "papers", at: { x: -3.2, y: 8, z: 0.2 } }, { id: "pp2", kind: "papers", at: { x: 0.4, y: 8, z: -0.9 }, yaw: 1.2 },
+        { id: "pp3", kind: "papers", at: { x: 1.8, y: 8, z: 0.8 }, yaw: 2.1 }, { id: "box", kind: "examBox", at: { x: -0.2, y: 8, z: 1.35 }, yaw: 0.4, collider: false },
+        // (bags and answer sheets abandoned all down the corridor -- "abandon", the sys line's)
+        { id: "bag1", kind: "schoolBag", at: { x: -6.5, y: 8, z: 1.2 }, yaw: 0.6, collider: false }, { id: "bag2", kind: "schoolBag", at: { x: 7.4, y: 8, z: -1.4 }, yaw: 2.2, collider: false },
+        { id: "bag3", kind: "schoolBag", at: { x: 11.8, y: 8, z: 1.3 }, yaw: -0.8, collider: false }, { id: "bag4", kind: "schoolBag", at: { x: 18.6, y: 8, z: -1.2 }, yaw: 1.4, collider: false },
+        { id: "bag5", kind: "schoolBag", at: { x: -16.5, y: 8, z: -1.1 }, yaw: 0.3, collider: false },
+        { id: "pp4", kind: "papers", at: { x: 5.6, y: 8, z: 0.6 }, yaw: 0.7 }, { id: "pp5", kind: "papers", at: { x: 14.2, y: 8, z: -0.4 }, yaw: 2.6 }, { id: "pp6", kind: "papers", at: { x: 20.5, y: 8, z: 0.9 } },
+        // the janitor's crowbar, on two nails under his photos (the first thing the eye goes to in his room)
+        { id: "crowbar", melee: "crowbar", at: { x: 15.8, y: 8, z: -6.3 }, lift: 0.95, rx: Math.PI / 2, scale: 1.45 },
+      ],
+      cast: [
+        { id: "chai", who: "chai", at: { x: -1.5, y: 8, z: 1.25 }, yaw: Math.PI, pose: "floor", label: { word: "PROTECT", flicker: true, depth: true } },
+        // the crowd packed behind the main stairs' glass doors (Kru Min's "do NOT use the main stairs")
+        { id: "gl1", who: "zm1", at: { x: 3.4, y: 8, z: -3.4 }, yaw: 0, pose: "bang" }, { id: "gl2", who: "zf2", at: { x: 4.5, y: 8, z: -3.3 }, yaw: 0, pose: "bang" },
+        { id: "gl3", who: "zm3", at: { x: 5.6, y: 8, z: -3.4 }, yaw: 0, pose: "bang" }, { id: "gl4", who: "zf4", at: { x: 6.5, y: 8, z: -4.5 }, yaw: -0.3, pose: "bang" },
+        { id: "gl5", who: "zm2", at: { x: 6.4, y: 8, z: -5.5 }, yaw: 0.2, pose: "bang" },
+      ],
       beats: [
-        { do: [["objective", "story.ch1.s1.obj"]] },
-        { wait: { zone: "corridor3East" }, do: [["banner", "story.ph.group"], ["spawn", { id: "c1", at: "corridor3Far", count: 3 }]] },
-        { wait: { cleared: "c1" }, do: [["banner", "story.ph.clear"], ["checkpoint"], ["next"]] },
+        { do: [["objective", "story.ch1.s1.obj0"], ["sound", "bell"], ["ammo", { pistol: [12, 12] }], ["sys", "story.ch1.sys.abandon"], ["hint", { key: "story.hint.evac", bind: "interact" }],
+          ["use", { id: "evac", at: { x: -5.5, y: 8, z: -1.85 }, size: [1.1, 1.0, 0.45], lift: 1.6, prompt: "story.use.evac", sound: "paper" }],
+          ["use", { id: "lockers", at: { x: 16, y: 8, z: 1.55 }, size: [1.6, 1.8, 0.5], lift: 0.95, prompt: "story.use.lockers", sound: "rattle" }],
+          ["use", { id: "beamLocker", at: { x: -12, y: 8, z: 1.55 }, size: [1.6, 1.8, 0.5], lift: 0.95, prompt: "story.use.beamLocker", sound: "paper" }],
+          ["use", { id: "notice", at: { x: 15.75, y: 8, z: 6 }, size: [0.45, 1.0, 1.7], lift: 1.55, prompt: "story.use.notice", sound: "paper" }],
+          ["use", { id: "photo", at: { x: 15.75, y: 8, z: -6 }, size: [0.45, 0.7, 1.3], lift: 1.6, prompt: "story.use.photo", sound: "paper" }],
+          ["use", { id: "crowbar", at: { x: 15.75, y: 8, z: -5.8 }, size: [0.5, 0.45, 1.4], lift: 0.95, prompt: "story.use.crowbar", sound: "" }],
+          ["use", { id: "pry", at: { x: 24.25, y: 8, z: 0 }, size: [0.7, 2.1, 2.0], lift: 1.05, prompt: "story.use.pry", promptNo: "story.use.jammed", deny: "story.hint.jammed",
+            need: { melee: "crowbar" }, sound: "" }]] },
+        { wait: { used: "pry" }, do: [["door", { id: "STAIRE3" }], ["sound", "pry"], ["shake", { sec: 0.3, amp: 0.04 }], ["hint", null], ["objective", "story.ch1.s1.obj2"]] },
+        // (the save point: at the foot of the east stairs, on 2F -- scene 1-2's start)
+        { wait: { all: [{ zone: "eastStairs2" }, { any: [{ calm: true }, { time: 20 }] }] }, do: [["checkpoint"], ["next"]] },
+      ],
+      on: [
+        // the plan read: the way out, then the objective
+        { id: "evac", when: { used: "evac" }, do: [["hint", null], ["card", { id: "evac", icon: "🗺️", title: "story.card.evacTitle",
+          plan: { storey: 2, here: { x: -5.5, z: -1.3 }, route: [[-5.5, 0], [23.6, 0], [26.4, 0]], exit: "E" }, lines: ["story.ch1.evac.line"] }]] },
+        { id: "evacRead", when: { card: "evac" }, do: [["objective", "story.ch1.s1.obj"]] },
+        // past the main stairs: the crowd behind the glass; Kru Min writes; the player answers
+        { id: "glass", when: { zone: "mainStairs3" }, do: [["look", { x: 4.5, y: 9.4, z: -3.6, sec: 0.7 }], ["sound", "sting"], ["sys", { key: "story.ch1.sys.crowd", glitch: true }]] },
+        { id: "min", after: "on:glass", when: { time: 2.2 }, do: [["unflag", "read:min"], ["phone", "min2"], ["hint", { key: "story.hint.readMin", bind: "phone" }]] },
+        { id: "minAsk", after: "on:min", when: { read: "min" }, do: [["hint", null], ["ask", { id: "min", who: "min", line: "story.ch1.m.min2",
+          options: [{ text: "story.ch1.c.onWay", value: "onway" }, { text: "story.ch1.c.turned", value: "turned" }] }]] },
+        { id: "minA", when: { flag: "chose:min:onway" }, do: [["phone", "min3a"]] },
+        { id: "minB", when: { flag: "chose:min:turned" }, do: [["phone", "min3b"]] },
+        // the Shamblers, in twos and threes: down the corridor from the east; out of the toilets behind;
+        // and once the crowbar is in the hands, three more to try it on
+        { id: "g1", when: { zone: "c3mid" }, do: [["spawn", { id: "g1", at: "corridor3Far", count: 3, kinds: ["normal"] }]] },
+        { id: "g2", after: "on:g1", when: { all: [{ cleared: "g1" }, { zone: "c3east" }] }, do: [["spawn", { id: "g2", at: "wc3", count: 2, kinds: ["normal"] }]] },
+        { id: "g3", after: "on:crowbar", when: { time: 2.5 }, do: [["spawn", { id: "g3", at: "corridor3Far", count: 3, kinds: ["normal"] }]] },
+        // rooms 302 and 307: a Shambler behind the desk, a box of rounds
+        { id: "r302", when: { zone: "r302" }, do: [["spawn", { id: "h302", at: { x: -29.4, y: 8, z: -6.4 }, count: 1, kinds: ["normal"] }], ["drop", { kind: "ammo", at: { x: -27, y: 8, z: -7.6 } }]] },
+        { id: "r307", when: { zone: "r307" }, do: [["spawn", { id: "h307", at: { x: -13.9, y: 8, z: 5.6 }, count: 1, kinds: ["normal"] }], ["drop", { kind: "ammo", at: { x: -10.2, y: 8, z: 7.4 } }]] },
+        // the janitor's room: the crowbar (the melee slot's), his photos with the students
+        { id: "crowbar", when: { used: "crowbar" }, do: [["unprop", "crowbar"], ["give", { melee: "crowbar" }], ["hint", { key: "story.hint.melee", bind: "quickMelee" }]] },
+        { id: "photo", when: { used: "photo" }, do: [["card", { id: "photo", icon: "🖼️", title: "story.card.photoTitle", lines: ["story.ch1.photo"] }]] },
+        // the lockers: two magazines; Beam's, his note; the toilets' notice ("symptoms", "consequences")
+        { id: "lockers", when: { used: "lockers" }, do: [["give", { ammo: { pistol: 24 } }]] },
+        { id: "note", when: { used: "beamLocker" }, do: [["card", { id: "note", icon: "📝", title: "story.card.noteTitle", lines: ["story.ch1.note.beam"] }]] },
+        { id: "notice", when: { used: "notice" }, do: [["card", { id: "notice", icon: "📄", title: "story.card.noticeTitle", lines: ["story.ch1.notice"] }]] },
+        // at the east door without the crowbar: the design's hint
+        { id: "jam", when: { all: [{ zone: "eastDoor3" }, { not: { melee: "crowbar" } }] }, do: [["hint", "story.hint.jammed"]] },
       ] },
+    // (round 6) 1-2 Words Are the Map (5-7 minutes): 2F dark (the torch), no room signs, Kru Min's
+    // directions; the rooms known by what is in them -- opened by hand, a Shambler in the store room;
+    // a hint after a minute; the library's front door barricaded, its back door a nine-letter lock
+    // (TEMPORARY), Sprinters in PE kit coming while it is turned, Nam's clue through the door.
     { id: "s2", title: "story.ch1.s2", objective: "story.ch1.s2.obj", start: { x: 25.5, y: 4, z: -0.5, yaw: Math.PI / 2 }, clock: "09:10", light: "blackout",
+      doors: { STAIRE2: true, STAIRM2: false, STAIRB2: false, DMUSIC: false, DSTAFF: false, DR201: false, DR203: false, DR205: false, DSTORE2: false, DSCIENCE: false,
+        DR202: false, DR204: false, DR206: false, DR207: false, DLAB: false, DLIBRARY: false, LIBBACK: false, DPE: false, DSTOREW: false, DWC2: false, DNURSE: false },
+      cast: [
+        // the main stairs on this floor too: the crowd behind the glass
+        { id: "gl1", who: "zf1", at: { x: 3.4, y: 4, z: -3.4 }, yaw: 0, pose: "bang" }, { id: "gl2", who: "zm4", at: { x: 4.5, y: 4, z: -3.3 }, yaw: 0, pose: "bang" },
+        { id: "gl3", who: "zf3", at: { x: 5.6, y: 4, z: -3.4 }, yaw: 0, pose: "bang" }, { id: "gl4", who: "zm1", at: { x: 2.4, y: 4, z: -4.6 }, yaw: 0.3, pose: "bang" },
+        // in the library, by its back door: Kru Min and the two students (scene 1-3's people)
+        // (hidden while the door is shut: nobody sees them, and they cost no draw calls till then)
+        { id: "min", who: "min", at: { x: -37, y: 4, z: 5.5 }, yaw: -Math.PI / 2, hidden: true }, { id: "nam", who: "nam", at: { x: -36.6, y: 4, z: 4.3 }, yaw: -Math.PI / 2 + 0.3, hidden: true },
+        { id: "tonkla", who: "tonkla", at: { x: -37.4, y: 4, z: 6.9 }, yaw: -Math.PI / 2 - 0.3, hidden: true },
+      ],
       beats: [
-        { do: [["objective", "story.ch1.s2.obj"]] },
-        { wait: { zone: "libraryBack" }, do: [["spawn", { id: "r1", at: "wing2", count: 2 }]] },
-        { wait: { cleared: "r1" }, do: [["checkpoint"], ["next"]] },
+        { do: [["objective", "story.ch1.s2.obj"], ["sound", "stop"], ["sys", { key: "story.ch1.sys.power", now: true }], ["hint", { key: "story.hint.torch", bind: "flashlight" }],
+          ["doors", { ids: ["DMUSIC", "DSTAFF", "DR201", "DR202", "DR203", "DR204", "DR205", "DR206", "DR207", "DSTORE2", "DSCIENCE", "DLAB", "DLIBRARY"],
+            blocked: { DLIBRARY: "story.hint.libBlocked" } }],
+          ["wheel", { id: "back", door: "LIBBACK", answer: "TEMPORARY", word: "temporary", clue: "story.ch1.m.min5",
+            at: { x: -40.04, y: 4, z: 6.5, lift: 1.25 }, yaw: -Math.PI / 2, use: { at: { x: -40.3, y: 4, z: 6.0 }, size: [0.8, 2.0, 2.0], lift: 1.0 } }]] },
+        { wait: { time: 3 }, do: [["unflag", "read:min"], ["phone", "min4"], ["hint", { key: "story.hint.readMin", bind: "phone" }]] },
+        { wait: { lock: "back" }, do: [["objective", "story.ch1.s2.obj3"], ["hint", null], ["npc", { id: "min", show: true }], ["npc", { id: "tonkla", show: true }],
+          ["npc", { id: "nam", show: true, talk: 2 }], ["say", [{ who: "nam", line: "story.ch1.d.namIn" }]]] },
+        // (inside: the save point -- scene 1-3; not in the middle of a fight -- or half a minute on)
+        { wait: { all: [{ zone: "libraryIn" }, { any: [{ calm: true }, { time: 30 }] }] }, do: [["checkpoint"], ["next"]] },
+      ],
+      on: [
+        // (beside the beats, so that nothing waits on the phone being read: the lock can be found first)
+        { id: "dirRead", after: "msg:min4", when: { read: "min" }, do: [["hint", null], ["flag", "dirRead"]] },
+        { id: "found", when: { any: [{ tried: "door:DLIBRARY" }, { zone: "libraryBack" }] }, do: [["flag", "foundLib"]] },
+        // found: the front door tried (barricaded), or the back door reached -- Kru Min: the back door, its clue
+        { id: "clue", when: { all: [{ flag: "foundLib" }, { not: { lock: "back" } }] }, do: [["objective", "story.ch1.s2.obj2"], ["unflag", "read:min"], ["phone", "min5"]] },
+        // a minute gone by with the directions and nothing found: Kru Min's hint
+        { id: "hint60", after: "dirRead", when: { all: [{ time: 60 }, { not: { flag: "foundLib" } }, { not: { used: "door:DMUSIC" } }] },
+          do: [["unflag", "read:min"], ["phone", "min6"]] },
+        // the wrong door: a Shambler hiding in the store room
+        { id: "store", when: { used: "door:DSTORE2" }, do: [["spawn", { id: "st", at: "store2In", count: 1, kinds: ["normal"] }]] },
+        // the lock turned: Sprinters in PE kit from the PE room's side; Nam's clue after two wrong words
+        { id: "sprint", after: "lockopen:back", when: { all: [{ time: 2.5 }, { not: { lock: "back" } }] }, do: [["spawn", { id: "spr", at: "wing2", count: 3, kinds: ["fast"] }], ["sys", { key: "story.ch1.sys.movement", glitch: true }]] },
+        { id: "back", after: "on:sprint", when: { all: [{ cleared: "spr" }, { not: { lock: "back" } }] }, do: [["hint", { key: "story.hint.lockBack", bind: "interact" }]] },
+        { id: "nam", when: { flag: "lockwrong:back:2" }, do: [["npc", { id: "nam", talk: 2 }], ["say", [{ who: "nam", line: "story.ch1.d.namHint" }]]] },
       ] },
     { id: "s3", title: "story.ch1.s3", objective: "story.ch1.s3.obj", start: { x: -31.5, y: 4, z: 4.6, yaw: Math.PI }, clock: "09:30", light: "library",
+      // (round 6: who was waiting by the back door in 1-2 -- round 7 gives the scene its own beats)
+      cast: [{ id: "min", who: "min", at: { x: -37, y: 4, z: 5.5 }, yaw: -Math.PI / 2 }, { id: "nam", who: "nam", at: { x: -36.6, y: 4, z: 4.3 }, yaw: -Math.PI / 2 + 0.3 },
+        { id: "tonkla", who: "tonkla", at: { x: -37.4, y: 4, z: 6.9 }, yaw: -Math.PI / 2 - 0.3 }],
       beats: [
         { do: [["objective", "story.ch1.s3.obj"], ["spawn", { id: "d1", at: "libWindows", count: 2 }]] },
         { wait: { cleared: "d1" }, do: [["checkpoint", { x: -31.5, y: 4, z: 4.6, yaw: Math.PI }], ["spawn", { id: "d2", at: "libDoors", count: 3 }]] },

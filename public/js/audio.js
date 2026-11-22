@@ -1559,22 +1559,29 @@ G.Audio = {
   speechRate() { const C = G.CONFIG.speech; return G.save && G.save.settings.speechSpeed === "slow" ? C.rate * C.slowRate : C.rate; },
   // a word (kept for "hear it again"), or with { text: true } a sentence;
   // opts.lang its language (the Word Language when not given)
+  // (story series, round 6) opts.whisper: a zombie's own word under its breath -- low, slow, quiet,
+  // never cutting off anything being said, and not the word "hear it again" repeats
   speak(word, opts) {
     if (!word || !("speechSynthesis" in window)) return;
     const vol = this.vol("speech");
     if (vol <= 0.001) return;
     const lang = (opts && opts.lang) || (G.Lang ? G.Lang.word() : "en");
-    if (!(opts && opts.text)) { this._lastSpoken = word; this._lastLang = lang; }
+    const wh = !!(opts && opts.whisper);
+    if (!(opts && opts.text) && !wh) { this._lastSpoken = word; this._lastLang = lang; }
     if (!this.canSpeak(lang)) return;
     try {
-      speechSynthesis.cancel();
+      if (wh) { if (speechSynthesis.speaking || speechSynthesis.pending) return; }
+      else speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(word);
       const v = this.pickVoice(lang);
       u.lang = (v && v.lang) || (G.Lang ? G.Lang.SPEECH[lang] : "en-GB") || "en-GB";
       if (v) { try { u.voice = v; } catch (e) { /* (not a voice the browser listed) */ } }
-      u.rate = this.speechRate() * (opts && opts.text ? 0.95 : 0.9); u.pitch = 1; u.volume = Math.min(1, vol);
+      const W = (G.CONFIG.story && G.CONFIG.story.whisper) || {};
+      u.rate = this.speechRate() * (wh ? W.rate || 0.72 : opts && opts.text ? 0.95 : 0.9);
+      u.pitch = wh ? W.pitch || 0.35 : 1;
+      u.volume = Math.min(1, vol * (wh ? W.volume || 0.45 : 1));
       speechSynthesis.speak(u);
-      this._spokenAt = performance.now();
+      if (!wh) this._spokenAt = performance.now();
     } catch (e) { /* speech is a nicety; never let it break the game */ }
   },
   replay() { if (this._lastSpoken) this.speak(this._lastSpoken, { lang: this._lastLang }); },

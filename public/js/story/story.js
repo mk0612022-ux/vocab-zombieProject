@@ -190,6 +190,9 @@ G.Story = (function () {
     if (G.StoryUse) G.StoryUse.reset(game);
     if (G.StoryQuiz) G.StoryQuiz.reset(game);
     if (G.StoryScreen) G.StoryScreen.reset();
+    // (round 6) the letter locks, the whispers
+    if (G.StoryLock) G.StoryLock.reset(game);
+    if (G.StoryWhisper) G.StoryWhisper.reset();
     // what the checkpoint was carrying (full health: a checkpoint is a fresh start)
     if (from && from.guns) {
       const pl = game.player;
@@ -228,6 +231,9 @@ G.Story = (function () {
     if (G.StoryUse) G.StoryUse.update(game, dt);
     if (G.StoryQuiz) G.StoryQuiz.update(game, dt);
     if (G.StoryScreen) G.StoryScreen.update(game, dt);
+    // (round 6) a letter lock being turned (or left for a fight), zombies whispering their words
+    if (G.StoryLock) G.StoryLock.update(game, dt);
+    if (G.StoryWhisper) G.StoryWhisper.update(game, dt);
     G.StoryScenes.update(game, run, dt);
   }
   // (round 5) the gun in the hands -- or not yet. Handed over (not `quiet`): it comes up as a
@@ -262,6 +268,8 @@ G.Story = (function () {
   // (round 2) a chapter's keys: the phone, its torch, Enter for the next line (js/game.js G.onKeyDown)
   function onKey(e) {
     if (!run || run.over) return false;
+    // (round 6) at a letter lock every key is the lock's (but the pause)
+    if (G.StoryLock && G.StoryLock.holds()) return G.StoryLock.onKey(e);
     const kb = G.save.settings.keybinds;
     if (kb.phone && e.code === kb.phone) { if (!e.repeat && G.StoryPhone) G.StoryPhone.toggle(); return true; }
     if (kb.flashlight && e.code === kb.flashlight) { if (!e.repeat && G.StoryPhone) G.StoryPhone.torch(); return true; }
@@ -363,6 +371,8 @@ G.Story = (function () {
     if (G.StoryUse) G.StoryUse.reset(game);
     if (G.StoryQuiz) G.StoryQuiz.reset(game);
     if (G.StoryScreen) G.StoryScreen.reset();
+    if (G.StoryLock) G.StoryLock.reset(game);
+    if (G.StoryWhisper) G.StoryWhisper.reset();
     if (G.ViewModel && G.ViewModel.setVisible) G.ViewModel.setVisible(true);
     document.body.classList.remove("story-hands-free");
   }

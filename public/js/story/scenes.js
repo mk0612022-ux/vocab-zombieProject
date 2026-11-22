@@ -59,6 +59,20 @@
 //   handsFree) · ["seat", { x, z, yaw } | false] (js/story/storycam.js)
 //   ["spawn", { ..., words: [{ word, gloss, who }], target }] a group of the scene's own words,
 //   practice (counted nowhere), one of them the target, each in the look `who` gives it
+//   (round 6: scenes 1-1 and 1-2)
+//   { all: [c, ...] } · { any: [c, ...] } · { not: c }   conditions put together
+//   { melee: key } the player holds that melee weapon · { tried: id } a thing that would not
+//   (yet) be used was tried · { lock: id } that letter lock open (js/story/wheellock.js) ·
+//   { calm: true } no zombie standing (a save point waits for the fight to be over)
+//   ["give", { melee } | { ammo: { gun: rounds } }] · ["ammo", { gun: [mag, reserve] }] (what the
+//   scene starts with) · ["doors", { ids, prompt, blocked: { id: denyKey } }] the map's doors
+//   the player opens (js/story/interact.js: "used:door:<id>") · ["wheel", { id, door, answer,
+//   word, clue }] a letter lock on a door · ["drop", { kind, at }] something to pick up
+//   A choice's value is a flag as well: "chose:<id>:<value>".
+// A scene's `on` (round 6): rules beside its beats, for what can happen in any order --
+//   [{ id, after, when, do }] each fires once, the moment `when` holds (the flag "on:<id>":
+//   a checkpoint keeps it); `after` (a flag, or a condition) arms it, and a { time: s } in its
+//   `when` counts from then (real time, never the held "faster")
 // A scene's `cast` and `props` (js/story/cast.js) are put there as it begins, the last ones gone.
 // A beat that has been met never waits again, so a few can pass in one frame.
 // Cinematic parts: beats sharing a `cine` name. Once the player has seen one to its end
@@ -81,12 +95,21 @@ G.StoryScenes = (function () {
     return p.x >= z.x0 && p.x <= z.x1 && p.z >= z.z0 && p.z <= z.z1;
   }
   const groupAlive = (game, id) => game.zombies.some((z) => z.alive && z.storyGroup === id);
-  // (a cinematic part being skipped: what only takes time is met at once)
-  function met(game, run, cond, skipping) {
+  // (a cinematic part being skipped: what only takes time is met at once; `clock`: the time
+  // a { time } counts -- the beat's, or a rule's own)
+  function met(game, run, cond, skipping, clock) {
     if (!cond) return true;
+    // (round 6) put together
+    if (cond.all) return cond.all.every((c) => met(game, run, c, skipping, clock));
+    if (cond.any) return cond.any.some((c) => met(game, run, c, skipping, clock));
+    if (cond.not) return !met(game, run, cond.not, skipping, clock);
     if (cond.zone) return inZone(game, run.ch, cond.zone);
     if (cond.cleared) return run.groups[cond.cleared] != null && !groupAlive(game, cond.cleared);
-    if (cond.time != null) return skipping || run.beatT >= cond.time;
+    if (cond.time != null) return skipping || (clock != null ? clock : run.beatT) >= cond.time;
+    if (cond.calm) return !game.zombies.some((z) => z.alive);   // (round 6: no fight going on -- a save point waits for it)
+    if (cond.melee) return !!(game.player && game.player.melee === cond.melee);
+    if (cond.tried) return run.flags.has("tried:" + cond.tried);
+    if (cond.lock) return run.flags.has("lock:" + cond.lock);
     if (cond.flag) return run.flags.has(cond.flag);
     if (cond.said) return skipping || !G.StoryDialogue.busy();
     if (cond.chosen) return run.flags.has("chose:" + cond.chosen);
@@ -156,6 +179,7 @@ G.StoryScenes = (function () {
       const v = op.value != null ? String(op.value) : String(i);
       G.Story.chose(id, v);
       run.flags.add("chose:" + id);
+      run.flags.add("chose:" + id + ":" + v);          // (round 6: which one -- a rule can answer it)
       const after = (o.then && o.then[i]) || (o.quiz ? (op.right ? o.right : o.wrong) : null);
       if (after) G.StoryDialogue.say([].concat(after).map(withVars));
     });
@@ -212,6 +236,30 @@ G.StoryScenes = (function () {
     else if (name === "card") { if (G.StoryScreen) G.StoryScreen.card(game, run, arg); }
     else if (name === "arm") G.Story.arm(game, arg !== false);
     else if (name === "seat") { if (G.StoryCam) G.StoryCam.seat(game, arg); }
+    // (round 6) scenes 1-1 and 1-2: what is found, the doors the player opens, the letter lock
+    else if (name === "give") give(game, arg || {});
+    else if (name === "ammo") { const pl = game.player; Object.keys(arg || {}).forEach((g) => { const a = pl && pl.ammo[g], v = arg[g]; if (a && Array.isArray(v)) { a.mag = Math.max(0, v[0] | 0); a.reserve = Math.max(0, v[1] | 0); } }); }
+    else if (name === "doors") { if (G.StoryUse) G.StoryUse.doors(game, arg || {}); }
+    else if (name === "wheel") { if (G.StoryLock) G.StoryLock.add(game, arg || {}); }
+    else if (name === "drop") { const o = arg || {}, p = o.at || {}; if (game.spawnDrop) game.spawnDrop(o.kind || "ammo", new THREE.Vector3(p.x || 0, Number.isFinite(p.y) ? p.y : 0, p.z || 0)); }
+  }
+  // something found: a melee weapon into the slot (its name across the screen), or rounds for a gun
+  function give(game, o) {
+    const pl = game.player;
+    if (!pl) return;
+    if (o.melee && G.Melee && G.MELEE_WEAPONS && G.MELEE_WEAPONS[o.melee]) {
+      G.Melee.give(game, o.melee);
+      if (G.UI.flashPurchaseBanner) G.UI.flashPurchaseBanner(esc(T("melee.name." + o.melee)), esc(T("story.give.found")));
+      if (G.Audio && G.Audio.sfx) G.Audio.sfx("pickup");
+    }
+    if (o.ammo) Object.keys(o.ammo).forEach((g) => {
+      const a = pl.ammo[g], n = Math.max(0, o.ammo[g] | 0);
+      if (!a || !n) return;
+      a.reserve += n;
+      if (G.UI.pulseHudStat) G.UI.pulseHudStat("ammo");
+      if (G.UI.flashPurchaseBanner) G.UI.flashPurchaseBanner(esc(T("story.give.ammo", { n })), esc(T("story.give.found")));
+      if (G.Audio && G.Audio.sfx) G.Audio.sfx("pickup");
+    });
   }
   // the objective a scene shows at a beat: the last one a beat before it set
   function objectiveAt(scene, beatI) {
@@ -223,6 +271,7 @@ G.StoryScenes = (function () {
     const sc = run.ch.scenes[sceneI];
     run.sceneI = sceneI; run.scene = sc; run.beatI = Math.max(0, beatI | 0); run.beatT = 0;
     run.groups = {}; run.groupDone = {}; run.skipping = null;
+    run.ruleT = {};                                  // (round 6: its rules' own clocks)
     run.objective = objectiveAt(sc, run.beatI);
     // how it starts: the HUD's parts and the glasses (round 2)
     if (G.LexiLens) { G.LexiLens.parts(sc.hud || "all", { quiet: true }); G.LexiLens.theme(sc.lens !== false); }
@@ -236,6 +285,7 @@ G.StoryScenes = (function () {
     if (G.StoryCast) G.StoryCast.enter(game, run, sc);
     if (G.StoryUse) G.StoryUse.reset(game);
     if (G.StoryQuiz) G.StoryQuiz.reset(game);
+    if (G.StoryLock) G.StoryLock.reset(game);           // (round 6: the last scene's letter locks)
     if (G.StoryCam) G.StoryCam.seat(game, false);
     G.Story.arm(game, sc.armed !== false, true);
     if (G.Bus) G.Bus.emit("story:scene", { ch: run.ch.id, scene: sc.id, i: sceneI });
@@ -274,14 +324,9 @@ G.StoryScenes = (function () {
       if (skipping) { G.StoryDialogue.clear(); G.StoryCam.finish(game); }
       const nb = run.scene.beats[run.beatI];
       if (b.cine && (!nb || nb.cine !== b.cine)) seen(run, b.cine);
-      if (run.pendingNext) { run.pendingNext = false; if (run.sceneI + 1 < run.ch.scenes.length) { enter(game, run, run.sceneI + 1, 0); G.Story.sceneReached(run.sceneI); } else run.pendingEnd = true; }
-      if (run.pendingCp) {
-        const at = run.pendingCp === true ? null : run.pendingCp;
-        run.pendingCp = null;
-        G.Story.checkpoint(game, at || run.scene.start || null);
-      }
-      if (run.pendingEnd) { run.pendingEnd = false; run.over = true; G.Story.finish(game); return; }
+      if (settle(game, run)) return;
     }
+    if (!run.over) rules(game, run, dt);
     // (decision D11) a wrong shot's speed-up (+25%, js/game.js) ends with the
     // group it happened in: the moment a group is cleared, whoever is still
     // standing (another group) is back to normal speed
@@ -291,5 +336,42 @@ G.StoryScenes = (function () {
       game.zombies.forEach((z) => { if (z.alive) z.speedMultiplier = 1; });
     });
   }
+  // ---------------- a scene's rules (round 6) ----------------
+  // beside the beats: what the player may come to in any order -- a room off the way, a
+  // locker, a door tried too early, a hint once a minute has gone by. Each fires once.
+  function rules(game, run, dt) {
+    const list = run.scene && run.scene.on;
+    if (!list || !list.length) return;
+    const sc = run.scene;
+    for (let i = 0; i < list.length; i++) {
+      const r = list[i], id = r.id || "r" + i;
+      if (run.flags.has("on:" + id)) continue;
+      if (r.after && !met(game, run, typeof r.after === "string" ? { flag: r.after } : r.after)) continue;
+      const t = (run.ruleT[id] = (run.ruleT[id] || 0) + dt);
+      if (!met(game, run, r.when, false, t)) continue;
+      run.flags.add("on:" + id);
+      (r.do || []).forEach((a) => act(game, run, a));
+      // (an action that ends the scene -- or the chapter -- ends this frame's rules with it)
+      if (run.scene !== sc || run.over || run.pendingNext || run.pendingEnd) break;
+    }
+    // (a rule's `next`, `checkpoint` or `end`: done as a beat's are)
+    settle(game, run);
+  }
+  // what a beat's (or a rule's) actions asked for once they are all done: the next scene, a
+  // checkpoint (with `next`, at the next scene's start), the chapter's end -> true: it is over
+  function settle(game, run) {
+    if (run.pendingNext) { run.pendingNext = false; if (run.sceneI + 1 < run.ch.scenes.length) { prune(run); enter(game, run, run.sceneI + 1, 0); G.Story.sceneReached(run.sceneI); } else run.pendingEnd = true; }
+    if (run.pendingCp) {
+      const at = run.pendingCp === true ? null : run.pendingCp;
+      run.pendingCp = null;
+      G.Story.checkpoint(game, at || run.scene.start || null);
+    }
+    if (run.pendingEnd) { run.pendingEnd = false; run.over = true; G.Story.finish(game); return true; }
+    return false;
+  }
+  // a scene left for the next: what only its beats and rules asked about goes with it (a
+  // checkpoint keeps 120 flags -- for what lasts the chapter: the phone's messages, the choices)
+  const LOCAL = /^(on|used|tried|card|quiz|qte|lock|lockwrong|lockopen):/;
+  function prune(run) { Array.from(run.flags).forEach((f) => { if (LOCAL.test(f)) run.flags.delete(f); }); }
   return { inZone, met, points, spawn, aimAt, act, objectiveAt, enter, update, canSkip, skip, seenKey };
 })();

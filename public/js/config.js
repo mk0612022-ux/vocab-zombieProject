@@ -655,6 +655,15 @@ G.CONFIG = {
   //                settle before the first press counts; nextRight / nextWrong the card's time
   //   screen       (js/story/screen.js) fadeSec of the black, titleSec the title, hintSec a hint,
   //                staticSec the radio's hiss
+  //   (story series, round 6: scenes 1-1 and 1-2)
+  //   lock         a letter lock (js/story/wheellock.js): breakDist a zombie this near and the
+  //                player steps back from it (m), leaveDist walked this far off and it is left,
+  //                swipePx a finger's swipe to turn a wheel one letter, mousePx the mouse moved
+  //                sideways to the next wheel, padDelay / padRepeat the D-pad held, solvedSec the
+  //                open door seen before the window goes
+  //   whisper      zombies whispering their words (js/story/whisper.js): range (m), gap between
+  //                two whispers, zombieGap one zombie's, captionSec the caption; the voice's
+  //                rate, pitch and volume (x the speech volume); on: false -- none
   story: {
     enabled: false,
     chapterShare: 0.6,
@@ -662,7 +671,7 @@ G.CONFIG = {
     floorHp: 1,
     resetSpeed: true,
     dialogue: { minSec: 2.2, perChar: 0.05, maxSec: 9, fast: 4, tapSec: 0.25, holdSkip: 1.2, gapSec: 0.2 },
-    phone: { toastSec: 4.5, torch: { color: 0xfff1d6, intensity: 2.4, distance: 26, angle: 0.48, penumbra: 0.45, decay: 1.2 } },
+    phone: { toastSec: 4.5, torch: { color: 0xfff1d6, intensity: 1.7, distance: 26, angle: 0.48, penumbra: 0.65, decay: 1.4 } },
     lens: { sysSec: 3.2, correctSec: 1.5, bootSec: 0.9 },
     cam: { lookSec: 1.2, seatDrop: 0.48 },
     voxel: { px: 0.05625, ao: [0.52, 0.68, 0.84, 1], glassOpacity: 0.42, zombies: true, patchIdle: 0.55, patchLock: 2.6, chunk: 16, mapChunk: 32, siteChunk: 64 },
@@ -670,6 +679,8 @@ G.CONFIG = {
     use: { qteSec: 1.6, qteWindow: 0.2, qteHurt: 12, qteRetry: 0.9 },
     quiz: { dist: 1.9, gap: 0.82, rise: -0.05, aim: 0.2, settle: 0.35, nextRight: 1.4, nextWrong: 2.4 },
     screen: { fadeSec: 1.2, titleSec: 4.2, hintSec: 6, staticSec: 9 },
+    lock: { breakDist: 4.5, leaveDist: 3.5, swipePx: 26, mousePx: 90, padDelay: 0.38, padRepeat: 0.12, solvedSec: 0.9 },
+    whisper: { on: true, range: 6.5, gap: 2.6, zombieGap: 7, captionSec: 1.8, rate: 0.72, pitch: 0.35, volume: 0.45 },
   },
   // ---------------- the melee slot (expansion, round 4) ----------------
   // G.MELEE_WEAPONS has each weapon; js/melee.js is the swing.
