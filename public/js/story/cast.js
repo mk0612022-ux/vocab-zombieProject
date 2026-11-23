@@ -10,13 +10,16 @@
 // the glasses' own word layer is on).
 //   scene.cast   [{ id, who, at: { x, y, z }, yaw, pose, follow, hidden, label }]
 //                who: a look of js/story/voxelchars.js (the person's own id when left out)
-//   scene.props  [{ id, kind, at: { x, y, z }, yaw, o, collider }]
+//   (round 7: `seat` the height it sits at -- a bed, not a chair)
+//   scene.props  [{ id, kind, at: { x, y, z }, yaw, o, collider }]   (round 7: rx / rz a thing knocked
+//                over -- a desk on its side; `dynamic` a box that moves with it: js/story/push.js)
 //
 //   G.StoryCast.enter(game, run, scene)   the last scene's taken away, this one's put there
 //   G.StoryCast.act(game, run, o)         a scene's ["npc", { id, ... }]:
 //       walk: { x, z } | [{ x, z }, ...], speed   along a path, the floor's height under it
 //       face: "player" | { x, z } | yaw            turned (eased)
-//       pose: stand | sit | floor | carry | zombie | slump | scratch | bang (round 6: fists on glass)
+//       pose: stand | sit | floor | carry | zombie | slump | scratch | bang (round 6: fists on glass) |
+//             push | hurt | hurtSit | treat (round 7: a shelf pushed, an arm cut, a cut seen to)
 //       follow: true | false                       behind the player, on the way they walked
 //       talk: seconds                              the head and a hand moving with a line
 //       turn: look                                 its zombie self (a flicker of blue first)
@@ -51,7 +54,7 @@ G.StoryCast = (function () {
     const n = {
       id: d.id, who: d.who || d.id, zombie: d.zombie || null, model: null,
       pos: new THREE.Vector3(at.x || 0, y, at.z || 0), floorY: y, yaw: d.yaw || 0, wantYaw: null, faceP: null,
-      pose: d.pose || "stand", path: null, speed: 0, walkSpeed: C().walkSpeed || 1.4, follow: !!d.follow, arrived: false,
+      pose: d.pose || "stand", seat: d.seat || 0, path: null, speed: 0, walkSpeed: C().walkSpeed || 1.4, follow: !!d.follow, arrived: false,
       talkT: 0, label: null, flicker: false, lunge: false, knock: 0, hidden: !!d.hidden, glitchT: 0, moved: 0,
       phase: d.phase != null ? d.phase : Math.random() * 6, rate: d.rate || 2.6 + Math.random() * 0.9, near: false, hit: false,   // (round 6: "bang")
     };
@@ -174,10 +177,12 @@ G.StoryCast = (function () {
       return g;
     }
     const g = G.VoxelProps.place({ scene: game.scene, world: game.world }, d.kind, at.x || 0, at.z || 0, d.yaw || 0, o);
+    if (d.rx || d.rz) { g.rotation.x = d.rx || 0; g.rotation.z = d.rz || 0; }       // (round 7: knocked over)
     let col = null;
     if (d.collider !== false && !G.VoxelProps.NO_COLLIDER.has(d.kind)) {
       g.updateMatrixWorld(true);
       col = new THREE.Box3().setFromObject(g);
+      if (d.dynamic) col.dynamic = true;               // (round 7: it moves -- js/world.js ColGrid lists it always)
       if (G.ColGrid) G.ColGrid.add(game.world, col); else game.world.colliders.push(col);
     }
     props[d.id] = { g, col };
@@ -243,10 +248,11 @@ G.StoryCast = (function () {
     if (!L || !L.legL) return 0;
     const P = PX(), hipY = u.hipY || 12 * P;
     let dy = 0;
+    const seatY = n.seat || C().seatH || 0.45;
     if (n.pose === "sit") {
-      // (on a chair: the seat at 0.45 m, the legs straight out -- one box each)
+      // (on a chair: the seat at 0.45 m, the legs straight out -- one box each; round 7: a bed's height its own)
       L.legL.hip.rotation.x = -1.5; L.legR.hip.rotation.x = -1.5;
-      dy = (C().seatH || 0.45) - hipY;
+      dy = seatY - hipY;
     } else if (n.pose === "floor") {
       // (on the floor, the back to a wall, slumped: hurt)
       L.legL.hip.rotation.x = -1.45; L.legR.hip.rotation.x = -1.4; L.legR.hip.rotation.z = 0.12;
@@ -273,6 +279,25 @@ G.StoryCast = (function () {
       if (u.upper) u.upper.rotation.x = 0.35;
       L.armL.shoulder.rotation.set(-1.2, 0, 0.3); L.armR.shoulder.rotation.set(-1.0, 0, -0.1);
       dy = (C().seatH || 0.45) - hipY;
+    } else if (n.pose === "push") {
+      // (round 7) leaning into a bookshelf, both hands on it -- Tonkla at the library's doors
+      L.armL.shoulder.rotation.set(-1.5, 0, 0.12); L.armR.shoulder.rotation.set(-1.5, 0, -0.12);
+      if (u.upper) u.upper.rotation.x = 0.32;
+      L.legL.hip.rotation.x = 0.35; L.legR.hip.rotation.x = -0.25;
+      if (u.neck) u.neck.rotation.set(-0.2, 0, 0);
+    } else if (n.pose === "hurt" || n.pose === "hurtSit") {
+      // an arm cut by the window's glass: the other hand holding it, the head down to it
+      const t0 = u.npc ? u.npc.t : 0;
+      L.armL.shoulder.rotation.set(-0.45, 0, 0.22); L.armR.shoulder.rotation.set(-0.95 + Math.sin(t0 * 1.6) * 0.04, 0, -0.62);
+      if (u.neck) u.neck.rotation.set(0.38, 0.22, 0);
+      if (n.pose === "hurtSit") { L.legL.hip.rotation.x = -1.5; L.legR.hip.rotation.x = -1.5; dy = seatY - hipY; }
+      else { L.legL.hip.rotation.x = 0; L.legR.hip.rotation.x = 0; }
+    } else if (n.pose === "treat") {
+      // bent over a cut, both hands at it (Fai with the bandage)
+      const t0 = u.npc ? u.npc.t : 0, s = Math.sin(t0 * 3.2) * 0.12;
+      if (u.upper) u.upper.rotation.x = 0.5;
+      L.armL.shoulder.rotation.set(-1.05 + s, 0, 0.18); L.armR.shoulder.rotation.set(-1.05 - s, 0, -0.18);
+      if (u.neck) u.neck.rotation.set(0.3, 0, 0);
     } else if (n.pose === "bang") {
       // (round 6) packed against glass, fists on it: each at its own beat (its phase), the body
       // swaying into the blows -- the crowd at the main stairs. A blow near the player is heard.
@@ -285,6 +310,14 @@ G.StoryCast = (function () {
       n.hit = hit;
     } else if (u.upper && u.upper.rotation.x) u.upper.rotation.x = 0;
     if (n.pose !== "floor" && L.legR.hip.rotation.z) L.legR.hip.rotation.z = 0;
+    // (round 7: a pose that bends the legs or the body gives them back when it ends)
+    if (n.pose !== n.lastPose) {
+      const legs = { sit: 1, floor: 1, scratch: 1, slump: 1, push: 1, hurtSit: 1 }, lean = { floor: 1, slump: 1, push: 1, treat: 1, bang: 1 };
+      if (n.lastPose && legs[n.lastPose] && !legs[n.pose]) { L.legL.hip.rotation.x = 0; L.legR.hip.rotation.x = 0; }
+      if (n.lastPose && lean[n.lastPose] && !lean[n.pose] && u.upper) u.upper.rotation.x = 0;
+      if (n.lastPose && n.lastPose !== "stand" && n.pose === "stand") { L.armL.shoulder.rotation.set(0, 0, 0); L.armR.shoulder.rotation.set(0, 0, 0); if (u.neck) u.neck.rotation.set(0, 0, 0); }
+      n.lastPose = n.pose;
+    }
     return dy;
   }
   // what can be seen of it -- the map's own rule for what is inside (js/story/ch1map.js update):
@@ -374,6 +407,6 @@ G.StoryCast = (function () {
   function near(game, id, r) { const n = npcs[id], p = game && game.yawObject && game.yawObject.position; return !!(n && p && Math.hypot(n.pos.x - p.x, n.pos.z - p.z) <= r && Math.abs(n.pos.y - (p.y - 1.7)) < 1.8); }
   function reset(game) { if (game) clear(game); npcs = {}; props = {}; trail = []; lastTrail = null; }
 
-  return { enter, act, prop, unprop, update, arrived, near, clear, reset, setLabel,
+  return { enter, act, prop, unprop, update, arrived, near, clear, reset, setLabel, propOf: (id) => props[id] || null,
     get: (id) => npcs[id] || null, ids: () => Object.keys(npcs), propIds: () => Object.keys(props), get trail() { return trail; } };
 })();

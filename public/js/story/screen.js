@@ -14,7 +14,12 @@
 //   ["hint", key | { key, bind, sec } | null]   a line at the bottom on what to do: the key's
 //                                   ".touch" or ".pad" form when the player plays that way, {key}
 //                                   the binding of `bind`
+//   (round 7) calm / tense (music under a scene: the library's meeting, its defence) Â· quiet (the
+//                                   music stopped)
 //   ["shake", { sec, amp }]         the view shaken
+//   (round 7) ["timer", { key, sec } | null]   a countdown at the top -- "Next wave in {n}" -- gone at 0
+//   ["thud", { at, n, gap }]        fists on a door, where it is: n blows, gap seconds apart
+//   ["glass", { at, dir }]          a window's glass broken in, where it is (the sound, its shards)
 //   ["card", { id, title, rows, mark, note }]   a card to read (the seating plan); closed: "card:<id>"
 //   G.StoryScreen.update(game, dt) / reset() / state
 // ===================================================================
@@ -25,6 +30,7 @@ G.StoryScreen = (function () {
   const C = () => (G.CONFIG.story && G.CONFIG.story.screen) || {};
   const esc = (s) => G.escapeHtml(String(s == null ? "" : s));
   let black = null, title = null, hint = null, loops = {}, hintT = 0, titleT = 0;
+  let timer = null, timerT = 0, timerKey = null, timerN = -1, thuds = [];       // (round 7)
   const A = () => (G.Audio && G.Audio.ctx && G.Audio.group ? G.Audio : null);
 
   function el(id, cls, html) {
@@ -79,6 +85,9 @@ G.StoryScreen = (function () {
     if (name === "stop") { loops = {}; return; }
     if (name === "alarm" || name === "bell") { loops[name] = { t: 0, next: 0 }; return; }
     if (name === "static") { loops.static = { t: 0, next: 0, left: C().staticSec || 9 }; return; }
+    // (round 7) music under a scene: one at a time
+    if (name === "calm" || name === "tense") { delete loops.calm; delete loops.tense; loops[name] = { t: 0, next: 0, i: 0 }; return; }
+    if (name === "quiet") { delete loops.calm; delete loops.tense; return; }
     if (!a) return;
     if (name === "kick") a.group({ cat: "sfx", prio: 2, pos: null, dur: 0.6 }, () => {
       a.noise({ dur: 0.18, freq: 300, freqEnd: 80, q: 0.7, gain: 0.32 });
@@ -138,6 +147,32 @@ G.StoryScreen = (function () {
         bl.next = 1.5;
         a.group({ cat: "sfx", prio: 2, pos: null, dur: 1.3 }, () => {
           for (let i = 0; i < 18; i++) { const at = i * 0.062; a.tone({ type: "square", freq: 760, dur: 0.045, gain: 0.018, at, filter: { type: "bandpass", freq: 1500, q: 3 } }); a.tone({ type: "sine", freq: 2280, dur: 0.04, gain: 0.008, at }); }
+        });
+      }
+    }
+    // (round 7) the meeting in the library: soft chords a few seconds apart, the room quiet round them
+    const cm = loops.calm;
+    if (cm) {
+      cm.next -= dt;
+      if (cm.next <= 0 && a) {
+        cm.next = C().calmEvery || 4.8;
+        const CH = [[220, 261.6, 329.6], [174.6, 220, 261.6], [196, 246.9, 293.7], [164.8, 207.7, 246.9]], ch = CH[cm.i++ % CH.length];
+        a.group({ cat: "music", prio: 1, pos: null, dur: 4.8 }, () => {
+          ch.forEach((f, i) => a.tone({ type: i ? "triangle" : "sine", freq: f, dur: 4.4, gain: (C().calmGain || 0.016) * (i ? 0.7 : 1), attack: 1.1, at: i * 0.06 }));
+          a.tone({ type: "sine", freq: ch[0] / 2, dur: 4.6, gain: (C().calmGain || 0.016) * 0.8, attack: 1.4 });
+        });
+      }
+    }
+    // ...and the defence: a low pulse, a held clash under it
+    const tn = loops.tense;
+    if (tn) {
+      tn.next -= dt; tn.t += dt;
+      if (tn.next <= 0 && a) {
+        tn.next = C().tenseEvery || 0.85;
+        const g0 = C().tenseGain || 0.07;
+        a.group({ cat: "music", prio: 1, pos: null, dur: 0.5 }, () => a.tone({ type: "sine", freq: 58, freqEnd: 44, dur: 0.32, gain: g0 }));
+        if ((tn.i++ % 4) === 0) a.group({ cat: "music", prio: 1, pos: null, dur: 3.4 }, () => {
+          [110, 116.5].forEach((f) => a.tone({ type: "sawtooth", freq: f, dur: 3.2, gain: g0 * 0.22, attack: 0.6, filter: { type: "lowpass", freq: 520 } }));
         });
       }
     }
@@ -213,6 +248,50 @@ G.StoryScreen = (function () {
     }
     return s + "</svg>";
   }
+  // ---------------- (round 7) a countdown, fists on a door, a window broken in ----------------
+  function setTimer(o) {
+    if (!timer) timer = el("story-timer", "story-timer");
+    if (!o) { timer.classList.add("hidden"); timerT = 0; timerKey = null; return; }
+    o = typeof o === "number" ? { sec: o } : o;
+    timerKey = o.key || "story.timer.wave"; timerT = o.sec || 15; timerN = -1;
+    timer.classList.remove("hidden");
+    tickTimer(0);
+  }
+  function tickTimer(dt) {
+    if (!timerKey) return;
+    timerT -= dt;
+    if (timerT <= 0) { timer.classList.add("hidden"); timerKey = null; return; }
+    const n = Math.ceil(timerT);
+    if (n !== timerN) { timerN = n; timer.textContent = T(timerKey, { n }); if (n <= 3) { timer.classList.remove("tick"); void timer.offsetWidth; timer.classList.add("tick"); } }
+  }
+  function thudAt(o) {
+    o = o || {};
+    const p = o.at || {}, pos = new THREE.Vector3(p.x || 0, (Number.isFinite(p.y) ? p.y : 0) + 1.2, p.z || 0), n = Math.max(1, o.n | 0 || 3), gap = o.gap || 0.32;
+    for (let i = 0; i < n; i++) thuds.push({ t: i * gap, pos, loud: true });
+  }
+  function tickThuds(dt) {
+    for (let i = thuds.length - 1; i >= 0; i--) {
+      const q = thuds[i];
+      q.t -= dt;
+      if (q.t > 0) continue;
+      thuds.splice(i, 1);
+      const a = A();
+      if (a) a.group({ cat: "sfx", prio: 3, pos: q.pos, dur: 0.5 }, () => {
+        a.noise({ dur: 0.12, freq: 260 + Math.random() * 120, freqEnd: 90, q: 0.8, gain: 0.34, pos: q.pos });
+        a.tone({ type: "triangle", freq: 95, freqEnd: 52, dur: 0.18, gain: 0.12, pos: q.pos });
+      });
+    }
+  }
+  function glass(game, o) {
+    o = o || {};
+    const p = o.at || {}, pos = new THREE.Vector3(p.x || 0, Number.isFinite(p.y) ? p.y : 1.5, p.z || 0);
+    if (G.Audio && G.Audio.sfx) G.Audio.sfx("glass_break", { pos });
+    // (its shards: the game's own chips of glass, a handful thrown in -- js/fx.js)
+    const d = o.dir || { x: 0, z: -1 }, nrm = new THREE.Vector3(d.x || 0, 0, d.z || 0).normalize();
+    if (G.FX && G.FX.impact) for (let i = 0; i < 4; i++) G.FX.impact({ point: pos.clone().add(new THREE.Vector3((Math.random() - 0.5) * 1.2, (Math.random() - 0.5) * 0.8, 0)), normal: nrm, surface: "glass" });
+    const pp = game && game.yawObject && game.yawObject.position;
+    if (pp && Math.hypot(pp.x - pos.x, pp.z - pos.z) < 9) shake(game, { sec: 0.25, amp: 0.035 });
+  }
   function shake(game, o) {
     o = typeof o === "number" ? { sec: o } : o || {};
     game._shakeT = Math.max(game._shakeT || 0, o.sec || 0.35);
@@ -232,6 +311,8 @@ G.StoryScreen = (function () {
   }
   function update(game, dt) {
     tickLoops(dt);
+    tickTimer(dt);
+    tickThuds(dt);
     tickObjective();
     if (hintT > 0) { hintT -= dt; if (hintT <= 0 && hint) hint.classList.add("hidden"); }
     if (titleT > 0) { titleT -= dt; if (titleT <= 0 && title) { title.classList.remove("in"); title.classList.add("out"); setTimeout(() => { if (title && titleT <= 0) title.classList.add("hidden"); }, 900); } }
@@ -243,9 +324,11 @@ G.StoryScreen = (function () {
     if (title) title.classList.add("hidden");
     if (hint) hint.classList.add("hidden");
     if (obj) obj.classList.add("hidden");
-    hintT = 0; titleT = 0; objKey = null;
+    if (timer) timer.classList.add("hidden");
+    hintT = 0; titleT = 0; objKey = null; timerT = 0; timerKey = null; thuds = [];
   }
 
-  return { setBlack, showTitle, setHint, sound, thud, shake, card, planSvg, stopLoop, update, reset,
-    get state() { return { black: !!(black && black.classList.contains("on")), title: titleT > 0, hint: hintT > 0 ? (hint && hint.textContent) : "", loops: Object.keys(loops) }; } };
+  return { setBlack, showTitle, setHint, sound, thud, shake, card, planSvg, stopLoop, update, reset, setTimer, thudAt, glass,
+    get state() { return { black: !!(black && black.classList.contains("on")), title: titleT > 0, hint: hintT > 0 ? (hint && hint.textContent) : "", loops: Object.keys(loops),
+      timer: timerKey ? Math.ceil(timerT) : 0 }; } };
 })();

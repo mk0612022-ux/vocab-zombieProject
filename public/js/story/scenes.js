@@ -69,6 +69,20 @@
 //   the player opens (js/story/interact.js: "used:door:<id>") · ["wheel", { id, door, answer,
 //   word, clue }] a letter lock on a door · ["drop", { kind, at }] something to pick up
 //   A choice's value is a flag as well: "chose:<id>:<value>".
+//   (round 7: scenes 1-3 and 1-4)
+//   { pushed: id } a thing pushed into place (js/story/push.js -- a scene's `push`) Â· { picked: id }
+//   everything on a cabinet's list taken (js/story/pick.js) Â· { fired: s } a shot within the last s
+//   seconds -- { fired: { s, zone } } one fired from inside that zone (the nurse woken by a gunshot in her room)
+//   ["nudge", { id, by }] / ["push", { id, p }] a pushed thing knocked back / put at once Â·
+//   ["pick", { id, at, items, want, line, title }] a cabinet of labelled things Â· ["timer", { key, sec }
+//   | null] a countdown (between two waves) Â· ["thud", { at, n, gap }] fists on a door Â·
+//   ["glass", { at, dir }] a window broken in Â· ["sfx", { name, at }] a sound of the game's, where it is Â·
+//   ["callout", { who, at, line }] a shout of where they come from -- ahead, behind, left or right of
+//   the player as they stand (G.CONFIG.story lines `<who>Ahead` ...), or `line` Â·
+//   ["if", { when, do, else }] actions done only if the condition holds now (a wave's start: a door
+//   whose shelf is not back in place gives)
+//   A Crawler a scene sends goes under a table's top (js/entities.js lowBand); a scene's `hints`
+//   ({ who, after }): someone helps after wrong shots in a row (js/story/story.js onWrongShot).
 // A scene's `on` (round 6): rules beside its beats, for what can happen in any order --
 //   [{ id, after, when, do }] each fires once, the moment `when` holds (the flag "on:<id>":
 //   a checkpoint keeps it); `after` (a flag, or a condition) arms it, and a { time: s } in its
@@ -124,6 +138,17 @@ G.StoryScenes = (function () {
     if (cond.arrived) return skipping || !!(G.StoryCast && G.StoryCast.arrived(cond.arrived));
     if (cond.near) return !!(G.StoryCast && G.StoryCast.near(game, cond.near.id, cond.near.r || 2));
     if (cond.reloaded) return run.flags.has("reloaded");
+    // (round 7)
+    if (cond.pushed) return run.flags.has("pushed:" + cond.pushed);
+    if (cond.picked) return run.flags.has("pick:" + cond.picked);
+    if (cond.fired != null) {
+      // (a number: any shot that recent; { s, zone }: one fired from inside the zone)
+      const s = typeof cond.fired === "object" ? cond.fired.s : cond.fired;
+      if (run.lastShot == null || run.time - run.lastShot > s) return false;
+      if (typeof cond.fired === "object" && cond.fired.zone) { const z = run.ch.zones && run.ch.zones[cond.fired.zone], p = run.lastShotPos;
+        return !!(z && p && p.x >= z.x0 && p.x <= z.x1 && p.z >= z.z0 && p.z <= z.z1 && (!Number.isFinite(z.y) || Math.abs(p.y - 1.7 - z.y) <= 1.8)); }
+      return true;
+    }
     return false;
   }
   // a spawn's id (or several, or points as they are) -> the points
@@ -161,7 +186,7 @@ G.StoryScenes = (function () {
         if (w.word === s.target) target = pair;
       }
       const z = game.spawnZombieAt(type, pos, null, o);
-      if (z) { z.storyGroup = s.id; made++; }
+      if (z) { z.storyGroup = s.id; made++; if (type === "crawler") z.lowBand = C.crawlerBand || 0.55; }   // (round 7: under a table's top)
     }
     // (the target the scene names, not one picked at random: the prologue's question 4)
     if (target) aimAt(game, target);
@@ -242,6 +267,36 @@ G.StoryScenes = (function () {
     else if (name === "doors") { if (G.StoryUse) G.StoryUse.doors(game, arg || {}); }
     else if (name === "wheel") { if (G.StoryLock) G.StoryLock.add(game, arg || {}); }
     else if (name === "drop") { const o = arg || {}, p = o.at || {}; if (game.spawnDrop) game.spawnDrop(o.kind || "ammo", new THREE.Vector3(p.x || 0, Number.isFinite(p.y) ? p.y : 0, p.z || 0)); }
+    // (round 7) scenes 1-3 and 1-4: shelves pushed, a cabinet, a countdown, doors banged on, glass, shouts
+    else if (name === "nudge") { if (G.StoryPush) G.StoryPush.nudge(game, arg || {}); }
+    else if (name === "push") { if (G.StoryPush) G.StoryPush.set(game, arg || {}); }
+    else if (name === "pick") { if (G.StoryPick) G.StoryPick.add(game, arg || {}); }
+    else if (name === "timer") { if (G.StoryScreen && G.StoryScreen.setTimer) G.StoryScreen.setTimer(arg || null); }
+    else if (name === "thud") { if (G.StoryScreen && G.StoryScreen.thudAt) G.StoryScreen.thudAt(arg || {}); }
+    else if (name === "glass") { if (G.StoryScreen && G.StoryScreen.glass) G.StoryScreen.glass(game, arg || {}); }
+    else if (name === "sfx") { const o = arg || {}, p = o.at; if (G.Audio && G.Audio.sfx && o.name) G.Audio.sfx(o.name, p ? { pos: new THREE.Vector3(p.x || 0, (Number.isFinite(p.y) ? p.y : 0) + (o.lift != null ? o.lift : 1.2), p.z || 0) } : {}); }
+    else if (name === "callout") callout(game, run, arg || {});
+    else if (name === "if") { const o = arg || {}; ((met(game, run, o.when) ? o.do : o.else) || []).forEach((x) => act(game, run, x)); }
+  }
+  // (round 7) a shout of where they come from: ahead, behind, left or right of the player as they stand
+  // now -- the spawn's points' middle against the way the player faces (G.StoryDialogue, the box's
+  // line; the shouter's head and hand moving with it)
+  function callout(game, run, o) {
+    const who = o.who || "fai";
+    let line = o.line || null;
+    if (!line) {
+      const pts = points(run.ch, o.at);
+      if (!pts.length) return;
+      const cx = pts.reduce((s, p) => s + p.x, 0) / pts.length, cz = pts.reduce((s, p) => s + p.z, 0) / pts.length;
+      const pp = game.yawObject.position, yaw = game.yawObject.rotation.y;
+      const dx = cx - pp.x, dz = cz - pp.z;
+      const f = dx * -Math.sin(yaw) + dz * -Math.cos(yaw), r = dx * Math.cos(yaw) + dz * -Math.sin(yaw);
+      const k = Math.abs(f) >= Math.abs(r) ? (f >= 0 ? "Ahead" : "Behind") : (r >= 0 ? "Right" : "Left");
+      line = (o.lines && o.lines[k.toLowerCase()]) || "story." + run.ch.id + ".d." + who + k;
+      run.lastCallout = k.toLowerCase();
+    }
+    if (G.StoryCast && G.StoryCast.get(who)) G.StoryCast.act(game, run, { id: who, talk: 1.4 });
+    G.StoryDialogue.say([withVars({ who, line })]);
   }
   // something found: a melee weapon into the slot (its name across the screen), or rounds for a gun
   function give(game, o) {
@@ -286,6 +341,10 @@ G.StoryScenes = (function () {
     if (G.StoryUse) G.StoryUse.reset(game);
     if (G.StoryQuiz) G.StoryQuiz.reset(game);
     if (G.StoryLock) G.StoryLock.reset(game);           // (round 6: the last scene's letter locks)
+    // (round 7) the last scene's cabinet and countdown gone; what this one pushes into place put there
+    if (G.StoryPick) G.StoryPick.reset(game);
+    if (G.StoryScreen && G.StoryScreen.setTimer) G.StoryScreen.setTimer(null);
+    if (G.StoryPush) G.StoryPush.enter(game, run, sc);
     if (G.StoryCam) G.StoryCam.seat(game, false);
     G.Story.arm(game, sc.armed !== false, true);
     if (G.Bus) G.Bus.emit("story:scene", { ch: run.ch.id, scene: sc.id, i: sceneI });
@@ -371,7 +430,8 @@ G.StoryScenes = (function () {
   }
   // a scene left for the next: what only its beats and rules asked about goes with it (a
   // checkpoint keeps 120 flags -- for what lasts the chapter: the phone's messages, the choices)
-  const LOCAL = /^(on|used|tried|card|quiz|qte|lock|lockwrong|lockopen):/;
+  // (round 7: "x:<name>" a scene's own plain flag -- "x:wave1" -- gone with it too: a later scene may use the name)
+  const LOCAL = /^(x|on|used|tried|card|quiz|qte|lock|lockwrong|lockopen|pushed|pick|picked|pickwrong):/;
   function prune(run) { Array.from(run.flags).forEach((f) => { if (LOCAL.test(f)) run.flags.delete(f); }); }
   return { inZone, met, points, spawn, aimAt, act, objectiveAt, enter, update, canSkip, skip, seenKey };
 })();

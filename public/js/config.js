@@ -664,6 +664,16 @@ G.CONFIG = {
   //   whisper      zombies whispering their words (js/story/whisper.js): range (m), gap between
   //                two whispers, zombieGap one zombie's, captionSec the caption; the voice's
   //                rate, pitch and volume (x the speech volume); on: false -- none
+  //   (round 7: scenes 1-3 and 1-4)
+  //   push         a bookshelf pushed with the button held (js/story/push.js): sec for all of its
+  //                way, helpK how much faster with a helper beside it, helpSpeed their walk over,
+  //                scrapeEvery its scraping sound, nudgeSec a knock back seen
+  //   pick         a cabinet's boxes picked by their labels (js/story/pick.js): doneSec "All three"
+  //                seen before the window goes
+  //   crawlerBand  a Crawler a scene sends: how high off the floor it is in the way of things (a
+  //                table's top is above it: under it it goes -- js/entities.js lowBand)
+  //   screen       (round 7) calmEvery / calmGain the library's soft chords, tenseEvery / tenseGain
+  //                the defence's pulse
   story: {
     enabled: false,
     chapterShare: 0.6,
@@ -678,9 +688,12 @@ G.CONFIG = {
     cast: { walkSpeed: 1.4, followDist: 1.6, followSpeed: 3.4, followLeash: 9, lungeSpeed: 1.6, lungeStop: 0.95, seatH: 0.45, turnGlitch: 0.45 },
     use: { qteSec: 1.6, qteWindow: 0.2, qteHurt: 12, qteRetry: 0.9 },
     quiz: { dist: 1.9, gap: 0.82, rise: -0.05, aim: 0.2, settle: 0.35, nextRight: 1.4, nextWrong: 2.4 },
-    screen: { fadeSec: 1.2, titleSec: 4.2, hintSec: 6, staticSec: 9 },
+    screen: { fadeSec: 1.2, titleSec: 4.2, hintSec: 6, staticSec: 9, calmEvery: 4.8, calmGain: 0.016, tenseEvery: 0.85, tenseGain: 0.07 },
     lock: { breakDist: 4.5, leaveDist: 3.5, swipePx: 26, mousePx: 90, padDelay: 0.38, padRepeat: 0.12, solvedSec: 0.9 },
     whisper: { on: true, range: 6.5, gap: 2.6, zombieGap: 7, captionSec: 1.8, rate: 0.72, pitch: 0.35, volume: 0.45 },
+    push: { sec: 2.6, helpK: 1.6, helpSpeed: 2.6, scrapeEvery: 0.42, nudgeSec: 0.35 },
+    pick: { doneSec: 1.1 },
+    crawlerBand: 0.55,
   },
   // ---------------- the melee slot (expansion, round 4) ----------------
   // G.MELEE_WEAPONS has each weapon; js/melee.js is the swing.

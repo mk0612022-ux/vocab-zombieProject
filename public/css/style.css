@@ -2788,14 +2788,15 @@ body.touch-mode .sd-line { font-size: 1.02rem; }
 body.touch-mode .story-hold { bottom: auto; top: calc(10px + var(--sa-t)); right: calc(var(--mm-size, 150px) + 22px + var(--sa-r)); }
 
 /* a choice: G.Dialog's window with the question and the answers as lines */
-.dialog-box.story-choice { max-width: 560px; text-align: left; }
-.dialog-box.story-choice #dialog-title:empty, .dialog-box.story-choice #dialog-text:empty { display: none; }
-.story-choice .sc-q { margin-bottom: 12px; }
-.story-choice .sc-q .sd-line { font-size: 1.08rem; }
-.story-choice .dialog-btns { flex-direction: column; align-items: stretch; }
-.story-choice .dialog-btns .btn { position: relative; display: flex; flex-direction: column; align-items: flex-start; text-align: left; gap: 2px; padding: 10px 44px 10px 14px; min-height: 44px; }
-.story-choice .dialog-btns .btn .dlg-key { position: absolute; top: 10px; right: 12px; }
-.story-choice .sc-en { font-size: 1.02rem; }
+/* (story round 7: a word question in the talk -- story-quiz-q -- looks as a choice does) */
+.dialog-box.story-choice, .dialog-box.story-quiz-q { max-width: 560px; text-align: left; }
+.dialog-box.story-choice #dialog-title:empty, .dialog-box.story-choice #dialog-text:empty, .dialog-box.story-quiz-q #dialog-title:empty, .dialog-box.story-quiz-q #dialog-text:empty { display: none; }
+.story-choice .sc-q, .story-quiz-q .sc-q { margin-bottom: 12px; }
+.story-choice .sc-q .sd-line, .story-quiz-q .sc-q .sd-line { font-size: 1.08rem; }
+.story-choice .dialog-btns, .story-quiz-q .dialog-btns { flex-direction: column; align-items: stretch; }
+.story-choice .dialog-btns .btn, .story-quiz-q .dialog-btns .btn { position: relative; display: flex; flex-direction: column; align-items: flex-start; text-align: left; gap: 2px; padding: 10px 44px 10px 14px; min-height: 44px; }
+.story-choice .dialog-btns .btn .dlg-key, .story-quiz-q .dialog-btns .btn .dlg-key { position: absolute; top: 10px; right: 12px; }
+.story-choice .sc-en, .story-quiz-q .sc-en { font-size: 1.02rem; }
 .story-choice .sc-sub { font-size: 0.86rem; color: #b8c8cf; font-weight: 500; margin-top: 0; }
 
 /* the phone (js/story/phone.js): a window of its own, the world held */
@@ -2862,6 +2863,8 @@ body.lens-glitch #hud::after { content: ""; position: fixed; inset: 0; pointer-e
 @keyframes ls-in { from { opacity: 0; transform: translate(-50%, -6px); } to { opacity: 1; transform: translate(-50%, 0); } }
 .ls-sub { font-weight: 500; letter-spacing: 0; font-size: 0.8rem; color: #a7c7d6; margin-top: 2px; text-shadow: none; }
 body.story-run:not([data-lens~="word"]) .lens-sys { top: calc(18px + var(--sa-t)); }
+/* (story round 7) an answer's card under the word box at the same time: the glasses' line below it, not over it */
+body.story-run[data-lens~="word"]:has(#hud-xcard:not(.hidden)) .lens-sys { top: calc(172px + var(--sa-t)); }
 
 /* the black bars of a cinematic moment (js/story/storycam.js: the boss scenes' own, js/cutscene.js) */
 body.story-bars .cine-top, body.story-bars .cine-bottom { transform: translateY(0); }
@@ -2994,3 +2997,65 @@ body.story-lock-open .story-hint { display: none; }
 .story-whisper.hidden { display: none; }
 .story-whisper.in { animation: ls-in 0.25s ease-out; }
 body.touch-mode .story-whisper { bottom: calc(52% + var(--sa-b)); }
+/* ---- (story series, round 7) a bookshelf pushed: how far, a ring under the crosshair ---- */
+.story-push { position: fixed; left: calc(50% + 22px); top: calc(50% - 15px); z-index: 15; width: 30px; height: 30px; pointer-events: none; }
+.story-push.hidden { display: none; }
+.story-push svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.story-push circle { fill: none; stroke-width: 4; }
+.story-push .spu-bg { stroke: rgba(10,16,22,0.55); }
+.story-push .spu-fg { stroke: #8fd8ff; stroke-linecap: round; stroke-dasharray: 100.53; stroke-dashoffset: calc(100.53 * (1 - var(--pp, 0))); filter: drop-shadow(0 0 3px rgba(143,216,255,0.6)); }
+/* the countdown between two waves */
+.story-timer { position: fixed; left: 50%; transform: translateX(-50%); top: calc(118px + var(--sa-t, 0px)); z-index: 16; padding: 4px 14px; border-radius: 8px;
+  background: rgba(10,16,22,0.78); border: 1px solid rgba(255,200,90,0.5); color: #ffd98a; font: 800 1rem var(--font-ui); letter-spacing: 0.04em; pointer-events: none; }
+.story-timer.hidden { display: none; }
+.story-timer.tick { animation: st-tick 0.45s ease-out; }
+@keyframes st-tick { 0% { transform: translateX(-50%) scale(1.18); color: #ffffff; } 100% { transform: translateX(-50%) scale(1); } }
+body.touch-mode .story-timer { top: calc(96px + var(--sa-t, 0px)); }
+/* the medicine cabinet: six boxes by their labels (a window: G.Modal) */
+.story-pick { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 72; width: min(560px, calc(100vw - 24px)); max-height: calc(100vh - 24px); overflow-y: auto; box-sizing: border-box;
+  padding: 14px 16px 12px; border-radius: 14px; background: #0e1418; border: 1px solid rgba(160,230,255,0.45); box-shadow: 0 20px 50px rgba(0,0,0,0.65); color: #eef6fa; font-family: var(--font-ui); }
+.story-pick.hidden { display: none; }
+.spk-head { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.spk-head h3 { margin: 0; font-size: 1.15rem; }
+.spk-icon { font-size: 1.4rem; }
+.spk-line { margin: 8px 0 4px; padding: 6px 10px; border-radius: 8px; background: rgba(143,216,255,0.08); text-align: left; }
+.spk-who { font: 800 0.78rem var(--font-ui); color: #8fd8ff; text-transform: uppercase; letter-spacing: 0.06em; }
+.spk-en { margin: 2px 0 0; font: 700 0.95rem var(--font-ui); }
+.spk-sub { margin: 2px 0 0; font-size: 0.82rem; color: #b9c8d0; }
+.spk-want { display: flex; justify-content: center; gap: 14px; margin: 6px 0 10px; padding: 0; list-style: none; font: 700 0.9rem var(--font-ui); color: #b9c8d0; }
+.spk-want li.on { color: #8ff0a8; }
+.spk-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.spk-box { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 76px; padding: 8px 4px 6px; border-radius: 10px; cursor: pointer;
+  background: #f2f4f2; border: 2px solid #c7d0cc; color: #1b2a24; font: 800 0.86rem var(--font-ui); letter-spacing: 0.03em; }
+.spk-box:hover:not([disabled]), .spk-box:focus-visible, .spk-box.pad-focus { border-color: #8fd8ff; box-shadow: 0 0 0 2px rgba(143,216,255,0.6); outline: none; }
+.spk-pack { width: 34px; height: 22px; border-radius: 3px; background: var(--c, #3d6fb8); box-shadow: inset 0 -5px 0 rgba(0,0,0,0.18); }
+.spk-label { line-height: 1.15; }
+.spk-n { position: absolute; left: 6px; top: 4px; font-size: 0.7rem; color: #6a7a74; }
+.spk-mark { position: absolute; right: 6px; top: 2px; font-size: 1rem; }
+.spk-box.taken { background: #dff5e5; border-color: #49b46a; opacity: 0.75; cursor: default; }
+.spk-box.taken .spk-mark { color: #2f8f4e; }
+.spk-box.wrong { background: #f6e1e1; border-color: #d65b5b; opacity: 0.75; cursor: default; }
+.spk-box.wrong .spk-mark { color: #c23c3c; }
+.spk-box.shake { animation: spk-shake 0.35s ease-in-out; }
+@keyframes spk-shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+.spk-card { margin: 10px 0 2px; padding: 7px 10px; border-radius: 8px; background: rgba(6,10,8,0.82); border: 1px solid #6bff7a55; font-size: 0.9rem; line-height: 1.4; text-align: center; display: flex; flex-direction: column; gap: 2px; }
+.spk-card.hidden { display: none; }
+.spk-card .xc-x { color: #ffc4c4; } .spk-card .xc-y { color: #c8ffd0; }
+.spk-def { color: #cfe3ea; font-size: 0.82rem; font-style: italic; }
+.spk-not { color: #ffd98a; font-size: 0.82rem; }
+.spk-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; }
+.spk-keys { font-size: 0.75rem; color: #93a4ae; text-align: left; }
+body.touch-mode .spk-box { min-height: 88px; }
+@media (max-width: 420px) { .spk-grid { grid-template-columns: repeat(2, 1fr); } .spk-want { gap: 8px; font-size: 0.8rem; } }
+/* (a short screen -- a phone held sideways, 740 x 360: the cabinet's window without scrolling) */
+@media (max-height: 460px) {
+  .story-pick { padding: 8px 12px; }
+  .spk-head h3 { font-size: 1rem; }
+  .spk-line { margin: 4px 0 2px; padding: 4px 8px; }
+  .spk-want { margin: 2px 0 6px; }
+  .spk-box, body.touch-mode .spk-box { min-height: 50px; padding: 4px; gap: 2px; }
+  .spk-pack { width: 26px; height: 14px; }
+  .spk-card { margin-top: 6px; padding: 4px 8px; }
+  .spk-keys { display: none; }
+  .spk-foot { margin-top: 6px; }
+}

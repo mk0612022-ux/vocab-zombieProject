@@ -194,12 +194,12 @@ G.VoxelProps = (function () {
     add(g, "mat", [-1, 0, 0.6, 1, 0.08, 1.8]);                                      // the landing mat
   };
   // ---- the canteen ----
-  B.canteenTable = (g) => {
+  B.canteenTable = (g, o) => {
     add(g, "paintWhite", [-1.2, 0.72, -0.4, 1.2, 0.76, 0.4]);
     [[-1.1, -0.35], [1.06, -0.35], [-1.1, 0.31], [1.06, 0.31]].forEach(([x, z]) => add(g, "metalDark", [x, 0, z, x + 0.04, 0.72, z + 0.04]));
     for (const s of [-1, 1]) { add(g, "plank", [-1.2, 0.42, s * 0.62 - 0.14, 1.2, 0.46, s * 0.62 + 0.14]); add(g, "metalDark", [-1.1, 0, s * 0.62 - 0.02, -1.06, 0.42, s * 0.62 + 0.02]); add(g, "metalDark", [1.06, 0, s * 0.62 - 0.02, 1.1, 0.42, s * 0.62 + 0.02]); }
-    // breakfast left on the trays (the doc's 1-5)
-    [[-0.8, -0.15], [-0.1, 0.12], [0.6, -0.1]].forEach(([x, z]) => { add(g, "metal", [x, 0.76, z, x + 0.4, 0.78, z + 0.28]); add(g, "paintYellow", [x + 0.05, 0.78, z + 0.05, x + 0.15, 0.8, z + 0.13]); add(g, "paintGreen", [x + 0.22, 0.78, z + 0.1, x + 0.33, 0.81, z + 0.22]); });
+    // breakfast left on the trays (the doc's 1-5) -- not on the library's reading tables (story round 7: `bare`)
+    if (!(o && o.bare)) [[-0.8, -0.15], [-0.1, 0.12], [0.6, -0.1]].forEach(([x, z]) => { add(g, "metal", [x, 0.76, z, x + 0.4, 0.78, z + 0.28]); add(g, "paintYellow", [x + 0.05, 0.78, z + 0.05, x + 0.15, 0.8, z + 0.13]); add(g, "paintGreen", [x + 0.22, 0.78, z + 0.1, x + 0.33, 0.81, z + 0.22]); });
   };
   B.supplyBoxes = (g) => {
     add(g, { all: "cardboard", front: "medBlue" }, [-0.75, 0, -0.25, -0.25, 0.4, 0.25]);      // water
@@ -378,7 +378,7 @@ G.VoxelProps = (function () {
   // build time. Not what moves (a fan's blades: its userData holds them).
   // Emptied with each new sheet of signs (useAtlas): a map's own.
   const made = new Map();
-  const PLACING = { y: 1, still: 1, collider: 1 };
+  const PLACING = { y: 1, still: 1, collider: 1, colY0: 1 };
   function make(id, o) {
     const k = id + "|" + JSON.stringify(o, (key, v) => (PLACING[key] ? undefined : v));
     let t = made.get(k);
@@ -400,6 +400,9 @@ G.VoxelProps = (function () {
       const b = new THREE.Box3().setFromObject(g);
       if (id === "tree") { b.min.x = x - 0.3; b.max.x = x + 0.3; b.min.z = z - 0.3; b.max.z = z + 0.3; }      // (the trunk: the leaves are overhead)
       if (id === "flagpole") { b.min.x = x - 0.5; b.max.x = x + 0.5; b.min.z = z - 0.5; b.max.z = z + 0.5; }
+      // (story round 7: `colY0` -- only its top is in the way, from that height: a reading table a
+      // Crawler goes under; the player's box, and a round, still meet its top)
+      if (o.colY0 != null) b.min.y = (o.y || 0) + o.colY0;
       w.colliders.push(b);
       g.userData.collider = b;
     }

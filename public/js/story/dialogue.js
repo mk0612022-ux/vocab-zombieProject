@@ -226,8 +226,12 @@ G.StoryDialogue = (function () {
     const opts = (o.options || []).slice(0, 3);
     const qText = o.line ? en(o.line, o.vars) : "";
     const head = o.line ? `<div class="sc-q" data-who="${esc(o.who || "")}">${o.who ? `<span class="sd-who">${esc(who(o.who))}</span>` : ""}<div class="sd-line">${mark(qText)}</div>${subHtml(o.line, o.vars, qText)}</div>` : "";
-    G.Dialog.open({ cls: "story-choice", title: "", body: head,
-      buttons: opts.map((op, i) => ({ label: en(op.text, op.vars), html: optHtml(op), action: () => picked(o, op, i, done) })) });
+    // (story round 7: a word question's answers bare -- no subtitle, no bold for the chapter's words,
+    // no gloss at the "key words" level: any of them would give the answer away)
+    const bare = (op) => `<span class="sc-en">${esc(en(op.text, op.vars))}</span>`;
+    // (G.Dialog takes one class of its own: a word question's is its own one)
+    G.Dialog.open({ cls: o.quiz ? "story-quiz-q" : "story-choice", title: "", body: head,
+      buttons: opts.map((op, i) => ({ label: en(op.text, op.vars), html: o.quiz ? bare(op) : optHtml(op), action: () => picked(o, op, i, done) })) });
   }
   function picked(o, op, i, done) {
     if (o.quiz) {
@@ -236,6 +240,11 @@ G.StoryDialogue = (function () {
       if (e) {
         const clue = o.quiz.kind === "cloze" ? "cloze" : "thai";
         G.Learning.answerWord(G.WordBank.pairOf(e), right, { recall: G.Learn.isRecall(clue, "shoot"), skills: G.Learning.skillsFor(clue, "shoot") });
+        // (story round 7: and its card under the word box, as any answer has -- "âœ— systems Â· âœ“ symptom = ...")
+        if (G.Explain && G.ExplainCard) {
+          const ex = G.Explain.answer({ pair: G.WordBank.pairOf(e), form: o.quiz.form || null, right, clue, answer: "shoot", picked: right ? null : [en(op.text, op.vars), ""] });
+          if (ex) G.ExplainCard.show(ex);
+        }
       }
       if (G.Audio) G.Audio.sfx(right ? "correct" : "wrong");
     }

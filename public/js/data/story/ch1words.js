@@ -25,4 +25,13 @@ G.STORY_WORDS.ch1 = {
   candid: { th: "ตรงไปตรงมา", zh: "坦率的", fr: "franc", en: "saying what you really think" },
   scholar: { th: "นักวิชาการ", zh: "学者", fr: "érudit", en: "a person who studies a subject deeply" },
   schedule: { th: "ตารางเวลา", zh: "日程表", fr: "emploi du temps", en: "a plan of when things will happen" },
+  // (story round 7) scene 1-4: the nurse's medicine cabinet -- the three on Kru Min's list and the
+  // three that are not (practice words: the design's), and Nurse Pim's last word
+  bandage: { th: "ผ้าพันแผล", zh: "绷带", fr: "bandage", en: "a strip of cloth wrapped round a wound" },
+  antiseptic: { th: "ยาฆ่าเชื้อทาแผล", zh: "消毒药水", fr: "antiseptique", en: "a liquid that kills germs in a cut" },
+  gauze: { th: "ผ้าก๊อซ", zh: "纱布", fr: "compresse de gaze", en: "thin cloth laid on a wound under a bandage" },
+  "cough syrup": { th: "ยาแก้ไอแบบน้ำ", zh: "止咳糖浆", fr: "sirop contre la toux", en: "a sweet liquid medicine for a cough" },
+  "eye drops": { th: "ยาหยอดตา", zh: "眼药水", fr: "gouttes pour les yeux", en: "liquid put into the eyes in drops, for sore or dry eyes" },
+  "ice pack": { th: "ถุงประคบเย็น", zh: "冰袋", fr: "poche de glace", en: "a cold pack held on a bump or a sprain" },
+  rest: { th: "พัก; พักผ่อน", zh: "休息", fr: "se reposer", en: "to stop working or moving and relax" },
 };

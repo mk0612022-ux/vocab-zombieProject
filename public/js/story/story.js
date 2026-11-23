@@ -176,7 +176,7 @@ G.Story = (function () {
     if (!c) return;
     const from = p.from;
     run = { id: p.id, ch: c, game, pool: game.wordPool, flags: new Set(from && from.flags ? from.flags : []), time: 0, time0: 0,
-      right0: game.correctCount || 0, wrong0: game.wrongCount || 0, over: false, dead: false,
+      right0: game.correctCount || 0, wrong0: game.wrongCount || 0, over: false, dead: false, lastShot: null, hintKey: null, hintN: 0, hintAt: -99,
       keyIds: new Set(entries(p.id).map((e) => e.id)) };   // (round 2: the chapter's words, bold in its lines)
     document.body.classList.add("story-run");
     // (round 2) the narrative tools start clean; the phone takes back what the flags say came
@@ -193,6 +193,9 @@ G.Story = (function () {
     // (round 6) the letter locks, the whispers
     if (G.StoryLock) G.StoryLock.reset(game);
     if (G.StoryWhisper) G.StoryWhisper.reset();
+    // (round 7) what is pushed into place, a cabinet's window
+    if (G.StoryPush) G.StoryPush.reset();
+    if (G.StoryPick) G.StoryPick.reset(game);
     // what the checkpoint was carrying (full health: a checkpoint is a fresh start)
     if (from && from.guns) {
       const pl = game.player;
@@ -234,6 +237,8 @@ G.Story = (function () {
     // (round 6) a letter lock being turned (or left for a fight), zombies whispering their words
     if (G.StoryLock) G.StoryLock.update(game, dt);
     if (G.StoryWhisper) G.StoryWhisper.update(game, dt);
+    // (round 7) a bookshelf pushed while the button is held
+    if (G.StoryPush) G.StoryPush.update(game, dt);
     G.StoryScenes.update(game, run, dt);
   }
   // (round 5) the gun in the hands -- or not yet. Handed over (not `quiet`): it comes up as a
@@ -278,6 +283,27 @@ G.Story = (function () {
     if (G.StoryQuiz && G.StoryQuiz.active && G.StoryQuiz.onKey(e)) return true;
     return !!(G.StoryDialogue && G.StoryDialogue.onKey(e));
   }
+  // (round 7) wrong shots in a row on the same word: a scene's `hints` -- { who, after, gap } -- has
+  // someone help: Nam, her paper dictionary open, reads the word's meaning (in English) and its first
+  // letter. A help: the answer that follows moves no box (the wrong shots already took the word
+  // out of it: js/game.js learnRight), and it says so as any helper does (_attempt.assisted)
+  function onWrongShot(game, z, tp) {
+    const sc = run && !run.over && run.scene, h = sc && sc.hints;
+    if (!h || !tp) return;
+    const key = G.wordKey(tp);
+    if (run.hintKey !== key) { run.hintKey = key; run.hintN = 0; }
+    run.hintN++;
+    if (run.hintN !== (h.after || 2) || run.time - run.hintAt < (h.gap != null ? h.gap : 12)) return;
+    run.hintAt = run.time;
+    const def = G.Clues && G.Clues.definition ? G.Clues.definition(tp) : "", word = String(tp[0] || "");
+    if (G.StoryCast && G.StoryCast.get(h.who)) G.StoryCast.act(game, run, { id: h.who, talk: 2.2 });
+    G.StoryDialogue.say([{ who: h.who || "nam", line: def ? (h.line || "story." + run.ch.id + ".d.namDict") : (h.lineFirst || "story." + run.ch.id + ".d.namFirst"),
+      vars: Object.assign(vars(), { def, first: word.charAt(0).toUpperCase(), n: word.length }) }]);
+    if (game._attempt && game._attempt.key === key) game._attempt.assisted = true;
+    run.flags.add("hinted");
+  }
+  // (round 7) a shot fired: when (a scene asks { fired: s } -- the nurse woken by it)
+  if (G.Bus) G.Bus.on("weapon:fire", () => { if (run && !run.over) { run.lastShot = run.time; run.lastShotPos = run.game && run.game.yawObject ? run.game.yawObject.position.clone() : null; } }, "story");
   // (round 2) the lines, the turned view, the bars, the phone: gone (a death, the end, leaving)
   function quiet() {
     if (G.StoryDialogue) G.StoryDialogue.reset();
@@ -373,6 +399,8 @@ G.Story = (function () {
     if (G.StoryScreen) G.StoryScreen.reset();
     if (G.StoryLock) G.StoryLock.reset(game);
     if (G.StoryWhisper) G.StoryWhisper.reset();
+    if (G.StoryPush) G.StoryPush.reset();
+    if (G.StoryPick) G.StoryPick.reset(game);
     if (G.ViewModel && G.ViewModel.setVisible) G.ViewModel.setVisible(true);
     document.body.classList.remove("story-hands-free");
   }
@@ -391,7 +419,7 @@ G.Story = (function () {
   return {
     on, chapters, chapter, data, status, entries, missing, pairs, plan, level, open, restart, start,
     beginRun, update, commit, checkpoint, prologueDone, sceneReached, died, finish, teardown, hudHead, idleMeaning, idleLabel,
-    vars, chose, onKey, arm, handsFree,
+    vars, chose, onKey, arm, handsFree, onWrongShot,
     get run() { return run; }, get pending() { return pending; },
   };
 })();

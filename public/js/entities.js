@@ -1738,7 +1738,9 @@ G.Zombie.prototype.update = function (dt, moveTarget, attackTarget, colliders, g
       // rooms' walls cut the entry hall into pieces for zombies, and the only
       // way they ever reached the upper floor was an accidental gap under the
       // staircase (category P).
-      const y0 = this.mesh.position.y + 0.2, y1 = this.mesh.position.y + 1.6;
+      // (story series, round 7: `lowBand` -- a Story Mode Crawler, flat on the floor, goes under
+      // a reading table's top; set by js/story/scenes.js only, so the campaign's is as it was)
+      const y0 = this.mesh.position.y + 0.2, y1 = this.mesh.position.y + (this.lowBand || 1.6);
       // Probe several points along the way, not just one 0.4 ahead: a wall
       // thinner than the probe distance (the 0.3 stair and partition walls)
       // used to fall BETWEEN the zombie and its probe, and it walked through.

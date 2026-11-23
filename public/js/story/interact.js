@@ -14,6 +14,9 @@
 //       "tried:<id>" and shows the hint `deny`; { blocked: true, deny } never opens
 //   ["doors", { ids, prompt, blocked: { id: hint } }]   the map's doors opened by hand: a use in
 //       each doorway, "used:door:<id>" once open (a scene's rule: a Shambler behind one of them)
+//   (round 7) { hold: true, push: id }: held, not pressed -- a thing pushed into place (js/story/push.js
+//       moves it while the button is held; a press alone does nothing, and there is nothing to
+//       say once it is in place or while its `need` does not hold)
 //   ["qte", { id, prompt, sec, window, hurt }]   a press in time: a ring closes on its mark
 //       over `sec`; pressed while within `window` of it -- the interaction key, Space, the
 //       trigger, A, X, a tap anywhere on it -- the flag "qte:<id>". Too early, too late, or
@@ -45,7 +48,7 @@ G.StoryUse = (function () {
     mesh.updateMatrix();
     mesh.updateMatrixWorld(true);
     const ref = { id: o.id, prompt: o.prompt || "story.use.generic", used: false, keep: !!o.keep, sound: o.sound || "click",
-      need: o.need || null, promptNo: o.promptNo || null, deny: o.deny || null, blocked: !!o.blocked, door: o.door || null, onUse: typeof o.onUse === "function" ? o.onUse : null };
+      need: o.need || null, promptNo: o.promptNo || null, deny: o.deny || null, blocked: !!o.blocked, door: o.door || null, onUse: typeof o.onUse === "function" ? o.onUse : null, hold: !!o.hold, push: o.push || null };
     const it = { mesh, kind: "story", ref };
     (game.world.interactables = game.world.interactables || []).push(it);
     points[o.id] = it;
@@ -79,10 +82,14 @@ G.StoryUse = (function () {
     const r = run();
     return !ref.need || !r || !G.StoryScenes || G.StoryScenes.met(G.Game, r, ref.need);
   }
-  function prompt(ref, key) { return ref && !ref.used ? T(can(ref) ? ref.prompt : ref.promptNo || ref.prompt, { key }) : ""; }
+  function prompt(ref, key) {
+    if (!ref || ref.used) return "";
+    if (ref.hold) return can(ref) && !(ref.push && G.StoryPush && G.StoryPush.done(ref.push)) ? T(ref.prompt, { key }) : "";
+    return T(can(ref) ? ref.prompt : ref.promptNo || ref.prompt, { key });
+  }
   function use(game, ref) {
     const r = run();
-    if (!ref || ref.used || !r) return;
+    if (!ref || ref.used || !r || ref.hold) return;          // (round 7: a thing pushed is held, js/story/push.js)
     if (!can(ref)) {
       r.flags.add("tried:" + ref.id);
       if (ref.deny && G.StoryScreen) G.StoryScreen.setHint(ref.deny);
@@ -182,5 +189,5 @@ G.StoryUse = (function () {
   }
 
   return { add, remove, doors, can, prompt, use, qte, onKey, update, reset,
-    get qteActive() { return !!(q && !q.done); }, get qte0() { return q; }, has: (id) => !!points[id], ids: () => Object.keys(points) };
+    get qteActive() { return !!(q && !q.done); }, get qte0() { return q; }, has: (id) => !!points[id], ids: () => Object.keys(points), point: (id) => points[id] || null };
 })();

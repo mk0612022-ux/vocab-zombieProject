@@ -75,6 +75,7 @@ G.Pad = {
       if (Math.hypot(gp.axes[0] || 0, gp.axes[1] || 0) < 0.2) I.padSprint = false;   // stick let go: sprint off
       if (edge(B.X) && g.reload() === "full") g.inspect();   // (overhaul, round 1: a full magazine: inspect)
       if (edge(B.Y)) g.doInteract();
+      I.padUse = now[B.Y];                       // (story series, round 7: held -- a bookshelf pushed, js/story/push.js)
       I.padMelee = now[B.B];                     // (expansion, round 4: a quick swing; held, charged)
       if (edge(B.B)) G.onMeleePress();
       if (edge(B.LB)) G.Loadout.cycle(g, -1);
@@ -93,7 +94,7 @@ G.Pad = {
     }
     this.prev = now;
   },
-  releaseHeld() { const I = G.Input; I.padFire = false; I.padAim = false; I.padJump = false; I.padSprint = false; I.padMelee = false; },
+  releaseHeld() { const I = G.Input; I.padFire = false; I.padAim = false; I.padJump = false; I.padSprint = false; I.padMelee = false; I.padUse = false; },
   release() { this.releaseHeld(); this.prev = []; },
 
   // ---------------- window navigation ----------------
@@ -120,7 +121,9 @@ G.Pad = {
       // (expansion, round 9) the Training Yard's HUD tour (round 7): its Skip and Next
       "train-tour": "train-tour",
       // (story series, round 2) a chapter's phone (js/story/phone.js)
-      "story-phone": "story-phone-box" };
+      "story-phone": "story-phone-box",
+      // (story series, round 7) a cabinet's boxes picked by their labels (js/story/pick.js)
+      "story-pick": "story-pick-box" };
     if (top && byModal[top.id]) return document.getElementById(byModal[top.id]);
     if (G.TouchCfg && G.TouchCfg.editing) return document.getElementById("touchcfg-panel");
     const cur = G.UI._currentScreen;

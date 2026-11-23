@@ -11,7 +11,9 @@
 // replace each scene's beats with the design's -- round 5 the prologue
 // (its people, things to use, practice exam: js/story/cast.js, interact.js,
 // aimquiz.js, screen.js); round 6 scenes 1-1 and 1-2 (a scene's rules `on`, doors
-// opened by hand, the letter lock: js/story/wheellock.js, the whispers: whisper.js).
+// opened by hand, the letter lock: js/story/wheellock.js, the whispers: whisper.js); round 7 scenes
+// 1-3 and 1-4 (bookshelves pushed: js/story/push.js, the medicine cabinet: pick.js, the defence's
+// waves, Crawlers under the tables, Nam's dictionary, Nurse Pim).
 //   practice       (round 5) words the prologue uses that the bank does not have, with
 //                  their meanings in the four meaning languages: practice, counted nowhere
 //
@@ -70,6 +72,11 @@ G.STORY_CHAPTERS.ch1 = {
     eastStairs2: { x0: 24.6, x1: 27.2, z0: -3, z1: 2, y: 4 },
     // 1-2 on 2F: just inside the library's back door
     libraryIn: { x0: -39, x1: -34, z0: 3, z1: 9, y: 4 },
+    // (round 7) 1-4: the west wing's corridor past its first door (the desks knocked over, Crawlers
+    // under them); the nurse's room is `nurse`
+    wingIn: { x0: -44, x1: -40, z0: -13, z1: -3.5, y: 4 },
+    // ...and back in the library, past the shelf's way (the back door shut and its shelf pushed back behind them)
+    libraryDeep: { x0: -37.6, x1: -24, z0: 3, z1: 9, y: 4 },
   },
   spawns: {
     // (round 6) out of the 3F toilets; hiding in the 2F store room
@@ -80,6 +87,15 @@ G.STORY_CHAPTERS.ch1 = {
     wing2: [{ x: -42.5, y: 4, z: -12 }, { x: -42.5, y: 4, z: -15 }, { x: -42.5, y: 4, z: -9 }],
     libWindows: [{ x: -36, y: 4, z: 8 }, { x: -28, y: 4, z: 8 }, { x: -32, y: 4, z: 8.2 }],
     libDoors: [{ x: -38.4, y: 4, z: 5.5 }, { x: -27, y: 4, z: 4.2 }, { x: -38.4, y: 4, z: 4.2 }],
+    // (round 7) 1-3: under the library's air vents (Crawlers let themselves down); just inside each
+    // door (a shelf not back in place: they come through); the north-west window (broken on Tonkla)
+    libVents: [{ x: -35.5, y: 4, z: 8.4 }, { x: -27.5, y: 4, z: 8.4 }, { x: -31.5, y: 4, z: 8.5 }],
+    libFrontIn: [{ x: -25.6, y: 4, z: 3.95 }, { x: -26.4, y: 4, z: 4.3 }],
+    libBackIn: [{ x: -38.2, y: 4, z: 5.4 }, { x: -37.8, y: 4, z: 4.6 }],
+    libNW: [{ x: -36.9, y: 4, z: 8.4 }, { x: -36.2, y: 4, z: 8.5 }],
+    // 1-4: under the desks knocked over in the west wing; the 2F corridor towards the main stairs
+    wingDesks: [{ x: -41.2, y: 4, z: -6.6 }, { x: -43.1, y: 4, z: -10.5 }, { x: -41.5, y: 4, z: -14.5 }],
+    corridor2East: [{ x: -21, y: 4, z: -0.6 }, { x: -19, y: 4, z: 0.4 }, { x: -23, y: 4, z: 0.2 }, { x: -17, y: 4, z: -0.3 }],
     canteenFar: [{ x: -48, y: 0, z: -15 }, { x: -44, y: 0, z: -15 }, { x: -48, y: 0, z: -7 }, { x: -44, y: 0, z: -7 }],
     corridor1: [{ x: -24, y: 0, z: 0 }, { x: -28, y: 0, z: 0.5 }, { x: 4, y: 0, z: -0.5 }],
     yardRows: [{ x: -10, y: 0, z: 30 }, { x: 10, y: 0, z: 30 }, { x: 0, y: 0, z: 36 }, { x: -5, y: 0, z: 24 }],
@@ -95,6 +111,8 @@ G.STORY_CHAPTERS.ch1 = {
     // (round 6) 1-1: are you OK, and her answer to the reply; 1-2: the directions, the back door's clue, the hint
     min2: { from: "min", text: "story.ch1.m.min2" }, min3a: { from: "min", text: "story.ch1.m.min3a" }, min3b: { from: "min", text: "story.ch1.m.min3b" },
     min4: { from: "min", text: "story.ch1.m.min4" }, min5: { from: "min", text: "story.ch1.m.min5" }, min6: { from: "min", text: "story.ch1.m.min6" },
+    // (round 7) 1-4: the list for the nurse's room
+    min7: { from: "min", text: "story.ch1.m.min7" },
   },
   notices: {
     cal: { app: "story.app.calendar", icon: "📅", text: "story.ch1.n.cal" },
@@ -297,6 +315,12 @@ G.STORY_CHAPTERS.ch1 = {
     { id: "s2", title: "story.ch1.s2", objective: "story.ch1.s2.obj", start: { x: 25.5, y: 4, z: -0.5, yaw: Math.PI / 2 }, clock: "09:10", light: "blackout",
       doors: { STAIRE2: true, STAIRM2: false, STAIRB2: false, DMUSIC: false, DSTAFF: false, DR201: false, DR203: false, DR205: false, DSTORE2: false, DSCIENCE: false,
         DR202: false, DR204: false, DR206: false, DR207: false, DLAB: false, DLIBRARY: false, LIBBACK: false, DPE: false, DSTOREW: false, DWC2: false, DNURSE: false },
+      // (round 7) inside the library: the shelf against the front door (its barricade), the one by the
+      // back door -- the two that 1-3 pushes (the map's own wall shelves stop short of them)
+      props: [
+        { id: "frontShelf", kind: "bookshelf", o: { w: 1 }, at: { x: -25.5, y: 4, z: 3.25 }, yaw: 0 },
+        { id: "backShelf", kind: "bookshelf", o: { w: 1 }, at: { x: -38.75, y: 4, z: 7.5 }, yaw: Math.PI / 2 },
+      ],
       cast: [
         // the main stairs on this floor too: the crowd behind the glass
         { id: "gl1", who: "zf1", at: { x: 3.4, y: 4, z: -3.4 }, yaw: 0, pose: "bang" }, { id: "gl2", who: "zm4", at: { x: 4.5, y: 4, z: -3.3 }, yaw: 0, pose: "bang" },
@@ -334,20 +358,177 @@ G.STORY_CHAPTERS.ch1 = {
         { id: "back", after: "on:sprint", when: { all: [{ cleared: "spr" }, { not: { lock: "back" } }] }, do: [["hint", { key: "story.hint.lockBack", bind: "interact" }]] },
         { id: "nam", when: { flag: "lockwrong:back:2" }, do: [["npc", { id: "nam", talk: 2 }], ["say", [{ who: "nam", line: "story.ch1.d.namHint" }]]] },
       ] },
-    { id: "s3", title: "story.ch1.s3", objective: "story.ch1.s3.obj", start: { x: -31.5, y: 4, z: 4.6, yaw: Math.PI }, clock: "09:30", light: "library",
-      // (round 6: who was waiting by the back door in 1-2 -- round 7 gives the scene its own beats)
-      cast: [{ id: "min", who: "min", at: { x: -37, y: 4, z: 5.5 }, yaw: -Math.PI / 2 }, { id: "nam", who: "nam", at: { x: -36.6, y: 4, z: 4.3 }, yaw: -Math.PI / 2 + 0.3 },
-        { id: "tonkla", who: "tonkla", at: { x: -37.4, y: 4, z: 6.9 }, yaw: -Math.PI / 2 - 0.3 }],
+    // (round 7) 1-3 The Last Classroom (7-8 minutes): the library, the group's base. Kru Min, Fai,
+    // Tonkla and Nam; the music down, nobody to fight; three choices (what the glasses show, where
+    // Beam is, his symptoms -- a word question in the talk: a wrong answer corrected, as a teacher
+    // would, and counted as any answer); a short look round (Beam's notebook, the sponsor's sign);
+    // the doors banged on -- two bookshelves pushed across them, the button held, Tonkla pushing too;
+    // the save; three waves through the windows and the air vents, Crawlers under the reading tables,
+    // 15 seconds between two to push back what the banging moved (a door whose shelf is not back
+    // gives); Fai shouting where they come from, Nam reading her dictionary after wrong shots; the last
+    // wave's window broken on Tonkla's arm; the phones dead -- the PA has power of its own; not yet.
+    { id: "s3", title: "story.ch1.s3", objective: "story.ch1.s3.obj0", start: { x: -37.6, y: 4, z: 5.0, yaw: -Math.PI / 2 }, clock: "09:30", light: "library",
+      doors: { LIBBACK: true, DLIBRARY: false, STAIRB2: false, DPE: false, DSTOREW: false, DWC2: false, DNURSE: false },
+      hints: { who: "nam", after: 2 },
+      push: [
+        { id: "back", kind: "bookshelf", o: { w: 1 }, from: { x: -38.75, y: 4, z: 7.5, yaw: Math.PI / 2 }, to: { x: -38.75, z: 5.5 },
+          need: { flag: "x:barricade" }, help: "tonkla", helpAt: { x: -38.1, z: 8.45 } },
+        { id: "front", kind: "bookshelf", o: { w: 1 }, from: { x: -27.7, y: 4, z: 4.4, yaw: 0.4 }, to: { x: -25.5, z: 3.25, yaw: 0 }, start: 1,
+          need: { flag: "x:barricade" }, help: "tonkla", helpAt: { x: -28.5, z: 5.2 } },
+      ],
+      props: [
+        // Beam's notebook, on the reading table he always sat at
+        { id: "notebook", kind: "papers", at: { x: -27.4, y: 4.77, z: 6.4 }, yaw: 0.3 },
+      ],
+      // (where 1-2 left them by the back door; Fai further in)
+      cast: [
+        { id: "min", who: "min", at: { x: -37, y: 4, z: 5.5 }, yaw: -Math.PI / 2 }, { id: "nam", who: "nam", at: { x: -36.6, y: 4, z: 4.3 }, yaw: -Math.PI / 2 + 0.3 },
+        { id: "tonkla", who: "tonkla", at: { x: -37.4, y: 4, z: 6.9 }, yaw: -Math.PI / 2 - 0.3 }, { id: "fai", who: "fai", at: { x: -32.8, y: 4, z: 4.3 }, yaw: -Math.PI / 2, face: "player" },
+      ],
       beats: [
-        { do: [["objective", "story.ch1.s3.obj"], ["spawn", { id: "d1", at: "libWindows", count: 2 }]] },
-        { wait: { cleared: "d1" }, do: [["checkpoint", { x: -31.5, y: 4, z: 4.6, yaw: Math.PI }], ["spawn", { id: "d2", at: "libDoors", count: 3 }]] },
-        { wait: { cleared: "d2" }, do: [["banner", "story.ph.clear"], ["checkpoint"], ["next"]] },
+        // the meeting: the music down, nobody to fight
+        { do: [["objective", "story.ch1.s3.obj0"], ["sound", "calm"], ["hint", null],
+          ["npc", { id: "min", walk: [{ x: -34.4, z: 4.8 }], then: { face: "player" } }],
+          ["npc", { id: "nam", walk: [{ x: -35.6, z: 5.3 }, { x: -35.6, z: 5.98 }], then: { pose: "sit", face: Math.PI } }],
+          ["npc", { id: "tonkla", walk: [{ x: -37.3, z: 7.9 }], then: { face: "player" } }]] },
+        { wait: { any: [{ near: { id: "min", r: 3.6 } }, { time: 6 }] }, do: [["npc", { id: "min", talk: 3, face: "player" }],
+          ["ask", { id: "lens", who: "min", line: "story.ch1.d.minLens", options: [{ text: "story.ch1.c.lensWords", value: "words" }, { text: "story.ch1.c.lensLeft", value: "left" }],
+            then: [[{ who: "min", line: "story.ch1.d.minFight" }], [{ who: "min", line: "story.ch1.d.minFight" }]] }]] },
+        { wait: { all: [{ chosen: "lens" }, { said: true }] }, do: [["ask", { id: "beam", who: "min", line: "story.ch1.d.minBeam",
+          options: [{ text: "story.ch1.c.beamTurned", value: "turned" }, { text: "story.ch1.c.beamDunno", value: "dunno" }],
+          then: [[{ who: "min", line: "story.ch1.d.minSeen" }], [{ who: "min", line: "story.ch1.d.minSeen" }]] }]] },
+        // (the last a word question: "symptoms" again, from 1-1's notice -- counted as any answer)
+        { wait: { all: [{ chosen: "beam" }, { said: true }] }, do: [["ask", { id: "sym", who: "min", line: "story.ch1.d.minSym", quiz: { word: "symptom", kind: "cloze" },
+          options: [{ text: "story.ch1.c.symptoms", value: "symptoms", right: true }, { text: "story.ch1.c.systems", value: "systems" }, { text: "story.ch1.c.sympathy", value: "sympathy" }],
+          right: [{ who: "min", line: "story.ch1.d.minSymRight" }], wrong: [{ who: "min", line: "story.ch1.d.minSymWrong" }] }]] },
+        // a short look round (the design's: no must) -- Beam's notebook, the sponsor's sign
+        { wait: { all: [{ chosen: "sym" }, { said: true }] }, do: [["objective", "story.ch1.s3.obj1"], ["hint", "story.hint.lookRound"],
+          ["use", { id: "notebook", at: { x: -27.4, y: 4, z: 6.4 }, size: [0.8, 0.5, 0.7], lift: 0.86, prompt: "story.use.notebook", sound: "paper" }],
+          ["use", { id: "sponsor", at: { x: -31.5, y: 4, z: 3.35 }, size: [2.6, 0.9, 0.5], lift: 2.45, prompt: "story.use.sponsor", sound: "" }]] },
+        // the doors banged on: the front door's shelf knocked back -- "Help me barricade the doors!"
+        { wait: { any: [{ time: 30 }, { all: [{ card: "notebook" }, { card: "sponsor" }] }] }, do: [["hint", null], ["unuse", "notebook"], ["unuse", "sponsor"], ["sound", "quiet"],
+          ["thud", { at: { x: -25.5, y: 4, z: 2.2 }, n: 5, gap: 0.26 }], ["nudge", { id: "front", by: 0.62 }], ["sound", "sting"], ["shake", { sec: 0.3, amp: 0.03 }],
+          ["door", { id: "LIBBACK", open: false }], ["sound", "slam"], ["flag", "x:barricade"], ["objective", "story.ch1.s3.obj2"],
+          ["npc", { id: "nam", pose: "stand", walk: [{ x: -34.2, z: 4.4 }], then: { face: { x: -25.5, z: 3 } } }],
+          ["say", [{ who: "fai", line: "story.ch1.d.faiDoor" }, { who: "min", line: "story.ch1.d.minBarricade" }]],
+          ["hint", { key: "story.hint.push", bind: "interact" }]] },
+        // both across: the save (the design's: before the defence)
+        { wait: { all: [{ pushed: "back" }, { pushed: "front" }] }, do: [["hint", null], ["say", [{ who: "tonkla", line: "story.ch1.d.tonklaHeld" }, { who: "min", line: "story.ch1.d.minWindows" }]],
+          ["checkpoint", { x: -31.5, y: 4, z: 4.6, yaw: Math.PI }]] },
+        // the defence (also the first beat of a run picked up at that save): everyone to their place
+        { do: [["objective", "story.ch1.s3.obj"], ["sound", "tense"], ["sys", { key: "story.ch1.sys.defend", glitch: true }], ["door", { id: "LIBBACK", open: false }],
+          ["npc", { id: "min", pose: "stand", walk: [{ x: -31.5, z: 4.0 }], then: { face: { x: -31.5, z: 9 } } }],
+          ["npc", { id: "fai", pose: "stand", walk: [{ x: -29.0, z: 3.9 }], then: { face: { x: -30, z: 9 } } }],
+          ["npc", { id: "nam", pose: "stand", walk: [{ x: -33.9, z: 3.9 }], then: { face: { x: -33, z: 9 } } }],
+          ["npc", { id: "tonkla", pose: "stand", walk: [{ x: -37.6, z: 4.3 }], then: { face: { x: -38.75, z: 5.5 } } }]] },
+        // wave 1: through the windows
+        { wait: { time: 3 }, do: [["flag", "x:wave1"], ["spawn", { id: "w1", at: "libWindows", count: 4, kinds: ["normal"] }], ["callout", { who: "fai", at: "libWindows" }]] },
+        { wait: { all: [{ time: 2 }, { calm: true }] }, do: [["flag", "x:rest1"], ["timer", { key: "story.timer.wave", sec: 15 }]] },
+        // wave 2: the air vents -- Crawlers, under the tables -- and the windows; a door whose shelf is not back gives
+        { wait: { time: 15 }, do: [["timer", null], ["hint", null], ["flag", "x:wave2"], ["sfx", { name: "vent_clang", at: { x: -31.5, y: 4, z: 8.8 }, lift: 2.6 }],
+          ["spawn", { id: "w2", at: "libVents", count: 3, kinds: ["crawler"] }], ["spawn", { id: "w2b", at: "libWindows", count: 2, kinds: ["normal"] }],
+          ["callout", { who: "fai", line: "story.ch1.d.faiVent" }], ["sys", { key: "story.ch1.sys.crawler", glitch: true }],
+          ["if", { when: { not: { pushed: "front" } }, do: [["spawn", { id: "w2f", at: "libFrontIn", count: 2, kinds: ["normal"] }], ["thud", { at: { x: -25.5, y: 4, z: 2.2 }, n: 3 }]] }],
+          ["if", { when: { not: { pushed: "back" } }, do: [["spawn", { id: "w2k", at: "libBackIn", count: 2, kinds: ["normal"] }], ["thud", { at: { x: -40, y: 4, z: 5.5 }, n: 3 }]] }]] },
+        { wait: { all: [{ time: 2 }, { calm: true }] }, do: [["flag", "x:rest2"], ["timer", { key: "story.timer.wave", sec: 15 }]] },
+        // wave 3: all of it -- and Tonkla to the north-west window, to hold it
+        { wait: { time: 15 }, do: [["timer", null], ["hint", null], ["flag", "x:wave3"],
+          ["spawn", { id: "w3", at: "libWindows", count: 3, kinds: ["normal", "normal", "fast"] }], ["spawn", { id: "w3b", at: "libVents", count: 2, kinds: ["crawler"] }],
+          ["callout", { who: "fai", at: "libWindows" }],
+          ["npc", { id: "tonkla", pose: "stand", walk: [{ x: -36.9, z: 8.2 }], speed: 2.4, then: { pose: "push", face: { x: -36.9, z: 9.6 } } }],
+          ["if", { when: { not: { pushed: "front" } }, do: [["spawn", { id: "w3f", at: "libFrontIn", count: 2, kinds: ["normal"] }], ["thud", { at: { x: -25.5, y: 4, z: 2.2 }, n: 3 }]] }],
+          ["if", { when: { not: { pushed: "back" } }, do: [["spawn", { id: "w3k", at: "libBackIn", count: 2, kinds: ["normal"] }], ["thud", { at: { x: -40, y: 4, z: 5.5 }, n: 3 }]] }]] },
+        // ...the window gives on him: his arm cut (scene 1-4's errand); two climb in through it
+        { wait: { time: 6 }, do: [["glass", { at: { x: -36.9, y: 5.6, z: 9.0 }, dir: { x: 0, z: -1 } }],
+          ["npc", { id: "tonkla", pose: "hurt", talk: 1.6, walk: [{ x: -35.8, z: 5.2 }], speed: 1.8, then: { pose: "hurt", face: "player" } }],
+          ["say", [{ who: "tonkla", line: "story.ch1.d.tonklaArm" }, { who: "fai", line: "story.ch1.d.faiTonkla" }]],
+          ["spawn", { id: "w3c", at: "libNW", count: 2, kinds: ["normal"] }]] },
+        // held: the phones dead -- the PA system has power of its own; but not yet
+        { wait: { all: [{ time: 2 }, { calm: true }] }, do: [["flag", "x:held"], ["timer", null], ["hint", null], ["sound", "calm"], ["objective", "story.ch1.s3.obj4"],
+          ["npc", { id: "min", walk: [{ x: -33.2, z: 4.9 }], then: { face: "player" } }],
+          ["say", [{ who: "min", line: "story.ch1.d.minPhones" }, { who: "min", line: "story.ch1.d.minPA" }, { who: "min", line: "story.ch1.d.minWait" }]]] },
+        { wait: { said: true }, do: [["checkpoint"], ["next"]] },
+      ],
+      on: [
+        // the look round: what is read
+        { id: "notebook", when: { used: "notebook" }, do: [["card", { id: "notebook", icon: "📓", title: "story.card.notebookTitle", lines: ["story.ch1.notebook1", "story.ch1.notebook2"] }]] },
+        { id: "sponsor", when: { used: "sponsor" }, do: [["card", { id: "sponsor", icon: "🪧", title: "story.card.sponsorTitle", lines: ["story.ch1.sponsor"] }]] },
+        // during the waves the doors are banged on: a shelf knocked back (pushed back between two waves)
+        { id: "bang1", after: "x:wave1", when: { time: 8 }, do: [["thud", { at: { x: -25.5, y: 4, z: 2.2 }, n: 4 }], ["nudge", { id: "front", by: 0.4 }], ["callout", { who: "fai", line: "story.ch1.d.faiFront" }]] },
+        { id: "bang2", after: "x:wave2", when: { time: 6 }, do: [["thud", { at: { x: -40, y: 4, z: 5.5 }, n: 4 }], ["nudge", { id: "back", by: 0.45 }], ["callout", { who: "fai", line: "story.ch1.d.faiBack" }]] },
+        // between two waves, a shelf out of place (knocked back before or during the rest): the hint, Kru Min's word
+        { id: "pushBack1", after: "x:rest1", when: { all: [{ not: { flag: "x:wave2" } }, { any: [{ not: { pushed: "back" } }, { not: { pushed: "front" } }] }] },
+          do: [["hint", { key: "story.hint.pushBack", bind: "interact" }], ["say", [{ who: "min", line: "story.ch1.d.minPushBack" }]]] },
+        { id: "pushBack2", after: "x:rest2", when: { all: [{ not: { flag: "x:wave3" } }, { any: [{ not: { pushed: "back" } }, { not: { pushed: "front" } }] }] },
+          do: [["hint", { key: "story.hint.pushBack", bind: "interact" }], ["say", [{ who: "min", line: "story.ch1.d.minPushBack" }]]] },
+        { id: "bang3", after: "x:wave3", when: { time: 10 }, do: [["thud", { at: { x: -25.5, y: 4, z: 2.2 }, n: 4 }], ["nudge", { id: "front", by: 0.3 }]] },
       ] },
-    { id: "s4", title: "story.ch1.s4", objective: "story.ch1.s4.obj", start: { x: -33, y: 4, z: 4.6, yaw: Math.PI / 2 }, clock: "10:15", light: "nurse",
+    // (round 7) 1-4 First Aid (4-6 minutes): quiet, after the defence. Tonkla's cut is glass, not a bite
+    // -- no infection (how it spreads, in a line); Kru Min's list by text; the west wing under 30 m,
+    // desks knocked over and Crawlers under them; the nurse's room in its cold light -- Nurse Pim
+    // turned, still on a bed, REST over her: she gets up within 3 m or at a shot in her room (shot or
+    // walked round: the player's choice, nothing follows from it); the cabinet's six boxes by their
+    // labels, a wrong one's card; the nurse's logbook (17 students, three weeks); Sprinters from the
+    // main stairs' side on the way back; Fai sees to the arm -- "You'll recover. Stop talking."
+    { id: "s4", title: "story.ch1.s4", objective: "story.ch1.s4.obj0", start: { x: -37.6, y: 4, z: 5.0, yaw: -Math.PI / 2 }, clock: "10:15", light: "nurse",
+      doors: { LIBBACK: true, DLIBRARY: false, STAIRB2: false, DPE: false, DSTOREW: false, DWC2: false, DNURSE: true, STAIRM2: false },
+      push: [
+        // (the back door's shelf moved aside for the player; the front door's in place)
+        { id: "back", kind: "bookshelf", o: { w: 1 }, from: { x: -38.75, y: 4, z: 7.5, yaw: Math.PI / 2 }, to: { x: -38.75, z: 5.5 }, need: { flag: "never" } },
+        { id: "front", kind: "bookshelf", o: { w: 1 }, from: { x: -27.7, y: 4, z: 4.4, yaw: 0.4 }, to: { x: -25.5, z: 3.25, yaw: 0 }, start: 1, need: { flag: "never" } },
+      ],
+      props: [
+        // the west wing's corridor: desks and chairs knocked over (the way picked through them)
+        { id: "fd1", kind: "deskSet", at: { x: -41.1, y: 4, z: -5.6 }, yaw: 0.3, rz: Math.PI / 2 },
+        { id: "fd2", kind: "deskSet", at: { x: -43.0, y: 4, z: -9.6 }, yaw: -0.5, rx: Math.PI / 2 },
+        { id: "fd3", kind: "deskSet", at: { x: -41.3, y: 4, z: -13.6 }, yaw: 0.9, rz: -Math.PI / 2 },
+        { id: "ch1", kind: "chair", at: { x: -42.7, y: 4, z: -7.3 }, yaw: 0.4, rz: Math.PI / 2 }, { id: "ch2", kind: "chair", at: { x: -41.8, y: 4, z: -11.7 }, yaw: -1.1, rx: -Math.PI / 2 },
+        // the nurse's logbook, open on her desk
+        { id: "logbook", kind: "papers", at: { x: -41.0, y: 4.77, z: -21.8 }, yaw: 1.2 },
+      ],
+      cast: [
+        { id: "min", who: "min", at: { x: -36.3, y: 4, z: 5.0 }, yaw: Math.PI / 2, face: "player" },
+        { id: "tonkla", who: "tonkla", at: { x: -35.6, y: 4, z: 5.98 }, yaw: Math.PI, pose: "hurtSit" },
+        { id: "fai", who: "fai", at: { x: -34.6, y: 4, z: 5.2 }, yaw: -Math.PI / 2 - 0.5, face: { x: -35.6, z: 5.98 } },
+        { id: "nam", who: "nam", at: { x: -33.0, y: 4, z: 4.5 }, yaw: -Math.PI / 2, face: "player" },
+        // in the nurse's room: Nurse Pim, turned, sitting still on a bed -- REST over her
+        { id: "pim", who: "pim_z", at: { x: -47.05, y: 4, z: -25.0 }, yaw: Math.PI / 2, pose: "sit", seat: 0.62, label: { word: "REST" } },
+      ],
       beats: [
-        { do: [["objective", "story.ch1.s4.obj"]] },
-        { wait: { zone: "nurse" }, do: [["spawn", { id: "n1", at: "wing2", count: 2 }]] },
-        { wait: { cleared: "n1" }, do: [["checkpoint"], ["next"]] },
+        // a cut from the glass, not a bite: no infection
+        { do: [["objective", "story.ch1.s4.obj0"], ["sound", "quiet"], ["hint", null],
+          ["npc", { id: "min", walk: [{ x: -35.9, z: 5.15 }], then: { face: { x: -35.6, z: 5.98 }, pose: "treat" } }],
+          ["say", [{ who: "tonkla", line: "story.ch1.d.tonklaTurn" }, { who: "min", line: "story.ch1.d.minInjury" }, { who: "min", line: "story.ch1.d.minNurse" }]]] },
+        // the list, by text; the cabinet and the logbook to use in the nurse's room
+        { wait: { said: true }, do: [["npc", { id: "min", pose: "stand", face: "player" }], ["unflag", "read:min"], ["phone", "min7"], ["hint", { key: "story.hint.readMin", bind: "phone" }],
+          ["objective", "story.ch1.s4.obj"],
+          ["pick", { id: "meds", at: { x: -41.2, y: 4, z: -26.35 }, size: [1.3, 1.8, 0.7], lift: 0.95, prompt: "story.use.cabinet", icon: "💊", title: "story.pick.title", who: "min", line: "story.ch1.m.min7",
+            items: ["bandage", "cough syrup", "antiseptic", "eye drops", "gauze", "ice pack"], want: ["bandage", "antiseptic", "gauze"] }],
+          ["use", { id: "logbook", at: { x: -41.0, y: 4, z: -21.8 }, size: [0.8, 0.45, 1.0], lift: 0.86, prompt: "story.use.logbook", sound: "paper" }]] },
+        // all three in the bag: back
+        { wait: { picked: "meds" }, do: [["objective", "story.ch1.s4.obj2"], ["hint", null]] },
+        // in the library, the fight over (or a while on): the door shut behind, the shelf back; Fai and the bandage
+        { wait: { all: [{ zone: "libraryDeep" }, { any: [{ calm: true }, { time: 45 }] }] }, do: [["door", { id: "LIBBACK", open: false }], ["sound", "slam"], ["push", { id: "back", p: 1 }],
+          ["sound", "calm"], ["objective", "story.ch1.s4.obj3"],
+          ["npc", { id: "min", walk: [{ x: -36.8, z: 4.6 }], then: { face: "player" } }],
+          ["npc", { id: "fai", walk: [{ x: -35.6, z: 5.3 }], then: { face: { x: -35.6, z: 5.98 }, pose: "treat" } }],
+          ["say", [{ who: "fai", line: "story.ch1.d.faiBandage" }, { who: "tonkla", line: "story.ch1.d.tonklaDoctor" }, { who: "fai", line: "story.ch1.d.faiRecover" }]]] },
+        { wait: { said: true }, do: [["checkpoint"], ["next"]] },
+      ],
+      on: [
+        { id: "dirRead", after: "msg:min7", when: { read: "min" }, do: [["hint", null]] },
+        // the corridor: Crawlers out from under the desks
+        { id: "crawl", when: { zone: "wingIn" }, do: [["spawn", { id: "cr", at: "wingDesks", count: 3, kinds: ["crawler"] }], ["sys", { key: "story.ch1.sys.floor", glitch: true }]] },
+        // into her room: what to do about her
+        { id: "pimSeen", when: { zone: "nurse" }, do: [["hint", "story.hint.pim"]] },
+        // Nurse Pim gets up: within 3 m, or a shot in her room -- a zombie of her own (REST: practice)
+        { id: "pim", when: { any: [{ near: { id: "pim", r: 3 } }, { fired: { s: 0.6, zone: "nurse" } }] }, do: [["npc", { id: "pim", remove: true }], ["hint", null],
+          ["spawn", { id: "pim", at: { x: -47.05, y: 4, z: -25.0 }, kinds: ["normal"], words: [{ word: "rest", gloss: CH1_PRACTICE.rest, who: "pim" }], target: "rest" }], ["sound", "sting"]] },
+        { id: "log", when: { used: "logbook" }, do: [["card", { id: "logbook", icon: "📔", title: "story.card.logbookTitle", lines: ["story.ch1.logbook"] }]] },
+        // the way back: Sprinters from the main stairs' side
+        { id: "spr", when: { all: [{ picked: "meds" }, { not: { zone: "nurse" } }] }, do: [["spawn", { id: "spr", at: "corridor2East", count: 4, kinds: ["fast"] }],
+          ["sys", { key: "story.ch1.sys.movement", glitch: true }], ["sound", "tense"]] },
+        { id: "sprDone", after: "on:spr", when: { cleared: "spr" }, do: [["sound", "quiet"]] },
       ] },
     { id: "s5", title: "story.ch1.s5", objective: "story.ch1.s5.obj", start: { x: -42, y: 4, z: -17.5, yaw: Math.PI }, clock: "12:30", light: "noon",
       beats: [

@@ -622,6 +622,8 @@ G.Input = {
   touchLook: { x: 0, y: 0, active: false },
   touchFire: false,
   touchInteract: false,
+  touchInteractHeld: false,      // (story series, round 7: the hand button held -- a bookshelf pushed, js/story/push.js)
+  padUse: false,                 // (...and the controller's Y held: js/gamepad.js)
   touchReload: false,
   touchJump: false,
   touchSprint: false,
@@ -768,7 +770,7 @@ G.Input = {
     this.mouseDown = false; this.aimDown = false;
     this.padFire = false; this.padAim = false; this.padJump = false; this.padSprint = false; this.padMelee = false;
     this.touchFire = false; this.touchJump = false; this.touchSprint = false; this.touchMelee = false;
-    this.touchInteract = false; this.touchReload = false;
+    this.touchInteract = false; this.touchReload = false; this.touchInteractHeld = false; this.padUse = false;
     this.touchMove = { x: 0, y: 0, active: false };
     if (this._btnLookFingers) this._btnLookFingers.clear();
     const knob = document.getElementById("touch-joystick-knob");
@@ -903,11 +905,13 @@ G.Input = {
     }, { passive: false });
     // (overhaul, round 6: the weapon buttons are the HUD's slot row -- js/hud.js)
     document.getElementById("touch-interact").addEventListener("touchstart", (e) => {
-      this.touchInteract = true; e.preventDefault();
+      this.touchInteract = true; this.touchInteractHeld = true; e.preventDefault();
       G.touchFeedback(e.currentTarget);
       G.onInteractPress && G.onInteractPress();
       setTimeout(() => (this.touchInteract = false), 100);
     }, { passive: false });
+    // (story series, round 7: held until the finger comes off -- a shelf pushed while it is)
+    ["touchend", "touchcancel"].forEach((ev) => document.getElementById("touch-interact").addEventListener(ev, () => { this.touchInteractHeld = false; }));
     document.getElementById("touch-reload").addEventListener("touchstart", (e) => {
       e.preventDefault();
       G.touchFeedback(e.currentTarget);

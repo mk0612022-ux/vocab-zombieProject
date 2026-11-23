@@ -1632,6 +1632,9 @@ G.Game = {
   learnWrongShot(z) {
     const tp = this.targetPair;
     const shot = z.decoy ? z.word : z.pair;
+    // (story series, round 7: a chapter's scene may have someone help after wrong shots in a row --
+    // Nam reading her dictionary in the library, js/story/story.js)
+    if (this.mode === "story" && G.Story && G.Story.onWrongShot) G.Story.onWrongShot(this, z, tp);
     if (!tp) { if (!z.decoy) G.recordWordResult(z.pair, false, { srs: false }); return; }
     const att = this._attempt, key = G.wordKey(tp);
     if (att && att.key === key && (att.wrong || att.retry)) { G.SRS.noteConfusion(tp, shot); if (att) att.wrong = true; return; }

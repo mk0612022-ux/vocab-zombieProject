@@ -706,13 +706,15 @@ G.Ch1Map = (function () {
         if (exam) P("wallSign", x0 + 0.08, cz, Math.PI / 2, { y, h: 2.5, key: "story.sign.examTitle", w: 2.2, bg: 0x24443a });
         fixtures(2);
       } else if (T === "library") {
-        // shelves all round, reading tables, the sponsor's sign, the air vents over the windows
-        for (let x = x0 + 1; x < x1 - 1.5; x += 2) P("bookshelf", x + 0.5, z0 + 0.25, 0, { y, w: 1 });
-        // (the front door: a shelf pushed against it from inside -- the doc's 1-2)
-        P("bookshelf", -25.5, z0 + 0.25, 0, { y, w: 1 });
-        P("bookshelf", x0 + 0.25, cz + 1.5, Math.PI / 2, { y, w: 1 });
-        [cx - 4, cx, cx + 4].forEach((x) => { P("canteenTable", x, cz + 0.6, 0, { y }); });
-        P("teacherDesk", x1 - 1.5, z0 + 1.6, -Math.PI / 2, { y });
+        // shelves along the south wall, reading tables, the sponsor's sign, the air vents over the windows
+        // (story round 7: the two shelves the doors are barricaded with -- the one against the front
+        // door, the one by the back door -- are the scenes' own, pushed: js/story/push.js, js/data/
+        // story/ch1.js; the wall shelves stop short of the front door to leave them the room)
+        for (let x = x0 + 1; x < x1 - 7; x += 2) P("bookshelf", x + 0.5, z0 + 0.25, 0, { y, w: 1 });
+        // (round 7: only the tables' tops are in the way -- a Crawler goes under them, the player and a
+        // round do not get through them)
+        [cx - 4, cx, cx + 4].forEach((x) => { P("canteenTable", x, cz + 0.6, 0, { y, colY0: 0.68, bare: true }); });
+        P("teacherDesk", x1 - 1.5, z0 + 3.2, -Math.PI / 2, { y });
         P("wallSign", cx, z0 + 0.47, 0, { y, h: 2.45, lines: [sign("story.sign.sponsorLib1"), sign("story.sign.sponsorLib2")], w: 2.6, bg: 0xf4f7fa, fg: 0x1a7ac8 });
         [cx - 4, cx + 4].forEach((x) => P("vent", x, z1 - 0.06, Math.PI, { y }));
         fixtures(2, 0xffe2b8);
@@ -749,7 +751,9 @@ G.Ch1Map = (function () {
         lamp(cx, y + 2.6, cz, "room", 0xe6eeff, 0.8);
       } else if (T === "nurse") {
         P("nurseBed", x0 + 1.2, z0 + 2, 0, { y }); P("nurseBed", x0 + 3.4, z0 + 2, 0, { y });
-        P("medCabinet", x1 - 1.2, z0 + 0.25, 0, { y }); P("teacherDesk", x1 - 2, z1 - 1.2, Math.PI, { y }); P("sink", x1 - 0.5, cz, -Math.PI / 2, { y });
+        // (story round 7: the nurse's desk by the east wall -- it stood across the doorway, and the room
+        // could not be walked into)
+        P("medCabinet", x1 - 1.2, z0 + 0.25, 0, { y }); P("teacherDesk", x1 - 1.0, z1 - 1.7, Math.PI / 2, { y }); P("sink", x1 - 0.5, cz, -Math.PI / 2, { y });
         fixtures(1, 0xe0ecff);
       } else if (T === "pe") {
         P("vaultBox", cx - 1, cz - 0.5, 0, { y }); P("shelf", x1 - 1, z0 + 0.4, 0, { y, w: 1.4 });
