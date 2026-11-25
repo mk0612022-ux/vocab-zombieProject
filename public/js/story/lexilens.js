@@ -86,9 +86,18 @@ G.LexiLens = (function () {
     el.classList.toggle("red", cur.red);
     el.innerHTML = `<div class="ls-line">${esc(text)}</div>${D.subHtml(cur.key, cur.vars, text, "ls-sub")}`;
     el.classList.remove("hidden");
+    place();
     el.classList.remove("in"); void el.offsetWidth; el.classList.add("in");
     if (cur.red) glitch(Math.min(cur.dur, 2));
     else beep([{ type: "sine", freq: 1320, dur: 0.05, gain: 0.025 }, { type: "sine", freq: 1760, dur: 0.06, gain: 0.02, at: 0.07 }]);
+  }
+  // (story round 8) under whatever the top of the HUD has just now -- the word box, an answer's card, the
+  // combo, a mini-boss's bar over them; with no word box, where the style sheet has it
+  function place() {
+    if (!el || el.classList.contains("hidden")) return;
+    const top = shown.has("word") ? document.querySelector("#hud .hud-top") : null, b = top ? top.getBoundingClientRect().bottom : 0;
+    const want = b > 20 ? Math.round(b + 8) + "px" : "";
+    if (el.style.top !== want) el.style.top = want;
   }
   // a right shot through the glasses: the line straight away (a quick one, ahead of the queue)
   function onCorrect() {
@@ -96,7 +105,9 @@ G.LexiLens = (function () {
     q.unshift({ key: "story.lens.correct", vars: null, dur: C().correctSec, red: false });
     nextSys();
   }
+  let placeT = 0;
   function update(dt) {
+    if (cur && (placeT -= dt) <= 0) { placeT = 0.1; place(); }
     if (glitchT > 0) { glitchT -= dt; if (glitchT <= 0) { glitchT = 0; B().classList.remove("lens-glitch"); } }
     // (story round 5: held -- Space, A, a finger -- the system's lines go by faster too, as the
     // lines and the scene's waits do: the queue keeps up with the scene)

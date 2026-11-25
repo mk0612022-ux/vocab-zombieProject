@@ -34,4 +34,8 @@ G.STORY_WORDS.ch1 = {
   "eye drops": { th: "ยาหยอดตา", zh: "眼药水", fr: "gouttes pour les yeux", en: "liquid put into the eyes in drops, for sore or dry eyes" },
   "ice pack": { th: "ถุงประคบเย็น", zh: "冰袋", fr: "poche de glace", en: "a cold pack held on a bump or a sprain" },
   rest: { th: "พัก; พักผ่อน", zh: "休息", fr: "se reposer", en: "to stop working or moving and relax" },
+  // (story round 8) scene 1-5: Coach Ek's last word and its two look-alikes (the design's practice words)
+  faster: { th: "เร็วขึ้น", zh: "更快", fr: "plus vite", en: "at a higher speed" },
+  fasten: { th: "รัด; คาด", zh: "系牢；扣紧", fr: "attacher", en: "to close or fix something so that it stays in place" },
+  foster: { th: "อุปถัมภ์", zh: "抚养；培养", fr: "favoriser", en: "to help something grow or develop" },
 };

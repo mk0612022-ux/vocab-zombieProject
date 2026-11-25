@@ -267,7 +267,8 @@ G.Ch1Map = (function () {
     [[-25, GYM.z0], [-24, GYM.z0]].forEach(([x, z]) => { site.del(x, 0, z); site.del(x, 1, z); });
     // the gym's locker room (Coach Ek's Sprinters come out of it)
     for (let y = 0; y < 3; y++) { for (let z = -29; z <= -23; z++) site.set(-19, y, z, wallRow(y)); for (let x = -18; x <= -11; x++) site.set(x, y, -30, wallRow(y)); }
-    site.del(-19, 0, -26); site.del(-19, 1, -26);
+    // (story round 8: its door two wide -- and the stands no longer across it, see outdoors())
+    [-26, -25].forEach((z) => { site.del(-19, 0, z); site.del(-19, 1, z); });
     // the walkway's roof on its posts
     for (let x = -39; x <= -38; x++) for (let z = -27; z <= -22; z++) site.set(x, 3, z, "canopy");
     [[-39, -27], [-39, -22]].forEach(([x, z]) => { for (let y = 0; y < 3; y++) site.set(x, y, z, "concrete"); });
@@ -347,6 +348,9 @@ G.Ch1Map = (function () {
     // the stairwells (after the corridors: their doorways link to them)
     Object.keys(STAIRS).forEach((id) => stairwell(st, id, kit, zone, region, node, link));
     // outdoors
+    // (story round 8: the doorway and a step in front of it a place of its own, so that who comes out is clear
+    // of the wall before they turn for the player)
+    region("GYM_LDOOR", 0, -20, -18, -26, -24, null);
     region("GYM_LOCKER", 0, -18, -10, -29, -22, null);
     region("GYM", 0, GYM.x0 + 1, GYM.x1, GYM.z0 + 1, GYM.z1, "sports");
     region("YARD_WALK", 0, -39, -37, -28, -22);
@@ -360,7 +364,8 @@ G.Ch1Map = (function () {
     node("DKITCHENB", -39.5, 0, -24); link("KITCHEN", "DKITCHENB"); link("DKITCHENB", "YARD_WALK");
     node("DGYMW", -36.5, 0, -26); link("YARD_WALK", "DGYMW"); link("DGYMW", "GYM");
     node("DGYMN", -24, 0, -46.5); link("GYM", "DGYMN"); link("DGYMN", "YARD_PARK");
-    node("DLOCKER", -18.5, 0, -25.5); link("GYM", "DLOCKER"); link("DLOCKER", "GYM_LOCKER");
+    node("DLOCKER", -17.2, 0, -25); node("DLOCKERO", -20.3, 0, -25);
+    link("GYM_LOCKER", "DLOCKER"); link("DLOCKER", "GYM_LDOOR"); link("GYM_LDOOR", "DLOCKERO"); link("DLOCKERO", "GYM");
     link("YARD_WALK", "YARD_COURT");
     link("YARD_FRONT", "YARD_SIDE_W"); link("YARD_FRONT", "YARD_SIDE_E"); link("YARD_SIDE_E", "YARD_NORTH");
     world.spawn = { x: 29.5, z: 55 };
@@ -386,7 +391,7 @@ G.Ch1Map = (function () {
     makeDoor(st, "ENTRANCE", 4.5, 0, 9.5, "x", 3, { into: [4.5, 8], open: true, glass: true });
     makeDoor(st, "GYMW", GYM.x0 + 0.5, 0, -26, "z", 2, { into: [GYM.x0 + 2, -26], open: true });
     makeDoor(st, "GYMN", -24, 0, GYM.z0 + 0.5, "x", 2, { into: [-24, GYM.z0 + 2], open: true });
-    makeDoor(st, "LOCKER", -18.5, 0, -25.5, "z", 1, { into: [-17, -25.5], open: true });
+    makeDoor(st, "LOCKER", -18.5, 0, -25, "z", 2, { into: [-17, -25], open: true });
     ["s0", "s1", "s2", "out"].forEach((g) => bakeDoors(st, g));
     lap("doors");
 
@@ -782,7 +787,9 @@ G.Ch1Map = (function () {
         lamp(cx, y + 2.6, cz - 5, "room", 0xfff0d8, 1.2); lamp(cx, y + 2.6, cz + 5, "room", 0xfff0d8, 1.2);
       } else if (T === "kitchen") {
         P("counter", x0 + 2.5, z0 + 0.5, 0, { y, w: 4 }); P("counter", x1 - 2.5, z0 + 0.5, 0, { y, w: 4 }); P("sink", cx, z0 + 0.5, 0, { y: y + 0 });
-        P("supplyBoxes", cx, z1 - 1.6, 0, { y }); P("shelf", x1 - 1, cz, -Math.PI / 2, { y, w: 1.6 });
+        // (story round 8: the supplies are the scene's own -- 1-5 takes them one by one: js/data/story/ch1.js;
+        // the shelf by the west wall -- it stood across the back door's way)
+        P("shelf", x0 + 0.4, cz - 0.9, Math.PI / 2, { y, w: 1.6 });
         lamp(cx, y + 2.6, cz, "room", 0xfff0d8, 1.0);
       }
     });
@@ -831,7 +838,9 @@ G.Ch1Map = (function () {
     for (let z = -60; z <= 50; z += 12) { P("tree", SITE.x0 + 3, z, 0); P("tree", SITE.x1 - 3, z, 0); }
     [[-20, -16], [0, -18], [20, -16]].forEach(([x, z]) => P("tree", x, z, 0));
     // the gym: stands both sides, the vaulting box, mats, hoops, its locker room
-    P("bleachers", -24, -43, 0, { w: 10 }); P("bleachers", -24, -26, Math.PI, { w: 10 });
+    // (story round 8: the south stands clear of the locker room's door -- it opened on their end, and nobody could
+    // come out; the north ones clear of the car park's door)
+    P("bleachers", -17, -43, 0, { w: 10 }); P("bleachers", -26, -26, Math.PI, { w: 10 });
     P("vaultBox", -30, -35, 0); P("hoop", -35.5, -34.5, Math.PI / 2); P("hoop", -11.5, -34.5, -Math.PI / 2);
     P("locker", -14.5, -28.6, 0, { n: 4 });
     [[-30, -30], [-18, -40], [-30, -40], [-18, -30]].forEach(([x, z]) => lamp(x, 5.4, z, "gym", 0xffffff, 1.2));
@@ -860,6 +869,8 @@ G.Ch1Map = (function () {
     st.siteChunks.forEach((m) => items.push({ obj: m, kind: "zone", zone: "out", box: boxOf(m) }));
     // (the level's merge: its meshes are in world space, each one zone's -- world.zoneKey)
     game.scene.children.forEach((m) => { if (m.isMesh && m.userData.mergedParts && ZONES[m.userData.zone]) items.push({ obj: m, kind: "zone", zone: m.userData.zone, box: boxOf(m) }); });
+    // (story round 8: what moves and is kept out of the merge -- a room's fan -- with its storey's things)
+    game.scene.children.forEach((g) => { if (g.isGroup && g.userData.prop && g.userData.moves && g.userData.spin) items.push({ obj: g, kind: "zone", zone: zoneAt(st, g.position.x, g.position.y, g.position.z), box: new THREE.Box3().setFromObject(g) }); });
     st.items = items;
   }
   function update(st, game) {
@@ -868,24 +879,27 @@ G.Ch1Map = (function () {
     const p = game.yawObject.position, feet = p.y - 1.7;
     const inStairs = Object.keys(STAIRS).some((id) => { const c = STAIRS[id].cells; return p.x >= c.x[0] - 0.5 && p.x <= c.x[1] + 1.5 && p.z >= c.z[0] - 0.5 && p.z <= c.z[1] + 1.5; });
     const indoor = st.inFoot(Math.floor(p.x), Math.floor(p.z)) && feet > -0.5;
+    // (story round 8) in the gym: walls all round, its windows above the head -- the building's insides and its
+    // ground floor cannot be seen (Coach Ek's fight: 180 draw calls with nobody in it)
+    const inGym = p.x > GYM.x0 + 1 && p.x < GYM.x1 && p.z > GYM.z0 + 1 && p.z < GYM.z1;
     const s = feet < 2 ? 0 : feet < 6 ? 1 : 2;
     const fog = game.scene.fog ? game.scene.fog.far + 8 : 1e9;
-    const key = (indoor ? (inStairs ? "t" : "i") : "o") + s + "|" + Math.round(p.x / VIEW.step) + "|" + Math.round(p.z / VIEW.step) + "|" + Math.round(fog);
+    const key = (indoor ? (inStairs ? "t" : "i") : inGym ? "g" : "o") + s + "|" + Math.round(p.x / VIEW.step) + "|" + Math.round(p.z / VIEW.step) + "|" + Math.round(fog);
     if (key === st.viewKey) return;
     st.viewKey = key;
     const dist = (b) => Math.hypot(Math.max(b.min.x - p.x, 0, p.x - b.max.x), Math.max(b.min.z - p.z, 0, p.z - b.max.z));
     const foot = Math.min(dist({ min: { x: MAIN.x0, z: MAIN.z0 }, max: { x: MAIN.x1 + 1, z: MAIN.z1 + 1 } }), dist({ min: { x: WING.x0, z: WING.z0 }, max: { x: WING.x1 + 1, z: WING.z1 + 1 } }));
     // which storeys' things are drawn
     const on = {};
-    [0, 1, 2].forEach((k) => { on["s" + k] = indoor ? (inStairs ? Math.abs(k - s) <= 1 : k === s) : foot < VIEW.nearIn; });
+    [0, 1, 2].forEach((k) => { on["s" + k] = indoor ? (inStairs ? Math.abs(k - s) <= 1 : k === s) : !inGym && foot < VIEW.nearIn; });
     on.out = true;
     st.shown = on;
-    st.mode = indoor ? (inStairs ? "stairs" : "s" + s) : "out";
+    st.mode = indoor ? (inStairs ? "stairs" : "s" + s) : inGym ? "gym" : "out";
     let drawn = 0;
     const set = (o, v) => { if (o.visible !== v) o.visible = v; if (v) drawn++; };
     st.items.forEach((it) => {
       let v = dist(it.box) < fog;
-      if (v && it.kind === "house") v = !indoor || inStairs || it.band === s || it.band === s + 1;
+      if (v && it.kind === "house") v = inGym ? it.band >= 1 : !indoor || inStairs || it.band === s || it.band === s + 1;
       else if (v && it.kind === "zone") v = on[it.zone] && (it.zone !== "out" || !indoor || dist(it.box) < VIEW.window);
       set(it.obj, v);
     });

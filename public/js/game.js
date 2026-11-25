@@ -663,7 +663,8 @@ G.Game = {
     // the target; one answered by spelling carries its own clue, and a
     // look-alike brought in from outside the run's words (a decoy) never is
     const alive = this.zombies.filter((z) => z.alive);
-    const shootable = alive.filter((z) => z.answer !== "spell" && !z.decoy);
+    // (story series, round 8: nor a chapter's mini-boss while he cannot be answered -- js/story/miniboss.js)
+    const shootable = alive.filter((z) => z.answer !== "spell" && !z.decoy && !z.noTarget);
     if (this.targetPair && shootable.some((z) => z.word === this.targetPair[0])) {
       alive.forEach((z) => z.setTarget(z.word === this.targetPair[0] && z.answer !== "spell" && !z.decoy));
       this.retireDecoys();
@@ -816,6 +817,7 @@ G.Game = {
     const hpK = G.zombieHpMult(this.wave);                   // (expansion, round 3; on since round 6, with the Word Forge)
     if (hpK !== 1) { z.hp = Math.round(z.hp * hpK); z.maxHp = z.hp; }
     if (practice) z.practice = true;
+    if (o && o.noTarget) z.noTarget = true;                  // (story series, round 8: never the one asked, for now)
     // how it is answered (shot, or spelt) and with which clue; a decoy is
     // shot, with its target's kind of clue (round 3: a Context look-alike
     // carries its form, a Listening one its Thai meaning)
@@ -1489,6 +1491,8 @@ G.Game = {
   // `info`: { dir, head } -- where the hit came from and whether it was the
   // head, which decides how a killed zombie goes (js/zombiefx.js)
   damageZombie(z, dmg, hitPoint, info) {
+    // (story series, round 8) a chapter's mini-boss: what a hit does to him is his own (js/story/miniboss.js)
+    if (z.storyBoss && G.StoryBoss && G.StoryBoss.onHit(this, z, dmg, hitPoint, info)) return;
     z._lastHit = info || { dir: null, head: false };
     // (overhaul, round 4: Blood & Gore -- red, a darker brown, or grey dust)
     const gore = G.ZombieFactory ? G.ZombieFactory.gore(z) : "full";
@@ -1557,12 +1561,13 @@ G.Game = {
       if (this.mode === "study" && G.Study) G.Study.onAnswer(this, z, true);
       this.rollLootDrop(z, true);
     } else {
-      if (!z.practice) this.wrongCount++;
+      const practice = z.practice || this.practiceAsked();          // (story series, round 8)
+      if (!practice) this.wrongCount++;
       G.Audio.sfx("wrong");
       // (C2, E2) a wrong zombie shot is a wrong answer on the TARGET, and
       // the pair (target, the word shot) is one the player confuses
       const tp = this.targetPair;
-      if (!z.practice) {
+      if (!practice) {
         this.learnWrongShot(z);
         if (tp) this.trackWrongWord(tp[0], tp[1]); else if (!z.decoy) this.trackWrongWord(z.word, z.meaning);
       }
@@ -1571,7 +1576,7 @@ G.Game = {
       if (this.mode === "study" && G.Study) G.Study.onWrongShot(this, z, tp);
       // (the end-of-wave quiz asks these first: the word shot by mistake, and
       // the one that should have been)
-      if (!z.practice) {
+      if (!practice) {
         if (!z.decoy) G.Quiz.noteMissed(this, z.word);
         if (this.targetPair) G.Quiz.noteMissed(this, this.targetPair[0]);
       }
@@ -1601,7 +1606,11 @@ G.Game = {
   // Round 2: a body kill bursts it into blocks and smoke; a head kill knocks
   // the head off along the shot while the body drops; the boss topples first
   // (js/zombiefx.js).
-  startDeathAnimation(z) { G.ZombieFX.onDeath(this, z); },
+  // (story series, round 8: a chapter's mini-boss falls, and lies there)
+  startDeathAnimation(z) { if (z.storyBoss && G.StoryBoss && G.StoryBoss.onDeath(this, z)) return; G.ZombieFX.onDeath(this, z); },
+  // (story series, round 8) the word asked is a practice one -- a chapter's own, not the bank's (REST, FASTER):
+  // an answer to it, right or wrong, counts nowhere, whichever zombie was shot
+  practiceAsked() { const tp = this.targetPair; return !!tp && this.mode === "story" && this.zombies.some((z) => z.practice && z.word === tp[0]); },
   updateDyingZombies(dt) { G.ZombieFX.updateDying(this, dt); },
 
   trackWrongWord(word, meaning) {
@@ -1688,7 +1697,7 @@ G.Game = {
     this.damageZombie(z, z.hp + 1e6, at, { dir, head: true });
   },
   learnBitten(z) {
-    if (z.decoy) return;
+    if (z.decoy || z.practice) return;                       // (story series, round 8: a practice word counts nowhere)
     if (z.answer === "spell") {
       if (z._spellWrong) return;
       z._spellWrong = true;

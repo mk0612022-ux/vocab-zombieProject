@@ -240,7 +240,7 @@ G.StoryDialogue = (function () {
       if (e) {
         const clue = o.quiz.kind === "cloze" ? "cloze" : "thai";
         G.Learning.answerWord(G.WordBank.pairOf(e), right, { recall: G.Learn.isRecall(clue, "shoot"), skills: G.Learning.skillsFor(clue, "shoot") });
-        // (story round 7: and its card under the word box, as any answer has -- "âœ— systems Â· âœ“ symptom = ...")
+        // (story round 7: and its card under the word box, as any answer has -- "✗ systems · ✓ symptom = ...")
         if (G.Explain && G.ExplainCard) {
           const ex = G.Explain.answer({ pair: G.WordBank.pairOf(e), form: o.quiz.form || null, right, clue, answer: "shoot", picked: right ? null : [en(op.text, op.vars), ""] });
           if (ex) G.ExplainCard.show(ex);

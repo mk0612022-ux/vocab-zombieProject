@@ -9,6 +9,7 @@
 // `zombieGap` seconds, the chapter no more often than every `gap`. No voice
 // on the device (or the speech volume at 0): the caption alone.
 //   G.StoryWhisper.update(game, dt) / reset() / last
+//   (story round 8) G.StoryWhisper.show(text)   a shout as a caption: Coach Ek's, after the first
 // ===================================================================
 window.G = window.G || {};
 
@@ -18,14 +19,15 @@ G.StoryWhisper = (function () {
   let t = 0, el = null, capT = 0, last = null;
   const heard = new WeakMap();                 // zombie -> when it last whispered
 
-  function caption(word) {
+  const caption = (word) => show(T("story.whisper", { word }));
+  function show(text) {
     if (!el) {
       el = document.createElement("div");
       el.id = "story-whisper"; el.className = "story-whisper hidden";
       el.setAttribute("aria-hidden", "true");      // (its word is on the zombie's label already)
       document.body.appendChild(el);
     }
-    el.textContent = T("story.whisper", { word });
+    el.textContent = text;
     el.classList.remove("hidden", "in"); void el.offsetWidth; el.classList.add("in");
     capT = C().captionSec || 1.8;
   }
@@ -54,5 +56,5 @@ G.StoryWhisper = (function () {
   }
   function reset() { t = 0; capT = 0; last = null; if (el) el.classList.add("hidden"); }
 
-  return { update, reset, get last() { return last; } };
+  return { update, reset, show, get last() { return last; } };
 })();

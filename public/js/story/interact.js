@@ -17,6 +17,8 @@
 //   (round 7) { hold: true, push: id }: held, not pressed -- a thing pushed into place (js/story/push.js
 //       moves it while the button is held; a press alone does nothing, and there is nothing to
 //       say once it is in place or while its `need` does not hold)
+//   (round 8) { holdSec: s }: held s seconds, not pressed (a box of supplies) -- js/story/push.js fills
+//       it while it is held and uses it when it is full
 //   ["qte", { id, prompt, sec, window, hurt }]   a press in time: a ring closes on its mark
 //       over `sec`; pressed while within `window` of it -- the interaction key, Space, the
 //       trigger, A, X, a tap anywhere on it -- the flag "qte:<id>". Too early, too late, or
@@ -48,7 +50,8 @@ G.StoryUse = (function () {
     mesh.updateMatrix();
     mesh.updateMatrixWorld(true);
     const ref = { id: o.id, prompt: o.prompt || "story.use.generic", used: false, keep: !!o.keep, sound: o.sound || "click",
-      need: o.need || null, promptNo: o.promptNo || null, deny: o.deny || null, blocked: !!o.blocked, door: o.door || null, onUse: typeof o.onUse === "function" ? o.onUse : null, hold: !!o.hold, push: o.push || null };
+      need: o.need || null, promptNo: o.promptNo || null, deny: o.deny || null, blocked: !!o.blocked, door: o.door || null, onUse: typeof o.onUse === "function" ? o.onUse : null, hold: !!o.hold, push: o.push || null,
+      holdSec: o.holdSec > 0 ? +o.holdSec : 0, holdP: 0, full: false, takeSound: o.takeSound || null };
     const it = { mesh, kind: "story", ref };
     (game.world.interactables = game.world.interactables || []).push(it);
     points[o.id] = it;
@@ -90,6 +93,7 @@ G.StoryUse = (function () {
   function use(game, ref) {
     const r = run();
     if (!ref || ref.used || !r || ref.hold) return;          // (round 7: a thing pushed is held, js/story/push.js)
+    if (ref.holdSec > 0 && !ref.full && can(ref)) return;    // (round 8: held till it is full, js/story/push.js)
     if (!can(ref)) {
       r.flags.add("tried:" + ref.id);
       if (ref.deny && G.StoryScreen) G.StoryScreen.setHint(ref.deny);

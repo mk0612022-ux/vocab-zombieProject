@@ -70,17 +70,22 @@
 //   word, clue }] a letter lock on a door · ["drop", { kind, at }] something to pick up
 //   A choice's value is a flag as well: "chose:<id>:<value>".
 //   (round 7: scenes 1-3 and 1-4)
-//   { pushed: id } a thing pushed into place (js/story/push.js -- a scene's `push`) Â· { picked: id }
-//   everything on a cabinet's list taken (js/story/pick.js) Â· { fired: s } a shot within the last s
+//   { pushed: id } a thing pushed into place (js/story/push.js -- a scene's `push`) · { picked: id }
+//   everything on a cabinet's list taken (js/story/pick.js) · { fired: s } a shot within the last s
 //   seconds -- { fired: { s, zone } } one fired from inside that zone (the nurse woken by a gunshot in her room)
-//   ["nudge", { id, by }] / ["push", { id, p }] a pushed thing knocked back / put at once Â·
-//   ["pick", { id, at, items, want, line, title }] a cabinet of labelled things Â· ["timer", { key, sec }
-//   | null] a countdown (between two waves) Â· ["thud", { at, n, gap }] fists on a door Â·
-//   ["glass", { at, dir }] a window broken in Â· ["sfx", { name, at }] a sound of the game's, where it is Â·
+//   ["nudge", { id, by }] / ["push", { id, p }] a pushed thing knocked back / put at once ·
+//   ["pick", { id, at, items, want, line, title }] a cabinet of labelled things · ["timer", { key, sec }
+//   | null] a countdown (between two waves) · ["thud", { at, n, gap }] fists on a door ·
+//   ["glass", { at, dir }] a window broken in · ["sfx", { name, at }] a sound of the game's, where it is ·
 //   ["callout", { who, at, line }] a shout of where they come from -- ahead, behind, left or right of
-//   the player as they stand (G.CONFIG.story lines `<who>Ahead` ...), or `line` Â·
+//   the player as they stand (G.CONFIG.story lines `<who>Ahead` ...), or `line` ·
 //   ["if", { when, do, else }] actions done only if the condition holds now (a wave's start: a door
 //   whose shelf is not back in place gives)
+//   (round 8: scene 1-5)
+//   { boss: id } that mini-boss down (js/story/miniboss.js)
+//   ["boss", { id, who, word, gloss, at, decoys, adds, moves, ... }] its fight begins · ["give", { gun,
+//   rounds }] a gun found, in the hands at once · ["give", { item }] a thing of the story's, its name
+//   across the screen · ["heal", share] · a ["use"] with `holdSec`: held, not pressed
 //   A Crawler a scene sends goes under a table's top (js/entities.js lowBand); a scene's `hints`
 //   ({ who, after }): someone helps after wrong shots in a row (js/story/story.js onWrongShot).
 // A scene's `on` (round 6): rules beside its beats, for what can happen in any order --
@@ -141,6 +146,7 @@ G.StoryScenes = (function () {
     // (round 7)
     if (cond.pushed) return run.flags.has("pushed:" + cond.pushed);
     if (cond.picked) return run.flags.has("pick:" + cond.picked);
+    if (cond.boss) return run.flags.has("boss:" + cond.boss);          // (round 8)
     if (cond.fired != null) {
       // (a number: any shot that recent; { s, zone }: one fired from inside the zone)
       const s = typeof cond.fired === "object" ? cond.fired.s : cond.fired;
@@ -276,6 +282,8 @@ G.StoryScenes = (function () {
     else if (name === "glass") { if (G.StoryScreen && G.StoryScreen.glass) G.StoryScreen.glass(game, arg || {}); }
     else if (name === "sfx") { const o = arg || {}, p = o.at; if (G.Audio && G.Audio.sfx && o.name) G.Audio.sfx(o.name, p ? { pos: new THREE.Vector3(p.x || 0, (Number.isFinite(p.y) ? p.y : 0) + (o.lift != null ? o.lift : 1.2), p.z || 0) } : {}); }
     else if (name === "callout") callout(game, run, arg || {});
+    else if (name === "boss") { if (G.StoryBoss) G.StoryBoss.start(game, run, arg || {}); }      // (round 8)
+    else if (name === "heal") { const pl = game.player; if (pl) pl.hp = Math.max(pl.hp, pl.maxHp * (arg === true || arg == null ? 1 : +arg)); }      // (round 8: a meal and a rest)
     else if (name === "if") { const o = arg || {}; ((met(game, run, o.when) ? o.do : o.else) || []).forEach((x) => act(game, run, x)); }
   }
   // (round 7) a shout of where they come from: ahead, behind, left or right of the player as they stand
@@ -305,6 +313,23 @@ G.StoryScenes = (function () {
     if (o.melee && G.Melee && G.MELEE_WEAPONS && G.MELEE_WEAPONS[o.melee]) {
       G.Melee.give(game, o.melee);
       if (G.UI.flashPurchaseBanner) G.UI.flashPurchaseBanner(esc(T("melee.name." + o.melee)), esc(T("story.give.found")));
+      if (G.Audio && G.Audio.sfx) G.Audio.sfx("pickup");
+    }
+    // (round 8) a gun -- Sgt. Chai's shotgun: into the hands at once, loaded, `rounds` more with it; one
+    // already carried is its rounds
+    if (o.gun && G.WEAPON_DEFS[o.gun] && G.Loadout) {
+      const def = G.WEAPON_DEFS[o.gun], more = Math.max(0, o.rounds | 0);
+      if (!pl.gunSlots.includes(o.gun)) {
+        G.Loadout.add(game, o.gun, { ammo: { mag: def.magSize, reserve: more }, levels: { dmg: 1, rate: 1, mag: 1 } });
+        if (game.wsm && game.wsm.requestSwitch) game.wsm.requestSwitch();
+      } else if (pl.ammo[o.gun]) pl.ammo[o.gun].reserve += def.magSize + more;
+      if (G.UI.pulseHudStat) G.UI.pulseHudStat("ammo");
+      if (G.UI.flashPurchaseBanner) G.UI.flashPurchaseBanner(esc(def.name || o.gun), esc(T("story.give.found")));
+      if (G.Audio && G.Audio.sfx) G.Audio.sfx("pickup");
+    }
+    // (round 8) a thing of the story's (a box of supplies): its name across the screen
+    if (o.item) {
+      if (G.UI.flashPurchaseBanner) G.UI.flashPurchaseBanner(esc(T(o.item)), esc(T(o.note || "story.give.found")));
       if (G.Audio && G.Audio.sfx) G.Audio.sfx("pickup");
     }
     if (o.ammo) Object.keys(o.ammo).forEach((g) => {
@@ -341,6 +366,7 @@ G.StoryScenes = (function () {
     if (G.StoryUse) G.StoryUse.reset(game);
     if (G.StoryQuiz) G.StoryQuiz.reset(game);
     if (G.StoryLock) G.StoryLock.reset(game);           // (round 6: the last scene's letter locks)
+    if (G.StoryBoss) { G.StoryBoss.reset(game); if (sc.boss) G.StoryBoss.warm(game); }     // (round 8: the last scene's mini-boss, where he fell; this one's shaders)
     // (round 7) the last scene's cabinet and countdown gone; what this one pushes into place put there
     if (G.StoryPick) G.StoryPick.reset(game);
     if (G.StoryScreen && G.StoryScreen.setTimer) G.StoryScreen.setTimer(null);
@@ -431,7 +457,7 @@ G.StoryScenes = (function () {
   // a scene left for the next: what only its beats and rules asked about goes with it (a
   // checkpoint keeps 120 flags -- for what lasts the chapter: the phone's messages, the choices)
   // (round 7: "x:<name>" a scene's own plain flag -- "x:wave1" -- gone with it too: a later scene may use the name)
-  const LOCAL = /^(x|on|used|tried|card|quiz|qte|lock|lockwrong|lockopen|pushed|pick|picked|pickwrong):/;
+  const LOCAL = /^(x|on|used|tried|card|quiz|qte|lock|lockwrong|lockopen|pushed|pick|picked|pickwrong|boss):/;
   function prune(run) { Array.from(run.flags).forEach((f) => { if (LOCAL.test(f)) run.flags.delete(f); }); }
   return { inZone, met, points, spawn, aimAt, act, objectiveAt, enter, update, canSkip, skip, seenKey };
 })();

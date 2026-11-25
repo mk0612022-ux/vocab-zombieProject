@@ -13,7 +13,8 @@
 // aimquiz.js, screen.js); round 6 scenes 1-1 and 1-2 (a scene's rules `on`, doors
 // opened by hand, the letter lock: js/story/wheellock.js, the whispers: whisper.js); round 7 scenes
 // 1-3 and 1-4 (bookshelves pushed: js/story/push.js, the medicine cabinet: pick.js, the defence's
-// waves, Crawlers under the tables, Nam's dictionary, Nurse Pim).
+// waves, Crawlers under the tables, Nam's dictionary, Nurse Pim); round 8 scene 1-5 (the canteen's
+// two waves, boxes taken by holding the button, Coach Ek: js/story/miniboss.js, the shotgun).
 //   practice       (round 5) words the prologue uses that the bank does not have, with
 //                  their meanings in the four meaning languages: practice, counted nowhere
 //
@@ -77,6 +78,14 @@ G.STORY_CHAPTERS.ch1 = {
     wingIn: { x0: -44, x1: -40, z0: -13, z1: -3.5, y: 4 },
     // ...and back in the library, past the shelf's way (the back door shut and its shelf pushed back behind them)
     libraryDeep: { x0: -37.6, x1: -24, z0: 3, z1: 9, y: 4 },
+    // (round 8) 1-5: the foot of the back stairs (1F), the kitchen, the walkway to the gym (the save), just
+    // inside the gym, its north end by the car park's door
+    backStairs1: { x0: -46.6, x1: -44.4, z0: 2, z1: 9, y: 0 },
+    kitchenIn: { x0: -51, x1: -40.2, z0: -27, z1: -20, y: 0 },
+    walkway: { x0: -39.2, x1: -37, z0: -27.4, z1: -21.6, y: 0 },
+    gymIn: { x0: -35.6, x1: -27, z0: -31, z1: -22.2, y: 0 },
+    gymNorth: { x0: -36, x1: -10, z0: -46, z1: -40, y: 0 },
+    parkIn: { x0: -44, x1: -4, z0: -66, z1: -48, y: 0 },
   },
   spawns: {
     // (round 6) out of the 3F toilets; hiding in the 2F store room
@@ -97,6 +106,12 @@ G.STORY_CHAPTERS.ch1 = {
     wingDesks: [{ x: -41.2, y: 4, z: -6.6 }, { x: -43.1, y: 4, z: -10.5 }, { x: -41.5, y: 4, z: -14.5 }],
     corridor2East: [{ x: -21, y: 4, z: -0.6 }, { x: -19, y: 4, z: 0.4 }, { x: -23, y: 4, z: 0.2 }, { x: -17, y: 4, z: -0.3 }],
     canteenFar: [{ x: -48, y: 0, z: -15 }, { x: -44, y: 0, z: -15 }, { x: -48, y: 0, z: -7 }, { x: -44, y: 0, z: -7 }],
+    // (round 8) 1-5: in the kitchen; at the foot of the back stairs (the way the player came); the gym's
+    // locker room (Sprinters in PE kit); the gym's floor (the way back, the shotgun in hand)
+    kitchenFar: [{ x: -48, y: 0, z: -23.6 }, { x: -46, y: 0, z: -24.6 }, { x: -43.6, y: 0, z: -23.2 }],
+    backStairsFoot: [{ x: -45.5, y: 0, z: 3.2 }, { x: -45.5, y: 0, z: 6.2 }, { x: -45.5, y: 0, z: 8.0 }, { x: -45.5, y: 0, z: 4.8 }],
+    lockerRoom: [{ x: -16.8, y: 0, z: -25 }, { x: -15.2, y: 0, z: -23.8 }, { x: -15.2, y: 0, z: -26.4 }, { x: -13.4, y: 0, z: -25 }, { x: -13.2, y: 0, z: -27 }, { x: -16.6, y: 0, z: -27.2 }],
+    gymFloor: [{ x: -24, y: 0, z: -36 }, { x: -20.5, y: 0, z: -38 }, { x: -27.5, y: 0, z: -38 }, { x: -18.5, y: 0, z: -34 }, { x: -27.6, y: 0, z: -31.4 }],
     corridor1: [{ x: -24, y: 0, z: 0 }, { x: -28, y: 0, z: 0.5 }, { x: 4, y: 0, z: -0.5 }],
     yardRows: [{ x: -10, y: 0, z: 30 }, { x: 10, y: 0, z: 30 }, { x: 0, y: 0, z: 36 }, { x: -5, y: 0, z: 24 }],
   },
@@ -113,6 +128,8 @@ G.STORY_CHAPTERS.ch1 = {
     min4: { from: "min", text: "story.ch1.m.min4" }, min5: { from: "min", text: "story.ch1.m.min5" }, min6: { from: "min", text: "story.ch1.m.min6" },
     // (round 7) 1-4: the list for the nurse's room
     min7: { from: "min", text: "story.ch1.m.min7" },
+    // (round 8) 1-5: the water; Sgt. Chai's car
+    min8: { from: "min", text: "story.ch1.m.min8" }, min9: { from: "min", text: "story.ch1.m.min9" },
   },
   notices: {
     cal: { app: "story.app.calendar", icon: "📅", text: "story.ch1.n.cal" },
@@ -530,11 +547,102 @@ G.STORY_CHAPTERS.ch1 = {
           ["sys", { key: "story.ch1.sys.movement", glitch: true }], ["sound", "tense"]] },
         { id: "sprDone", after: "on:spr", when: { cleared: "spr" }, do: [["sound", "quiet"]] },
       ] },
-    { id: "s5", title: "story.ch1.s5", objective: "story.ch1.s5.obj", start: { x: -42, y: 4, z: -17.5, yaw: Math.PI }, clock: "12:30", light: "noon",
+    // (round 8) 1-5 Supply Run (7-9 minutes): the peak in the middle of the chapter. Two hours on, still in the
+    // library: Kru Min's errand; down the back stairs to the canteen, breakfast still on the trays -- the
+    // first wave; the kitchen behind it: three boxes, two seconds each with the button held, the second wave
+    // coming meanwhile (15 in the two, the most in the chapter so far); the walkway to the gym: the save.
+    // Coach Ek, FASTER: his charge, his ball, his Sprinters (js/story/miniboss.js) -- stunned against a wall or
+    // the vaulting box, the glasses ask for his word among FASTEN and FOSTER, three right ones and he is
+    // down, his stopwatch still ticking. The car park: Sgt. Chai's police car, the shotgun, the radio (chapter
+    // 2's clue); the way back; the library again, and evening.
+    { id: "s5", title: "story.ch1.s5", objective: "story.ch1.s5.obj", start: { x: -37.0, y: 4, z: 4.6, yaw: -Math.PI / 2 }, clock: "12:30", light: "noon", boss: true,
+      doors: { LIBBACK: false, DLIBRARY: false, STAIRB2: true, STAIRB1: true, KITCHEN: true, KITCHENB: false, GYMW: false, GYMN: false, LOCKER: false, ENTRANCE: false, DPE: false, DSTOREW: false, DWC2: false, DNURSE: false, STAIRM2: false },
+      props: [
+        // in the library: both doors' shelves -- the back door's moved aside for the player
+        { id: "frontShelf", kind: "bookshelf", o: { w: 1 }, at: { x: -25.5, y: 4, z: 3.25 }, yaw: 0 },
+        { id: "backShelf", kind: "bookshelf", o: { w: 1 }, at: { x: -38.75, y: 4, z: 7.5 }, yaw: Math.PI / 2 },
+        // in the kitchen: the supplies
+        { id: "boxWater", kind: "supplyBoxes", o: { only: "water" }, at: { x: -50.6, y: 0, z: -21.4 }, yaw: 0.2 },
+        { id: "boxFood", kind: "supplyBoxes", o: { only: "food" }, at: { x: -45.0, y: 0, z: -20.5 }, yaw: -0.1 },
+        { id: "boxTorch", kind: "supplyBoxes", o: { only: "torch" }, at: { x: -40.5, y: 0, z: -21.2 }, yaw: 0.3 },
+      ],
+      cast: [
+        { id: "min", who: "min", at: { x: -34.6, y: 4, z: 4.5 }, yaw: -Math.PI / 2, face: "player" },
+        { id: "tonkla", who: "tonkla", at: { x: -35.1, y: 4, z: 5.98 }, yaw: Math.PI, pose: "sit" },
+        { id: "fai", who: "fai", at: { x: -34.3, y: 4, z: 5.98 }, yaw: Math.PI, pose: "sit" },
+        { id: "nam", who: "nam", at: { x: -33.2, y: 4, z: 4.3 }, yaw: -Math.PI / 2, face: "player" },
+        // in the gym, his back to the door: Coach Ek (seen from the walkway's save on)
+        { id: "ek", who: "ek_z", at: { x: -26.5, y: 0, z: -32 }, yaw: 2.2, hidden: true, label: { word: "FASTER", depth: true } },
+      ],
       beats: [
-        { do: [["objective", "story.ch1.s5.obj"]] },
-        { wait: { zone: "canteen" }, do: [["banner", "story.ph.group"], ["spawn", { id: "f1", at: "canteenFar", count: 4 }]] },
-        { wait: { cleared: "f1" }, do: [["checkpoint"], ["next"]] },
+        // two hours on (a cut): still in the library
+        { do: [["black", { on: true, sec: 0 }], ["sound", "stop"], ["hint", null], ["objective", "story.ch1.s5.obj0"], ["teleport", { x: -37.0, y: 4, z: 4.6, yaw: -Math.PI / 2 }],
+          ["title", { key: "story.time.noon", sub: "story.ch1.s5.later", sec: 2.6 }]] },
+        { wait: { time: 2.8 }, do: [["black", { on: false, sec: 1.2 }], ["sound", "calm"]] },
+        // Kru Min's errand
+        { wait: { time: 1.4 }, do: [["npc", { id: "min", talk: 3 }], ["say", [{ who: "min", line: "story.ch1.d.minSupply" }]]] },
+        { wait: { said: true }, do: [["sound", "quiet"], ["objective", "story.ch1.s5.obj1"], ["door", { id: "LIBBACK", open: true }], ["sound", "door"], ["drop", { kind: "ammo", at: { x: -38.3, y: 4, z: 4.1 } }]] },
+        // at the foot of the back stairs: the canteen's first wave is on its way
+        { wait: { zone: "backStairs1" }, do: [["flag", "x:w1"], ["objective", "story.ch1.s5.objC"], ["sys", { key: "story.ch1.sys.canteen", glitch: true }], ["sound", "tense"],
+          ["spawn", { id: "w1", at: ["canteenFar", "kitchenFar"], count: 7, kinds: ["normal", "normal", "fast", "normal", "normal", "fast", "normal"] }],
+          ["drop", { kind: "ammo", at: { x: -50.2, y: 0, z: -3.2 } }], ["drop", { kind: "ammo", at: { x: -41.8, y: 0, z: -16.8 } }], ["drop", { kind: "health", at: { x: -48.6, y: 0, z: -24.6 } }]] },
+        // clear: the kitchen's three boxes, two seconds each -- and the second wave behind the player, a box at a time (the rules)
+        { wait: { all: [{ time: 2 }, { cleared: "w1" }] }, do: [["flag", "x:boxes"], ["sound", "quiet"], ["objective", "story.ch1.s5.obj2"], ["unflag", "read:min"], ["phone", "min8"],
+          ["use", { id: "boxWater", at: { x: -50.6, y: 0, z: -21.4 }, size: [1.0, 1.1, 1.0], lift: 0.5, prompt: "story.use.boxWater", holdSec: 2, sound: "" }],
+          ["use", { id: "boxFood", at: { x: -45.0, y: 0, z: -20.5 }, size: [1.0, 1.1, 1.0], lift: 0.5, prompt: "story.use.boxFood", holdSec: 2, sound: "" }],
+          ["use", { id: "boxTorch", at: { x: -40.5, y: 0, z: -21.2 }, size: [1.0, 1.1, 1.0], lift: 0.5, prompt: "story.use.boxTorch", holdSec: 2, sound: "" }],
+          ["doors", { ids: ["KITCHENB"], blocked: { KITCHENB: "story.hint.suppliesFirst" } }]] },
+        { wait: { all: [{ used: "boxWater" }, { used: "boxFood" }, { used: "boxTorch" }] }, do: [["hint", null], ["objective", "story.ch1.s5.obj3"], ["doors", { ids: ["KITCHENB"] }], ["unflag", "read:min"], ["phone", "min9"]] },
+        // the walkway: the save (the design's: before the gym), not in the middle of a fight
+        { wait: { all: [{ zone: "walkway" }, { any: [{ calm: true }, { time: 30 }] }] }, do: [["checkpoint", { x: -38, y: 0, z: -23, yaw: -Math.PI / 2 }]] },
+        // (also the first beat of a run picked up at that save) the gym's door, a stopwatch ticking behind it
+        { do: [["unprop", "boxWater"], ["unprop", "boxFood"], ["unprop", "boxTorch"], ["door", { id: "KITCHENB", open: true }], ["objective", "story.ch1.s5.obj4"], ["sound", "quiet"], ["sound", "tick"],
+          ["doors", { ids: ["GYMW"] }], ["npc", { id: "ek", show: true }],
+          ["drop", { kind: "ammo", at: { x: -34.6, y: 0, z: -42.6 } }], ["drop", { kind: "ammo", at: { x: -12.4, y: 0, z: -38.4 } }], ["drop", { kind: "ammo", at: { x: -34.6, y: 0, z: -30.6 } }], ["drop", { kind: "health", at: { x: -12.4, y: 0, z: -42.8 } }]] },
+        // in: the door shut behind, Coach Ek turns round
+        { wait: { zone: "gymIn" }, cine: "ek", do: [["door", { id: "GYMW", open: false }], ["sound", "slam"], ["bars", true], ["lock", true], ["look", { x: -26.5, y: 1.35, z: -32, sec: 1.1 }], ["sys", { key: "story.ch1.sys.ek", glitch: true }]] },
+        { wait: { all: [{ looked: true }, { time: 1.6 }] }, cine: "ek", do: [["npc", { id: "ek", face: "player" }]] },
+        { wait: { time: 1.2 }, do: [["bars", false], ["lock", false], ["npc", { id: "ek", remove: true }], ["sound", "untick"], ["sound", "tense"], ["objective", "story.ch1.s5.obj5"],
+          ["boss", { id: "ek", who: "ek", name: "story.who.ek", word: "faster", gloss: CH1_PRACTICE.faster, at: { x: -26.5, y: 0, z: -32 }, yaw: -0.96, firstGap: 0.4, center: { x: -23, z: -34.5 },
+            decoys: [{ word: "fasten", gloss: CH1_PRACTICE.fasten }, { word: "foster", gloss: CH1_PRACTICE.foster }], adds: "lockerRoom", door: "LOCKER", line: "story.ch1.d.ekFaster", ask: "story.ch1.sys.shoot",
+            moves: ["faster", "charge", "ball", "charge", "faster", "charge", "ball", "charge"], drop: { id: "watch", prompt: "story.use.watch" } }]] },
+        // down: whoever is left of his Sprinters, then the car park's door
+        { wait: { boss: "ek" }, do: [["sound", "quiet"], ["slow", 1.2], ["hint", null], ["objective", "story.ch1.s5.obj6"]] },
+        { wait: { all: [{ time: 2.5 }, { any: [{ calm: true }, { time: 40 }] }] }, do: [["door", { id: "GYMN", open: true }], ["sound", "door"], ["objective", "story.ch1.s5.obj7"],
+          ["use", { id: "car", at: { x: -24, y: 0, z: -58 }, size: [4.6, 1.8, 2.4], lift: 0.9, prompt: "story.use.car", sound: "" }]] },
+        // Sgt. Chai's car: the shotgun, its rounds; the radio; a save
+        { wait: { used: "car" }, do: [["flag", "x:gun"], ["sound", "door"], ["give", { gun: "shotgun", rounds: 18 }], ["hint", "story.hint.shotgun"], ["sound", "static"], ["say", [{ who: "radio", line: "story.ch1.d.radioUnits" }]],
+          ["checkpoint", { x: -24, y: 0, z: -54.6, yaw: Math.PI }]] },
+        // (also the first beat of a run picked up there) back the way they came: Shamblers in the gym to try it on
+        { do: [["door", { id: "GYMN", open: true }], ["door", { id: "GYMW", open: true }], ["door", { id: "KITCHENB", open: true }], ["door", { id: "LIBBACK", open: true }], ["unprop", "boxWater"], ["unprop", "boxFood"], ["unprop", "boxTorch"],
+          ["objective", "story.ch1.s5.obj8"]] },
+        { wait: { time: 4 }, do: [["spawn", { id: "rt", at: "gymFloor", count: 5, kinds: ["normal"] }], ["sys", { key: "story.ch1.sys.gym", glitch: true }]] },
+        // in the library: the door shut; then a cut -- they eat, they rest, the light goes gold
+        { wait: { all: [{ zone: "libraryDeep" }, { any: [{ calm: true }, { time: 30 }] }] }, do: [["door", { id: "LIBBACK", open: false }], ["sound", "slam"], ["sound", "calm"], ["hint", null], ["objective", "story.ch1.s5.obj9"],
+          ["npc", { id: "tonkla", pose: "stand", face: "player", talk: 2.6 }], ["npc", { id: "fai", pose: "stand", face: "player" }], ["say", [{ who: "tonkla", line: "story.ch1.d.tonklaRun" }]]] },
+        { wait: { said: true }, do: [["black", { on: true, sec: 1 }]] },
+        { wait: { time: 1.3 }, do: [["light", "golden"], ["heal", true], ["teleport", { x: -33.6, y: 4, z: 4.2, yaw: Math.PI }], ["prop", { id: "eaten", kind: "supplyBoxes", at: { x: -36.4, y: 4, z: 4.0 }, yaw: 0.4 }],
+          ["npc", { id: "tonkla", to: { x: -35.9, y: 4, z: 5.98, yaw: Math.PI }, pose: "sit", face: Math.PI }], ["npc", { id: "fai", to: { x: -35.0, y: 4, z: 5.98, yaw: Math.PI }, pose: "sit", face: Math.PI }],
+          ["npc", { id: "nam", to: { x: -31.9, y: 4, z: 5.98, yaw: Math.PI }, pose: "sit", face: Math.PI }], ["npc", { id: "min", to: { x: -33.4, y: 4, z: 8.3, yaw: 0 }, face: 0 }],
+          ["title", { key: "story.time.evening", sub: "story.ch1.s5.evening", sec: 2.6 }]] },
+        { wait: { time: 2.8 }, do: [["black", { on: false, sec: 1.4 }]] },
+        { wait: { time: 1.8 }, do: [["npc", { id: "min", face: "player", talk: 3 }], ["say", [{ who: "min", line: "story.ch1.d.minTime" }]]] },
+        { wait: { said: true }, do: [["sound", "quiet"], ["door", { id: "LIBBACK", open: true }], ["sound", "door"], ["checkpoint"], ["next"]] },
+      ],
+      on: [
+        // at the kitchen's boxes: how (once the canteen is clear)
+        { id: "take", after: "x:boxes", when: { zone: "kitchenIn" }, do: [["hint", { key: "story.hint.take", bind: "interact" }]] },
+        { id: "bw", when: { used: "boxWater" }, do: [["unprop", "boxWater"], ["give", { item: "story.item.water" }]] },
+        { id: "bf", when: { used: "boxFood" }, do: [["unprop", "boxFood"], ["give", { item: "story.item.food" }]] },
+        { id: "bt", when: { used: "boxTorch" }, do: [["unprop", "boxTorch"], ["give", { item: "story.item.torch" }]] },
+        // the second wave, in two parts: the first box taken, the second -- up from the back stairs
+        { id: "one", when: { any: [{ used: "boxWater" }, { used: "boxFood" }, { used: "boxTorch" }] }, do: [["objective", "story.ch1.s5.obj2b"], ["hint", null], ["sound", "tense"],
+          ["spawn", { id: "w2a", at: "backStairsFoot", count: 4, kinds: ["fast", "normal", "fast", "normal"] }], ["sys", { key: "story.ch1.sys.more", glitch: true }]] },
+        { id: "two", when: { any: [{ all: [{ used: "boxWater" }, { used: "boxFood" }] }, { all: [{ used: "boxWater" }, { used: "boxTorch" }] }, { all: [{ used: "boxFood" }, { used: "boxTorch" }] }] },
+          do: [["objective", "story.ch1.s5.obj2c"], ["spawn", { id: "w2b", at: "backStairsFoot", count: 4, kinds: ["fast", "normal", "normal", "fast"] }], ["drop", { kind: "ammo", at: { x: -46.4, y: 0, z: -24.6 } }]] },
+        { id: "held", after: "on:two", when: { all: [{ cleared: "w2a" }, { cleared: "w2b" }] }, do: [["sound", "quiet"]] },
+        // the stopwatch he dropped, still running (round 11's collectibles)
+        { id: "watch", when: { used: "watch" }, do: [["flag", "found:stopwatch"], ["card", { id: "watch", icon: "⏱️", title: "story.card.watchTitle", lines: ["story.ch1.watch"] }]] },
       ] },
     { id: "s6", title: "story.ch1.s6", objective: "story.ch1.s6.obj", start: { x: -41.2, y: 0, z: -1, yaw: -Math.PI / 2 }, clock: "17:00", light: "golden",
       beats: [
@@ -543,6 +651,7 @@ G.STORY_CHAPTERS.ch1 = {
         { wait: { cleared: "h1" }, do: [["checkpoint"], ["next"]] },
       ] },
     { id: "s7", title: "story.ch1.s7", objective: "story.ch1.s7.obj", start: { x: 4.5, y: 0, z: 6, yaw: Math.PI }, clock: "17:45", light: "sunset",
+      doors: { ENTRANCE: true },        // (round 8: 1-5 shuts the front doors -- the crowd is outside)
       beats: [
         { do: [["objective", "story.ch1.s7.obj"]] },
         { wait: { zone: "flagYard" }, do: [["banner", "story.ph.group"], ["spawn", { id: "b1", at: "yardRows", count: 4 }]] },

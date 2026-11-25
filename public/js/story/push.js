@@ -18,6 +18,9 @@
 //   ["nudge", { id, by }]   knocked back toward `from` by `by` of the way (the doors banged
 //                           on): no longer "pushed", to be pushed again
 //   ["push", { id, p }]     put at `p` of the way at once (a scene that starts with it moved)
+//   (round 8) something taken by holding the button on it: a use of js/story/interact.js with
+//   `holdSec` -- a box of supplies, two seconds each -- the same ring filling; let go, it runs back
+//   (twice as fast); full, the use is used. A press alone does nothing.
 //   G.StoryPush.enter(game, run, scene) / update(game, dt) / reset() / info(id) / held() / done(id)
 // ===================================================================
 window.G = window.G || {};
@@ -25,7 +28,7 @@ window.G = window.G || {};
 G.StoryPush = (function () {
   const T = (k, v) => G.T(k, v);
   const C = () => (G.CONFIG.story && G.CONFIG.story.push) || {};
-  let items = {}, ring = null, scrapeT = 0, pushing = null;
+  let items = {}, ring = null, scrapeT = 0, pushing = null, takes = {}, taking = null, takeT = 0;
   const run = () => G.Story && G.Story.run;
   const lerp = (a, b, u) => a + (b - a) * u;
   const wrap = (a) => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; };
@@ -159,7 +162,32 @@ G.StoryPush = (function () {
         if (it.p >= 1) arrive(game, r, it);
       }
     } else scrapeT = 0;
-    showRing(it && it.p < 1 && free && G.StoryUse.can(ref) && (pushing || held()) ? it : null);
+    take(game, dt, ref, free);
+    showRing(taking ? { p: taking.holdP } : it && it.p < 1 && free && G.StoryUse.can(ref) && (pushing || held()) ? it : null);
+  }
+  // (round 8) a thing taken by holding the button on it (a use with `holdSec`): it fills while it is
+  // looked at and held, runs back twice as fast when it is not, and is used when it is full
+  function take(game, dt, ref, free) {
+    taking = null;
+    const on = ref && ref.holdSec > 0 && !ref.used && free && G.StoryUse.can(ref) && held() ? ref : null;
+    Object.keys(takes).forEach((id) => {
+      const q = takes[id];
+      if (q === on) return;
+      q.holdP = Math.max(0, (q.holdP || 0) - (dt / q.holdSec) * 2);
+      if (q.holdP <= 0 || q.used) delete takes[id];
+    });
+    if (!on) { takeT = 0; return; }
+    takes[on.id] = on;
+    on.holdP = Math.min(1, (on.holdP || 0) + dt / on.holdSec);
+    if (on.holdP > 0.999) on.holdP = 1;
+    taking = on;
+    takeT -= dt;
+    if (takeT <= 0) { takeT = C().takeEvery || 0.5; if (G.Audio && G.Audio.sfx) G.Audio.sfx(on.takeSound || "paper"); }
+    if (on.holdP < 1) return;
+    on.full = true;                                  // (js/story/interact.js use: only now)
+    delete takes[on.id];
+    taking = null;
+    G.StoryUse.use(game, on);
   }
   // how far along: a ring under the crosshair while it is pushed
   function showRing(it) {
@@ -171,13 +199,14 @@ G.StoryPush = (function () {
       document.body.appendChild(ring);
     }
     ring.classList.remove("hidden");
-    ring.style.setProperty("--pp", it.p.toFixed(3));
+    ring.style.setProperty("--pp", (it.p || 0).toFixed(3));
   }
   function reset() {
-    items = {}; pushing = null; scrapeT = 0;
+    items = {}; pushing = null; scrapeT = 0; takes = {}; taking = null; takeT = 0;
     if (ring) ring.classList.add("hidden");
   }
   function info(id) { const it = items[id]; return it ? { p: it.p, x: +it.g.position.x.toFixed(2), z: +it.g.position.z.toFixed(2), helped: it.helped, moving: !!it.anim } : null; }
 
-  return { enter, update, reset, nudge, set, held, done, info, ids: () => Object.keys(items), get pushing() { return pushing ? pushing.def.id : null; } };
+  return { enter, update, reset, nudge, set, held, done, info, ids: () => Object.keys(items), get pushing() { return pushing ? pushing.def.id : null; },
+    get taking() { return taking ? { id: taking.id, p: taking.holdP } : null; } };
 })();

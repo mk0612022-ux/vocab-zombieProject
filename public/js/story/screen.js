@@ -14,8 +14,9 @@
 //   ["hint", key | { key, bind, sec } | null]   a line at the bottom on what to do: the key's
 //                                   ".touch" or ".pad" form when the player plays that way, {key}
 //                                   the binding of `bind`
-//   (round 7) calm / tense (music under a scene: the library's meeting, its defence) Â· quiet (the
-//                                   music stopped)
+//   (round 7) calm / tense (music under a scene: the library's meeting, its defence) · quiet (the
+//                                   music stopped) · (round 8) tick (a stopwatch running somewhere near, a second
+//                                   at a time) / untick (no more of it)
 //   ["shake", { sec, amp }]         the view shaken
 //   (round 7) ["timer", { key, sec } | null]   a countdown at the top -- "Next wave in {n}" -- gone at 0
 //   ["thud", { at, n, gap }]        fists on a door, where it is: n blows, gap seconds apart
@@ -88,6 +89,8 @@ G.StoryScreen = (function () {
     // (round 7) music under a scene: one at a time
     if (name === "calm" || name === "tense") { delete loops.calm; delete loops.tense; loops[name] = { t: 0, next: 0, i: 0 }; return; }
     if (name === "quiet") { delete loops.calm; delete loops.tense; return; }
+    if (name === "tick") { loops.tick = { t: 0, next: 0, i: 0 }; return; }
+    if (name === "untick") { delete loops.tick; return; }
     if (!a) return;
     if (name === "kick") a.group({ cat: "sfx", prio: 2, pos: null, dur: 0.6 }, () => {
       a.noise({ dur: 0.18, freq: 300, freqEnd: 80, q: 0.7, gain: 0.32 });
@@ -174,6 +177,16 @@ G.StoryScreen = (function () {
         if ((tn.i++ % 4) === 0) a.group({ cat: "music", prio: 1, pos: null, dur: 3.4 }, () => {
           [110, 116.5].forEach((f) => a.tone({ type: "sawtooth", freq: f, dur: 3.2, gain: g0 * 0.22, attack: 0.6, filter: { type: "lowpass", freq: 520 } }));
         });
+      }
+    }
+    // (round 8) a stopwatch running, close by: the chapter's sound (Coach Ek's, before he is seen)
+    const tk = loops.tick;
+    if (tk) {
+      tk.next -= dt;
+      if (tk.next <= 0 && a) {
+        tk.next = C().tickEvery || 1;
+        const hi = (tk.i++ % 2) === 0;
+        a.group({ cat: "sfx", prio: 1, pos: null, dur: 0.1 }, () => a.tone({ type: "square", freq: hi ? 1750 : 1500, dur: 0.02, gain: C().tickGain || 0.05, filter: { type: "bandpass", freq: 2400, q: 3 } }));
       }
     }
     // the radio: a hiss in bursts

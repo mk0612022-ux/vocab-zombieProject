@@ -69,8 +69,8 @@ G.Round40Test = (function () {
 
     // (story round 6: scenes 1-1 and 1-2 are the design's now -- the run's shell this suite tries
     // (zones, groups, checkpoints, a scene's HUD) goes on the stand-ins it was written for, put back after)
-    const CHS = G.STORY_CHAPTERS.ch1.scenes, real12 = CHS.slice(1, 5);       // (story round 7: and 1-3, 1-4)
-    CHS.splice(1, 4,
+    const CHS = G.STORY_CHAPTERS.ch1.scenes, real12 = CHS.slice(1, 6);       // (story round 7: and 1-3, 1-4; round 8: 1-5)
+    CHS.splice(1, 5,
       { id: "s1", title: "story.ch1.s1", objective: "story.ch1.s1.obj", start: { x: -1.5, y: 8, z: 0.4, yaw: -Math.PI / 2 }, clock: "08:50", light: "alarm", beats: [
         { do: [["objective", "story.ch1.s1.obj"]] },
         { wait: { zone: "corridor3East" }, do: [["banner", "story.ph.group"], ["spawn", { id: "c1", at: "corridor3Far", count: 3 }]] },
@@ -88,7 +88,11 @@ G.Round40Test = (function () {
       { id: "s4", title: "story.ch1.s4", objective: "story.ch1.s4.obj", start: { x: -33, y: 4, z: 4.6, yaw: Math.PI / 2 }, clock: "10:15", light: "nurse", beats: [
         { do: [["objective", "story.ch1.s4.obj"]] },
         { wait: { zone: "nurse" }, do: [["spawn", { id: "n1", at: "wing2", count: 2 }]] },
-        { wait: { cleared: "n1" }, do: [["checkpoint"], ["next"]] }] });
+        { wait: { cleared: "n1" }, do: [["checkpoint"], ["next"]] }] },
+      { id: "s5", title: "story.ch1.s5", objective: "story.ch1.s5.obj", start: { x: -42, y: 4, z: -17.5, yaw: Math.PI }, clock: "12:30", light: "noon", beats: [
+        { do: [["objective", "story.ch1.s5.obj"]] },
+        { wait: { zone: "canteen" }, do: [["banner", "story.ph.group"], ["spawn", { id: "f1", at: "canteenFar", count: 4 }]] },
+        { wait: { cleared: "f1" }, do: [["checkpoint"], ["next"]] }] });
     try {
       G.CONFIG.story.enabled = true;
       G.save.settings.storySubs = "full";
@@ -450,7 +454,7 @@ G.Round40Test = (function () {
     } catch (e) {
       ok("no exception", false, e.message + " " + (e.stack || "").split("\n").slice(0, 3).join(" | "));
     } finally {
-      CHS.splice(1, 4, ...real12);
+      CHS.splice(1, 5, ...real12);
       G.CONFIG.story.enabled = enabled0;
       G.Input.pollGamepad = pad0; G.Input.padActive = false;
       G.Input.mode = mode0; if (G.UI.applyControlMode) G.UI.applyControlMode();

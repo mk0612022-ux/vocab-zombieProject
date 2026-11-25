@@ -196,6 +196,7 @@ G.Story = (function () {
     // (round 7) what is pushed into place, a cabinet's window
     if (G.StoryPush) G.StoryPush.reset();
     if (G.StoryPick) G.StoryPick.reset(game);
+    if (G.StoryBoss) G.StoryBoss.reset(game);            // (round 8: a mini-boss)
     // what the checkpoint was carrying (full health: a checkpoint is a fresh start)
     if (from && from.guns) {
       const pl = game.player;
@@ -239,6 +240,9 @@ G.Story = (function () {
     if (G.StoryWhisper) G.StoryWhisper.update(game, dt);
     // (round 7) a bookshelf pushed while the button is held
     if (G.StoryPush) G.StoryPush.update(game, dt);
+    // (round 8) a mini-boss's moves
+    if (G.StoryBoss) G.StoryBoss.update(game, dt);
+    if (!run || run.over) return;
     G.StoryScenes.update(game, run, dt);
   }
   // (round 5) the gun in the hands -- or not yet. Handed over (not `quiet`): it comes up as a
@@ -401,6 +405,7 @@ G.Story = (function () {
     if (G.StoryWhisper) G.StoryWhisper.reset();
     if (G.StoryPush) G.StoryPush.reset();
     if (G.StoryPick) G.StoryPick.reset(game);
+    if (G.StoryBoss) G.StoryBoss.reset(game);
     if (G.ViewModel && G.ViewModel.setVisible) G.ViewModel.setVisible(true);
     document.body.classList.remove("story-hands-free");
   }

@@ -2865,6 +2865,7 @@ body.lens-glitch #hud::after { content: ""; position: fixed; inset: 0; pointer-e
 body.story-run:not([data-lens~="word"]) .lens-sys { top: calc(18px + var(--sa-t)); }
 /* (story round 7) an answer's card under the word box at the same time: the glasses' line below it, not over it */
 body.story-run[data-lens~="word"]:has(#hud-xcard:not(.hidden)) .lens-sys { top: calc(172px + var(--sa-t)); }
+/* (story round 8: js/story/lexilens.js keeps it under whatever the top of the HUD has -- a mini-boss's bar too) */
 
 /* the black bars of a cinematic moment (js/story/storycam.js: the boss scenes' own, js/cutscene.js) */
 body.story-bars .cine-top, body.story-bars .cine-bottom { transform: translateY(0); }

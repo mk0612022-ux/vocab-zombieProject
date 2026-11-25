@@ -683,16 +683,26 @@ G.CONFIG = {
     dialogue: { minSec: 2.2, perChar: 0.05, maxSec: 9, fast: 4, tapSec: 0.25, holdSkip: 1.2, gapSec: 0.2 },
     phone: { toastSec: 4.5, torch: { color: 0xfff1d6, intensity: 1.7, distance: 26, angle: 0.48, penumbra: 0.65, decay: 1.4 } },
     lens: { sysSec: 3.2, correctSec: 1.5, bootSec: 0.9 },
-    cam: { lookSec: 1.2, seatDrop: 0.48 },
+    cam: { lookSec: 1.2, seatDrop: 0.48, fallDrop: 1.05 },
     voxel: { px: 0.05625, ao: [0.52, 0.68, 0.84, 1], glassOpacity: 0.42, zombies: true, patchIdle: 0.55, patchLock: 2.6, chunk: 16, mapChunk: 32, siteChunk: 64 },
     cast: { walkSpeed: 1.4, followDist: 1.6, followSpeed: 3.4, followLeash: 9, lungeSpeed: 1.6, lungeStop: 0.95, seatH: 0.45, turnGlitch: 0.45 },
     use: { qteSec: 1.6, qteWindow: 0.2, qteHurt: 12, qteRetry: 0.9 },
     quiz: { dist: 1.9, gap: 0.82, rise: -0.05, aim: 0.2, settle: 0.35, nextRight: 1.4, nextWrong: 2.4 },
-    screen: { fadeSec: 1.2, titleSec: 4.2, hintSec: 6, staticSec: 9, calmEvery: 4.8, calmGain: 0.016, tenseEvery: 0.85, tenseGain: 0.07 },
+    screen: { fadeSec: 1.2, titleSec: 4.2, hintSec: 6, staticSec: 9, calmEvery: 4.8, calmGain: 0.016, tenseEvery: 0.85, tenseGain: 0.07, tickEvery: 1, tickGain: 0.05 },
     lock: { breakDist: 4.5, leaveDist: 3.5, swipePx: 26, mousePx: 90, padDelay: 0.38, padRepeat: 0.12, solvedSec: 0.9 },
     whisper: { on: true, range: 6.5, gap: 2.6, zombieGap: 7, captionSec: 1.8, rate: 0.72, pitch: 0.35, volume: 0.45 },
-    push: { sec: 2.6, helpK: 1.6, helpSpeed: 2.6, scrapeEvery: 0.42, nudgeSec: 0.35 },
+    push: { sec: 2.6, helpK: 1.6, helpSpeed: 2.6, scrapeEvery: 0.42, nudgeSec: 0.35, takeEvery: 0.5 },
     pick: { doneSec: 1.1 },
+    // (round 8) Coach Ek (js/story/miniboss.js): `need` right answers; seconds between two moves after 0, 1, 2
+    // of them (gap); the charge: three beeps `beepGap` apart (backing off at backSpeed while the player is
+    // nearer than runUp m), its line held from the third, `dashSpeed` m/s,
+    // a hit takes dashDamage of full health, throws the player dashPush m and off their feet for fallSec;
+    // what he runs into stuns him stunSec; the ball: ballWind s to throw, ballSpeed m/s; FASTER: how many
+    // Sprinters the first, second, third time (never more than maxAdds at once), and whatever is within
+    // boostR m of him is sped up for boostSec; the watch's tick, quicker with each answer
+    boss: { need: 3, speed: 1.8, bite: 18, scale: 1.12, firstGap: 1.6, gap: [4.2, 3.6, 3], beepGap: 0.55, runUp: 6, backSpeed: 3.4, laneW: 1, dashSpeed: 11, dashMax: 34, dashHit: 0.95, dashDamage: 0.22, dashPush: 3, fallSec: 1.3,
+      stunSec: 4, recoverSec: 1.1, hurtSec: 1.2, ballWind: 1, ballSpeed: 13, ballHit: 0.6, ballDamage: 0.16, ballPush: 1.6,
+      fasterSec: 1.7, callAt: 0.8, calls: [4, 5, 6], maxAdds: 6, boostSec: 5, boostR: 7, tick: [1, 0.8, 0.62] },
     crawlerBand: 0.55,
   },
   // ---------------- the melee slot (expansion, round 4) ----------------

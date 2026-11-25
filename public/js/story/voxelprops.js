@@ -201,12 +201,21 @@ G.VoxelProps = (function () {
     // breakfast left on the trays (the doc's 1-5) -- not on the library's reading tables (story round 7: `bare`)
     if (!(o && o.bare)) [[-0.8, -0.15], [-0.1, 0.12], [0.6, -0.1]].forEach(([x, z]) => { add(g, "metal", [x, 0.76, z, x + 0.4, 0.78, z + 0.28]); add(g, "paintYellow", [x + 0.05, 0.78, z + 0.05, x + 0.15, 0.8, z + 0.13]); add(g, "paintGreen", [x + 0.22, 0.78, z + 0.1, x + 0.33, 0.81, z + 0.22]); });
   };
-  B.supplyBoxes = (g) => {
-    add(g, { all: "cardboard", front: "medBlue" }, [-0.75, 0, -0.25, -0.25, 0.4, 0.25]);      // water
-    add(g, "cardboard", [-0.15, 0, -0.25, 0.35, 0.4, 0.25]);                                  // dry food
-    add(g, { all: "cardboard", front: "paintYellow" }, [0.45, 0, -0.2, 0.8, 0.3, 0.2]);       // the torch and batteries
+  // (story round 8: `only` one of the three -- "water", "food", "torch" -- the kitchen's boxes 1-5 takes one by one)
+  B.supplyBoxes = (g, o) => {
+    const only = o && o.only;
+    if (!only || only === "water") add(g, { all: "cardboard", front: "medBlue" }, only ? [-0.25, 0, -0.25, 0.25, 0.4, 0.25] : [-0.75, 0, -0.25, -0.25, 0.4, 0.25]);   // water
+    if (!only || only === "food") add(g, "cardboard", only ? [-0.25, 0, -0.25, 0.25, 0.4, 0.25] : [-0.15, 0, -0.25, 0.35, 0.4, 0.25]);                           // dry food
+    if (!only || only === "torch") add(g, { all: "cardboard", front: "paintYellow" }, only ? [-0.18, 0, -0.2, 0.18, 0.3, 0.2] : [0.45, 0, -0.2, 0.8, 0.3, 0.2]); // the torch and batteries
   };
   // ---- the story's own ----
+  // (story round 8) Coach Ek's stopwatch: a dark case, the face in front, the crown on top
+  B.stopwatch = (g) => {
+    add(g, "metalDark", [-0.06, 0, -0.018, 0.06, 0.12, 0.018]);
+    add(g, { all: "metal", front: "clock" }, [-0.05, 0.01, 0.018, 0.05, 0.11, 0.024]);
+    add(g, "metal", [-0.015, 0.12, -0.012, 0.015, 0.145, 0.012]);
+    add(g, "paintYellow", [0.045, 0.105, -0.01, 0.07, 0.13, 0.01]);
+  };
   B.examBox = (g) => { add(g, "cardboard", [-0.3, 0, -0.22, 0.3, 0.36, 0.22]); add(g, "paintRed", [-0.31, 0.15, -0.23, 0.31, 0.21, 0.23]); };
   B.schoolBag = (g) => { add(g, "paintBlue", [-0.18, 0, -0.1, 0.18, 0.4, 0.1]); add(g, "paintBlack", [-0.12, 0.05, 0.1, -0.08, 0.36, 0.12]); add(g, "paintBlack", [0.08, 0.05, 0.1, 0.12, 0.36, 0.12]); add(g, "paintBlue", [-0.14, 0.05, -0.16, 0.14, 0.22, -0.1]); };
   // (story round 5) the exam's LexiLens glasses, folded on a desk: a dark frame, the lenses' blue
@@ -361,10 +370,10 @@ G.VoxelProps = (function () {
     "fireExtinguisher", "exhibitBoard", "lexaStandee", "paConsole", "medCabinet", "nurseBed", "piano", "drums", "bleachers", "vaultBox", "canteenTable", "supplyBoxes",
     "examBox", "schoolBag", "papers", "waterCooler", "trashBin", "cone", "bench", "tree", "flagpole", "stage", "podium", "guardBooth", "gate", "policeCar", "schoolVan"];
   // (round 4: the map's own, not in the gallery's list)
-  const MORE = ["deskSet", "shelf", "counter", "cabinet", "sink", "stall", "plant", "vent", "photo", "hoop", "goal", "fence", "lampPost", "wallSign", "doorFrame", "doorLeaf", "lexiLens"];
+  const MORE = ["deskSet", "shelf", "counter", "cabinet", "sink", "stall", "plant", "vent", "photo", "hoop", "goal", "fence", "lampPost", "wallSign", "doorFrame", "doorLeaf", "lexiLens", "stopwatch"];
   // what stands on its own (a collider) and what is on a wall or overhead (none)
   const NO_COLLIDER = new Set(["clock", "fan", "lamp", "exitSign", "emergencyLight", "evacSign", "papers", "window", "blackboard", "fireExtinguisher",
-    "vent", "photo", "wallSign", "doorFrame", "doorLeaf", "hoop", "goal", "lampPost", "lexiLens"]);
+    "vent", "photo", "wallSign", "doorFrame", "doorLeaf", "hoop", "goal", "lampPost", "lexiLens", "stopwatch"]);
 
   function build(id, o) {
     const g = new THREE.Group();
