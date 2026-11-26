@@ -216,6 +216,21 @@ G.VoxelProps = (function () {
     add(g, "metal", [-0.015, 0.12, -0.012, 0.015, 0.145, 0.012]);
     add(g, "paintYellow", [0.045, 0.105, -0.01, 0.07, 0.13, 0.01]);
   };
+  // (story round 9) a fire extinguisher in the hands (Kru Min's: the wall's own is `fireExtinguisher`), and the
+  // principal's megaphone, its mouth out along +z
+  B.extinguisher = (g) => {
+    add(g, { all: "paintRed", front: "fireExt" }, [-0.085, 0, -0.085, 0.085, 0.46, 0.085]);
+    add(g, "paintBlack", [-0.035, 0.46, -0.035, 0.035, 0.53, 0.035]);
+    add(g, "metal", [-0.02, 0.53, -0.1, 0.02, 0.56, 0.06]);
+    add(g, "paintBlack", [-0.13, 0.34, 0.02, -0.095, 0.52, 0.055]); add(g, "paintBlack", [-0.13, 0.34, 0.055, -0.095, 0.375, 0.26]);
+  };
+  B.megaphone = (g) => {
+    add(g, "paintWhite", [-0.045, -0.045, -0.12, 0.045, 0.045, 0.08]);
+    add(g, "paintWhite", [-0.085, -0.085, 0.08, 0.085, 0.085, 0.17]);
+    add(g, "paintRed", [-0.125, -0.125, 0.17, 0.125, 0.125, 0.24]);
+    add(g, "metalDark", [-0.1, -0.1, 0.24, 0.1, 0.1, 0.245]);
+    add(g, "paintBlack", [-0.02, -0.17, -0.06, 0.02, -0.045, 0.0]);
+  };
   B.examBox = (g) => { add(g, "cardboard", [-0.3, 0, -0.22, 0.3, 0.36, 0.22]); add(g, "paintRed", [-0.31, 0.15, -0.23, 0.31, 0.21, 0.23]); };
   B.schoolBag = (g) => { add(g, "paintBlue", [-0.18, 0, -0.1, 0.18, 0.4, 0.1]); add(g, "paintBlack", [-0.12, 0.05, 0.1, -0.08, 0.36, 0.12]); add(g, "paintBlack", [0.08, 0.05, 0.1, 0.12, 0.36, 0.12]); add(g, "paintBlue", [-0.14, 0.05, -0.16, 0.14, 0.22, -0.1]); };
   // (story round 5) the exam's LexiLens glasses, folded on a desk: a dark frame, the lenses' blue
@@ -370,10 +385,10 @@ G.VoxelProps = (function () {
     "fireExtinguisher", "exhibitBoard", "lexaStandee", "paConsole", "medCabinet", "nurseBed", "piano", "drums", "bleachers", "vaultBox", "canteenTable", "supplyBoxes",
     "examBox", "schoolBag", "papers", "waterCooler", "trashBin", "cone", "bench", "tree", "flagpole", "stage", "podium", "guardBooth", "gate", "policeCar", "schoolVan"];
   // (round 4: the map's own, not in the gallery's list)
-  const MORE = ["deskSet", "shelf", "counter", "cabinet", "sink", "stall", "plant", "vent", "photo", "hoop", "goal", "fence", "lampPost", "wallSign", "doorFrame", "doorLeaf", "lexiLens", "stopwatch"];
+  const MORE = ["deskSet", "shelf", "counter", "cabinet", "sink", "stall", "plant", "vent", "photo", "hoop", "goal", "fence", "lampPost", "wallSign", "doorFrame", "doorLeaf", "lexiLens", "stopwatch", "extinguisher", "megaphone"];
   // what stands on its own (a collider) and what is on a wall or overhead (none)
   const NO_COLLIDER = new Set(["clock", "fan", "lamp", "exitSign", "emergencyLight", "evacSign", "papers", "window", "blackboard", "fireExtinguisher",
-    "vent", "photo", "wallSign", "doorFrame", "doorLeaf", "hoop", "goal", "lampPost", "lexiLens", "stopwatch"]);
+    "vent", "photo", "wallSign", "doorFrame", "doorLeaf", "hoop", "goal", "lampPost", "lexiLens", "stopwatch", "extinguisher", "megaphone"]);
 
   function build(id, o) {
     const g = new THREE.Group();

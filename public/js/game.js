@@ -2892,14 +2892,14 @@ G.Game = {
   },
 
   updateZombies(dt) {
-    const playerPos = this.yawObject.position;
+    const mePos = this.yawObject.position;
     // Room-level pathfinding: zombies used to beeline straight at the player
     // through solid walls (they never tested world.colliders at all). Now,
     // when a zombie is in a different room/corridor than the player, it walks
     // the waypoint route between them (see G.findPath in world.js) instead of
     // cutting through walls; once it's in the player's own region it goes
     // back to moving directly, same as before.
-    const pRegion = G.getRegionAt(this.world, playerPos.x, playerPos.z, playerPos.y - 1.7);
+    const meRegion = G.getRegionAt(this.world, mePos.x, mePos.z, mePos.y - 1.7);
     // every staircase (round 3 adds the flight up to the third floor): which
     // one a body is part-way up, if any
     const stairs = this.world.stairs || [];
@@ -2907,8 +2907,12 @@ G.Game = {
       for (const s of stairs) if (y > s.y0 + 0.3 && y < s.y1 - 0.3 && x >= s.block.min.x && x <= s.block.max.x && zz >= s.block.min.z && zz <= s.block.max.z) return s;
       return null;
     };
-    const pFeet = playerPos.y - 1.7, pFlight = flightOf(playerPos.x, playerPos.z, pFeet);
+    const meFeet = mePos.y - 1.7, meFlight = flightOf(mePos.x, mePos.z, meFeet);
     const tmpV = new THREE.Vector3();
+    // (story series, round 9) someone who came along with the player -- Kru Min in scene 1-6 -- is who some
+    // of them are after (js/story/escort.js): for those, every "the player" below is them
+    const escort = this.mode === "story" && G.StoryEscort && G.StoryEscort.active ? G.StoryEscort.target(this) : null;
+    if (escort) escort.flight = flightOf(escort.pos.x, escort.pos.z, escort.feet);
     // (overhaul, round 4: which poses are worked out this frame -- js/zombieanim.js)
     if (G.ZombieAnim) G.ZombieAnim.frame(this);
     for (const z of this.zombies) {
@@ -2931,6 +2935,8 @@ G.Game = {
         continue;
       }
       const noBite = mod.noBite || z.type === "dummy", zdt = dt * mod.speed * kindK, abTarget = mod.target;   // (round 7: a dummy never bites)
+      const after = escort && G.StoryEscort.hunts(this, z) ? escort : null;
+      const playerPos = after ? after.pos : mePos, pRegion = after ? after.region : meRegion, pFeet = after ? after.feet : meFeet, pFlight = after ? after.flight : meFlight;
       const zRegion = G.getRegionAt(this.world, z.mesh.position.x, z.mesh.position.z, z.mesh.position.y);
       let moveTarget = playerPos;
       // Mid-flight the region lookup flips between the hall (below 2.3) and
@@ -3028,6 +3034,7 @@ G.Game = {
       // a hit only if still in reach; each kind its own reach and wind-up
       // (js/zombieai.js)
       if (G.ZombieAI.attack(this, z, dist, sameFloor, noBite, dt) === "hit") {
+        if (after) { G.StoryEscort.bite(this, z); continue; }       // (story series, round 9: it was them it struck)
         // (Dash: nothing lands while it lasts; Barrier: a quarter does)
         // (vocabulary series, round 2, C2) the zombie carrying the word asked
         // got to the player first: a wrong answer on that word (once)

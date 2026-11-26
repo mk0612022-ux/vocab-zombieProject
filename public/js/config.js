@@ -673,14 +673,29 @@ G.CONFIG = {
   //   crawlerBand  a Crawler a scene sends: how high off the floor it is in the way of things (a
   //                table's top is above it: under it it goes -- js/entities.js lowBand)
   //   screen       (round 7) calmEvery / calmGain the library's soft chords, tenseEvery / tenseGain
-  //                the defence's pulse
+  //                the defence's pulse; (round 9) bentEvery / bentGain LEXA's broken jingle
+  //   (round 9: scene 1-6)
+  //   escort       who is looked after (js/story/escort.js): hpK her health x the player's; biteK a zombie's blow x
+  //                what it does to the player; margin how much nearer (m) than the player she must be for one to
+  //                go at her, thinkEvery how often it thinks again; followMax her pace behind the player (m/s: the
+  //                player runs at 5.2), walkSpeed to where she is sent; the extinguisher: sprayAt a zombie this near
+  //                her (m) -- or this near the player (sprayBy) while the two are `together` -- sprayRange /
+  //                sprayCone (degrees, each side) what the burst takes in, stunSec, sprayPush, sprayCd between two,
+  //                spraySec seen; the shout: warnNear..warnFar (m) behind the player (warnDot: how far round),
+  //                warnGap between two, warnFirst the first; hitGap between two cries when she is struck; down:
+  //                downSec to be helped in, reviveSec the button held, reviveHp her health then, safeSec unhurt after;
+  //                regen: of her health, a second, once nothing has struck her for regenDelay; helpHide: the HELP!
+  //                over her not drawn nearer than this (m)
+  //   pa           (js/story/pa.js) doneSec the whole draft seen before its window goes, captionSec the loop's caption,
+  //                voiceAfter its two notes the voice (s), voiceLate not that late any more (a line was being said)
+  //   screamer     range: where a chapter's Screamer rears up (m, in sight of the player only)
   story: {
     enabled: false,
     chapterShare: 0.6,
     groupKinds: ["normal", "normal", "fast"],
     floorHp: 1,
     resetSpeed: true,
-    dialogue: { minSec: 2.2, perChar: 0.05, maxSec: 9, fast: 4, tapSec: 0.25, holdSkip: 1.2, gapSec: 0.2 },
+    dialogue: { minSec: 2.2, perChar: 0.05, maxSec: 9, fast: 4, tapSec: 0.25, holdSkip: 1.2, gapSec: 0.2, voiceSec: 1.1, voiceChar: 0.075 },
     phone: { toastSec: 4.5, torch: { color: 0xfff1d6, intensity: 1.7, distance: 26, angle: 0.48, penumbra: 0.65, decay: 1.4 } },
     lens: { sysSec: 3.2, correctSec: 1.5, bootSec: 0.9 },
     cam: { lookSec: 1.2, seatDrop: 0.48, fallDrop: 1.05 },
@@ -688,7 +703,7 @@ G.CONFIG = {
     cast: { walkSpeed: 1.4, followDist: 1.6, followSpeed: 3.4, followLeash: 9, lungeSpeed: 1.6, lungeStop: 0.95, seatH: 0.45, turnGlitch: 0.45 },
     use: { qteSec: 1.6, qteWindow: 0.2, qteHurt: 12, qteRetry: 0.9 },
     quiz: { dist: 1.9, gap: 0.82, rise: -0.05, aim: 0.2, settle: 0.35, nextRight: 1.4, nextWrong: 2.4 },
-    screen: { fadeSec: 1.2, titleSec: 4.2, hintSec: 6, staticSec: 9, calmEvery: 4.8, calmGain: 0.016, tenseEvery: 0.85, tenseGain: 0.07, tickEvery: 1, tickGain: 0.05 },
+    screen: { fadeSec: 1.2, titleSec: 4.2, hintSec: 6, staticSec: 9, calmEvery: 4.8, calmGain: 0.016, tenseEvery: 0.85, tenseGain: 0.07, tickEvery: 1, tickGain: 0.05, bentEvery: 9, bentGain: 0.03 },
     lock: { breakDist: 4.5, leaveDist: 3.5, swipePx: 26, mousePx: 90, padDelay: 0.38, padRepeat: 0.12, solvedSec: 0.9 },
     whisper: { on: true, range: 6.5, gap: 2.6, zombieGap: 7, captionSec: 1.8, rate: 0.72, pitch: 0.35, volume: 0.45 },
     push: { sec: 2.6, helpK: 1.6, helpSpeed: 2.6, scrapeEvery: 0.42, nudgeSec: 0.35, takeEvery: 0.5 },
@@ -703,6 +718,10 @@ G.CONFIG = {
     boss: { need: 3, speed: 1.8, bite: 18, scale: 1.12, firstGap: 1.6, gap: [4.2, 3.6, 3], beepGap: 0.55, runUp: 6, backSpeed: 3.4, laneW: 1, dashSpeed: 11, dashMax: 34, dashHit: 0.95, dashDamage: 0.22, dashPush: 3, fallSec: 1.3,
       stunSec: 4, recoverSec: 1.1, hurtSec: 1.2, ballWind: 1, ballSpeed: 13, ballHit: 0.6, ballDamage: 0.16, ballPush: 1.6,
       fasterSec: 1.7, callAt: 0.8, calls: [4, 5, 6], maxAdds: 6, boostSec: 5, boostR: 7, tick: [1, 0.8, 0.62] },
+    escort: { hpK: 2, biteK: 1, margin: 1.2, thinkEvery: 0.4, followMax: 5.6, walkSpeed: 2.6, sprayAt: 2.8, sprayBy: 2, together: 4.5, sprayRange: 4.4, sprayCone: 50, stunSec: 3, sprayPush: 0.5, sprayCd: 20, spraySec: 1,
+      warnNear: 1.4, warnFar: 9, warnDot: -0.3, warnGap: 6, warnFirst: 2, hitGap: 7, downSec: 30, reviveSec: 3, reviveHp: 0.5, safeSec: 2.5, regenDelay: 6, regen: 0.015, helpHide: 3 },
+    pa: { doneSec: 1.8, captionSec: 6, voiceAfter: 0.8, voiceLate: 5 },
+    screamer: { range: [3.2, 16] },
     crawlerBand: 0.55,
   },
   // ---------------- the melee slot (expansion, round 4) ----------------

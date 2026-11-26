@@ -10,30 +10,34 @@
 // on the device (or the speech volume at 0): the caption alone.
 //   G.StoryWhisper.update(game, dt) / reset() / last
 //   (story round 8) G.StoryWhisper.show(text)   a shout as a caption: Coach Ek's, after the first
+//   (story round 9) show(text, sec, cls)        for that long, with a class of its own (the PA's loop)
 // ===================================================================
 window.G = window.G || {};
 
 G.StoryWhisper = (function () {
   const T = (k, v) => G.T(k, v);
   const C = () => (G.CONFIG.story && G.CONFIG.story.whisper) || {};
-  let t = 0, el = null, capT = 0, last = null;
+  let t = 0, el = null, capT = 0, last = null, own = null;
   const heard = new WeakMap();                 // zombie -> when it last whispered
 
   const caption = (word) => show(T("story.whisper", { word }));
-  function show(text) {
+  function show(text, sec, cls) {
     if (!el) {
+      if (G.StoryDialogue && G.StoryDialogue.ensure) G.StoryDialogue.ensure();       // (its box first: a line up hides a caption under it -- css)
       el = document.createElement("div");
       el.id = "story-whisper"; el.className = "story-whisper hidden";
       el.setAttribute("aria-hidden", "true");      // (its word is on the zombie's label already)
       document.body.appendChild(el);
     }
     el.textContent = text;
-    el.classList.remove("hidden", "in"); void el.offsetWidth; el.classList.add("in");
-    capT = C().captionSec || 1.8;
+    el.className = "story-whisper" + (cls ? " " + cls : ""); void el.offsetWidth; el.classList.add("in");
+    capT = sec || C().captionSec || 1.8;
+    own = cls || null;
   }
   function update(game, dt) {
-    if (capT > 0) { capT -= dt; if (capT <= 0 && el) el.classList.add("hidden"); }
+    if (capT > 0) { capT -= dt; if (capT <= 0 && el) { el.classList.add("hidden"); own = null; } }
     if (C().on === false || !game || game.mode !== "story" || game.state !== "GAMEPLAY" || game.paused) return;
+    if (own && capT > 0) return;                  // (round 9: the PA's announcement being read: nothing over it)
     t += dt;
     if (t < (C().gap || 2.6)) return;
     // (never over a line, a turn of the camera, the lock or the phone)
@@ -54,7 +58,7 @@ G.StoryWhisper = (function () {
     caption(best.word);
     if (G.Audio && G.Audio.speak) G.Audio.speak(best.word, { whisper: true, lang: G.Lang ? G.Lang.wl(best.pair || [best.word]) : "en" });
   }
-  function reset() { t = 0; capT = 0; last = null; if (el) el.classList.add("hidden"); }
+  function reset() { t = 0; capT = 0; last = null; own = null; if (el) el.classList.add("hidden"); }
 
   return { update, reset, show, get last() { return last; } };
 })();

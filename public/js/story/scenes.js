@@ -88,6 +88,14 @@
 //   across the screen · ["heal", share] · a ["use"] with `holdSec`: held, not pressed
 //   A Crawler a scene sends goes under a table's top (js/entities.js lowBand); a scene's `hints`
 //   ({ who, after }): someone helps after wrong shots in a row (js/story/story.js onWrongShot).
+//   (round 9: scene 1-6)
+//   { escort: "up" | "down" | "stay" } who is looked after (js/story/escort.js): on their feet, down, where they
+//   were sent · { pa: id } that announcement put right (js/story/pa.js) · { held: id } that place held to the end ·
+//   { heldN: [id, n] } its announcement repeated for the n-th time · { alive: n } at most n zombies standing
+//   ["escort", { id, stay, follow, heal, put, on }] · ["pa", { id, at, text, gaps, ... }] · ["announce", { lines }] ·
+//   ["hold", { id, sec, every, lines } | null] · a ["spawn"] with `max`: never more than that many standing
+//   A scene's `shriek` ({ at, count, kinds, max }): who a Screamer's shriek calls (js/story/story.js onShriek).
+//   A line with `voice: true`: read aloud (js/story/dialogue.js).
 // A scene's `on` (round 6): rules beside its beats, for what can happen in any order --
 //   [{ id, after, when, do }] each fires once, the moment `when` holds (the flag "on:<id>":
 //   a checkpoint keeps it); `after` (a flag, or a condition) arms it, and a { time: s } in its
@@ -147,6 +155,12 @@ G.StoryScenes = (function () {
     if (cond.pushed) return run.flags.has("pushed:" + cond.pushed);
     if (cond.picked) return run.flags.has("pick:" + cond.picked);
     if (cond.boss) return run.flags.has("boss:" + cond.boss);          // (round 8)
+    // (round 9)
+    if (cond.escort) return !!(G.StoryEscort && G.StoryEscort.is(cond.escort));
+    if (cond.pa) return run.flags.has("pa:" + cond.pa);
+    if (cond.held) return run.flags.has("hold:" + cond.held);
+    if (cond.heldN) return run.flags.has("hold:" + cond.heldN[0] + ":" + cond.heldN[1]);
+    if (cond.alive != null) return game.zombies.filter((z) => z.alive).length <= cond.alive;
     if (cond.fired != null) {
       // (a number: any shot that recent; { s, zone }: one fired from inside the zone)
       const s = typeof cond.fired === "object" ? cond.fired.s : cond.fired;
@@ -178,7 +192,10 @@ G.StoryScenes = (function () {
     const pts = points(run.ch, s.at), C = G.CONFIG.story;
     const kinds = s.kinds && s.kinds.length ? s.kinds : C.groupKinds;
     const words = s.words && s.words.length ? s.words : null;
-    const n = words ? words.length : Math.max(1, (s.count | 0) || kinds.length);
+    let n = words ? words.length : Math.max(1, (s.count | 0) || kinds.length);
+    // (round 9) `max`: so many standing at once and no more -- a hold's groups, one after the other
+    if (s.max) n = Math.min(n, Math.max(0, s.max - game.zombies.filter((z) => z.alive).length));
+    if (n <= 0) { run.groups[s.id] = 0; return 0; }
     if (!words) game.wavePlan = G.Story.plan(game, n);
     let made = 0, target = null;
     for (let i = 0; i < n && pts.length; i++) {
@@ -284,6 +301,11 @@ G.StoryScenes = (function () {
     else if (name === "callout") callout(game, run, arg || {});
     else if (name === "boss") { if (G.StoryBoss) G.StoryBoss.start(game, run, arg || {}); }      // (round 8)
     else if (name === "heal") { const pl = game.player; if (pl) pl.hp = Math.max(pl.hp, pl.maxHp * (arg === true || arg == null ? 1 : +arg)); }      // (round 8: a meal and a rest)
+    // (round 9) scene 1-6: who is looked after, the announcement, the hold
+    else if (name === "escort") { if (G.StoryEscort) G.StoryEscort.start(game, run, arg || {}); }
+    else if (name === "pa") { if (G.StoryPA) G.StoryPA.add(game, arg || {}); }
+    else if (name === "announce") { if (G.StoryPA) G.StoryPA.announce(arg || {}); }
+    else if (name === "hold") { if (G.StoryPA) G.StoryPA.hold(game, arg || null); }
     else if (name === "if") { const o = arg || {}; ((met(game, run, o.when) ? o.do : o.else) || []).forEach((x) => act(game, run, x)); }
   }
   // (round 7) a shout of where they come from: ahead, behind, left or right of the player as they stand
@@ -367,6 +389,8 @@ G.StoryScenes = (function () {
     if (G.StoryQuiz) G.StoryQuiz.reset(game);
     if (G.StoryLock) G.StoryLock.reset(game);           // (round 6: the last scene's letter locks)
     if (G.StoryBoss) { G.StoryBoss.reset(game); if (sc.boss) G.StoryBoss.warm(game); }     // (round 8: the last scene's mini-boss, where he fell; this one's shaders)
+    if (G.StoryEscort) G.StoryEscort.reset();           // (round 9: who was looked after, the PA's window and its loop)
+    if (G.StoryPA) G.StoryPA.reset(game);
     // (round 7) the last scene's cabinet and countdown gone; what this one pushes into place put there
     if (G.StoryPick) G.StoryPick.reset(game);
     if (G.StoryScreen && G.StoryScreen.setTimer) G.StoryScreen.setTimer(null);
@@ -457,7 +481,8 @@ G.StoryScenes = (function () {
   // a scene left for the next: what only its beats and rules asked about goes with it (a
   // checkpoint keeps 120 flags -- for what lasts the chapter: the phone's messages, the choices)
   // (round 7: "x:<name>" a scene's own plain flag -- "x:wave1" -- gone with it too: a later scene may use the name)
-  const LOCAL = /^(x|on|used|tried|card|quiz|qte|lock|lockwrong|lockopen|pushed|pick|picked|pickwrong|boss):/;
+  // (round 9: the announcement and the hold with them; "fell:<id>" -- who fell, for an achievement -- stays)
+  const LOCAL = /^(x|on|used|tried|card|quiz|qte|lock|lockwrong|lockopen|pushed|pick|picked|pickwrong|boss|pa|pawrong|hold):/;
   function prune(run) { Array.from(run.flags).forEach((f) => { if (LOCAL.test(f)) run.flags.delete(f); }); }
   return { inZone, met, points, spawn, aimAt, act, objectiveAt, enter, update, canSkip, skip, seenKey };
 })();

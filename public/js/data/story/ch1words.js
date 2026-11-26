@@ -38,4 +38,9 @@ G.STORY_WORDS.ch1 = {
   faster: { th: "เร็วขึ้น", zh: "更快", fr: "plus vite", en: "at a higher speed" },
   fasten: { th: "รัด; คาด", zh: "系牢；扣紧", fr: "attacher", en: "to close or fix something so that it stays in place" },
   foster: { th: "อุปถัมภ์", zh: "抚养；培养", fr: "favoriser", en: "to help something grow or develop" },
+  // (story round 9) scene 1-6: the announcement's words the bank does not have (evaluate, assemble and assume
+  // are the bank's; evacuate and avoid join it with words-draft.csv, decision D1)
+  evacuate: { th: "อพยพ", zh: "撤离；疏散", fr: "évacuer", en: "to leave a dangerous place and go somewhere safe" },
+  avoid: { th: "หลีกเลี่ยง", zh: "避开；避免", fr: "éviter", en: "to stay away from something" },
+  afford: { th: "มีเงินพอ; มีเวลาพอ", zh: "负担得起", fr: "avoir les moyens de", en: "to have enough money or time for something" },
 };

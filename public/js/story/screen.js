@@ -16,9 +16,12 @@
 //                                   the binding of `bind`
 //   (round 7) calm / tense (music under a scene: the library's meeting, its defence) · quiet (the
 //                                   music stopped) · (round 8) tick (a stopwatch running somewhere near, a second
-//                                   at a time) / untick (no more of it)
+//                                   at a time) / untick (no more of it) · (round 9) chimes (the school's bells: the
+//                                   Westminster Quarters, public domain) · chime (the PA's two notes) · jingle (LEXA's
+//                                   advertisement, cheerful) · bent (the same, broken, over and over) / unbent
 //   ["shake", { sec, amp }]         the view shaken
 //   (round 7) ["timer", { key, sec } | null]   a countdown at the top -- "Next wave in {n}" -- gone at 0
+//   (round 9) timerHold(on): it stands still meanwhile (Kru Min down: js/story/pa.js)
 //   ["thud", { at, n, gap }]        fists on a door, where it is: n blows, gap seconds apart
 //   ["glass", { at, dir }]          a window's glass broken in, where it is (the sound, its shards)
 //   ["card", { id, title, rows, mark, note }]   a card to read (the seating plan); closed: "card:<id>"
@@ -31,7 +34,7 @@ G.StoryScreen = (function () {
   const C = () => (G.CONFIG.story && G.CONFIG.story.screen) || {};
   const esc = (s) => G.escapeHtml(String(s == null ? "" : s));
   let black = null, title = null, hint = null, loops = {}, hintT = 0, titleT = 0;
-  let timer = null, timerT = 0, timerKey = null, timerN = -1, thuds = [];       // (round 7)
+  let timer = null, timerT = 0, timerKey = null, timerN = -1, timerHeld = false, thuds = [];       // (round 7)
   const A = () => (G.Audio && G.Audio.ctx && G.Audio.group ? G.Audio : null);
 
   function el(id, cls, html) {
@@ -91,7 +94,13 @@ G.StoryScreen = (function () {
     if (name === "quiet") { delete loops.calm; delete loops.tense; return; }
     if (name === "tick") { loops.tick = { t: 0, next: 0, i: 0 }; return; }
     if (name === "untick") { delete loops.tick; return; }
+    if (name === "bent") { loops.bent = { next: 0 }; return; }
+    if (name === "unbent") { delete loops.bent; return; }
     if (!a) return;
+    // (round 9) the school's bells, rung from the PA: two phrases of the Westminster Quarters (public domain)
+    if (name === "chimes") { chimes(a); return; }
+    if (name === "chime") { a.group({ cat: "sfx", prio: 2, pos: null, dur: 1.6 }, () => { bellNote(a, 659.3, 0, 0.05, 1.1); bellNote(a, 523.3, 0.42, 0.05, 1.3); }); return; }
+    if (name === "jingle") { jingle(a, false); return; }
     if (name === "kick") a.group({ cat: "sfx", prio: 2, pos: null, dur: 0.6 }, () => {
       a.noise({ dur: 0.18, freq: 300, freqEnd: 80, q: 0.7, gain: 0.32 });
       a.noise({ dur: 0.09, freq: 2400, freqEnd: 900, q: 1.2, gain: 0.12, at: 0.02 });
@@ -118,6 +127,33 @@ G.StoryScreen = (function () {
     else if (name === "slam") a.group({ cat: "sfx", prio: 2, pos: null, dur: 0.6 }, () => {
       a.noise({ dur: 0.14, freq: 600, freqEnd: 120, q: 0.8, gain: 0.3 });
       a.tone({ type: "triangle", freq: 90, freqEnd: 50, dur: 0.22, gain: 0.14 });
+    });
+  }
+  // (round 9) a bell's note: its partials, dying away
+  function bellNote(a, f, at, gain, dur) {
+    [[1, 1], [2.02, 0.42], [2.98, 0.2], [0.5, 0.4]].forEach(([k, g]) => a.tone({ type: "sine", freq: f * k, dur: dur / (k > 1 ? k * 0.8 : 1), gain: gain * g, at }));
+    a.noise({ dur: 0.03, freq: 2600, freqEnd: 1800, q: 2, gain: gain * 0.35, at });
+  }
+  // the Westminster Quarters, two phrases of four (E major): the bells every school here has
+  const WEST = [415.3, 370, 329.6, 246.9, 0, 329.6, 415.3, 370, 246.9];
+  const CHIME_STEP = 0.5;
+  function chimes(a) {
+    a.group({ cat: "sfx", prio: 3, pos: null, dur: WEST.length * CHIME_STEP + 2 }, () => WEST.forEach((f, i) => { if (f) bellNote(a, f, i * CHIME_STEP, 0.085, 1.9); }));
+  }
+  // LEXA's advertisement: a tune of our own, six bright notes and a chord -- and the same one broken: the
+  // notes sagging, one of them wrong, the last one stuck
+  const JING = [[523.3, 0], [659.3, 0.16], [784, 0.32], [1046.5, 0.5], [880, 0.72], [1174.7, 0.9]];
+  function jingle(a, bent) {
+    a.group({ cat: "sfx", prio: bent ? 1 : 2, pos: null, dur: bent ? 4 : 1.9 }, () => {
+      if (!bent) {
+        JING.forEach(([f, at]) => { a.tone({ type: "triangle", freq: f, dur: 0.24, gain: 0.05, at }); a.tone({ type: "sine", freq: f * 2, dur: 0.16, gain: 0.014, at }); });
+        [1046.5, 1318.5, 1568].forEach((f, i) => a.tone({ type: "sine", freq: f, dur: 0.8, gain: 0.022, at: 1.1 + i * 0.03 }));
+        return;
+      }
+      const G0 = C().bentGain || 0.03;
+      JING.forEach(([f, at], i) => a.tone({ type: "sawtooth", freq: f * (i === 3 ? 0.47 : 0.5), freqEnd: f * (i === 3 ? 0.36 : 0.44), dur: 0.55, gain: G0 * 0.6, at: at * 2.1, filter: { type: "lowpass", freq: 900 } }));
+      for (let i = 0; i < 4; i++) a.tone({ type: "square", freq: 587 * 0.5, freqEnd: 520 * 0.5, dur: 0.14, gain: G0 * 0.35, at: 2.3 + i * 0.22, filter: { type: "bandpass", freq: 700, q: 2 } });
+      a.noise({ dur: 0.5, freq: 1800, freqEnd: 1200, q: 0.7, gain: G0 * 0.4, at: 3.1 });
     });
   }
   // (round 6) a fist on the glass, where it is (js/story/cast.js: the crowd at the main stairs)
@@ -188,6 +224,12 @@ G.StoryScreen = (function () {
         const hi = (tk.i++ % 2) === 0;
         a.group({ cat: "sfx", prio: 1, pos: null, dur: 0.1 }, () => a.tone({ type: "square", freq: hi ? 1750 : 1500, dur: 0.02, gain: C().tickGain || 0.05, filter: { type: "bandpass", freq: 2400, q: 3 } }));
       }
+    }
+    // (round 9) the PA machine playing LEXA's advertisement to itself, broken (the PR room until it is mended)
+    const bt = loops.bent;
+    if (bt) {
+      bt.next -= dt;
+      if (bt.next <= 0 && a) { bt.next = C().bentEvery || 9; jingle(a, true); }
     }
     // the radio: a hiss in bursts
     const st = loops.static;
@@ -264,14 +306,17 @@ G.StoryScreen = (function () {
   // ---------------- (round 7) a countdown, fists on a door, a window broken in ----------------
   function setTimer(o) {
     if (!timer) timer = el("story-timer", "story-timer");
+    timerHold(false);
     if (!o) { timer.classList.add("hidden"); timerT = 0; timerKey = null; return; }
     o = typeof o === "number" ? { sec: o } : o;
+    timer.classList.toggle("corner", !!o.corner);        // (round 9: out of the way of an answer's card -- a hold with a fight in it)
     timerKey = o.key || "story.timer.wave"; timerT = o.sec || 15; timerN = -1;
     timer.classList.remove("hidden");
     tickTimer(0);
   }
+  function timerHold(on) { timerHeld = !!on; if (timer) timer.classList.toggle("held", timerHeld); }
   function tickTimer(dt) {
-    if (!timerKey) return;
+    if (!timerKey || timerHeld) return;
     timerT -= dt;
     if (timerT <= 0) { timer.classList.add("hidden"); timerKey = null; return; }
     const n = Math.ceil(timerT);
@@ -338,10 +383,11 @@ G.StoryScreen = (function () {
     if (hint) hint.classList.add("hidden");
     if (obj) obj.classList.add("hidden");
     if (timer) timer.classList.add("hidden");
+    timerHold(false);
     hintT = 0; titleT = 0; objKey = null; timerT = 0; timerKey = null; thuds = [];
   }
 
-  return { setBlack, showTitle, setHint, sound, thud, shake, card, planSvg, stopLoop, update, reset, setTimer, thudAt, glass,
+  return { setBlack, showTitle, setHint, sound, thud, shake, card, planSvg, stopLoop, update, reset, setTimer, timerHold, thudAt, glass, WEST, CHIME_STEP,
     get state() { return { black: !!(black && black.classList.contains("on")), title: titleT > 0, hint: hintT > 0 ? (hint && hint.textContent) : "", loops: Object.keys(loops),
       timer: timerKey ? Math.ceil(timerT) : 0 }; } };
 })();

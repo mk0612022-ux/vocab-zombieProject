@@ -133,7 +133,16 @@ G.ZombieAI = {
     }
     if (z._screamCd > 0 || z.emerge || z._down > 0) return;
     const d = Math.hypot(p.x - zp.x, p.z - zp.z);
-    if (d < S.range[0] || d > S.range[1] || Math.abs((p.y - 1.7) - zp.y) > 1.5) return;
+    // (story series, round 9) Story Mode's rooms and corridors: from closer, and only in sight of the player --
+    // a second's warning behind a wall is none
+    const story = game.mode === "story" && G.Story && G.Story.run, range = (story && G.CONFIG.story.screamer && G.CONFIG.story.screamer.range) || S.range;
+    if (d < range[0] || d > range[1] || Math.abs((p.y - 1.7) - zp.y) > 1.5) return;
+    if (story) {
+      z._seeT = (z._seeT || 0) - dt;
+      if (z._seeT > 0) return;
+      z._seeT = 0.2;
+      if (!G.Story.sees(game, p, zp)) return;
+    }
     // rear up: S.windup s of drawing breath, then ~1.2 s of the shriek
     const scream = 1.2;
     z._rear = S.windup + scream; z._rearScream = scream; z._screaming = false;
@@ -163,6 +172,8 @@ G.ZombieAI = {
       sp.cooldown = 2.5;
       if (game.spawnZombieAt(this.pick(game, sp), sp.pos, sp)) called++;
     }
+    // (story series, round 9) a chapter has no wave to call from: the scene says who comes (js/story/story.js)
+    if (game.mode === "story" && G.Story && G.Story.onShriek) called += G.Story.onShriek(game, z) || 0;
     z._called = (z._called || 0) + called;
     this.lastShriek = { uid: z.uid, near, called };
   },

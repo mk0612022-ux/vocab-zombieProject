@@ -15,6 +15,8 @@
 //
 //   G.StoryDialogue.say([{ who, line, vars }, ...])   lines, queued (a bare key: no speaker)
 //   G.StoryDialogue.ask({ who, line, options: [{ text, value, right }], quiz }, done)
+//       (round 9) a line with `voice: true` is read aloud as it comes up (the device's own voice, as the words
+//       are: Kru Min's announcement) and stays at least as long as that takes
 //       a choice of 1-3 in G.Dialog's window (keys 1-3, the controller, a tap). quiz:
 //       { word, practice, kind: "meaning" | "cloze" } -- the answer counts for the word as
 //       any other (G.Learning.answerWord), unless it is one of the chapter's practice words
@@ -153,7 +155,12 @@ G.StoryDialogue = (function () {
     cur = queue.shift() || null;
     if (!cur) return;
     cur.t = 0;
-    cur.dur = Math.min(C().maxSec, C().minSec + C().perChar * en(cur.line, cur.vars).length);
+    const text = en(cur.line, cur.vars);
+    cur.dur = Math.min(C().maxSec, C().minSec + C().perChar * text.length);
+    if (cur.voice) {
+      cur.dur = Math.max(cur.dur, (C().voiceSec || 1.1) + text.length * (C().voiceChar || 0.075));
+      if (G.Audio && G.Audio.speak) G.Audio.speak(text, { text: true, lang: "en" });
+    }
     render();
     el.classList.remove("hidden");
     beep([{ type: "sine", freq: 880, freqEnd: 990, dur: 0.06, gain: 0.025 }]);

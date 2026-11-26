@@ -57,8 +57,8 @@ G.Round42Test = (function () {
 
     // (story round 6: scenes 1-1 and 1-2 are the design's now -- the run's shell this suite tries
     // (zones, groups, checkpoints, a scene's HUD) goes on the stand-ins it was written for, put back after)
-    const CHS = G.STORY_CHAPTERS.ch1.scenes, real12 = CHS.slice(1, 6);       // (story round 7: and 1-3, 1-4; round 8: 1-5)
-    CHS.splice(1, 5,
+    const CHS = G.STORY_CHAPTERS.ch1.scenes, real12 = CHS.slice(1, 7);       // (story round 7: and 1-3, 1-4; round 8: 1-5; round 9: 1-6)
+    CHS.splice(1, 6,
       { id: "s1", title: "story.ch1.s1", objective: "story.ch1.s1.obj", start: { x: -1.5, y: 8, z: 0.4, yaw: -Math.PI / 2 }, clock: "08:50", light: "alarm", beats: [
         { do: [["objective", "story.ch1.s1.obj"]] },
         { wait: { zone: "corridor3East" }, do: [["banner", "story.ph.group"], ["spawn", { id: "c1", at: "corridor3Far", count: 3 }]] },
@@ -80,7 +80,11 @@ G.Round42Test = (function () {
       { id: "s5", title: "story.ch1.s5", objective: "story.ch1.s5.obj", start: { x: -42, y: 4, z: -17.5, yaw: Math.PI }, clock: "12:30", light: "noon", beats: [
         { do: [["objective", "story.ch1.s5.obj"]] },
         { wait: { zone: "canteen" }, do: [["banner", "story.ph.group"], ["spawn", { id: "f1", at: "canteenFar", count: 4 }]] },
-        { wait: { cleared: "f1" }, do: [["checkpoint"], ["next"]] }] });
+        { wait: { cleared: "f1" }, do: [["checkpoint"], ["next"]] }] },
+      { id: "s6", title: "story.ch1.s6", objective: "story.ch1.s6.obj", start: { x: -41.2, y: 0, z: -1, yaw: -Math.PI / 2 }, clock: "17:00", light: "golden", beats: [
+        { do: [["objective", "story.ch1.s6.obj"]] },
+        { wait: { zone: "adminDoor" }, do: [["spawn", { id: "h1", at: "corridor1", count: 3 }]] },
+        { wait: { cleared: "h1" }, do: [["checkpoint"], ["next"]] }] });
     try {
       G.CONFIG.story.enabled = true;
       G.save.story = { ch: {} };
@@ -106,7 +110,7 @@ G.Round42Test = (function () {
         ok("A the level's merge: some 4 700 meshes down to under 150", g.perfReport && g.perfReport.meshesBefore > 3000 && g.perfReport.meshesAfter < 150, JSON.stringify(g.perfReport));
         ok("A the merge kept by zone (a storey's things, the grounds')", g.scene.children.filter((o) => o.userData.mergedParts).every((o) => ["s0", "s1", "s2", "out"].includes(o.userData.zone)));
         const dm = Object.values(M.state.doorMeshes).reduce((n, mp) => n + mp.size, 0);
-        ok("A 65 doors (round 5: and 305's front door), their leaves baked into a few meshes (a storey's, the grounds')", Object.keys(m.doors).length === 65 && dm <= 8, Object.keys(m.doors).length + " doors, " + dm + " meshes");
+        ok("A 66 doors (round 5: and 305's front door; round 9: the PR room's and the office's), their leaves baked into a few meshes (a storey's, the grounds')", Object.keys(m.doors).length === 66 && dm <= 8, Object.keys(m.doors).length + " doors, " + dm + " meshes");
         ok("A the regions, the waypoints, the stairs' flights (two a storey a stairwell)", w.regions.length > 80 && Object.keys(w.waypointNodes).length > 120 && w.stairs.length === 12, w.regions.length + " / " + Object.keys(w.waypointNodes).length + " / " + w.stairs.length);
         await yield0();
       }
@@ -456,7 +460,7 @@ G.Round42Test = (function () {
     } catch (e) {
       ok("no exception", false, e.message + " " + (e.stack || "").split("\n").slice(0, 3).join(" | "));
     } finally {
-      CHS.splice(1, 5, ...real12);
+      CHS.splice(1, 6, ...real12);
       G.CONFIG.story.enabled = enabled0;
       g.update = real;
       G.Input.requestPointerLock = lock0;

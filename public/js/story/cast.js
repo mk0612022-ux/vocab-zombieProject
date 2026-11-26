@@ -19,7 +19,10 @@
 //       walk: { x, z } | [{ x, z }, ...], speed   along a path, the floor's height under it
 //       face: "player" | { x, z } | yaw            turned (eased)
 //       pose: stand | sit | floor | carry | zombie | slump | scratch | bang (round 6: fists on glass) |
-//             push | hurt | hurtSit | treat (round 7: a shelf pushed, an arm cut, a cut seen to)
+//             push | hurt | hurtSit | treat (round 7: a shelf pushed, an arm cut, a cut seen to) |
+//             ext | spray (round 9: a fire extinguisher held, and used) | console (hands on the PA desk) |
+//             megaphone (one arm up, a megaphone at the mouth)
+//       carry: kind | { kind, at: [x, y, z], scale, rx, ry } | null   something in the hands (round 9: where)
 //       follow: true | false                       behind the player, on the way they walked
 //       talk: seconds                              the head and a hand moving with a line
 //       turn: look                                 its zombie self (a flicker of blue first)
@@ -106,12 +109,15 @@ G.StoryCast = (function () {
   function carry(n, kind) {
     if (n.held) { n.model.remove(n.held); n.held = null; }
     if (!kind || !G.VoxelProps) return;
-    const g = G.VoxelProps.build(kind, {});
+    const o = typeof kind === "object" ? kind : { kind }, at = o.at || [0, 0.86, 0.32];
+    const g = G.VoxelProps.build(o.kind, {});
     const k = 1 / (n.model.scale.x || 1);
-    g.scale.setScalar(k * 0.9);
-    g.position.set(0, 0.86 * k, 0.32 * k);
+    g.scale.setScalar(k * (o.scale || 0.9));
+    g.position.set(at[0] * k, at[1] * k, at[2] * k);
+    if (o.rx || o.ry) g.rotation.set(o.rx || 0, o.ry || 0, 0);
     n.model.add(g);
     n.held = g;
+    n.heldAt = at.slice();
   }
   // its zombie self: a new model where it stands (the label and the pose kept)
   function turn(game, n, look) {
@@ -308,11 +314,34 @@ G.StoryCast = (function () {
       const hit = b > 0.97;
       if (hit && !n.hit && n.near && G.StoryScreen) G.StoryScreen.thud(n.pos);
       n.hit = hit;
+    } else if (n.pose === "ext") {
+      // (round 9) a fire extinguisher in front of her, both hands on it (Kru Min in 1-6): the walk's own
+      // swing under it
+      const bob = L.legL.hip.rotation.x * 0.1;
+      L.armL.shoulder.rotation.set(-0.95 + bob, 0, 0.42); L.armR.shoulder.rotation.set(-0.72 - bob, 0, -0.12);
+      if (u.upper && u.upper.rotation.x) u.upper.rotation.x = 0;
+    } else if (n.pose === "spray") {
+      // ...and used: the nozzle out at arm's length, braced
+      const t0 = u.npc ? u.npc.t : 0, s = Math.sin(t0 * 31) * 0.03;
+      L.armL.shoulder.rotation.set(-1.5 + s, 0, 0.3); L.armR.shoulder.rotation.set(-1.15 - s, 0, -0.2);
+      if (u.upper) u.upper.rotation.x = -0.1;
+      L.legL.hip.rotation.x = 0.1; L.legR.hip.rotation.x = -0.1;
+    } else if (n.pose === "console") {
+      // at the PA desk: one hand on its buttons, the other by the microphone
+      const t0 = u.npc ? u.npc.t : 0, s = Math.sin(t0 * 2.1) * 0.05;
+      L.armL.shoulder.rotation.set(-0.95 + s, 0, 0.16); L.armR.shoulder.rotation.set(-1.1 - s, 0, -0.14);
+      if (u.upper) u.upper.rotation.x = 0.16;
+      if (u.neck) u.neck.rotation.x = 0.18 + (n.talkT > 0 ? Math.sin(t0 * 5.3) * 0.07 : 0);
+    } else if (n.pose === "megaphone") {
+      // the principal at the flagpole: a megaphone up at his mouth
+      const t0 = u.npc ? u.npc.t : 0, s = Math.sin(t0 * 1.1) * 0.04;
+      L.armR.shoulder.rotation.set(-1.55 + s, 0, -0.32); L.armL.shoulder.rotation.set(-0.15, 0, -0.1);
+      if (u.neck) u.neck.rotation.set(-0.06, Math.sin(t0 * 0.5) * 0.1, 0);
     } else if (u.upper && u.upper.rotation.x) u.upper.rotation.x = 0;
     if (n.pose !== "floor" && L.legR.hip.rotation.z) L.legR.hip.rotation.z = 0;
     // (round 7: a pose that bends the legs or the body gives them back when it ends)
     if (n.pose !== n.lastPose) {
-      const legs = { sit: 1, floor: 1, scratch: 1, slump: 1, push: 1, hurtSit: 1 }, lean = { floor: 1, slump: 1, push: 1, treat: 1, bang: 1 };
+      const legs = { sit: 1, floor: 1, scratch: 1, slump: 1, push: 1, hurtSit: 1, spray: 1 }, lean = { floor: 1, slump: 1, push: 1, treat: 1, bang: 1, spray: 1, console: 1 };
       if (n.lastPose && legs[n.lastPose] && !legs[n.pose]) { L.legL.hip.rotation.x = 0; L.legR.hip.rotation.x = 0; }
       if (n.lastPose && lean[n.lastPose] && !lean[n.pose] && u.upper) u.upper.rotation.x = 0;
       if (n.lastPose && n.lastPose !== "stand" && n.pose === "stand") { L.armL.shoulder.rotation.set(0, 0, 0); L.armR.shoulder.rotation.set(0, 0, 0); if (u.neck) u.neck.rotation.set(0, 0, 0); }
@@ -321,7 +350,10 @@ G.StoryCast = (function () {
     return dy;
   }
   // what can be seen of it -- the map's own rule for what is inside (js/story/ch1map.js update):
-  // someone in the building is drawn from inside on the same storey or the next (the stairwell),
+  // someone in the building is drawn from inside on the same storey -- or, from a stairwell, the next
+  // (round 9: from anywhere else not the next either: the three left in the library and what stands
+  // there were 23 draw calls over the PR room's ceiling; someone on a flight of stairs is seen from the
+  // storey they are nearer) --
   // from outside only near the building (through the windows); no one past the fog. (While the
   // player walks in from the gate, 60 m off, seven people sit the exam on 3F: 49 draw calls for
   // nothing -- 158 on Low, over the 150 of the rest of the map.)
@@ -330,13 +362,26 @@ G.StoryCast = (function () {
     const M = game.world && game.world.storyMap, pp = game.yawObject.position, feet = pp.y - 1.7, fog = game.scene && game.scene.fog;
     if (fog && Number.isFinite(fog.far) && Math.hypot(n.pos.x - pp.x, n.pos.z - pp.z) > fog.far + 8) return false;
     if (!M || !M.inFoot || !M.inFoot(Math.floor(n.pos.x), Math.floor(n.pos.z))) return true;
-    if (M.inFoot(Math.floor(pp.x), Math.floor(pp.z)) && feet > -0.5) return Math.abs(storey(n.pos.y) - storey(feet)) <= 1;
+    if (M.inFoot(Math.floor(pp.x), Math.floor(pp.z)) && feet > -0.5) return M.mode === "stairs" ? Math.abs(storey(n.pos.y) - storey(feet)) <= 1 : Math.abs(n.pos.y - feet) < 2.6;
     return !M.shown || M.shown["s" + storey(n.pos.y)] !== false;
+  }
+  // (round 9) a scene's things by the same rule: the ones this hid are shown again by it, no others
+  const at0 = { pos: null };
+  function seeProps(game) {
+    Object.keys(props).forEach((id) => {
+      const g = props[id].g;
+      if (!g) return;
+      at0.pos = g.position;
+      const v = seen(game, at0);
+      if (!v && g.visible) { g.visible = false; g.userData.castHid = true; }
+      else if (v && g.userData.castHid) { g.visible = true; g.userData.castHid = false; }
+    });
   }
   function update(game, dt) {
     if (!game || !game.yawObject) return;
     t += dt;
     track(game);
+    seeProps(game);
     const pp = game.yawObject.position;
     Object.keys(npcs).forEach((id) => {
       const n = npcs[id];
@@ -368,7 +413,8 @@ G.StoryCast = (function () {
         const apart = Math.abs((pp.y - 1.7) - n.pos.y) > 2.5;
         if (apart || d > (C().followDist || 1.6) + 0.3) {
           const g = followGoal(n, game);
-          if (g) stepTo(n, game, g.x, g.z, Math.min(C().followSpeed || 3.4, Math.max(1.2, d * 1.2)), dt);
+          // (round 9: `followMax` -- someone looked after keeps up with a player who runs, js/story/escort.js)
+          if (g) stepTo(n, game, g.x, g.z, Math.min(n.followMax || C().followSpeed || 3.4, Math.max(1.2, d * 1.2)), dt);
           // (left far behind -- a cut, a fall: brought along, just behind the player, and the way
           // walked forgotten up to there)
           if (apart || d > (C().followLeash || 9)) {

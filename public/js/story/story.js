@@ -34,6 +34,9 @@
 //   with armed: false -- the prologue until Sgt. Chai's pistol); the scene's people, things to
 //   use, practice exam and screen (js/story/cast.js, interact.js, aimquiz.js, screen.js) start
 //   and stop with a run; idleLabel() the word box's label while nothing is to be shot
+//   (round 9) died(game, { icon, title, text })   lost another way than by the player's health (Kru Min
+//   not helped up in time: js/story/escort.js); sees(game, eye, feet) nothing in the way between the two;
+//   onShriek(game, z) who a Screamer's shriek calls (js/zombieai.js): the scene's `shriek`
 // The answers count in the memory boxes as everywhere else; the chapter keeps
 // its own totals (right, wrong, time) for its summary and achievements.
 // ===================================================================
@@ -197,6 +200,8 @@ G.Story = (function () {
     if (G.StoryPush) G.StoryPush.reset();
     if (G.StoryPick) G.StoryPick.reset(game);
     if (G.StoryBoss) G.StoryBoss.reset(game);            // (round 8: a mini-boss)
+    if (G.StoryEscort) G.StoryEscort.reset();            // (round 9: who is looked after; the PA's window, its loop)
+    if (G.StoryPA) G.StoryPA.reset(game);
     // what the checkpoint was carrying (full health: a checkpoint is a fresh start)
     if (from && from.guns) {
       const pl = game.player;
@@ -242,6 +247,9 @@ G.Story = (function () {
     if (G.StoryPush) G.StoryPush.update(game, dt);
     // (round 8) a mini-boss's moves
     if (G.StoryBoss) G.StoryBoss.update(game, dt);
+    // (round 9) who came along with the player; the PA's announcement on its loop, a place held
+    if (G.StoryEscort) G.StoryEscort.update(game, dt);
+    if (G.StoryPA) G.StoryPA.update(game, dt);
     if (!run || run.over) return;
     G.StoryScenes.update(game, run, dt);
   }
@@ -306,6 +314,31 @@ G.Story = (function () {
     if (game._attempt && game._attempt.key === key) game._attempt.assisted = true;
     run.flags.add("hinted");
   }
+  // (round 9) a Screamer's shriek: who it calls is the scene's -- `shriek: { at, count, kinds, max }`, never
+  // more alive than `max` -- a group of their own ("shriek1", ...). -> how many came
+  function onShriek(game, z) {
+    const sc = run && !run.over && run.scene, s = sc && sc.shriek;
+    run && run.flags.add("x:shriek");
+    if (!s) return 0;
+    const alive = game.zombies.filter((o) => o.alive).length, room = Math.max(0, (s.max || 9) - alive), n = Math.min(s.count || 2, room);
+    if (n <= 0) return 0;
+    run.shrieks = (run.shrieks || 0) + 1;
+    return G.StoryScenes.spawn(game, run, { id: "shriek" + run.shrieks, at: s.at, count: n, kinds: s.kinds || ["normal"] }) || 0;
+  }
+  // (round 9) can `a` (an eye, a THREE.Vector3) see `b` (feet)? no wall, shut door or tall thing between
+  // them at the height of a chest (what is lower is looked over)
+  const seen = [];
+  function sees(game, a, b) {
+    const W = game && game.world;
+    if (!W) return true;
+    const dx = b.x - a.x, dz = b.z - a.z, d = Math.hypot(dx, dz), n = Math.ceil(d / 0.35), y = Math.min(a.y - 1.7, b.y) + 1.35;
+    for (let i = 1; i < n; i++) {
+      const x = a.x + (dx * i) / n, z = a.z + (dz * i) / n;
+      const list = G.ColGrid.near(W, x, z, 0.2, seen);
+      for (const c of list) if (!c.isEmpty() && y >= c.min.y && y <= c.max.y && x >= c.min.x && x <= c.max.x && z >= c.min.z && z <= c.max.z) return false;
+    }
+    return true;
+  }
   // (round 7) a shot fired: when (a scene asks { fired: s } -- the nurse woken by it)
   if (G.Bus) G.Bus.on("weapon:fire", () => { if (run && !run.over) { run.lastShot = run.time; run.lastShotPos = run.game && run.game.yawObject ? run.game.yawObject.position.clone() : null; } }, "story");
   // (round 2) the lines, the turned view, the bars, the phone: gone (a death, the end, leaving)
@@ -346,9 +379,10 @@ G.Story = (function () {
   function sceneReached(i) { if (run) { const d = data(run.id); d.scene = Math.max(d.scene || 0, i); G.persist(); sceneCard(); } }
 
   // the player down: a scene that cannot be lost keeps them standing; else back to the checkpoint
-  function died(game) {
+  // (round 9: `o` -- { icon, title, text } -- lost another way: Kru Min not helped up in time)
+  function died(game, o) {
     if (!run || run.over) return false;
-    if (run.scene && run.scene.noDeath) { game.player.hp = Math.max(C().floorHp || 1, 1); return true; }
+    if (!o && run.scene && run.scene.noDeath) { game.player.hp = Math.max(C().floorHp || 1, 1); return true; }
     if (run.dead) { game.player.hp = 1; return true; }
     run.dead = true;
     game.player.hp = 1;
@@ -357,7 +391,7 @@ G.Story = (function () {
     quiet();
     const id = run.id, d = data(id);
     const back = d.cp ? d.cp : { scene: run.sceneI, beat: 0 };
-    G.Dialog.open({ icon: "🩸", title: T("story.death.title"), text: T("story.death.text"), buttons: [
+    G.Dialog.open({ icon: (o && o.icon) || "🩸", title: T((o && o.title) || "story.death.title"), text: T((o && o.text) || "story.death.text"), buttons: [
       { label: T("story.menu"), cancel: true, action: () => G.Game.quitToMainMenu() },
       { label: T("story.death.retry"), primary: true, action: () => start(id, back) },
     ] });
@@ -406,6 +440,8 @@ G.Story = (function () {
     if (G.StoryPush) G.StoryPush.reset();
     if (G.StoryPick) G.StoryPick.reset(game);
     if (G.StoryBoss) G.StoryBoss.reset(game);
+    if (G.StoryEscort) G.StoryEscort.reset();
+    if (G.StoryPA) G.StoryPA.reset(game);
     if (G.ViewModel && G.ViewModel.setVisible) G.ViewModel.setVisible(true);
     document.body.classList.remove("story-hands-free");
   }
@@ -424,7 +460,7 @@ G.Story = (function () {
   return {
     on, chapters, chapter, data, status, entries, missing, pairs, plan, level, open, restart, start,
     beginRun, update, commit, checkpoint, prologueDone, sceneReached, died, finish, teardown, hudHead, idleMeaning, idleLabel,
-    vars, chose, onKey, arm, handsFree, onWrongShot,
+    vars, chose, onKey, arm, handsFree, onWrongShot, onShriek, sees,
     get run() { return run; }, get pending() { return pending; },
   };
 })();

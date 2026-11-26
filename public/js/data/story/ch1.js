@@ -14,7 +14,8 @@
 // opened by hand, the letter lock: js/story/wheellock.js, the whispers: whisper.js); round 7 scenes
 // 1-3 and 1-4 (bookshelves pushed: js/story/push.js, the medicine cabinet: pick.js, the defence's
 // waves, Crawlers under the tables, Nam's dictionary, Nurse Pim); round 8 scene 1-5 (the canteen's
-// two waves, boxes taken by holding the button, Coach Ek: js/story/miniboss.js, the shotgun).
+// two waves, boxes taken by holding the button, Coach Ek: js/story/miniboss.js, the shotgun); round 9
+// scene 1-6 (Kru Min to the PR room: js/story/escort.js; the announcement, its loop, the hold: pa.js).
 //   practice       (round 5) words the prologue uses that the bank does not have, with
 //                  their meanings in the four meaning languages: practice, counted nowhere
 //
@@ -85,6 +86,14 @@ G.STORY_CHAPTERS.ch1 = {
     walkway: { x0: -39.2, x1: -37, z0: -27.4, z1: -21.6, y: 0 },
     gymIn: { x0: -35.6, x1: -27, z0: -31, z1: -22.2, y: 0 },
     gymNorth: { x0: -36, x1: -10, z0: -46, z1: -40, y: 0 },
+    // (round 9) 1-6: the lobby at the foot of the back stairs and the corridor's west end; half way along it; near
+    // the PR room; just inside it, the office next to it, the two together with the corridor by them
+    lobby1: { x0: -44.4, x1: -36, z0: -2.2, z1: 9, y: 0 },
+    corr1Half: { x0: -27, x1: -19, z0: -2.2, z1: 2.2, y: 0 },
+    nearPR: { x0: -17, x1: -8, z0: -2.2, z1: 2.4, y: 0 },
+    prIn: { x0: -15, x1: -8, z0: 3.2, z1: 9, y: 0 },
+    adminIn: { x0: -7.4, x1: 0, z0: 3, z1: 9, y: 0 },
+    office: { x0: -17, x1: 2, z0: -2.2, z1: 9, y: 0 },
     parkIn: { x0: -44, x1: -4, z0: -66, z1: -48, y: 0 },
   },
   spawns: {
@@ -113,12 +122,19 @@ G.STORY_CHAPTERS.ch1 = {
     lockerRoom: [{ x: -16.8, y: 0, z: -25 }, { x: -15.2, y: 0, z: -23.8 }, { x: -15.2, y: 0, z: -26.4 }, { x: -13.4, y: 0, z: -25 }, { x: -13.2, y: 0, z: -27 }, { x: -16.6, y: 0, z: -27.2 }],
     gymFloor: [{ x: -24, y: 0, z: -36 }, { x: -20.5, y: 0, z: -38 }, { x: -27.5, y: 0, z: -38 }, { x: -18.5, y: 0, z: -34 }, { x: -27.6, y: 0, z: -31.4 }],
     corridor1: [{ x: -24, y: 0, z: 0 }, { x: -28, y: 0, z: 0.5 }, { x: 4, y: 0, z: -0.5 }],
+    // (round 9) 1-6: the 1F corridor -- its middle, its west half, the entrance's side; inside the PR room's and
+    // the admin office's windows
+    corr1Mid: [{ x: -20, y: 0, z: -0.6 }, { x: -18.5, y: 0, z: 0.6 }, { x: -22, y: 0, z: 0.1 }],
+    corr1West: [{ x: -29, y: 0, z: 0.5 }, { x: -31, y: 0, z: -0.6 }, { x: -33, y: 0, z: 0.2 }, { x: -27.4, y: 0, z: -0.4 }],
+    corr1East: [{ x: 4, y: 0, z: -0.5 }, { x: 6, y: 0, z: 0.6 }, { x: 8, y: 0, z: 0 }, { x: 2.6, y: 0, z: 0.5 }],
+    prWindow: [{ x: -13.0, y: 0, z: 8.3 }, { x: -10.2, y: 0, z: 8.3 }, { x: -12.0, y: 0, z: 8.4 }],
+    adminWindow: [{ x: -2.0, y: 0, z: 8.3 }, { x: -5.0, y: 0, z: 8.3 }, { x: -3.2, y: 0, z: 8.4 }],
     yardRows: [{ x: -10, y: 0, z: 30 }, { x: 10, y: 0, z: 30 }, { x: 0, y: 0, z: 36 }, { x: -5, y: 0, z: 24 }],
   },
   // ---------------- the phone (story round 2: js/story/phone.js) ----------------
   //   contacts   who writes; messages: what they write (English, subtitled as a line is);
   //   notices    the phone's notifications (an app's name, an icon, the text)
-  contacts: { beam: { name: "story.who.beam" }, min: { name: "story.who.min" } },
+  contacts: { beam: { name: "story.who.beam" }, min: { name: "story.who.min" }, fai: { name: "story.who.fai" }, unknown: { name: "story.who.unknown" }, unknown2: { name: "story.who.unknown2" } },
   messages: {
     beam1: { from: "beam", text: "story.ch1.m.beam1" },
     beam2: { from: "beam", text: "story.ch1.m.beam2" },
@@ -130,6 +146,8 @@ G.STORY_CHAPTERS.ch1 = {
     min7: { from: "min", text: "story.ch1.m.min7" },
     // (round 8) 1-5: the water; Sgt. Chai's car
     min8: { from: "min", text: "story.ch1.m.min8" }, min9: { from: "min", text: "story.ch1.m.min9" },
+    // (round 9) 1-6: who heard the announcement
+    fai1: { from: "fai", text: "story.ch1.m.fai1" }, unk1: { from: "unknown", text: "story.ch1.m.unk1" }, unk2: { from: "unknown2", text: "story.ch1.m.unk2" },
   },
   notices: {
     cal: { app: "story.app.calendar", icon: "📅", text: "story.ch1.n.cal" },
@@ -170,7 +188,7 @@ G.STORY_CHAPTERS.ch1 = {
       beats: [
         // ---- 1. the alarm (0:00-0:20): a black screen, the phone -- tap a notification, a word, an answer
         { do: [["black", { on: true, sec: 0 }], ["sound", "alarm"], ["notify", "cal"]] },
-        { wait: { time: 1.4 }, do: [["hint", { key: "story.hint.phone", bind: "phone" }], ["notify", "ad"]] },
+        { wait: { time: 1.4 }, do: [["hint", { key: "story.hint.phone", bind: "phone" }], ["notify", "ad"], ["sound", "jingle"]] },        // (round 9: the advertisement's tune -- it comes back broken in 1-6)
         { wait: { time: 1.2 }, do: [["phone", "beam1"]] },
         { wait: { time: 1.2 }, do: [["phone", "beam2"]] },
         { wait: { read: "beam" }, do: [["hint", null]] },
@@ -644,11 +662,99 @@ G.STORY_CHAPTERS.ch1 = {
         // the stopwatch he dropped, still running (round 11's collectibles)
         { id: "watch", when: { used: "watch" }, do: [["flag", "found:stopwatch"], ["card", { id: "watch", icon: "⏱️", title: "story.card.watchTitle", lines: ["story.ch1.watch"] }]] },
       ] },
-    { id: "s6", title: "story.ch1.s6", objective: "story.ch1.s6.obj", start: { x: -41.2, y: 0, z: -1, yaw: -Math.PI / 2 }, clock: "17:00", light: "golden",
+    // (round 9) 1-6 Attention, All Students (6-8 minutes): late afternoon, the light gold. Kru Min down the back
+    // stairs to the PR room, next to the admin office: she walks behind the player, the extinguisher in her hands
+    // (js/story/escort.js). The Smart PA has scrambled the announcement: three gaps put right (js/story/pa.js), the
+    // save, the microphone button, the school's bells -- and Kru Min reads out what the player mended. It repeats
+    // every twenty seconds and draws them in: a hundred seconds held, the two rooms and the corridor's doors, the
+    // first Screamers; then, one by one, the messages of who heard it. From the office's window: the principal.
+    { id: "s6", title: "story.ch1.s6", objective: "story.ch1.s6.obj0", start: { x: -34.6, y: 4, z: 4.4, yaw: Math.PI / 2 }, clock: "17:00", light: "golden",
+      doors: { LIBBACK: true, DLIBRARY: false, STAIRB2: true, STAIRB1: true, KITCHENB: false, ENTRANCE: false, DPE: false, DSTOREW: false, DWC2: false, DNURSE: false, STAIRM2: false, DPR: false, DADMIN: false, PRADMIN: true },
+      shriek: { at: ["corr1West", "corr1East"], count: 2, kinds: ["normal", "fast"], max: 8 },
+      props: [
+        // in the library, as 1-5 left it
+        { id: "frontShelf", kind: "bookshelf", o: { w: 1 }, at: { x: -25.5, y: 4, z: 3.25 }, yaw: 0 },
+        { id: "backShelf", kind: "bookshelf", o: { w: 1 }, at: { x: -38.75, y: 4, z: 7.5 }, yaw: Math.PI / 2 },
+        { id: "eaten", kind: "supplyBoxes", at: { x: -36.4, y: 4, z: 4.0 }, yaw: 0.4 },
+        // on the principal's desk
+        { id: "contract", kind: "papers", at: { x: 10.6, y: 0.77, z: 5.2 }, yaw: 0.5 },
+      ],
+      cast: [
+        { id: "min", who: "min", at: { x: -33.4, y: 4, z: 8.3 }, yaw: 0, face: "player" },
+        { id: "tonkla", who: "tonkla", at: { x: -35.9, y: 4, z: 5.98 }, yaw: Math.PI, pose: "sit" },
+        { id: "fai", who: "fai", at: { x: -35.0, y: 4, z: 5.98 }, yaw: Math.PI, pose: "sit" },
+        { id: "nam", who: "nam", at: { x: -31.9, y: 4, z: 5.98 }, yaw: Math.PI, pose: "sit" },
+        // in front of the flagpole (seen from the office's window, once it has been held)
+        { id: "somsak", who: "somsak_z", at: { x: -2.2, y: 0, z: 15.4 }, yaw: Math.PI - 0.55, pose: "megaphone", carry: { kind: "megaphone", at: [0.06, 1.5, 0.3], scale: 1.2 }, hidden: true },
+      ],
       beats: [
-        { do: [["objective", "story.ch1.s6.obj"]] },
-        { wait: { zone: "adminDoor" }, do: [["spawn", { id: "h1", at: "corridor1", count: 3 }]] },
-        { wait: { cleared: "h1" }, do: [["checkpoint"], ["next"]] },
+        // (a save of an earlier build began this scene on the ground floor: in the library, then)
+        { do: [["if", { when: { not: { zone: "libraryDeep" } }, do: [["teleport", { x: -34.6, y: 4, z: 4.4, yaw: Math.PI / 2 }]] }], ["hint", null], ["sound", "quiet"], ["objective", "story.ch1.s6.obj0"],
+          ["escort", { id: "min" }], ["npc", { id: "min", talk: 3 }], ["say", [{ who: "min", line: "story.ch1.d.minStay" }, { who: "min", line: "story.ch1.d.minLead" }]],
+          ["if", { when: { not: { flag: "found:contract" } }, do: [["use", { id: "contract", at: { x: 10.6, y: 0, z: 5.2 }, size: [0.9, 0.45, 0.8], lift: 0.86, prompt: "story.use.contract", sound: "paper" }]] }], ["doors", { ids: ["DPR"] }]] },
+        { wait: { said: true }, do: [["objective", "story.ch1.s6.obj1"], ["hint", { key: "story.hint.escort", bind: "interact", sec: 8 }]] },
+        // in the PR room, the two of them, the corridor quiet (or a while on): LEXA's jingle, broken; the draft
+        { wait: { all: [{ zone: "prIn" }, { near: { id: "min", r: 5 } }, { escort: "up" }, { any: [{ calm: true }, { time: 30 }] }] }, do: [["flag", "x:pr"], ["sound", "quiet"], ["sound", "bent"], ["hint", null], ["objective", "story.ch1.s6.obj"],
+          ["escort", { id: "min", stay: { x: -12.1, y: 0, z: 5.05, face: { x: -11.9, z: 4.1 } }, pose: "console" }], ["say", [{ who: "min", line: "story.ch1.d.minScrambled" }]]] },
+        { wait: { time: 1.2 }, do: [["pa", { id: "pa", at: { x: -11.5, y: 0, z: 4.2 }, size: [1.8, 1.3, 1.0], lift: 0.8, prompt: "story.use.pa", title: "story.pa.title", who: "min", line: "story.ch1.d.minScrambled", text: "story.ch1.pa.draft",
+          gaps: [{ options: ["evacuate", "evaluate"], right: "evacuate", line: "story.ch1.d.minEvaluate" },
+            { options: ["afford", "avoid"], right: "avoid", line: "story.ch1.d.minAfford", cap: true },
+            { options: ["assemble", "assume"], right: "assemble", line: "story.ch1.d.minAssume", cap: true }] }]] },
+        // put right: is help really on the way? -- and the save (the design's: before the hold), not in the middle of a fight
+        { wait: { pa: "pa" }, do: [["sound", "unbent"], ["ask", { id: "help", who: "min", line: "story.ch1.pa.l5", options: [{ text: "story.ch1.c.helpAsk", value: "ask" }, { text: "story.ch1.c.helpGo", value: "go" }],
+          then: [[{ who: "min", line: "story.ch1.d.minHelp" }, { who: "min", line: "story.ch1.d.minPress" }], [{ who: "min", line: "story.ch1.d.minPress" }]] }]] },
+        { wait: { all: [{ chosen: "help" }, { said: true }, { escort: "up" }, { any: [{ calm: true }, { time: 25 }] }] }, do: [["checkpoint", { x: -10.4, y: 0, z: 6.0, yaw: 0.35 }]] },
+        // (also the first beat of a run picked up at that save) at the console, the microphone's button; rounds
+        { do: [["door", { id: "DPR", open: true }], ["door", { id: "DADMIN", open: false }], ["sound", "quiet"], ["hint", null], ["objective", "story.ch1.s6.obj2"],
+          ["escort", { id: "min", stay: { x: -12.1, y: 0, z: 5.05, face: { x: -11.9, z: 4.1 } }, pose: "console", put: true, heal: true }],
+          ["drop", { kind: "ammo", at: { x: -14.2, y: 0, z: 6.6 } }], ["drop", { kind: "ammo", at: { x: -1.0, y: 0, z: 7.4 } }], ["drop", { kind: "health", at: { x: -14.2, y: 0, z: 8.0 } }],
+          ["if", { when: { not: { flag: "found:contract" } }, do: [["use", { id: "contract", at: { x: 10.6, y: 0, z: 5.2 }, size: [0.9, 0.45, 0.8], lift: 0.86, prompt: "story.use.contract", sound: "paper" }]] }],
+          ["use", { id: "mic", at: { x: -11.09, y: 0, z: 4.25 }, size: [0.9, 0.9, 0.9], lift: 1.0, prompt: "story.use.mic", sound: "click" }]] },
+        // live: the school's bells, then Kru Min reads it out (listened to, and read)
+        { wait: { used: "mic" }, do: [["flag", "x:live"], ["sound", "chimes"], ["objective", "story.ch1.s6.obj3"]] },
+        { wait: { time: 5.4 }, do: [["npc", { id: "min", talk: 15 }], ["say", [{ who: "min", line: "story.ch1.pa.l1", voice: true }, { who: "min", line: "story.ch1.pa.l2", voice: true }, { who: "min", line: "story.ch1.pa.l3", voice: true },
+          { who: "min", line: "story.ch1.pa.l4", voice: true }, { who: "min", line: "story.ch1.pa.l5", voice: true }]]] },
+        // on its loop: held a hundred seconds (who comes, the rules below)
+        { wait: { said: true }, do: [["flag", "x:hold"], ["sound", "tense"], ["sys", { key: "story.ch1.sys.office", glitch: true }], ["say", [{ who: "min", line: "story.ch1.d.minHold" }]],
+          ["hold", { id: "office", sec: 100, every: 20, key: "story.timer.hold", lines: ["story.ch1.pa.l1", "story.ch1.pa.l2", "story.ch1.pa.l3", "story.ch1.pa.l4", "story.ch1.pa.l5"] }],
+          ["spawn", { id: "g0", at: "corr1West", count: 3, kinds: ["normal"], max: 6 }]] },
+        { wait: { held: "office" }, do: [["flag", "x:held"], ["hint", null], ["objective", "story.ch1.s6.obj4"], ["say", [{ who: "min", line: "story.ch1.d.minHeld" }]]] },
+        // who heard it: the messages, one by one
+        { wait: { all: [{ time: 2 }, { escort: "up" }, { any: [{ calm: true }, { time: 40 }] }] }, do: [["sound", "calm"], ["objective", "story.ch1.s6.obj6"], ["phone", "fai1"],
+          ["escort", { id: "min", stay: { x: -4.7, y: 0, z: 7.9, face: { x: -2.2, z: 15.4 } } }]] },
+        { wait: { time: 3.6 }, do: [["phone", "unk1"]] },
+        { wait: { time: 3.6 }, do: [["phone", "unk2"]] },
+        { wait: { time: 3 }, do: [["objective", "story.ch1.s6.obj5"], ["use", { id: "window", at: { x: -2.0, y: 0, z: 8.75 }, size: [2.4, 1.8, 0.5], lift: 1.5, prompt: "story.use.window", sound: "" }]] },
+        // out of the office's window: the principal at the flagpole, a megaphone in his hand
+        { wait: { used: "window" }, cine: "somsak", do: [["bars", true], ["lock", true], ["sound", "quiet"], ["npc", { id: "somsak", show: true }], ["look", { x: -2.2, y: 1.4, z: 15.4, sec: 1.2 }]] },
+        { wait: { all: [{ looked: true }, { time: 0.8 }] }, cine: "somsak", do: [["sound", "sting"], ["npc", { id: "min", talk: 4 }], ["say", [{ who: "min", line: "story.ch1.d.minSomsak" }]]] },
+        { wait: { said: true }, cine: "somsak", do: [["bars", false], ["lock", false], ["escort", { id: "min", on: false }], ["checkpoint"], ["next"]] },
+      ],
+      on: [
+        // on the way: three ahead as they come out of the back stairs; two behind, half way along; four from the entrance's side
+        { id: "e1", when: { zone: "lobby1" }, do: [["spawn", { id: "e1", at: "corr1Mid", count: 3, kinds: ["normal"] }], ["sys", { key: "story.ch1.sys.corr1", glitch: true }], ["drop", { kind: "ammo", at: { x: -30.5, y: 0, z: 1.2 } }]] },
+        { id: "e2", when: { zone: "corr1Half" }, do: [["spawn", { id: "e2", at: "backStairsFoot", count: 2, kinds: ["fast"] }]] },
+        { id: "e3", when: { zone: "nearPR" }, do: [["spawn", { id: "e3", at: "corr1East", count: 4, kinds: ["normal", "normal", "fast", "normal"] }], ["drop", { kind: "health", at: { x: -13.4, y: 0, z: -1.4 } }]] },
+        { id: "contract", when: { used: "contract" }, do: [["flag", "found:contract"], ["card", { id: "contract", icon: "📄", title: "story.card.contractTitle", lines: ["story.ch1.contract1", "story.ch1.contract2"] }]] },
+        // the hold: each time it repeats, more of them -- by the west, by the entrance; the office's door bangs, and
+        // gives; a window; the Screamers
+        // (never more than six standing: a group comes short when the last one is still there)
+        { id: "h0", after: "x:hold", when: { time: 12 }, do: [["spawn", { id: "g0b", at: "corr1East", count: 1, kinds: ["fast"], max: 6 }]] },
+        { id: "h1", after: "x:hold", when: { heldN: ["office", 1] }, do: [["spawn", { id: "g1", at: "corr1East", count: 2, kinds: ["normal"], max: 6 }], ["spawn", { id: "g1b", at: "corr1West", count: 1, kinds: ["normal"], max: 6 }]] },
+        { id: "h1b", after: "on:h1", when: { time: 10 }, do: [["spawn", { id: "g1c", at: "corr1West", count: 1, kinds: ["fast"], max: 6 }]] },
+        { id: "h1c", after: "on:h1", when: { time: 15 }, do: [["thud", { at: { x: -1.5, y: 0, z: 2.5 }, n: 5 }]] },
+        { id: "h2", after: "x:hold", when: { heldN: ["office", 2] }, do: [["door", { id: "DADMIN", open: true }], ["sound", "kick"], ["sys", { key: "story.ch1.sys.screamer", glitch: true }], ["hint", { key: "story.hint.screamer", sec: 8 }],
+          ["spawn", { id: "g2", at: "corr1East", count: 2, kinds: ["screamer", "normal"], max: 6 }], ["spawn", { id: "g2b", at: "corr1West", count: 1, kinds: ["normal"], max: 6 }]] },
+        { id: "h2b", after: "on:h2", when: { time: 11 }, do: [["spawn", { id: "g2c", at: "corr1East", count: 1, kinds: ["fast"], max: 6 }]] },
+        { id: "h3", after: "x:hold", when: { heldN: ["office", 3] }, do: [["if", { when: { zone: "adminIn" },
+          do: [["glass", { at: { x: -12.5, y: 1.6, z: 9 }, dir: { x: 0, z: -1 } }], ["spawn", { id: "g3", at: "prWindow", count: 2, kinds: ["normal"], max: 6 }]],
+          else: [["glass", { at: { x: -2.0, y: 1.6, z: 9 }, dir: { x: 0, z: -1 } }], ["spawn", { id: "g3", at: "adminWindow", count: 2, kinds: ["normal"], max: 6 }]] }],
+          ["spawn", { id: "g3b", at: "corr1West", count: 1, kinds: ["fast"], max: 6 }], ["drop", { kind: "ammo", at: { x: -9.6, y: 0, z: 7.2 } }], ["drop", { kind: "health", at: { x: -6.2, y: 0, z: 7.4 } }]] },
+        { id: "h3b", after: "on:h3", when: { time: 11 }, do: [["spawn", { id: "g3c", at: "corr1East", count: 1, kinds: ["normal"], max: 6 }]] },
+        { id: "h4", after: "x:hold", when: { heldN: ["office", 4] }, do: [["spawn", { id: "g4", at: "corr1West", count: 2, kinds: ["screamer", "normal"], max: 6 }], ["spawn", { id: "g4b", at: "corr1East", count: 1, kinds: ["fast"], max: 6 }]] },
+        { id: "h4b", after: "on:h4", when: { time: 9 }, do: [["spawn", { id: "g4c", at: "corr1West", count: 1, kinds: ["normal"], max: 6 }]] },
+        // away from them while it is held
+        { id: "away", after: "x:hold", when: { all: [{ not: { zone: "office" } }, { not: { flag: "x:held" } }] }, do: [["hint", "story.hint.stayMin"]] },
       ] },
     { id: "s7", title: "story.ch1.s7", objective: "story.ch1.s7.obj", start: { x: 4.5, y: 0, z: 6, yaw: Math.PI }, clock: "17:45", light: "sunset",
       doors: { ENTRANCE: true },        // (round 8: 1-5 shuts the front doors -- the crowd is outside)

@@ -197,6 +197,8 @@ G.Ch1Map = (function () {
         carve(-40, -40, -25, -24, 0, 1);
         // the canteen opens on the lobby by the back stairs, and on the corridor
         carve(-44, -41, 1, 1);
+        // (story round 9) the PR room and the admin office: a doorway between them, two wide (1-6 is held in both)
+        carve(-8, -8, 6, 7, 0, 1);
       }
       // room doors in the corridor walls
       ROOMS.filter((r) => r.k === k && !r.open && !r.noDoor).forEach((r) => {
@@ -345,6 +347,8 @@ G.Ch1Map = (function () {
     node("DLIBBACK", -39.5, F[1], 5.5); node("DLIBBACKI", -38.4, F[1], 5.5); node("DLIBBACKO", -40.6, F[1], 5.5);
     link("LIBRARY", "DLIBBACKI"); link("DLIBBACKI", "DLIBBACK"); link("DLIBBACK", "DLIBBACKO"); link("DLIBBACKO", "C2L");
     node("DKITCHEN", -42.5, 0, -19.5); link("KITCHEN", "DKITCHEN"); link("DKITCHEN", "CANTEEN");
+    node("DPRADMIN", -7.5, 0, 7); node("DPRADMINI", -6.4, 0, 7); node("DPRADMINO", -8.6, 0, 7);
+    link("PR", "DPRADMINO"); link("DPRADMINO", "DPRADMIN"); link("DPRADMIN", "DPRADMINI"); link("DPRADMINI", "ADMIN");
     // the stairwells (after the corridors: their doorways link to them)
     Object.keys(STAIRS).forEach((id) => stairwell(st, id, kit, zone, region, node, link));
     // outdoors
@@ -388,6 +392,7 @@ G.Ch1Map = (function () {
     makeDoor(st, "LIBBACK", -39.5, F[1], 5.5, "z", 1, { into: [-38, 5.5], open: true });
     makeDoor(st, "KITCHEN", -42.5, 0, -19.5, "x", 1, { into: [-42.5, -21], open: true });
     makeDoor(st, "KITCHENB", -39.5, 0, -24, "z", 2, { into: [-41, -24], open: true });
+    makeDoor(st, "PRADMIN", -7.5, 0, 7, "z", 2, { into: [-9, 7], open: true });
     makeDoor(st, "ENTRANCE", 4.5, 0, 9.5, "x", 3, { into: [4.5, 8], open: true, glass: true });
     makeDoor(st, "GYMW", GYM.x0 + 0.5, 0, -26, "z", 2, { into: [GYM.x0 + 2, -26], open: true });
     makeDoor(st, "GYMN", -24, 0, GYM.z0 + 0.5, "x", 2, { into: [-24, GYM.z0 + 2], open: true });

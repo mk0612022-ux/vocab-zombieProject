@@ -95,7 +95,11 @@ G.LexiLens = (function () {
   // combo, a mini-boss's bar over them; with no word box, where the style sheet has it
   function place() {
     if (!el || el.classList.contains("hidden")) return;
-    const top = shown.has("word") ? document.querySelector("#hud .hud-top") : null, b = top ? top.getBoundingClientRect().bottom : 0;
+    const top = shown.has("word") ? document.querySelector("#hud .hud-top") : null;
+    let b = top ? top.getBoundingClientRect().bottom : 0;
+    // (round 9: and under a countdown in the middle -- between two waves)
+    const tm = document.getElementById("story-timer");
+    if (tm && !tm.classList.contains("hidden") && !tm.classList.contains("corner")) b = Math.max(b, tm.getBoundingClientRect().bottom);
     const want = b > 20 ? Math.round(b + 8) + "px" : "";
     if (el.style.top !== want) el.style.top = want;
   }
