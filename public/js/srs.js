@@ -140,6 +140,8 @@ G.Learning.answerWord = function (pair, right, opts) {
   G.recordWordResult(pair, right, { srs: false });
   const r = G.SRS.answer(pair, right, opts);
   G.Learning.track(right, opts);
+  // (story series, round 10) a chapter played: its play-through's record of the word (its summary, its final test)
+  if (G.Story && G.Story.noteWord) G.Story.noteWord(pair, right, r);
   if (r && r.to >= G.Learning.MASTERED && r.from < G.Learning.MASTERED) G.Learning.checkMastery();
   // (expansion, round 5) what learning unlocks: a word into box 4, a form of
   // its family answered right (js/attachments.js reads, never writes, the record)

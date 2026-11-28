@@ -63,6 +63,7 @@ G.defaultSave = function () {
       mouseSensitivity: 1,
       keybinds: G.defaultKeybinds ? G.defaultKeybinds() : {},
       storySubs: "full",          // (story series, round 2) a chapter's subtitles: full | key (its words only) | en (none)
+      storyScramble: true,        // (story series, round 10) Principal Somsak's megaphone swaps the labels' letters (Accessibility)
       musicVolume: 0.6,
       sfxVolume: 0.8,
       ambientVolume: 0.6,         // category J4
@@ -174,6 +175,17 @@ G.normalizeStory = function (raw) {
   const FLAG = /^[a-zA-Z0-9_:-]{1,48}$/;
   const flagList = (a, n) => (Array.isArray(a) ? Array.from(new Set(a.filter((x) => typeof x === "string" && FLAG.test(x)))).slice(0, n) : []);
   const ids = (a, n) => (Array.isArray(a) ? Array.from(new Set(a.filter((x) => typeof x === "string" && ID.test(x)))).slice(0, n) : []);
+  // (story round 10) the play-through's words: a word's key (js/wordbank.js G.wordKey) -> [box when first met in it,
+  // box now, wrong, right]; at most 400
+  const WKEY = /^[\w@' .:-]{1,60}$/;
+  const words = (o) => {
+    const out = {};
+    Object.keys(part(o)).slice(0, 400).forEach((k) => {
+      const v = o[k];
+      if (WKEY.test(k) && Array.isArray(v) && v.length === 4) out[k] = [int(v[0], 0, 6), int(v[1], 0, 6), int(v[2], 0, 1e5), int(v[3], 0, 1e5)];
+    });
+    return out;
+  };
   const ch = part(part(raw).ch), out = { ch: {} };
   Object.keys(ch).forEach((key) => {
     if (!/^ch\d{1,2}$/.test(key)) return;
@@ -196,7 +208,7 @@ G.normalizeStory = function (raw) {
       right: int(c.right, 0, 1e7), wrong: int(c.wrong, 0, 1e7), time: num(c.time, 0, 1e7), best: num(c.best, 0, 1e7),
       finishedAt: num(c.finishedAt, 0, 1e13), runs: int(c.runs, 0, 1e6),
       // this play-through (from the start or Skip Prologue to the end, over its checkpoints): the summary's figures
-      curTime: num(c.curTime, 0, 1e7), curRight: int(c.curRight, 0, 1e7), curWrong: int(c.curWrong, 0, 1e7),
+      curTime: num(c.curTime, 0, 1e7), curRight: int(c.curRight, 0, 1e7), curWrong: int(c.curWrong, 0, 1e7), curWords: words(c.curWords),
     };
   });
   return out;

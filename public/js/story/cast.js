@@ -21,7 +21,10 @@
 //       pose: stand | sit | floor | carry | zombie | slump | scratch | bang (round 6: fists on glass) |
 //             push | hurt | hurtSit | treat (round 7: a shelf pushed, an arm cut, a cut seen to) |
 //             ext | spray (round 9: a fire extinguisher held, and used) | console (hands on the PA desk) |
-//             megaphone (one arm up, a megaphone at the mouth)
+//             megaphone (one arm up, a megaphone at the mouth) |
+//             sitWall | kneel | crouch | wave (round 10: sat against a post, on one knee by someone, hiding low, waving over)
+//       eyes: false                                (round 10) a zombie's eyes dark -- at peace; scale (placed): bigger;
+//       lungeStop: metres                          how near a lunge comes
 //       carry: kind | { kind, at: [x, y, z], scale, rx, ry } | null   something in the hands (round 9: where)
 //       follow: true | false                       behind the player, on the way they walked
 //       talk: seconds                              the head and a hand moving with a line
@@ -62,10 +65,13 @@ G.StoryCast = (function () {
       phase: d.phase != null ? d.phase : Math.random() * 6, rate: d.rate || 2.6 + Math.random() * 0.9, near: false, hit: false,   // (round 6: "bang")
     };
     n.model = build(n.who, n.zombie);
+    // (round 10) bigger than their own size -- the principal before his fight, as big as in it
+    if (d.scale) { n.model.scale.multiplyScalar(d.scale); n.scaleK = d.scale; }
     n.model.position.copy(n.pos); n.model.rotation.y = n.yaw;
     n.model.visible = !n.hidden;
     game.scene.add(n.model);
     npcs[d.id] = n;
+    if (d.lungeStop) n.lungeStop = d.lungeStop;
     if (d.label) { setLabel(n, d.label); n.labelWord = d.label.word; }
     if (d.face === "player") n.faceP = "player";
     if (d.carry) carry(n, d.carry);
@@ -158,8 +164,11 @@ G.StoryCast = (function () {
     if (o.talk) n.talkT = Math.max(n.talkT, o.talk);
     if (o.turn) turn(game, n, o.turn);
     if (o.label !== undefined) { setLabel(n, o.label); n.labelWord = o.label && o.label.word; }
+    if (o.lungeStop) n.lungeStop = o.lungeStop;          // (round 10: how near it comes -- Sgt. Chai stops short)
     if (o.lunge != null) { n.lunge = !!o.lunge; if (n.lunge) { n.path = null; n.follow = false; n.faceP = "player"; } }
     if (o.knock) { n.knock = o.knock; n.lunge = false; }
+    // (round 10) a zombie's eyes dark: at peace
+    if (o.eyes != null && G.VoxelChars && G.VoxelChars.glow) G.VoxelChars.glow(n.model, !!o.eyes);
     if (o.show) { n.hidden = false; n.model.visible = true; }
     if (o.hide) { n.hidden = true; n.model.visible = false; }
     if (o.remove) remove(game, o.id);
@@ -337,11 +346,38 @@ G.StoryCast = (function () {
       const t0 = u.npc ? u.npc.t : 0, s = Math.sin(t0 * 1.1) * 0.04;
       L.armR.shoulder.rotation.set(-1.55 + s, 0, -0.32); L.armL.shoulder.rotation.set(-0.15, 0, -0.1);
       if (u.neck) u.neck.rotation.set(-0.06, Math.sin(t0 * 0.5) * 0.1, 0);
+    } else if (n.pose === "sitWall") {
+      // (round 10) sat on the ground, the back to a post, the legs out, the head down: Sgt. Chai at the gate, at rest
+      L.legL.hip.rotation.x = -1.5; L.legR.hip.rotation.x = -1.42; L.legR.hip.rotation.z = 0.08;
+      if (u.upper) u.upper.rotation.x = -0.12;
+      L.armL.shoulder.rotation.set(-0.2, 0, -0.18); L.armR.shoulder.rotation.set(-0.25, 0, 0.18);
+      if (u.neck) u.neck.rotation.set(0.42, 0.12, 0);
+      dy = 0.06 - hipY;
+    } else if (n.pose === "kneel") {
+      // down on one knee by someone on the ground, a hand out to them (Kru Min closing his eyes)
+      const t0 = u.npc ? u.npc.t : 0;
+      L.legL.hip.rotation.x = -1.45; L.legR.hip.rotation.x = 1.2;
+      if (u.upper) u.upper.rotation.x = 0.32;
+      L.armR.shoulder.rotation.set(-1.25 + Math.sin(t0 * 0.8) * 0.03, 0, -0.1); L.armL.shoulder.rotation.set(-0.35, 0, 0.12);
+      if (u.neck) u.neck.rotation.set(0.45, 0, 0);
+      dy = -hipY * 0.55;
+    } else if (n.pose === "crouch") {
+      // hiding: low behind something, an arm on a knee, the head up to look over it
+      const t0 = (u.npc ? u.npc.t : 0) + (n.phase || 0);
+      L.legL.hip.rotation.x = -1.35; L.legR.hip.rotation.x = 0.9;
+      if (u.upper) u.upper.rotation.x = 0.35;
+      L.armL.shoulder.rotation.set(-0.9, 0, 0.2); L.armR.shoulder.rotation.set(-0.5, 0, -0.15);
+      if (u.neck) u.neck.rotation.set(-0.3, Math.sin(t0 * 0.6) * 0.25, 0);
+      dy = -hipY * 0.5;
+    } else if (n.pose === "wave") {
+      // an arm up, waving someone over
+      const t0 = u.npc ? u.npc.t : 0;
+      L.armR.shoulder.rotation.set(-2.7, 0, -0.35 + Math.sin(t0 * 8) * 0.35); L.armL.shoulder.rotation.set(-0.1, 0, 0.08);
     } else if (u.upper && u.upper.rotation.x) u.upper.rotation.x = 0;
-    if (n.pose !== "floor" && L.legR.hip.rotation.z) L.legR.hip.rotation.z = 0;
+    if (n.pose !== "floor" && n.pose !== "sitWall" && L.legR.hip.rotation.z) L.legR.hip.rotation.z = 0;
     // (round 7: a pose that bends the legs or the body gives them back when it ends)
     if (n.pose !== n.lastPose) {
-      const legs = { sit: 1, floor: 1, scratch: 1, slump: 1, push: 1, hurtSit: 1, spray: 1 }, lean = { floor: 1, slump: 1, push: 1, treat: 1, bang: 1, spray: 1, console: 1 };
+      const legs = { sit: 1, floor: 1, scratch: 1, slump: 1, push: 1, hurtSit: 1, spray: 1, sitWall: 1, kneel: 1, crouch: 1 }, lean = { floor: 1, slump: 1, push: 1, treat: 1, bang: 1, spray: 1, console: 1, sitWall: 1, kneel: 1, crouch: 1 };
       if (n.lastPose && legs[n.lastPose] && !legs[n.pose]) { L.legL.hip.rotation.x = 0; L.legR.hip.rotation.x = 0; }
       if (n.lastPose && lean[n.lastPose] && !lean[n.pose] && u.upper) u.upper.rotation.x = 0;
       if (n.lastPose && n.lastPose !== "stand" && n.pose === "stand") { L.armL.shoulder.rotation.set(0, 0, 0); L.armR.shoulder.rotation.set(0, 0, 0); if (u.neck) u.neck.rotation.set(0, 0, 0); }
@@ -392,7 +428,7 @@ G.StoryCast = (function () {
         n.pos.x += (dx / d) * s; n.pos.z += (dz / d) * s; n.knock -= s;
       } else if (n.lunge) {
         const d = Math.hypot(pp.x - n.pos.x, pp.z - n.pos.z);
-        if (d > (C().lungeStop || 0.95)) stepTo(n, game, pp.x, pp.z, C().lungeSpeed || 1.6, dt);
+        if (d > (n.lungeStop || C().lungeStop || 0.95)) stepTo(n, game, pp.x, pp.z, n.lungeSpeed || C().lungeSpeed || 1.6, dt);
       } else if (n.path && n.path.length) {
         const g = n.path[0];
         const left = stepTo(n, game, g.x, g.z, n.walkSpeed, dt);
@@ -445,7 +481,7 @@ G.StoryCast = (function () {
       // (a blow on the glass is heard within a dozen metres, on the player's storey)
       n.near = vis && Math.hypot(n.pos.x - pp.x, n.pos.z - pp.z) < 12 && Math.abs(n.pos.y - (pp.y - 1.7)) < 2;
       if (n.glitchT > 0) { n.glitchT -= dt; m.scale.setScalar((G.VoxelChars.full(n.who).scale || 1) * (1 + (Math.random() - 0.5) * 0.08)); if (n.glitchT <= 0) m.scale.setScalar(G.VoxelChars.full(n.who).scale || 1); }
-      if (n.label) n.label.material.opacity = n.flicker ? (Math.sin(t * 17) > 0.2 ? 0.95 : 0.25) : 1;
+      if (n.label) n.label.material.opacity = n.flicker ? (Math.sin(t * 17) > 0.2 ? 0.95 : 0.45) : 1;     // (round 10: never so faint it is lost at dusk)
     });
   }
 

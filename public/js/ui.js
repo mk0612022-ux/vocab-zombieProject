@@ -1060,7 +1060,8 @@ G.UI = {
   // (New series, round 2) two marks on it where phases 2 and 3 begin (66%
   // and 33%, G.CONFIG.boss.phases), lit once passed; the bar takes the
   // phase's colour.
-  setBossBar(visible, name, hpPct, vulnerable, phase) {
+  // (story series, round 10: `marks` -- where its phases begin, when not the campaign's G.CONFIG.boss.phases)
+  setBossBar(visible, name, hpPct, vulnerable, phase, marks) {
     const bar = this.el("hud-boss-bar");
     if (bar.classList.contains("hidden") === !visible && !visible) return;
     bar.classList.toggle("hidden", !visible);
@@ -1071,7 +1072,7 @@ G.UI = {
     const fill = this.el("hud-boss-hp-fill");
     if (fill.style.width !== w) { fill.style.width = w; this.el("hud-boss-hp-lag").style.width = w; }
     bar.classList.toggle("vuln", !!vulnerable);
-    const P = G.CONFIG.boss.phases, ph = phase || 1;
+    const P = marks || G.CONFIG.boss.phases, ph = phase || 1;
     [2, 3].forEach((n) => {
       const m = this.el("hud-boss-mark" + n);
       const left = Math.round(P[n - 2] * 1000) / 10 + "%";

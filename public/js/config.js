@@ -641,7 +641,9 @@ G.CONFIG = {
   //                patchIdle / patchLock the LEXA patch's glow (x its cyan; locked = the
   //                zombie under the crosshair); chunk the grid's chunk (m, one draw call each);
   //                mapChunk a chapter map's, siteChunk its grounds' (round 4: bigger -- fewer draw
-  //                calls on a whole campus; the grounds' merge cells the same size)
+  //                calls on a whole campus; the grounds' merge cells the same size; story round 10: the house's
+  //                chunks 64 m too -- the chapter's boss in the flag yard, a line of students and the whole school
+  //                in view, was 174 calls on Low; the storeys stay their own bands)
   //   (story series, round 5: the prologue's tools)
   //   cam.seatDrop how much lower the eyes are sat at a desk (m)
   //   cast         a scene's people (js/story/cast.js): walkSpeed along a path, followDist behind
@@ -699,7 +701,7 @@ G.CONFIG = {
     phone: { toastSec: 4.5, torch: { color: 0xfff1d6, intensity: 1.7, distance: 26, angle: 0.48, penumbra: 0.65, decay: 1.4 } },
     lens: { sysSec: 3.2, correctSec: 1.5, bootSec: 0.9 },
     cam: { lookSec: 1.2, seatDrop: 0.48, fallDrop: 1.05 },
-    voxel: { px: 0.05625, ao: [0.52, 0.68, 0.84, 1], glassOpacity: 0.42, zombies: true, patchIdle: 0.55, patchLock: 2.6, chunk: 16, mapChunk: 32, siteChunk: 64 },
+    voxel: { px: 0.05625, ao: [0.52, 0.68, 0.84, 1], glassOpacity: 0.42, zombies: true, patchIdle: 0.55, patchLock: 2.6, chunk: 16, mapChunk: 64, siteChunk: 64 },
     cast: { walkSpeed: 1.4, followDist: 1.6, followSpeed: 3.4, followLeash: 9, lungeSpeed: 1.6, lungeStop: 0.95, seatH: 0.45, turnGlitch: 0.45 },
     use: { qteSec: 1.6, qteWindow: 0.2, qteHurt: 12, qteRetry: 0.9 },
     quiz: { dist: 1.9, gap: 0.82, rise: -0.05, aim: 0.2, settle: 0.35, nextRight: 1.4, nextWrong: 2.4 },
@@ -723,6 +725,23 @@ G.CONFIG = {
     pa: { doneSec: 1.8, captionSec: 6, voiceAfter: 0.8, voiceLate: 5 },
     screamer: { range: [3.2, 16] },
     crawlerBand: 0.55,
+    // (round 10) Principal Somsak (js/story/principal.js): hp (a gun's damage: a pistol's head shot is 28), his size x
+    // a Shambler's, his pace (phase 3: speedP3), his blow; the shield's layers, `openSec` its window, a body shot in
+    // it does bodyK of a head shot's; seconds between his moves by phase (gap), firstGap; the plates: plateR metres
+    // before him, plateY high (above his head when the player is nearer than plateClose), plateW x plateH, plateGap
+    // between two (in a row across the view), nextRight / nextWrong the answer seen before the next question, qSettle before the first shot
+    // counts, missed: how many of the chapter's words got wrong join a later shield; LINE UP!: lineWind the whistle,
+    // lineCount students by phase (never more than maxAlive standing), formSec at most to line up, then releaseN at a
+    // time every `release` s by phase, runK their pace then (lineK x on their way to the line), breakR the player this near and one breaks from it;
+    // the podium: podLift, podWarn (the red circle's time), podFly, podR, podDamage of full health, podPush; the
+    // megaphone: megaWind, megaRange, megaHalf (radians each side), megaPush, megaDamage, scrambleSec; screamers
+    // (phase 3); faster: phase 3's timings x; phases: where 2 and 3 begin (of his health); phaseSec the roar
+    principal: { hp: 340, scale: 1.5, speed: 1.15, speedP3: 1.45, bite: 40, shield: 3, openSec: 8, bodyK: 0.35, gap: [6.5, 5.2, 4], firstGap: 2.4,
+      plateR: 1.6, plateY: 2.35, plateClose: 2.8, plateW: 1.5, plateH: 0.42, plateGap: 0.2, nextRight: 0.9, nextWrong: 1.8, qSettle: 0.35, missed: 2,
+      lineWind: 1.4, lineCount: [6, 7, 8], lineK: 2, maxAlive: 8, formSec: 8, release: [1.6, 1.15, 0.85], releaseN: 2, runK: 1.55, breakR: 1.8,
+      podLift: 0.8, podWarn: 1.2, podFly: 0.5, podR: 2.4, podDamage: 0.3, podPush: 1.6,
+      megaWind: 1.0, megaRange: 15, megaHalf: 0.55, megaPush: 3.5, megaDamage: 0.08, scrambleSec: 2,
+      screamers: 2, faster: 0.75, phases: [0.5, 0.25], phaseSec: 2.2 },
   },
   // ---------------- the melee slot (expansion, round 4) ----------------
   // G.MELEE_WEAPONS has each weapon; js/melee.js is the swing.

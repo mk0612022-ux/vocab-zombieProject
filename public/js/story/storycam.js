@@ -16,6 +16,9 @@
 //                                               eyes lower (js/game.js reads drop); false: stood up
 //   (round 8) G.StoryCam.fall(sec)   knocked off the feet (Coach Ek's charge): the eyes down near the
 //                                               floor, the feet held, and up again
+//   (round 10) G.StoryCam.ride(game, { path: [{ x, z }], speed, look: { x, y, z }, eye })   carried along a path,
+//                                               seated (the school's van out of the gate): the eyes `eye` lower,
+//                                               the view kept on `look`; walking is true till it is over
 // Held (js/story/dialogue.js) a turn runs `fast` times as fast; a skipped cinematic part
 // ends a turn and a walk where they were going (finish).
 // js/game.js updatePlayerMovement asks steer() before it turns the view by the input, and
@@ -25,7 +28,7 @@ window.G = window.G || {};
 
 G.StoryCam = (function () {
   const C = () => G.CONFIG.story.cam;
-  let turn = null, locked = false, go = null, barsOn = false, seated = null, drop = 0, down = 0;
+  let turn = null, locked = false, go = null, barsOn = false, seated = null, drop = 0, down = 0, rideOn = null;
   const ease = (u) => u * u * (3 - 2 * u);
   const wrap = (a) => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; };
 
@@ -47,7 +50,21 @@ G.StoryCam = (function () {
       if (u >= 1) turn = null;
       return true;
     }
+    // (round 10) riding: the view eased onto what is to be looked at, wherever the ride has got to
+    if (rideOn && rideOn.look) {
+      const e = game.yawObject.position, L = rideOn.look, dx = L.x - e.x, dz = L.z - e.z;
+      const yaw1 = Math.atan2(-dx, -dz), pitch1 = Math.max(-1.2, Math.min(1.2, Math.atan2((L.y == null ? e.y : L.y) - e.y, Math.hypot(dx, dz) || 0.001)));
+      const k = Math.min(1, dt * 3.2);
+      game.yawObject.rotation.y += wrap(yaw1 - game.yawObject.rotation.y) * k;
+      game.pitchObject.rotation.x += (pitch1 - game.pitchObject.rotation.x) * k;
+      return true;
+    }
     return locked;
+  }
+  function ride(game, o) {
+    const pts = [].concat((o && o.path) || []).filter((p) => p && Number.isFinite(p.x) && Number.isFinite(p.z)).map((p) => ({ x: p.x, z: p.z }));
+    rideOn = pts.length ? { pts, speed: Math.max(0.2, o.speed || 2), look: o.look || null, eye: o.eye != null ? o.eye : (C().seatDrop || 0.48) } : null;
+    go = null;
   }
   function lock(on) { locked = !!on; }
   function walk(game, p, opts) {
@@ -60,10 +77,22 @@ G.StoryCam = (function () {
     // (round 5) seated: the eyes ease down (and back up when stood), the feet stay
     // (round 8) knocked down: the eyes drop fast, and come up as the time runs out
     if (down > 0) down = Math.max(0, down - dt);
-    const want = down > 0.45 ? (C().fallDrop || 1.05) : seated ? (C().seatDrop || 0.48) : 0;
+    const want = down > 0.45 ? (C().fallDrop || 1.05) : seated ? (C().seatDrop || 0.48) : rideOn ? rideOn.eye : 0;
     const rate = down > 0.45 ? 6.5 : drop > (C().seatDrop || 0.48) ? 2.4 : 1.6;
     if (drop !== want) drop = want > drop ? Math.min(want, drop + dt * rate) : Math.max(want, drop - dt * rate);
     if (down > 0) return { x: 0, z: 0 };
+    // (round 10) carried: along the path, at its pace, whatever is in the way (a vehicle's road is clear)
+    if (rideOn) {
+      const e = game.yawObject.position;
+      let left = rideOn.speed * dt;
+      while (left > 0 && rideOn.pts.length) {
+        const p = rideOn.pts[0], dx = p.x - e.x, dz = p.z - e.z, d = Math.hypot(dx, dz);
+        if (d <= left) { e.x = p.x; e.z = p.z; left -= d; rideOn.pts.shift(); }
+        else { e.x += (dx / d) * left; e.z += (dz / d) * left; left = 0; }
+      }
+      if (!rideOn.pts.length) rideOn = Object.assign(rideOn, { done: true });
+      return { x: 0, z: 0 };
+    }
     if (seated && !go) return { x: 0, z: 0 };
     if (!go) return null;
     go.t += dt;
@@ -89,11 +118,13 @@ G.StoryCam = (function () {
     if (turn) { game.yawObject.rotation.y = turn.yaw0 + turn.dyaw; game.pitchObject.rotation.x = turn.pitch0 + turn.dpitch; turn = null; }
     // (story round 4: on the storey the player is on -- a chapter's map has three)
     if (go) { game.teleportPlayer(new THREE.Vector3(go.x, game.yawObject.position.y - 1.7, go.z)); go = null; }
+    if (rideOn && !rideOn.done && rideOn.pts.length) { const p = rideOn.pts[rideOn.pts.length - 1]; game.yawObject.position.x = p.x; game.yawObject.position.z = p.z; rideOn.pts = []; rideOn.done = true; }
   }
-  function busy() { return !!turn || !!go; }
-  function reset() { turn = null; locked = false; go = null; seated = null; drop = 0; down = 0; bars(false); }
+  const riding = () => !!(rideOn && !rideOn.done);
+  function busy() { return !!turn || !!go || riding(); }
+  function reset() { turn = null; locked = false; go = null; seated = null; drop = 0; down = 0; rideOn = null; bars(false); }
 
-  return { look, steer, lock, walk, feet, bars, slow, seat, fall, finish, busy, reset,
-    get turning() { return !!turn; }, get walking() { return !!go; }, get locked() { return locked; }, get barsOn() { return barsOn; },
+  return { look, steer, lock, walk, ride, feet, bars, slow, seat, fall, finish, busy, reset,
+    get turning() { return !!turn; }, get walking() { return !!go || riding(); }, get riding() { return riding(); }, get locked() { return locked; }, get barsOn() { return barsOn; },
     get seated() { return !!seated; }, get drop() { return drop; }, get fallen() { return down > 0; } };
 })();

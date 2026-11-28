@@ -15,7 +15,9 @@
 // 1-3 and 1-4 (bookshelves pushed: js/story/push.js, the medicine cabinet: pick.js, the defence's
 // waves, Crawlers under the tables, Nam's dictionary, Nurse Pim); round 8 scene 1-5 (the canteen's
 // two waves, boxes taken by holding the button, Coach Ek: js/story/miniboss.js, the shotgun); round 9
-// scene 1-6 (Kru Min to the PR room: js/story/escort.js; the announcement, its loop, the hold: pa.js).
+// scene 1-6 (Kru Min to the PR room: js/story/escort.js; the announcement, its loop, the hold: pa.js); round 10
+// scenes 1-7 and 1-8 (Principal Somsak: js/story/principal.js; Sgt. Chai's last word round him, the van's ride, Beam;
+// the final test and the summary: js/story/summary.js) and the chapter's collectibles (`collectibles`, below).
 //   practice       (round 5) words the prologue uses that the bank does not have, with
 //                  their meanings in the four meaning languages: practice, counted nowhere
 //
@@ -47,6 +49,20 @@ G.STORY_CHAPTERS.ch1 = {
       "trial", "side effect", "protect", "consequence"],
     golden: ["shortcut", "fluent", "integrity", "perseverance"],
   },
+  // (round 10) the design's fourteen collectibles, in its three kinds -- each found by its flag "found:<id>" (kept in
+  // the chapter's save: G.Story.collect); the ones round 11 places are listed already. `extra`: a reward, not one of
+  // the fourteen (the principal's whistle)
+  collectibles: [
+    { id: "flyer", kind: "evidence", icon: "📰", flag: "found:flyer" }, { id: "tablet", kind: "evidence", icon: "📱", flag: "found:tablet" },
+    { id: "logbook", kind: "evidence", icon: "📔", flag: "found:logbook" }, { id: "contract", kind: "evidence", icon: "📄", flag: "found:contract" },
+    { id: "email", kind: "evidence", icon: "📧", flag: "found:email" },
+    { id: "note", kind: "memory", icon: "📝", flag: "found:note" }, { id: "photo", kind: "memory", icon: "🖼️", flag: "found:photo" },
+    { id: "notebook", kind: "memory", icon: "📓", flag: "found:notebook" }, { id: "stopwatch", kind: "memory", icon: "⏱️", flag: "found:stopwatch" },
+    { id: "badge", kind: "memory", icon: "🎖️", flag: "found:badge" },
+    { id: "shortcut", kind: "golden", icon: "✨", flag: "found:shortcut" }, { id: "fluent", kind: "golden", icon: "✨", flag: "found:fluent" },
+    { id: "integrity", kind: "golden", icon: "✨", flag: "found:integrity" }, { id: "perseverance", kind: "golden", icon: "✨", flag: "found:perseverance" },
+    { id: "whistle", kind: "reward", icon: "📯", flag: "found:whistle", extra: true },
+  ],
   practice: CH1_PRACTICE,                 // (round 5: the prologue's words the bank does not have -- above)
   // ---------------- places on the chapter's map (round 4) ----------------
   // 1F y 0 · 2F y 4 · 3F y 8 (js/story/ch1map.js: the rooms' cells)
@@ -95,6 +111,9 @@ G.STORY_CHAPTERS.ch1 = {
     adminIn: { x0: -7.4, x1: 0, z0: 3, z1: 9, y: 0 },
     office: { x0: -17, x1: 2, z0: -2.2, z1: 9, y: 0 },
     parkIn: { x0: -44, x1: -4, z0: -66, z1: -48, y: 0 },
+    // (round 10) 1-7: just out of the front doors (the principal seen); 1-8: by the gate and its booth
+    yardIn: { x0: 0, x1: 9.5, z0: 10, z1: 14, y: 0 },
+    gateNear: { x0: 14, x1: 34, z0: 46, z1: 57, y: 0 },
   },
   spawns: {
     // (round 6) out of the 3F toilets; hiding in the 2F store room
@@ -130,6 +149,11 @@ G.STORY_CHAPTERS.ch1 = {
     prWindow: [{ x: -13.0, y: 0, z: 8.3 }, { x: -10.2, y: 0, z: 8.3 }, { x: -12.0, y: 0, z: 8.4 }],
     adminWindow: [{ x: -2.0, y: 0, z: 8.3 }, { x: -5.0, y: 0, z: 8.3 }, { x: -3.2, y: 0, z: 8.4 }],
     yardRows: [{ x: -10, y: 0, z: 30 }, { x: 10, y: 0, z: 30 }, { x: 0, y: 0, z: 36 }, { x: -5, y: 0, z: 24 }],
+    // (round 10) 1-7: LINE UP! -- the students out from under the trees either side; the Screamers out of the
+    // entrance hall's doors (the map has no assembly hall of its own)
+    lineW: [{ x: -16, y: 0, z: 34 }, { x: -17, y: 0, z: 31 }, { x: -15.4, y: 0, z: 36.4 }, { x: -17.4, y: 0, z: 35 }],
+    lineE: [{ x: 15, y: 0, z: 34 }, { x: 16, y: 0, z: 31 }, { x: 14.4, y: 0, z: 36.4 }, { x: 16.4, y: 0, z: 35 }],
+    hallDoors: [{ x: 3.4, y: 0, z: 10.8 }, { x: 5.6, y: 0, z: 10.8 }],
   },
   // ---------------- the phone (story round 2: js/story/phone.js) ----------------
   //   contacts   who writes; messages: what they write (English, subtitled as a line is);
@@ -335,10 +359,10 @@ G.STORY_CHAPTERS.ch1 = {
         { id: "r307", when: { zone: "r307" }, do: [["spawn", { id: "h307", at: { x: -13.9, y: 8, z: 5.6 }, count: 1, kinds: ["normal"] }], ["drop", { kind: "ammo", at: { x: -10.2, y: 8, z: 7.4 } }]] },
         // the janitor's room: the crowbar (the melee slot's), his photos with the students
         { id: "crowbar", when: { used: "crowbar" }, do: [["unprop", "crowbar"], ["give", { melee: "crowbar" }], ["hint", { key: "story.hint.melee", bind: "quickMelee" }]] },
-        { id: "photo", when: { used: "photo" }, do: [["card", { id: "photo", icon: "🖼️", title: "story.card.photoTitle", lines: ["story.ch1.photo"] }]] },
+        { id: "photo", when: { used: "photo" }, do: [["flag", "found:photo"], ["card", { id: "photo", icon: "🖼️", title: "story.card.photoTitle", lines: ["story.ch1.photo"] }]] },
         // the lockers: two magazines; Beam's, his note; the toilets' notice ("symptoms", "consequences")
         { id: "lockers", when: { used: "lockers" }, do: [["give", { ammo: { pistol: 24 } }]] },
-        { id: "note", when: { used: "beamLocker" }, do: [["card", { id: "note", icon: "📝", title: "story.card.noteTitle", lines: ["story.ch1.note.beam"] }]] },
+        { id: "note", when: { used: "beamLocker" }, do: [["flag", "found:note"], ["card", { id: "note", icon: "📝", title: "story.card.noteTitle", lines: ["story.ch1.note.beam"] }]] },
         { id: "notice", when: { used: "notice" }, do: [["card", { id: "notice", icon: "📄", title: "story.card.noticeTitle", lines: ["story.ch1.notice"] }]] },
         // at the east door without the crowbar: the design's hint
         { id: "jam", when: { all: [{ zone: "eastDoor3" }, { not: { melee: "crowbar" } }] }, do: [["hint", "story.hint.jammed"]] },
@@ -486,7 +510,7 @@ G.STORY_CHAPTERS.ch1 = {
       ],
       on: [
         // the look round: what is read
-        { id: "notebook", when: { used: "notebook" }, do: [["card", { id: "notebook", icon: "📓", title: "story.card.notebookTitle", lines: ["story.ch1.notebook1", "story.ch1.notebook2"] }]] },
+        { id: "notebook", when: { used: "notebook" }, do: [["flag", "found:notebook"], ["card", { id: "notebook", icon: "📓", title: "story.card.notebookTitle", lines: ["story.ch1.notebook1", "story.ch1.notebook2"] }]] },
         { id: "sponsor", when: { used: "sponsor" }, do: [["card", { id: "sponsor", icon: "🪧", title: "story.card.sponsorTitle", lines: ["story.ch1.sponsor"] }]] },
         // during the waves the doors are banged on: a shelf knocked back (pushed back between two waves)
         { id: "bang1", after: "x:wave1", when: { time: 8 }, do: [["thud", { at: { x: -25.5, y: 4, z: 2.2 }, n: 4 }], ["nudge", { id: "front", by: 0.4 }], ["callout", { who: "fai", line: "story.ch1.d.faiFront" }]] },
@@ -559,7 +583,7 @@ G.STORY_CHAPTERS.ch1 = {
         // Nurse Pim gets up: within 3 m, or a shot in her room -- a zombie of her own (REST: practice)
         { id: "pim", when: { any: [{ near: { id: "pim", r: 3 } }, { fired: { s: 0.6, zone: "nurse" } }] }, do: [["npc", { id: "pim", remove: true }], ["hint", null],
           ["spawn", { id: "pim", at: { x: -47.05, y: 4, z: -25.0 }, kinds: ["normal"], words: [{ word: "rest", gloss: CH1_PRACTICE.rest, who: "pim" }], target: "rest" }], ["sound", "sting"]] },
-        { id: "log", when: { used: "logbook" }, do: [["card", { id: "logbook", icon: "📔", title: "story.card.logbookTitle", lines: ["story.ch1.logbook"] }]] },
+        { id: "log", when: { used: "logbook" }, do: [["flag", "found:logbook"], ["card", { id: "logbook", icon: "📔", title: "story.card.logbookTitle", lines: ["story.ch1.logbook"] }]] },
         // the way back: Sprinters from the main stairs' side
         { id: "spr", when: { all: [{ picked: "meds" }, { not: { zone: "nurse" } }] }, do: [["spawn", { id: "spr", at: "corridor2East", count: 4, kinds: ["fast"] }],
           ["sys", { key: "story.ch1.sys.movement", glitch: true }], ["sound", "tense"]] },
@@ -756,17 +780,114 @@ G.STORY_CHAPTERS.ch1 = {
         // away from them while it is held
         { id: "away", after: "x:hold", when: { all: [{ not: { zone: "office" } }, { not: { flag: "x:held" } }] }, do: [["hint", "story.hint.stayMin"]] },
       ] },
-    { id: "s7", title: "story.ch1.s7", objective: "story.ch1.s7.obj", start: { x: 4.5, y: 0, z: 6, yaw: Math.PI }, clock: "17:45", light: "sunset",
-      doors: { ENTRANCE: true },        // (round 8: 1-5 shuts the front doors -- the crowd is outside)
+    // (round 10) 1-7 DISCIPLINE (5-6 minutes): sunset over the flag yard. Principal Somsak, his last word DISCIPLINE and
+    // its family's shield -- three plates of its forms to shoot, the sentence's gap under his bar; his moves LINE UP! (the
+    // students to the painted lines, then at the player), the podium, the megaphone (its cone: behind a post); three
+    // phases, a save as 2 and 3 begin (js/story/principal.js). Down: his recorded speech out of the dropped megaphone;
+    // his phone (kept -- the trial's email: trial, side effect, temporary), his whistle. Kru Min keeps the doors.
+    { id: "s7", title: "story.ch1.s7", objective: "story.ch1.s7.obj", start: { x: 4.5, y: 0, z: 6.2, yaw: Math.PI }, clock: "17:45", light: "sunset", principal: true,
+      doors: { ENTRANCE: true, DPR: false, DADMIN: false, PRADMIN: true },        // (round 8: 1-5 shut the front doors; open now)
+      cast: [
+        { id: "min", who: "min", at: { x: 3.2, y: 0, z: 5.2 }, yaw: Math.PI, follow: true, pose: "ext", carry: { kind: "extinguisher", at: [0.2, 0.7, 0.24], scale: 1 } },
+        // by the flagpole, as big as he will be in the fight (seen from the doors)
+        { id: "somsak", who: "somsak_z", zombie: "normal", scale: 1.5, at: { x: -2.2, y: 0, z: 17.2 }, yaw: 2.39, pose: "megaphone", carry: { kind: "megaphone", at: [0.09, 2.25, 0.45], scale: 1.8 },
+          label: { word: "DISCIPLINE", depth: true } },
+      ],
       beats: [
-        { do: [["objective", "story.ch1.s7.obj"]] },
-        { wait: { zone: "flagYard" }, do: [["banner", "story.ph.group"], ["spawn", { id: "b1", at: "yardRows", count: 4 }]] },
-        { wait: { cleared: "b1" }, do: [["checkpoint"], ["next"]] },
+        // in the entrance hall, the doors open on the flag yard: the gate is past him
+        { do: [["hint", null], ["sound", "quiet"], ["objective", "story.ch1.s7.obj0"], ["npc", { id: "min", talk: 3 }], ["say", [{ who: "min", line: "story.ch1.d.minYard" }]],
+          ["drop", { kind: "ammo", at: { x: 6.3, y: 0, z: 7.4 } }]] },
+        // out of the doors: he turns -- his word, his shield
+        { wait: { zone: "yardIn" }, cine: "somsak2", do: [["bars", true], ["lock", true], ["sound", "sting"], ["npc", { id: "min", follow: false, walk: { x: 4.5, z: 8.6 }, then: { face: "player" } }],
+          ["look", { x: -2.2, y: 2.6, z: 17.2, sec: 1.2 }], ["sys", { key: "story.ch1.sys.somsak", glitch: true }]] },
+        { wait: { all: [{ looked: true }, { time: 0.6 }] }, cine: "somsak2", do: [["npc", { id: "somsak", face: "player", talk: 2 }], ["say", [{ who: "somsak", line: "story.ch1.d.somsakWord", voice: true, pitch: 0.55, rate: 0.75 }]]] },
+        { wait: { said: true }, cine: "somsak2", do: [["say", [{ who: "min", line: "story.ch1.d.minShield" }]]] },
+        // the fight (also the first beat of a run picked up at one of its saves: the phase he had reached is kept)
+        { wait: { said: true }, do: [["bars", false], ["lock", false], ["npc", { id: "somsak", remove: true }], ["npc", { id: "min", to: { x: 4.5, y: 0, z: 8.6, yaw: 0 }, follow: false, face: "player" }],
+          ["sound", "anthem"], ["objective", "story.ch1.s7.obj1"], ["hint", { key: "story.hint.shield", sec: 8 }],
+          ["drop", { kind: "ammo", at: { x: -24, y: 0, z: 16 } }], ["drop", { kind: "ammo", at: { x: 20, y: 0, z: 16 } }], ["drop", { kind: "health", at: { x: -2, y: 0, z: 41 } }],
+          ["principal", { id: "somsak", who: "somsak", name: "story.who.somsak", word: "discipline", at: { x: -2.2, y: 0, z: 17.2 }, yaw: 2.39, firstGap: 3,
+            items: [{ cloze: "story.ch1.shield.q1", options: ["discipline", "disciplinary", "disciplined"], answer: "disciplinary", why: "story.ch1.shield.why1" },
+              { cloze: "story.ch1.shield.q2", options: ["discipline", "disciplinary", "disciplined"], answer: "disciplined", why: "story.ch1.shield.why2" },
+              { cloze: "story.ch1.shield.q3", options: ["discipline", "disciplinary", "disciplined"], answer: "discipline", why: "story.ch1.shield.why3" }],
+            forms: { discipline: "n", disciplinary: "adj", disciplined: "adj" },
+            moves: { 1: ["lineup", "podium"], 2: ["megaphone", "lineup", "podium", "megaphone"], 3: ["megaphone", "lineup", "megaphone", "podium"] },
+            from: ["lineW", "lineE"], face: { x: 0, z: 14 }, hall: "hallDoors", cp: { x: 13, y: 0, z: 15, yaw: 2.0 },
+            // (the painted lines, two rows of places, facing the stage)
+            spots: [-10.5, -7.5, -4.5, -1.5, 1.5, 4.5, 7.5, 10.5].map((x) => ({ x, z: 27 })).concat([-10.5, -7.5, -4.5, -1.5, 1.5, 4.5, 7.5, 10.5].map((x) => ({ x, z: 30 }))),
+            drops: { 2: [{ kind: "ammo", x: -26, z: 22 }, { kind: "ammo", x: 22, z: 22 }, { kind: "health", x: -2, z: 40 }], 3: [{ kind: "ammo", x: -24, z: 34 }, { kind: "ammo", x: 20, z: 34 }, { kind: "health", x: 14, z: 13 }] },
+            drop: { id: "whistle", prompt: "story.use.whistle" }, speech: "story.ch1.d.somsakSpeech" }]] },
+        // down: the megaphone plays his speech; he lies down
+        { wait: { boss: "somsak" }, do: [["sound", "quiet"], ["slow", 1.4], ["hint", null], ["objective", "story.ch1.s7.obj2"]] },
+        // his phone (kept: what it says matters) -- the trial's email
+        { wait: { time: 9.5 }, do: [["flag", "found:email"], ["give", { item: "story.item.phone" }],
+          ["card", { id: "email", icon: "📧", title: "story.card.emailTitle", lines: ["story.ch1.email0", "story.ch1.email1", "story.ch1.email2", "story.ch1.email3", "story.ch1.email4"] }]] },
+        { wait: { card: "email" }, do: [["npc", { id: "min", follow: true, talk: 5 }], ["say", [{ who: "min", line: "story.ch1.d.minTrial" }, { who: "min", line: "story.ch1.d.minTemporary" }]], ["objective", "story.ch1.s7.obj3"]] },
+        { wait: { all: [{ said: true }, { any: [{ calm: true }, { time: 30 }] }] }, do: [["checkpoint"], ["next"]] },
+      ],
+      on: [
+        // his whistle (the reward: round 11's collectibles)
+        { id: "whistle", when: { used: "whistle" }, do: [["flag", "found:whistle"], ["card", { id: "whistle", icon: "📯", title: "story.card.whistleTitle", lines: ["story.ch1.whistle"] }]] },
       ] },
-    { id: "s8", title: "story.ch1.s8", objective: "story.ch1.s8.obj", start: { x: 0, y: 0, z: 30, yaw: -2.35 }, clock: "18:15", light: "dusk",
+    // (round 10) 1-8 PROTECT (2-3 minutes, then the summary): dusk at the front gate. The others behind the guard's
+    // booth; Sgt. Chai -- an Ironclad in his police vest -- still keeping the gate: whoever comes near, he goes for. His
+    // last word asked with no clock, the world slowed, its answers round him as in Room 305 (js/story/aimquiz.js
+    // `around`); then he sits down against the gate, at peace (no blood, whatever the settings), Kru Min closes his eyes,
+    // his badge. The van's radio; everyone in; out of the gate -- Beam at the field's fence, only watching. The last choice
+    // (kept for later chapters), Kru Min's last line; the final test and the summary (js/story/summary.js)
+    { id: "s8", title: "story.ch1.s8", objective: "story.ch1.s8.obj", start: { x: 14, y: 0, z: 38, yaw: -2.5 }, clock: "18:15", light: "dusk",
+      doors: { ENTRANCE: true },
+      cast: [
+        { id: "min", who: "min", at: { x: 12.6, y: 0, z: 36.6 }, yaw: -2.5, follow: true, pose: "ext", carry: { kind: "extinguisher", at: [0.2, 0.7, 0.24], scale: 1 } },
+        // behind the booth, hiding from him
+        { id: "fai", who: "fai", at: { x: 21.6, y: 0, z: 55.3 }, yaw: Math.PI / 2, pose: "crouch" },
+        { id: "tonkla", who: "tonkla", at: { x: 21.4, y: 0, z: 54.0 }, yaw: Math.PI / 2, pose: "crouch", phase: 1.2 },
+        { id: "nam", who: "nam", at: { x: 21.9, y: 0, z: 56.4 }, yaw: Math.PI / 2, pose: "crouch", phase: 2.1 },
+        { id: "sv1", who: "sv1", at: { x: 20.4, y: 0, z: 53.2 }, yaw: Math.PI / 2 - 0.3, pose: "crouch", phase: 0.6 },
+        { id: "sv2", who: "sv2", at: { x: 20.1, y: 0, z: 55.5 }, yaw: Math.PI / 2 + 0.2, pose: "crouch", phase: 3.0 },
+        { id: "sv3", who: "sv3", at: { x: 21.0, y: 0, z: 52.4 }, yaw: Math.PI / 2, pose: "crouch", phase: 1.7 },
+        { id: "sv4", who: "sv4", at: { x: 19.8, y: 0, z: 54.3 }, yaw: Math.PI / 2 - 0.1, pose: "crouch", phase: 2.6 },
+        // at the gate, keeping it
+        { id: "chai", who: "chai_z", zombie: "ironclad", at: { x: 29.5, y: 0, z: 57.6 }, yaw: Math.PI, pose: "zombie", label: { word: "PROTECT", depth: true } },
+        // at the field's fence (seen from the van)
+        { id: "beam", who: "beam_z", zombie: "normal", at: { x: 37.3, y: 0, z: 53.6 }, yaw: -Math.PI / 2, label: { word: "TOGETHER", flicker: true, depth: true }, hidden: true },
+      ],
       beats: [
-        { do: [["objective", "story.ch1.s8.obj"]] },
-        { wait: { zone: "gate" }, do: [["end"]] },
+        { do: [["hint", null], ["sound", "quiet"], ["objective", "story.ch1.s8.obj0"], ["npc", { id: "min", follow: true }]] },
+        // by the booth: the others, hiding; who is at the gate
+        { wait: { zone: "gateNear" }, do: [["npc", { id: "fai", pose: "wave", face: "player", talk: 2 }], ["say", [{ who: "fai", line: "story.ch1.d.faiGate" }, { who: "min", line: "story.ch1.d.minChai" }]],
+          ["objective", "story.ch1.s8.obj1"]] },
+        { wait: { said: true }, do: [["npc", { id: "fai", pose: "crouch", face: Math.PI / 2 }], ["hint", { key: "story.hint.chai", sec: 7 }]] },
+        // near him: he comes -- his last word, no clock, the world slowed
+        { wait: { near: { id: "chai", r: 8.5 } }, do: [["hint", null], ["sound", "sting"], ["npc", { id: "chai", lunge: true, lungeStop: 3.4 }], ["sys", { key: "story.ch1.sys.final", glitch: true, meaningOf: "protect", dur: 6 }],
+          ["quiz", { id: "final", around: { id: "chai", r: 1.35, y: 1.75 }, retry: true, slow: true, label: "story.quiz.final",
+            items: [{ word: "protect", gloss: CH1_PRACTICE.protect, options: ["protect", "project", "predict"], answer: 0, glosses: { project: CH1_PRACTICE.project, predict: CH1_PRACTICE.predict } }] }]] },
+        // answered: he stops; back to the gate, and down against it, at peace
+        { wait: { quiz: "final" }, do: [["npc", { id: "chai", lunge: false, label: null, eyes: false, walk: { x: 27.2, z: 58.3 }, speed: 0.8, then: { pose: "sitWall", face: Math.PI } }],
+          ["sound", "calm"], ["objective", "story.ch1.s8.obj2"]] },
+        { wait: { arrived: "chai" }, do: [["npc", { id: "min", follow: false, walk: { x: 27.3, z: 57.1 }, then: { pose: "kneel", face: { x: 27.2, z: 58.3 } } }]] },
+        { wait: { arrived: "min" }, do: [["npc", { id: "min", talk: 2 }], ["say", [{ who: "min", line: "story.ch1.d.minThanks" }]]] },
+        // his badge (kept: the one who kept everyone safe to the last)
+        { wait: { said: true }, do: [["flag", "found:badge"], ["give", { item: "story.item.badge" }], ["card", { id: "badge", icon: "🎖️", title: "story.card.badgeTitle", lines: ["story.ch1.badge"] }]] },
+        // the van's radio, still on; everyone in
+        { wait: { card: "badge" }, do: [["sound", "static"], ["npc", { id: "min", pose: "stand", follow: true }], ["say", [{ who: "radio", line: "story.ch1.d.radioHospital" }, { who: "min", line: "story.ch1.d.minHospital" }]],
+          ["objective", "story.ch1.s8.obj3"],
+          ["npc", { id: "fai", pose: "stand", walk: [{ x: 21.2, z: 52.2 }, { x: 20.8, z: 51.4 }], then: "hide" }], ["npc", { id: "tonkla", pose: "stand", walk: [{ x: 21.4, z: 52.0 }, { x: 20.9, z: 51.2 }], then: "hide" }],
+          ["npc", { id: "nam", pose: "stand", walk: [{ x: 21.6, z: 52.4 }, { x: 21.0, z: 51.5 }], then: "hide" }], ["npc", { id: "sv1", pose: "stand", walk: [{ x: 20.8, z: 51.6 }], then: "hide" }],
+          ["npc", { id: "sv2", pose: "stand", walk: [{ x: 20.6, z: 52.6 }, { x: 20.7, z: 51.4 }], then: "hide" }], ["npc", { id: "sv3", pose: "stand", walk: [{ x: 20.9, z: 51.3 }], then: "hide" }],
+          ["npc", { id: "sv4", pose: "stand", walk: [{ x: 20.5, z: 52.1 }, { x: 20.6, z: 51.2 }], then: "hide" }],
+          ["use", { id: "van", at: { x: 19.5, y: 0, z: 50 }, size: [2.8, 2.2, 5.2], lift: 1.0, prompt: "story.use.van", sound: "door" }]] },
+        // out of the gate: Beam at the field's fence (the view kept a little to his right: the choice's window comes up over the middle)
+        { wait: { all: [{ used: "van" }, { said: true }] }, do: [["black", { on: true, sec: 0.8 }], ["sound", "engine"]] },
+        { wait: { time: 1.1 }, do: [["npc", { id: "min", hide: true }], ["npc", { id: "beam", show: true }], ["teleport", { x: 28.4, y: 0, z: 45.6, yaw: -2.2 }], ["bars", true], ["lock", true],
+          ["ride", { path: [{ x: 28.7, z: 51.2 }], speed: 1.4, look: { x: 33.8, y: 1.4, z: 58.6 }, eye: 0.45 }], ["black", { on: false, sec: 1 }]] },
+        { wait: { walked: true }, do: [["ask", { id: "beam", line: "story.ch1.d.beamWatch", options: [{ text: "story.ch1.c.beamPromise", value: "promise" }, { text: "story.ch1.c.beamSilent", value: "silent" }],
+          then: [[{ who: "player", line: "story.ch1.c.beamPromise" }], []] }]] },
+        { wait: { all: [{ chosen: "beam" }, { said: true }] }, do: [["ride", { path: [{ x: 29.0, z: 56.4 }], speed: 1.5, look: { x: 33.8, y: 1.4, z: 58.6 }, eye: 0.45 }], ["sound", "ending"],
+          ["say", [{ who: "min", line: "story.ch1.d.minLast" }]]] },
+        { wait: { all: [{ said: true }, { walked: true }] }, do: [["black", { on: true, sec: 1.6 }], ["sound", "quiet"]] },
+        { wait: { time: 1.8 }, do: [["title", { key: "story.ch1.endTitle", sub: "story.ch1.title", sec: 2.6 }]] },
+        { wait: { time: 2.9 }, do: [["end"]] },
       ] },
   ],
 };

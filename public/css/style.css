@@ -1389,6 +1389,7 @@ body.touch-mode .dlg-key { display: none; }
    New series, round 1 (A): the end-of-wave quiz
    ===================================================================== */
 #screen-quiz { z-index: 23; }
+#screen-quiz.quiz-nofail #quiz-mistakes { display: none; }        /* (story round 10: a chapter's final test -- nothing to lose) */
 .quiz-box { width: min(640px, 100%); background: rgba(10,14,12,0.94); border: 1px solid #3a5c40; border-radius: 14px; padding: 16px 18px; box-shadow: 0 20px 50px rgba(0,0,0,0.6); }
 .quiz-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
 .quiz-kicker { font-size: 0.78rem; letter-spacing: 3px; font-weight: 900; color: #ffd43b; }
@@ -3122,4 +3123,58 @@ body.touch-mode .spk-box { min-height: 88px; }
   .spk-card { margin-top: 6px; padding: 4px 8px; }
   .spk-keys { display: none; }
   .spk-foot { margin-top: 6px; }
+}
+/* ---- (story series, round 10) Principal Somsak: his shield's line under his bar (its layers, the sentence's gap) ---- */
+.story-shield { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 6px auto 0; max-width: 100%; padding: 4px 12px; border-radius: 10px;
+  background: rgba(6,20,32,0.78); border: 1px solid rgba(90,216,255,0.55); color: #e8f8ff; font: 700 1.02rem/1.35 var(--font-ui); text-shadow: 0 1px 3px #000; }
+.story-shield.hidden { display: none; }
+.ss-pips { display: inline-flex; gap: 4px; flex: none; }
+.ss-pips i { width: 12px; height: 12px; border: 2px solid #5ad8ff; background: transparent; transform: rotate(45deg); box-sizing: border-box; }
+.ss-pips i.on { background: #5ad8ff; box-shadow: 0 0 8px rgba(90,216,255,0.8); }
+.ss-q { text-align: left; }
+.ss-gap { display: inline-block; min-width: 3.2em; border-bottom: 2px solid #ffe36b; color: #ffe36b; text-align: center; }
+@media (max-height: 520px) { .story-shield { font-size: 0.82rem; padding: 2px 8px; margin-top: 3px; } .ss-pips i { width: 9px; height: 9px; } }
+.story-whisper.boss { font-style: normal; font-weight: 900; letter-spacing: 0.06em; color: #ffd0c8; background: rgba(40,6,6,0.72); border: 1px solid rgba(255,90,70,0.5); }
+/* a touch screen's scene hint and captions sit mid-screen -- over the plates, which sit over the crosshair: while the plates
+   are up, to the left above the stick (body.story-plates-on: js/story/principal.js shieldLine) */
+body.touch-mode.story-plates-on .story-hint, body.touch-mode.story-plates-on .story-whisper:not(.pa) { left: calc(16px + var(--sa-l, 0px)); transform: none;
+  bottom: calc(30px + var(--sa-b, 0px) + clamp(104px, 22vmin, 158px)); max-width: min(280px, 34vw); border-radius: 12px; text-align: left; }
+@keyframes ls-in-l { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+body.touch-mode.story-plates-on .story-hint.in, body.touch-mode.story-plates-on .story-whisper.in:not(.pa) { animation-name: ls-in-l; }
+/* the chapter's summary (a window: G.Modal) */
+.story-summary { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 72; width: min(680px, calc(100vw - 24px)); max-height: calc(100vh - 24px); overflow-y: auto; box-sizing: border-box;
+  padding: 16px 18px 14px; border-radius: 16px; background: #0d151c; border: 1px solid rgba(255,214,120,0.5); box-shadow: 0 24px 60px rgba(0,0,0,0.7); color: #eef6fa; font-family: var(--font-ui); text-align: center; }
+.story-summary.hidden { display: none; }
+.ssum-kicker { font: 800 0.78rem var(--font-ui); letter-spacing: 0.14em; text-transform: uppercase; color: #ffd678; }
+.story-summary h2 { margin: 2px 0 0; font-size: 1.5rem; }
+.ssum-done { font-size: 0.9rem; color: #a9bac4; }
+.ssum-stats { display: flex; justify-content: center; gap: 10px; margin: 12px 0 8px; flex-wrap: wrap; }
+.ssum-stat { min-width: 120px; padding: 8px 12px; border-radius: 12px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); display: flex; flex-direction: column; gap: 2px; }
+.ssum-stat b { font: 900 1.45rem var(--font-ui); color: #fff; }
+.ssum-stat span { font-size: 0.78rem; color: #a9bac4; }
+.ssum-stat.good b { color: #8ff0a8; }
+.ssum-sec { margin: 10px 0 0; padding: 8px 10px; border-radius: 12px; background: rgba(255,255,255,0.035); text-align: left; }
+.ssum-h { font: 800 0.86rem var(--font-ui); color: #ffd678; margin-bottom: 6px; }
+.ssum-words { display: flex; flex-wrap: wrap; gap: 6px; }
+.ssum-word { min-height: 32px; padding: 3px 10px; border-radius: 16px; cursor: pointer; background: #17303e; border: 1px solid #2f6f8d; color: #eef6fa; font: 700 0.9rem var(--font-ui); }
+.ssum-word:hover, .ssum-word:focus-visible, .ssum-word.pad-focus { border-color: #8fd8ff; box-shadow: 0 0 0 2px rgba(143,216,255,0.5); outline: none; }
+.ssum-more, .ssum-none { align-self: center; font-size: 0.82rem; color: #a9bac4; }
+.ssum-items { display: flex; flex-wrap: wrap; gap: 6px; }
+.ssum-item { width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; font-size: 1.15rem; background: rgba(255,255,255,0.05); border: 1px dashed rgba(255,255,255,0.18); color: #6d7b84; }
+.ssum-item.had { border-style: solid; border-color: rgba(255,255,255,0.3); }
+.ssum-item.got { border: 1px solid #ffd678; background: rgba(255,214,120,0.12); box-shadow: 0 0 8px rgba(255,214,120,0.35); }
+.ssum-item.extra { margin-left: 8px; }
+.ssum-note { margin-top: 6px; font-size: 0.75rem; color: #8d9ca5; }
+.ssum-btns { display: flex; justify-content: center; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+.ssum-btns .btn { min-height: 44px; }
+.ssum-next[disabled] { opacity: 0.55; cursor: default; }
+body.touch-mode .ssum-word { min-height: 40px; }
+@media (max-height: 460px) {
+  .story-summary { padding: 8px 12px; }
+  .story-summary h2 { font-size: 1.15rem; }
+  .ssum-stats { margin: 6px 0 4px; }
+  .ssum-stat { min-width: 90px; padding: 4px 8px; }
+  .ssum-stat b { font-size: 1.1rem; }
+  .ssum-sec { margin-top: 6px; padding: 5px 8px; }
+  .ssum-btns { margin-top: 8px; }
 }

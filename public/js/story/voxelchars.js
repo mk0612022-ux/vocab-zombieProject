@@ -38,6 +38,7 @@
 //   G.VoxelChars.buildZombie(type, look)      the mesh G.buildZombieMesh hands back
 //   G.VoxelChars.animate(model, dt, st)       a person standing, walking, talking, waving
 //   G.VoxelChars.setLock(model, on)    the LEXA patch lit / dim
+//   G.VoxelChars.glow(model, on)       (story round 10) a zombie's eyes and patch shown / dark (at peace)
 //   G.VoxelChars.update(game)          the patch of the zombie under the crosshair
 // ===================================================================
 window.G = window.G || {};
@@ -135,7 +136,16 @@ G.VoxelChars = (function () {
       : { skin: h[3], hair: [h[0], h[1]], outfit: "studentF", skirt: "short", extra: h[0] === "pony" ? ["pony"] : [], patch: 1, generic: true, turnsInto: h[4] };
     GENERIC.candidates.push(id);
   });
-  const ORDER = CAST.concat(NAMED.map((n) => n + "_z"), GENERIC.students, GENERIC.pe, GENERIC.candidates);
+  // (story round 10) the students who heard the announcement and made it to the gate (1-8): no patch -- they never
+  // used LEXA
+  GENERIC.survivors = [];
+  [["messy", "black", "trousers", "tan"], ["short", "brown", "trousers", "light"], ["bob", "black", null, "medium"], ["pony", "black", null, "tan"]].forEach((h, i) => {
+    const id = "sv" + (i + 1);
+    DEFS[id] = h[2] ? { skin: h[3], hair: [h[0], h[1]], outfit: "studentM", legs: h[2], generic: true }
+      : { skin: h[3], hair: [h[0], h[1]], outfit: "studentF", skirt: "short", extra: h[0] === "pony" ? ["pony"] : [], generic: true };
+    GENERIC.survivors.push(id);
+  });
+  const ORDER = CAST.concat(NAMED.map((n) => n + "_z"), GENERIC.students, GENERIC.pe, GENERIC.candidates, GENERIC.survivors);
   const SLOT = {};
   ORDER.forEach((id, i) => { SLOT[id] = i; });
 
@@ -674,6 +684,11 @@ G.VoxelChars = (function () {
     for (let i = pt.start; i < pt.start + pt.count; i++) col.setXYZ(i, c.r, c.g, c.b);
     col.needsUpdate = true;
   }
+  // (story round 10) a zombie's eyes (and its patch) dark: at peace -- Sgt. Chai at the gate, his last word answered
+  function glow(model, on) {
+    const gm = glowMat();
+    if (model) model.traverse((o) => { if (o.isMesh && o.material === gm) o.visible = !!on; });
+  }
   let hover = null;
   // (each frame of a chapter, js/story/story.js) the zombie under the crosshair: its patch lit
   function update(game) {
@@ -708,6 +723,6 @@ G.VoxelChars = (function () {
 
   return {
     texture, canvas: getCanvas, DEFS, CAST, NAMED, GENERIC, ORDER, SLOT, HEAD, TORSO, LIMBS, SKIRT, full, build, place, zombieLook, buildZombie, on,
-    setLock, update, animate, charMat, get made() { return !!tex; }, get hover() { return hover; }, reset() { hover = null; },
+    setLock, glow, update, animate, charMat, get made() { return !!tex; }, get hover() { return hover; }, reset() { hover = null; },
   };
 })();

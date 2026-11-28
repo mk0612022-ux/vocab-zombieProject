@@ -1577,8 +1577,9 @@ G.Audio = {
       u.lang = (v && v.lang) || (G.Lang ? G.Lang.SPEECH[lang] : "en-GB") || "en-GB";
       if (v) { try { u.voice = v; } catch (e) { /* (not a voice the browser listed) */ } }
       const W = (G.CONFIG.story && G.CONFIG.story.whisper) || {};
-      u.rate = this.speechRate() * (wh ? W.rate || 0.72 : opts && opts.text ? 0.95 : 0.9);
-      u.pitch = wh ? W.pitch || 0.35 : 1;
+      // (story series, round 10: a voice of its own -- `rate` x, `pitch` -- the principal's, out of a megaphone)
+      u.rate = this.speechRate() * (wh ? W.rate || 0.72 : opts && opts.text ? 0.95 : 0.9) * (opts && opts.rate ? opts.rate : 1);
+      u.pitch = wh ? W.pitch || 0.35 : opts && opts.pitch != null ? opts.pitch : 1;
       u.volume = Math.min(1, vol * (wh ? W.volume || 0.45 : 1));
       speechSynthesis.speak(u);
       if (!wh) this._spokenAt = performance.now();

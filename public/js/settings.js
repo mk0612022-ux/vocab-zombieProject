@@ -222,7 +222,9 @@ window.G = window.G || {};
         // (overhaul, round 4) how much blood: Full, Reduced (no heads knocked off), Off (grey dust)
         + row({ id: "set-gore", name: T("settings.gore"), ctl: seg("set-gore", s.gore || "full", ["full", "reduced", "off"].map((v) => [v, T("settings.gore." + v)])), desc: T("settings.goreDesc") })
         // (overhaul, round 5) the Main Menu's camera held still
-        + row({ id: "set-reducemotion", name: T("settings.reduceMotion"), ctl: toggle("set-reducemotion", !!s.reduceMotion), desc: T("settings.reduceMotionDesc") });
+        + row({ id: "set-reducemotion", name: T("settings.reduceMotion"), ctl: toggle("set-reducemotion", !!s.reduceMotion), desc: T("settings.reduceMotionDesc") })
+        // (story series, round 10) the principal's megaphone: the word labels' letters swapped for two seconds -- or not
+        + row({ id: "set-storyscramble", name: T("settings.storyScramble"), ctl: toggle("set-storyscramble", s.storyScramble !== false), desc: T("settings.storyScrambleDesc"), hidden: !(G.Story && G.Story.on()) });
     },
     account() {
       const a = G.Account.state();
@@ -323,6 +325,7 @@ window.G = window.G || {};
         },
         "set-strictacc": (v) => { s.strictAccents = v; },
         "set-storysubs": (v) => { if (G.StoryDialogue) G.StoryDialogue.setLevel(v); else s.storySubs = v; },
+        "set-storyscramble": (v) => { s.storyScramble = v; },
         // (visual series, round 1, E4) seen at once, in a run or behind the menu
         "set-brightness": (v) => { s.brightness = v; s.brightnessSet = true; if (G.Visuals && G.Visuals.ready) G.Visuals.applyGrade(G.Visuals.theme); return pct(v); },
         "set-visboost": (v) => { s.visibilityBoost = v; if (G.Visuals && G.Visuals.ready) G.Visuals.applyGrade(G.Visuals.theme); },

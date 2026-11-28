@@ -69,8 +69,8 @@ G.Round40Test = (function () {
 
     // (story round 6: scenes 1-1 and 1-2 are the design's now -- the run's shell this suite tries
     // (zones, groups, checkpoints, a scene's HUD) goes on the stand-ins it was written for, put back after)
-    const CHS = G.STORY_CHAPTERS.ch1.scenes, real12 = CHS.slice(1, 7);       // (story round 7: and 1-3, 1-4; round 8: 1-5; round 9: 1-6)
-    CHS.splice(1, 6,
+    const CHS = G.STORY_CHAPTERS.ch1.scenes, real12 = CHS.slice(1, 9);       // (story round 7: and 1-3, 1-4; round 8: 1-5; round 9: 1-6; round 10: 1-7, 1-8)
+    CHS.splice(1, 8,
       { id: "s1", title: "story.ch1.s1", objective: "story.ch1.s1.obj", start: { x: -1.5, y: 8, z: 0.4, yaw: -Math.PI / 2 }, clock: "08:50", light: "alarm", beats: [
         { do: [["objective", "story.ch1.s1.obj"]] },
         { wait: { zone: "corridor3East" }, do: [["banner", "story.ph.group"], ["spawn", { id: "c1", at: "corridor3Far", count: 3 }]] },
@@ -96,7 +96,15 @@ G.Round40Test = (function () {
       { id: "s6", title: "story.ch1.s6", objective: "story.ch1.s6.obj", start: { x: -41.2, y: 0, z: -1, yaw: -Math.PI / 2 }, clock: "17:00", light: "golden", beats: [
         { do: [["objective", "story.ch1.s6.obj"]] },
         { wait: { zone: "adminDoor" }, do: [["spawn", { id: "h1", at: "corridor1", count: 3 }]] },
-        { wait: { cleared: "h1" }, do: [["checkpoint"], ["next"]] }] });
+        { wait: { cleared: "h1" }, do: [["checkpoint"], ["next"]] }] },
+      // (story round 10: 1-7 and 1-8 too)
+      { id: "s7", title: "story.ch1.s7", objective: "story.ch1.s7.obj", start: { x: 4.5, y: 0, z: 6, yaw: Math.PI }, clock: "17:45", light: "sunset", doors: { ENTRANCE: true }, beats: [
+        { do: [["objective", "story.ch1.s7.obj"]] },
+        { wait: { zone: "flagYard" }, do: [["banner", "story.ph.group"], ["spawn", { id: "b1", at: "yardRows", count: 4 }]] },
+        { wait: { cleared: "b1" }, do: [["checkpoint"], ["next"]] }] },
+      { id: "s8", title: "story.ch1.s8", objective: "story.ch1.s8.obj", start: { x: 0, y: 0, z: 30, yaw: -2.35 }, clock: "18:15", light: "dusk", beats: [
+        { do: [["objective", "story.ch1.s8.obj"]] },
+        { wait: { zone: "gate" }, do: [["end"]] }] });
     try {
       G.CONFIG.story.enabled = true;
       G.save.settings.storySubs = "full";
@@ -458,7 +466,7 @@ G.Round40Test = (function () {
     } catch (e) {
       ok("no exception", false, e.message + " " + (e.stack || "").split("\n").slice(0, 3).join(" | "));
     } finally {
-      CHS.splice(1, 6, ...real12);
+      CHS.splice(1, 8, ...real12);
       G.CONFIG.story.enabled = enabled0;
       G.Input.pollGamepad = pad0; G.Input.padActive = false;
       G.Input.mode = mode0; if (G.UI.applyControlMode) G.UI.applyControlMode();

@@ -45,7 +45,7 @@ G.StoryWhisper = (function () {
     const p = game.yawObject.position, r = C().range || 6.5, gapZ = C().zombieGap || 7, now = performance.now() / 1000;
     let best = null, bd = r;
     game.zombies.forEach((z) => {
-      if (!z.alive || !z.mesh || !z.word || z.decoy) return;
+      if (!z.alive || !z.mesh || !z.word || z.decoy || z.principal) return;      // (round 10: the principal's word is his shield's, not whispered)
       const d = Math.hypot(z.mesh.position.x - p.x, z.mesh.position.z - p.z);
       if (d >= bd || Math.abs(z.mesh.position.y - (p.y - 1.7)) > 2.2) return;
       if (now - (heard.get(z) || -99) < gapZ) return;

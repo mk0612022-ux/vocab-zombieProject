@@ -43,4 +43,15 @@ G.STORY_WORDS.ch1 = {
   evacuate: { th: "อพยพ", zh: "撤离；疏散", fr: "évacuer", en: "to leave a dangerous place and go somewhere safe" },
   avoid: { th: "หลีกเลี่ยง", zh: "避开；避免", fr: "éviter", en: "to stay away from something" },
   afford: { th: "มีเงินพอ; มีเวลาพอ", zh: "负担得起", fr: "avoir les moyens de", en: "to have enough money or time for something" },
+  // (story round 10) 1-7: the principal's email (trial and side effect join the bank with words-draft.csv); 1-8: Sgt.
+  // Chai's last word and its two look-alikes (the design's)
+  trial: { th: "การทดลอง (ทางคลินิก)", zh: "试验", fr: "essai (clinique)", en: "a test of something new, such as a medicine, on people" },
+  "side effect": { th: "ผลข้างเคียง", zh: "副作用", fr: "effet secondaire", en: "an extra effect of a medicine, usually a bad one" },
+  protect: { th: "ปกป้อง", zh: "保护", fr: "protéger", en: "to keep someone or something safe from harm" },
+  project: { th: "โครงการ; ฉายภาพ", zh: "项目；投射", fr: "projet ; projeter", en: "a planned piece of work; to show a picture on a screen" },
+  predict: { th: "ทำนาย; คาดการณ์", zh: "预测", fr: "prédire", en: "to say what will happen in the future" },
+  // (story round 10) 1-7: the shield's two forms of discipline (the bank's meaning of a form is its headword's -- the
+  // card after a wrong plate would read the same meaning twice): js/story/principal.js ownGloss
+  disciplinary: { th: "เกี่ยวกับวินัย; ทางวินัย", zh: "纪律的；惩戒的", fr: "disciplinaire", en: "about rules and punishment" },
+  disciplined: { th: "มีวินัย", zh: "有纪律的；自律的", fr: "discipliné", en: "able to control yourself and keep to rules" },
 };

@@ -16,6 +16,9 @@
 //       cloze    a key of a sentence with ___ (the question instead of the meaning)
 //       glosses  { <option>: { th, zh, fr, en } } each option's meaning, for the card
 //       the flag "quiz:<id>" once every one is answered (a scene waits { quiz: id })
+//   (round 10) around: { id, r, y, spread } -- the answers float round someone of the scene (js/story/cast.js), in an
+//       arc toward the player, and go with them (Sgt. Chai's last word, 1-8); retry: true -- a wrong answer asks the
+//       same again (no clock: the question waits for its right answer); slow: true -- the world slowed while it is asked
 //   G.StoryQuiz.start(game, o) / update(game, dt) / line() / label() / reset(game) / active
 // ===================================================================
 window.G = window.G || {};
@@ -80,6 +83,7 @@ G.StoryQuiz = (function () {
       game.scene.add(s);
       q.opts.push({ s, w, k, hot: false });
     });
+    if (q.around) { q.opts.forEach((o) => o.s.scale.set(1.6, 0.4, 1)); placeAround(game); }
     q.lock = C().settle || 0.35;
     if (G.Audio && G.Audio.ctx && G.Audio.group) G.Audio.group({ cat: "ui", prio: 1, pos: null, dur: 0.5 }, () => G.Audio.tone({ type: "sine", freq: 660, freqEnd: 990, dur: 0.12, gain: 0.03 }));
   }
@@ -93,7 +97,7 @@ G.StoryQuiz = (function () {
       const idx = G.shuffle(it.options.map((_, i) => i));
       return Object.assign({}, it, { options: idx.map((i) => it.options[i]), answer: idx.indexOf(it.answer) });
     });
-    q = { id: String(o.id || "quiz"), items, i: 0, opts: [], lock: 0, wait: 0, hot: -1, right: 0, results: [] };
+    q = { id: String(o.id || "quiz"), items, i: 0, opts: [], lock: 0, wait: 0, hot: -1, right: 0, results: [], around: o.around || null, retry: !!o.retry, slow: !!o.slow, again: false, label: o.label || null };
     ensureDot().classList.remove("hidden");
     document.body.classList.add("story-quiz");                       // (touch: the trigger shown for it, css)
     prev = true; keyHit = false;
@@ -144,15 +148,33 @@ G.StoryQuiz = (function () {
     q.opts.forEach((o) => { G.updateWordSprite(o.s, o.w, o.k === it.answer ? "#7dffa8" : o.k === k ? "#ff7a8a" : "#7f8c96"); });
     q.results.push({ word: it.word, picked: it.options[k], right });
     if (right) q.right++;
+    // (round 10: `retry` -- wrong, the same question again, its answers in another order)
+    q.again = !right && q.retry;
     q.wait = right ? (C().nextRight || 1.4) : (C().nextWrong || 2.4);
+  }
+  // (round 10) the answers round someone of the scene: an arc toward the player at their chest, going with them
+  function placeAround(game) {
+    const a = q && q.around, n = a && G.StoryCast ? G.StoryCast.get(a.id) : null;
+    if (!n) return;
+    const pp = game.yawObject.position, base = Math.atan2(pp.x - n.pos.x, pp.z - n.pos.z), R = a.r || 1.3, sp = a.spread || 0.85, m = q.opts.length;
+    q.opts.forEach((o, i) => {
+      const ang = base + (i - (m - 1) / 2) * sp;
+      o.s.position.set(n.pos.x + Math.sin(ang) * R, n.pos.y + (a.y || 1.6) + Math.sin((q.bob = (q.bob || 0) + 0.004) * 6 + i * 2) * 0.04, n.pos.z + Math.cos(ang) * R);
+    });
   }
   function update(game, dt) {
     if (!q) return;
+    if (q.slow) game._slowmoT = Math.max(game._slowmoT || 0, 0.25);
+    if (q.around) placeAround(game);
     if (q.wait > 0) {
       q.wait -= dt;
       pressed();
       if (q.wait <= 0) {
-        q.i++;
+        if (q.again) {
+          q.again = false;
+          const it = q.items[q.i], idx = G.shuffle(it.options.map((_, i) => i));
+          q.items[q.i] = Object.assign({}, it, { options: idx.map((i) => it.options[i]), answer: idx.indexOf(it.answer) });
+        } else q.i++;
         if (q.i >= q.items.length) { finish(game); return; }
         layOut(game);
       }
@@ -178,7 +200,7 @@ G.StoryQuiz = (function () {
   }
   // the word box while it runs: the question, and which one it is
   function line() { return q ? question(q.items[Math.min(q.i, q.items.length - 1)]) : null; }
-  function label() { return q ? T("story.quiz.n", { i: Math.min(q.i + 1, q.items.length), n: q.items.length }) : null; }
+  function label() { return q ? (q.label ? T(q.label) : T("story.quiz.n", { i: Math.min(q.i + 1, q.items.length), n: q.items.length })) : null; }
   function reset(game) {
     if (q) clearOpts();
     q = null;

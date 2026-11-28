@@ -126,6 +126,13 @@ G.LexiLens = (function () {
     if (el) el.classList.add("hidden");
   }
 
-  return { PARTS, parts, show, theme, glitch, sys, onCorrect, update, reset,
+  // (story round 10) a line no longer true -- "SHIELD DOWN ... 8 seconds" once the shield is back -- cut short, and gone
+  // from the queue
+  function cut(key) {
+    q = q.filter((it) => it.key !== key);
+    if (cur && cur.key === key) nextSys();
+  }
+
+  return { PARTS, parts, show, theme, glitch, sys, onCorrect, update, reset, cut,
     get on() { return on; }, get shown() { return Array.from(shown); }, get line() { return cur; } };
 })();

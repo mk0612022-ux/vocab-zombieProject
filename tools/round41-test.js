@@ -4,7 +4,7 @@
 //      drawn in code (canvases, NearestFilter), every tile and every sheet, the pixel font
 //   B  blocks: only the faces that can be seen, the corners' AO, glass, a facing block, a
 //      box's tiles stretched or one a metre, a line turned on the top face, joined colliders
-//   C  characters: all 37 looks build (round 5: and the six candidates of 305); the rig (hips, knees, feet, shoulders, elbows, neck);
+//   C  characters: all 41 looks build (round 5: and the six candidates of 305; round 10: four at the gate); the rig (hips, knees, feet, shoulders, elbows, neck);
 //      the six boxes' sizes (8 / 8x12x4 / 4x12x4 px, 1.8 m); a face's pixels; a sheet's UVs;
 //      the LEXA patch (1, the principal's 3, none for the bitten) lit and dimmed; Blood & Gore
 //      Off: no red; the Ironclad's cap a helmet that can be knocked off
@@ -64,8 +64,8 @@ G.Round41Test = (function () {
 
     // (story round 6: scenes 1-1 and 1-2 are the design's now -- the run's shell this suite tries
     // (zones, groups, checkpoints, a scene's HUD) goes on the stand-ins it was written for, put back after)
-    const CHS = G.STORY_CHAPTERS.ch1.scenes, real12 = CHS.slice(1, 7);       // (story round 7: and 1-3, 1-4; round 8: 1-5; round 9: 1-6)
-    CHS.splice(1, 6,
+    const CHS = G.STORY_CHAPTERS.ch1.scenes, real12 = CHS.slice(1, 9);       // (story round 7: and 1-3, 1-4; round 8: 1-5; round 9: 1-6; round 10: 1-7, 1-8)
+    CHS.splice(1, 8,
       { id: "s1", title: "story.ch1.s1", objective: "story.ch1.s1.obj", start: { x: -1.5, y: 8, z: 0.4, yaw: -Math.PI / 2 }, clock: "08:50", light: "alarm", beats: [
         { do: [["objective", "story.ch1.s1.obj"]] },
         { wait: { zone: "corridor3East" }, do: [["banner", "story.ph.group"], ["spawn", { id: "c1", at: "corridor3Far", count: 3 }]] },
@@ -91,7 +91,15 @@ G.Round41Test = (function () {
       { id: "s6", title: "story.ch1.s6", objective: "story.ch1.s6.obj", start: { x: -41.2, y: 0, z: -1, yaw: -Math.PI / 2 }, clock: "17:00", light: "golden", beats: [
         { do: [["objective", "story.ch1.s6.obj"]] },
         { wait: { zone: "adminDoor" }, do: [["spawn", { id: "h1", at: "corridor1", count: 3 }]] },
-        { wait: { cleared: "h1" }, do: [["checkpoint"], ["next"]] }] });
+        { wait: { cleared: "h1" }, do: [["checkpoint"], ["next"]] }] },
+      // (story round 10: 1-7 and 1-8 too)
+      { id: "s7", title: "story.ch1.s7", objective: "story.ch1.s7.obj", start: { x: 4.5, y: 0, z: 6, yaw: Math.PI }, clock: "17:45", light: "sunset", doors: { ENTRANCE: true }, beats: [
+        { do: [["objective", "story.ch1.s7.obj"]] },
+        { wait: { zone: "flagYard" }, do: [["banner", "story.ph.group"], ["spawn", { id: "b1", at: "yardRows", count: 4 }]] },
+        { wait: { cleared: "b1" }, do: [["checkpoint"], ["next"]] }] },
+      { id: "s8", title: "story.ch1.s8", objective: "story.ch1.s8.obj", start: { x: 0, y: 0, z: 30, yaw: -2.35 }, clock: "18:15", light: "dusk", beats: [
+        { do: [["objective", "story.ch1.s8.obj"]] },
+        { wait: { zone: "gate" }, do: [["end"]] }] });
     try {
       G.CONFIG.story.enabled = true;
       // ================= A: the campaign first, then the atlases =================
@@ -136,8 +144,8 @@ G.Round41Test = (function () {
         const ctex = VC.texture();
         numbers.charAtlasMs = Math.round(performance.now() - t1);
         ok("A the characters' atlas: a canvas drawn in code, 512 x 256, NearestFilter", ctex.image instanceof HTMLCanvasElement && ctex.image.width === 512 && ctex.image.height === 256 && ctex.magFilter === THREE.NearestFilter);
-        ok("A 37 looks on it: 12 people, the 7 who turn, 12 everyday zombies, 6 candidates (story round 5), each on a sheet of its own",
-          VC.ORDER.length === 37 && VC.CAST.length === 12 && VC.NAMED.length === 7 && VC.GENERIC.students.length + VC.GENERIC.pe.length === 12 && new Set(VC.ORDER.map((id) => VC.SLOT[id])).size === 37 && VC.GENERIC.candidates.length === 6);
+        ok("A 41 looks on it: 12 people, the 7 who turn, 12 everyday zombies, 6 candidates (story round 5), 4 who reach the gate (round 10), each on a sheet of its own",
+          VC.ORDER.length === 41 && VC.CAST.length === 12 && VC.NAMED.length === 7 && VC.GENERIC.students.length + VC.GENERIC.pe.length === 12 && new Set(VC.ORDER.map((id) => VC.SLOT[id])).size === 41 && VC.GENERIC.candidates.length === 6 && VC.GENERIC.survivors.length === 4);
         numbers.atlasKB = Math.round((128 * 256 + 512 * 256) * 4 * 4 / 3 / 1024);
       }
 
@@ -203,7 +211,7 @@ G.Round41Test = (function () {
             if (!rig || !parts || drawn(m) > 8) bad.push(id + (rig ? "" : ":rig") + (parts ? "" : ":hitboxes") + ":" + drawn(m));
           } catch (e) { bad.push(id + ":" + e.message); }
         });
-        ok("C all 37 build, each rigged as the zombies are (hips, knees, feet, shoulders, elbows, the neck), hit part by part, 8 meshes at most", !bad.length, bad.join() || "37");
+        ok("C all 41 build, each rigged as the zombies are (hips, knees, feet, shoulders, elbows, the neck), hit part by part, 8 meshes at most", !bad.length, bad.join() || "41");
         const p = models.player;
         p.updateMatrixWorld(true);
         const size = (o) => new THREE.Box3().setFromObject(o).getSize(new THREE.Vector3());
@@ -352,7 +360,7 @@ G.Round41Test = (function () {
     } catch (e) {
       ok("no exception", false, e.message + " " + (e.stack || "").split("\n").slice(0, 3).join(" | "));
     } finally {
-      CHS.splice(1, 6, ...real12);
+      CHS.splice(1, 8, ...real12);
       G.CONFIG.story.enabled = enabled0;
       G.CONFIG.story.voxel.zombies = vz0;
       g.update = real;

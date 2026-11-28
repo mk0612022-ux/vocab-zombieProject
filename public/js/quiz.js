@@ -91,6 +91,8 @@
       const el = (id) => document.getElementById(id);
       el("quiz-kicker").textContent = opts.kicker || T("quiz.kicker", { n: game.wave });
       document.getElementById("screen-quiz").classList.toggle("quiz-forge", !!opts.qs);
+    // (story series, round 10: a test with nothing to lose -- a chapter's final test: no mistakes counter)
+    document.getElementById("screen-quiz").classList.toggle("quiz-nofail", !!opts.noFail);
       el("quiz-q").classList.remove("hidden");
       el("quiz-result").classList.add("hidden");
       G.UI.showScreen("screen-quiz");

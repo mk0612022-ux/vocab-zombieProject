@@ -96,6 +96,12 @@
 //   ["hold", { id, sec, every, lines } | null] · a ["spawn"] with `max`: never more than that many standing
 //   A scene's `shriek` ({ at, count, kinds, max }): who a Screamer's shriek calls (js/story/story.js onShriek).
 //   A line with `voice: true`: read aloud (js/story/dialogue.js).
+//   (round 10: scenes 1-7 and 1-8)
+//   ["principal", { id, who, word, at, items, moves, from, spots, hall, cp, drops }] the chapter's boss (js/story/principal.js;
+//   down: the flag "boss:<id>", { boss: id }) · ["ride", { path, speed, look, eye }] the player carried along a path, seated
+//   (the van out of the gate: js/story/storycam.js) -- { walked: true } waits for its end too · ["quiz", { ..., around }] the
+//   practice exam's answers floating round someone of the scene (js/story/aimquiz.js) · a scene's `principal: true`: the
+//   boss's shaders made as it begins
 // A scene's `on` (round 6): rules beside its beats, for what can happen in any order --
 //   [{ id, after, when, do }] each fires once, the moment `when` holds (the flag "on:<id>":
 //   a checkpoint keeps it); `after` (a flag, or a condition) arms it, and a { time: s } in its
@@ -307,6 +313,9 @@ G.StoryScenes = (function () {
     else if (name === "announce") { if (G.StoryPA) G.StoryPA.announce(arg || {}); }
     else if (name === "hold") { if (G.StoryPA) G.StoryPA.hold(game, arg || null); }
     else if (name === "if") { const o = arg || {}; ((met(game, run, o.when) ? o.do : o.else) || []).forEach((x) => act(game, run, x)); }
+    // (round 10) scenes 1-7 and 1-8: the chapter's boss; a ride (the school's van out of the gate)
+    else if (name === "principal") { if (G.StoryPrincipal) G.StoryPrincipal.start(game, run, arg || {}); }
+    else if (name === "ride") { if (G.StoryCam && G.StoryCam.ride) G.StoryCam.ride(game, arg || {}); }
   }
   // (round 7) a shout of where they come from: ahead, behind, left or right of the player as they stand
   // now -- the spawn's points' middle against the way the player faces (G.StoryDialogue, the box's
@@ -391,6 +400,7 @@ G.StoryScenes = (function () {
     if (G.StoryBoss) { G.StoryBoss.reset(game); if (sc.boss) G.StoryBoss.warm(game); }     // (round 8: the last scene's mini-boss, where he fell; this one's shaders)
     if (G.StoryEscort) G.StoryEscort.reset();           // (round 9: who was looked after, the PA's window and its loop)
     if (G.StoryPA) G.StoryPA.reset(game);
+    if (G.StoryPrincipal) { G.StoryPrincipal.reset(game); if (sc.principal) G.StoryPrincipal.warm(game); }   // (round 10: the chapter's boss)
     // (round 7) the last scene's cabinet and countdown gone; what this one pushes into place put there
     if (G.StoryPick) G.StoryPick.reset(game);
     if (G.StoryScreen && G.StoryScreen.setTimer) G.StoryScreen.setTimer(null);

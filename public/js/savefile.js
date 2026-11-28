@@ -275,6 +275,7 @@ G.SaveFile = (function () {
         right: most(x.right, y.right), wrong: most(x.wrong, y.wrong), time: most(x.time, y.time),
         best: bests.length ? Math.min.apply(null, bests) : 0, finishedAt: most(x.finishedAt, y.finishedAt), runs: most(x.runs, y.runs),
         curTime: lead.curTime || 0, curRight: lead.curRight || 0, curWrong: lead.curWrong || 0,
+        curWords: obj(lead.curWords),          // (story round 10: the play-through under way's words, with its figures)
       };
     });
     return out;

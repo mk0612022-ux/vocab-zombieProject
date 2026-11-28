@@ -123,7 +123,7 @@ G.Pad = {
       // (story series, round 2) a chapter's phone (js/story/phone.js)
       "story-phone": "story-phone-box",
       // (story series, round 7) a cabinet's boxes picked by their labels (js/story/pick.js)
-      "story-pick": "story-pick-box", "story-pa": "story-pa-box" };
+      "story-pick": "story-pick-box", "story-pa": "story-pa-box", "story-summary": "story-summary-box" };
     if (top && byModal[top.id]) return document.getElementById(byModal[top.id]);
     if (G.TouchCfg && G.TouchCfg.editing) return document.getElementById("touchcfg-panel");
     const cur = G.UI._currentScreen;

@@ -55,8 +55,8 @@ G.Round39Test = (function () {
 
     // (story round 6: scenes 1-1 and 1-2 are the design's now -- the run's shell this suite tries
     // (zones, groups, checkpoints, a scene's HUD) goes on the stand-ins it was written for, put back after)
-    const CHS = G.STORY_CHAPTERS.ch1.scenes, real12 = CHS.slice(1, 7);       // (story round 7: and 1-3, 1-4; round 8: 1-5; round 9: 1-6)
-    CHS.splice(1, 6,
+    const CHS = G.STORY_CHAPTERS.ch1.scenes, real12 = CHS.slice(1, 9);       // (story round 7: and 1-3, 1-4; round 8: 1-5; round 9: 1-6; round 10: 1-7, 1-8)
+    CHS.splice(1, 8,
       { id: "s1", title: "story.ch1.s1", objective: "story.ch1.s1.obj", start: { x: -1.5, y: 8, z: 0.4, yaw: -Math.PI / 2 }, clock: "08:50", light: "alarm", beats: [
         { do: [["objective", "story.ch1.s1.obj"]] },
         { wait: { zone: "corridor3East" }, do: [["banner", "story.ph.group"], ["spawn", { id: "c1", at: "corridor3Far", count: 3 }]] },
@@ -82,7 +82,15 @@ G.Round39Test = (function () {
       { id: "s6", title: "story.ch1.s6", objective: "story.ch1.s6.obj", start: { x: -41.2, y: 0, z: -1, yaw: -Math.PI / 2 }, clock: "17:00", light: "golden", beats: [
         { do: [["objective", "story.ch1.s6.obj"]] },
         { wait: { zone: "adminDoor" }, do: [["spawn", { id: "h1", at: "corridor1", count: 3 }]] },
-        { wait: { cleared: "h1" }, do: [["checkpoint"], ["next"]] }] });
+        { wait: { cleared: "h1" }, do: [["checkpoint"], ["next"]] }] },
+      // (story round 10: 1-7 and 1-8 too)
+      { id: "s7", title: "story.ch1.s7", objective: "story.ch1.s7.obj", start: { x: 4.5, y: 0, z: 6, yaw: Math.PI }, clock: "17:45", light: "sunset", doors: { ENTRANCE: true }, beats: [
+        { do: [["objective", "story.ch1.s7.obj"]] },
+        { wait: { zone: "flagYard" }, do: [["banner", "story.ph.group"], ["spawn", { id: "b1", at: "yardRows", count: 4 }]] },
+        { wait: { cleared: "b1" }, do: [["checkpoint"], ["next"]] }] },
+      { id: "s8", title: "story.ch1.s8", objective: "story.ch1.s8.obj", start: { x: 0, y: 0, z: 30, yaw: -2.35 }, clock: "18:15", light: "dusk", beats: [
+        { do: [["objective", "story.ch1.s8.obj"]] },
+        { wait: { zone: "gate" }, do: [["end"]] }] });
     try {
       // ================= A: the data =================
       {
@@ -269,11 +277,15 @@ G.Round39Test = (function () {
         toZone("gate");
         const e = G.save.story.ch.ch1;
         ok("G its zone: the chapter done, no checkpoint, the best time", e.done && !e.cp && e.best >= 600 && e.finishedAt > 0, e.best);
-        ok("G the summary: time and accuracy (80%)", G.Dialog.isOpen() && $("dialog-title").textContent === T("story.end.title") && $("dialog-text").textContent.indexOf("80") >= 0, $("dialog-text").textContent);
-        const next = Array.from(document.querySelectorAll("#dialog-btns button")).find((b) => b.textContent.indexOf(T("story.ch2.title")) >= 0);
-        ok("G ...chapter 2's button there and off (coming soon)", !!next && next.disabled);
+        // (story round 10: the final test first -- js/story/summary.js -- then the summary's own window)
+        ok("G the final test: six questions in the end-of-wave quiz's window", G.Quiz.active && G.Quiz.qs.length === 6);
+        for (let n = 0; n < 60 && G.Quiz.active; n++) { if (G.Quiz.stage === "question") G.Quiz.answerAs(true); else if (G.Quiz.stage === "feedback") G.Quiz.next(); else if (G.Quiz.stage === "result") { G.Quiz.close(); break; } await yield0(); }
+        const sb = $("story-summary-box");
+        ok("G the summary: time and accuracy (80%)", G.StorySummary.open && sb && /10:0\d/.test(sb.innerText) && sb.innerText.indexOf("80%") >= 0, sb && sb.innerText.slice(0, 160));
+        const next = sb && sb.querySelector(".ssum-next");
+        ok("G ...chapter 2's button there and off (coming soon)", !!next && next.disabled && next.textContent.indexOf(T("story.ch2.title")) >= 0);
         ok("G the lobby card: completed", S.status("ch1") === T("story.status.done"));
-        G.Dialog.close(); g.quitToMainMenu(); G.Modal.reset();
+        G.StorySummary.close(); g.quitToMainMenu(); G.Modal.reset();
         ok("G ...back in the menus: Savings shown again", getComputedStyle($("hud-savings")).display !== "none" && !document.body.classList.contains("story-run"));
         S.open("ch1"); await wait(20);
         const ob = G.Dialog._o ? G.Dialog._o.buttons : [];
@@ -340,7 +352,7 @@ G.Round39Test = (function () {
     } catch (e) {
       ok("no exception", false, e.message + " " + (e.stack || "").split("\n").slice(0, 3).join(" | "));
     } finally {
-      CHS.splice(1, 6, ...real12);
+      CHS.splice(1, 8, ...real12);
       G.CONFIG.story.enabled = enabled0;
       G.Spawner.update = spawn0;
       g.update = real;

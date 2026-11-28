@@ -90,8 +90,12 @@ G.StoryScreen = (function () {
     if (name === "alarm" || name === "bell") { loops[name] = { t: 0, next: 0 }; return; }
     if (name === "static") { loops.static = { t: 0, next: 0, left: C().staticSec || 9 }; return; }
     // (round 7) music under a scene: one at a time
-    if (name === "calm" || name === "tense") { delete loops.calm; delete loops.tense; loops[name] = { t: 0, next: 0, i: 0 }; return; }
-    if (name === "quiet") { delete loops.calm; delete loops.tense; return; }
+    // (round 10: "anthem" -- the boss's: the school song of our own, twisted)
+    if (name === "calm" || name === "tense" || name === "anthem") { delete loops.calm; delete loops.tense; delete loops.anthem; loops[name] = { t: 0, next: 0, i: 0 }; return; }
+    if (name === "quiet") { delete loops.calm; delete loops.tense; delete loops.anthem; delete loops.engine; return; }
+    // (round 10) the school's van running, a while (the ride out of the gate); the chapter's closing music, once
+    if (name === "engine") { loops.engine = { t: 0, next: 0, left: 14 }; return; }
+    if (name === "ending") { if (a) ending(a); return; }
     if (name === "tick") { loops.tick = { t: 0, next: 0, i: 0 }; return; }
     if (name === "untick") { delete loops.tick; return; }
     if (name === "bent") { loops.bent = { next: 0 }; return; }
@@ -154,6 +158,17 @@ G.StoryScreen = (function () {
       JING.forEach(([f, at], i) => a.tone({ type: "sawtooth", freq: f * (i === 3 ? 0.47 : 0.5), freqEnd: f * (i === 3 ? 0.36 : 0.44), dur: 0.55, gain: G0 * 0.6, at: at * 2.1, filter: { type: "lowpass", freq: 900 } }));
       for (let i = 0; i < 4; i++) a.tone({ type: "square", freq: 587 * 0.5, freqEnd: 520 * 0.5, dur: 0.14, gain: G0 * 0.35, at: 2.3 + i * 0.22, filter: { type: "bandpass", freq: 700, q: 2 } });
       a.noise({ dur: 0.5, freq: 1800, freqEnd: 1200, q: 0.7, gain: G0 * 0.4, at: 3.1 });
+    });
+  }
+  // (round 10) the school song (ours: never a real school's), the first line -- and twisted for the boss: a fifth low,
+  // the notes sagging, a pulse under it
+  const ANTHEM = [392, 523.3, 493.9, 440, 392, 329.6, 349.2, 392, 440, 392, 349.2, 329.6, 293.7, 329.6, 392, 0];
+  // the end of the chapter: the song's first line again, slow and gentle, on a soft chord
+  function ending(a) {
+    a.group({ cat: "music", prio: 3, pos: null, dur: 11 }, () => {
+      ANTHEM.slice(0, 8).forEach((f, i) => { if (f) { a.tone({ type: "triangle", freq: f, dur: 1.1, gain: 0.04, attack: 0.04, at: i * 0.62 }); a.tone({ type: "sine", freq: f * 2, dur: 0.6, gain: 0.008, at: i * 0.62 }); } });
+      [[196, 246.9, 293.7], [174.6, 220, 261.6], [196, 246.9, 293.7]].forEach((ch, j) => ch.forEach((f) => a.tone({ type: "sine", freq: f, dur: 2.6, gain: 0.014, attack: 0.5, at: j * 2.48 })));
+      a.tone({ type: "sine", freq: 98, dur: 5.5, gain: 0.03, attack: 1.2, at: 4.8 });
     });
   }
   // (round 6) a fist on the glass, where it is (js/story/cast.js: the crowd at the main stairs)
@@ -230,6 +245,26 @@ G.StoryScreen = (function () {
     if (bt) {
       bt.next -= dt;
       if (bt.next <= 0 && a) { bt.next = C().bentEvery || 9; jingle(a, true); }
+    }
+    // (round 10) the boss's music: the school song twisted -- a note a beat, sagging, a pulse on every other
+    const an = loops.anthem;
+    if (an) {
+      an.next -= dt;
+      if (an.next <= 0 && a) {
+        an.next = 0.42;
+        const f = ANTHEM[an.i % ANTHEM.length] * 0.5, g0 = C().anthemGain || 0.022, k = an.i++;
+        a.group({ cat: "music", prio: 1, pos: null, dur: 0.6 }, () => {
+          if (f) { a.tone({ type: "square", freq: f, freqEnd: f * 0.965, dur: 0.36, gain: g0, filter: { type: "lowpass", freq: 1100 } }); a.tone({ type: "sawtooth", freq: f * 1.012, freqEnd: f * 0.95, dur: 0.36, gain: g0 * 0.5, filter: { type: "lowpass", freq: 800 } }); }
+          if (k % 2 === 0) a.tone({ type: "sine", freq: 55, freqEnd: 42, dur: 0.24, gain: g0 * 2.6 });
+        });
+      }
+    }
+    // (round 10) the van: its engine turning over, low, in bursts
+    const en = loops.engine;
+    if (en) {
+      en.left -= dt; en.next -= dt;
+      if (en.left <= 0) delete loops.engine;
+      else if (en.next <= 0 && a) { en.next = 0.5; a.group({ cat: "sfx", prio: 1, pos: null, dur: 0.6 }, () => { a.noise({ dur: 0.55, freq: 160, freqEnd: 120, q: 0.5, gain: 0.05 }); a.tone({ type: "sawtooth", freq: 46, dur: 0.5, gain: 0.03, filter: { type: "lowpass", freq: 200 } }); }); }
     }
     // the radio: a hiss in bursts
     const st = loops.static;

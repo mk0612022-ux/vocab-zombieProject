@@ -1226,6 +1226,12 @@ G.Game = {
     const bossHits = bossBoxes.length ? this.raycaster.intersectObjects(bossBoxes, false) : [];
     const hits = G.Aim.trace(this, origin, dir, wallAt).concat(bossHits.map((h) => ({ boss: h, distance: h.distance })))
       .sort((a, b) => (b.label ? 1 : 0) - (a.label ? 1 : 0) || a.distance - b.distance);
+    // (story series, round 10) Principal Somsak's shield: a plate of its question met before any wall or zombie is
+    // the answer, and the round goes no further (js/story/principal.js)
+    if (this.mode === "story" && G.StoryPrincipal && G.StoryPrincipal.active) {
+      const zNear = hits.reduce((m, h) => Math.min(m, h.distance), wallAt);
+      if (G.StoryPrincipal.onShot(this, origin, dir, zNear)) return true;
+    }
     let hitAny = false;
     let through = 0;
     let stopAt = wallAt;                  // where the round ended (a pane before it breaks)
@@ -1493,6 +1499,8 @@ G.Game = {
   damageZombie(z, dmg, hitPoint, info) {
     // (story series, round 8) a chapter's mini-boss: what a hit does to him is his own (js/story/miniboss.js)
     if (z.storyBoss && G.StoryBoss && G.StoryBoss.onHit(this, z, dmg, hitPoint, info)) return;
+    // (round 10) and the chapter's boss: his shield, his patches (js/story/principal.js)
+    if (z.principal && G.StoryPrincipal && G.StoryPrincipal.onHit(this, z, dmg, hitPoint, info)) return;
     z._lastHit = info || { dir: null, head: false };
     // (overhaul, round 4: Blood & Gore -- red, a darker brown, or grey dust)
     const gore = G.ZombieFactory ? G.ZombieFactory.gore(z) : "full";
@@ -2935,6 +2943,9 @@ G.Game = {
         continue;
       }
       const noBite = mod.noBite || z.type === "dummy", zdt = dt * mod.speed * kindK, abTarget = mod.target;   // (round 7: a dummy never bites)
+      // (story series, round 10) a student lining up on the painted lines (Principal Somsak's LINE UP!): to their
+      // place and standing there, not at the player -- until the line is sent (js/story/principal.js)
+      if (z.storyGoal && G.StoryPrincipal && G.StoryPrincipal.lineStep(this, z, zdt, mePos)) continue;
       const after = escort && G.StoryEscort.hunts(this, z) ? escort : null;
       const playerPos = after ? after.pos : mePos, pRegion = after ? after.region : meRegion, pFeet = after ? after.feet : meFeet, pFlight = after ? after.flight : meFlight;
       const zRegion = G.getRegionAt(this.world, z.mesh.position.x, z.mesh.position.z, z.mesh.position.y);

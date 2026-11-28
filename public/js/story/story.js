@@ -37,6 +37,11 @@
 //   (round 9) died(game, { icon, title, text })   lost another way than by the player's health (Kru Min
 //   not helped up in time: js/story/escort.js); sees(game, eye, feet) nothing in the way between the two;
 //   onShriek(game, z) who a Screamer's shriek calls (js/zombieai.js): the scene's `shriek`
+//   (round 10) noteWord(pair, right, r) every answer of the play-through into the chapter's save (curWords: the
+//   box each word had when first met in it, the box it has now, wrong and right) -- the summary's new and stronger
+//   words, the final test's words missed most (missedPairs); collect(game) the chapter's collectibles found (the
+//   flags "found:<id>" of its `collectibles`) into its save; finish(game) the final test, then the summary
+//   (js/story/summary.js); a checkpoint's `beat` when it is not the beat under way (a fight saved mid-way: its start)
 // The answers count in the memory boxes as everywhere else; the chapter keeps
 // its own totals (right, wrong, time) for its summary and achievements.
 // ===================================================================
@@ -165,7 +170,7 @@ G.Story = (function () {
     const d = data(id);
     d.started = true; d.runs = (d.runs || 0) + 1;
     // (from the beginning, or Skip Prologue: a new play-through)
-    if (!from || from.skip) { d.cp = null; d.scene = from && from.skip ? 1 : 0; d.curTime = 0; d.curRight = 0; d.curWrong = 0; }
+    if (!from || from.skip) { d.cp = null; d.scene = from && from.skip ? 1 : 0; d.curTime = 0; d.curRight = 0; d.curWrong = 0; d.curWords = {}; }
     G.persist();
     pending = { id, from: from || null };
     G.Game.startStory(id);
@@ -202,6 +207,8 @@ G.Story = (function () {
     if (G.StoryBoss) G.StoryBoss.reset(game);            // (round 8: a mini-boss)
     if (G.StoryEscort) G.StoryEscort.reset();            // (round 9: who is looked after; the PA's window, its loop)
     if (G.StoryPA) G.StoryPA.reset(game);
+    if (G.StoryPrincipal) G.StoryPrincipal.reset(game);  // (round 10: the chapter's boss; its end, the summary)
+    if (G.StorySummary) G.StorySummary.reset();
     // what the checkpoint was carrying (full health: a checkpoint is a fresh start)
     if (from && from.guns) {
       const pl = game.player;
@@ -250,6 +257,7 @@ G.Story = (function () {
     // (round 9) who came along with the player; the PA's announcement on its loop, a place held
     if (G.StoryEscort) G.StoryEscort.update(game, dt);
     if (G.StoryPA) G.StoryPA.update(game, dt);
+    if (G.StoryPrincipal) G.StoryPrincipal.update(game, dt);         // (round 10: the chapter's boss)
     if (!run || run.over) return;
     G.StoryScenes.update(game, run, dt);
   }
@@ -360,13 +368,42 @@ G.Story = (function () {
   function sceneCard() {
     if (run && G.UI.flashPurchaseBanner) G.UI.flashPurchaseBanner(G.escapeHtml(sceneTitle(run.ch, run.sceneI)), G.escapeHtml(T("story.chapterN", { n: run.ch.n })));
   }
+  // (round 10) the chapter's collectibles found -- each one's flag, "found:<id>" -- kept in its save for good
+  function collect(game) {
+    if (!run) return [];
+    const d = data(run.id), list = run.ch.collectibles || [], got = [];
+    list.forEach((c) => { if (c.flag && run.flags.has(c.flag)) { got.push(c.id); if (!d.collected.includes(c.id)) d.collected.push(c.id); } });
+    return got;
+  }
+  // (round 10) an answer of the play-through (js/srs.js G.Learning.answerWord): curWords[key] = [the box when first
+  // met in it, the box now, wrong, right] -- the summary's new and stronger words, the final test's
+  function noteWord(pair, right, r) {
+    // (the final test is after the chapter's end: its answers are the play-through's too)
+    if (!run || !pair || !run.game || run.game.mode !== "story") return;
+    const d = data(run.id), cw = d.curWords || (d.curWords = {}), key = G.wordKey(pair);
+    if (!key || key.length > 60) return;
+    const e = cw[key] || (Object.keys(cw).length < 400 ? (cw[key] = [r && Number.isFinite(r.from) ? r.from : G.SRS.box(pair), 0, 0, 0]) : null);
+    if (!e) return;
+    e[1] = r && Number.isFinite(r.to) ? r.to : G.SRS.box(pair);
+    if (right) e[3]++; else e[2]++;
+  }
+  // the chapter's words got wrong this play-through, the most often first (bank pairs, in the player's languages)
+  function missedPairs(r) {
+    r = r || run;
+    if (!r) return [];
+    const cw = data(r.id).curWords || {}, pool = r.pool || [];
+    return pool.filter((p) => { const e = cw[G.wordKey(p)]; return e && e[2] > 0; }).sort((a, b) => cw[G.wordKey(b)][2] - cw[G.wordKey(a)][2]);
+  }
   function checkpoint(game, at) {
     if (!run) return;
     commit(game);
+    collect(game);
     const d = data(run.id), pl = game.player, ammo = {};
     pl.gunSlots.forEach((g) => { const a = pl.ammo[g]; if (a) ammo[g] = [a.mag, a.reserve]; });
     const pos = at && Number.isFinite(at.x) ? at : null;
-    d.cp = { scene: run.sceneI, beat: run.beatI, at: Date.now(), hp: Math.max(1, pl.hp), guns: pl.gunSlots.slice(), melee: pl.melee || "knife", ammo,
+    // (round 10: `beat` -- a fight saved part way through starts again at its first beat, in the phase it had reached)
+    const beat = at && Number.isFinite(at.beat) ? at.beat : run.beatI;
+    d.cp = { scene: run.sceneI, beat, at: Date.now(), hp: Math.max(1, pl.hp), guns: pl.gunSlots.slice(), melee: pl.melee || "knife", ammo,
       flags: Array.from(run.flags), x: pos ? pos.x : null, y: pos && Number.isFinite(pos.y) ? pos.y : null, z: pos ? pos.z : null, yaw: pos && Number.isFinite(pos.yaw) ? pos.yaw : null };
     d.scene = Math.max(d.scene || 0, run.sceneI);
     G.save.story = G.normalizeStory(G.save.story);
@@ -397,21 +434,31 @@ G.Story = (function () {
     ] });
     return true;
   }
-  // the chapter's end: done, the best time, the summary (story round 10 gives it its own screen)
+  // the chapter's end: done, the best time; (round 10) the final test -- six questions on its words, the ones
+  // missed most first (G.Quiz's window) -- then the summary (js/story/summary.js)
   function finish(game) {
     if (!run) return;
     commit(game);
+    const found = collect(game);
     run.over = true;
     quiet();
-    const id = run.id, c = run.ch, d = data(id);
+    const id = run.id, c = run.ch, d = data(id), r = run;
     d.done = true; d.cp = null; d.scene = 0; d.finishedAt = Date.now();
     if (d.curTime > 0) d.best = d.best > 0 ? Math.min(d.best, d.curTime) : d.curTime;
-    const total = d.curRight + d.curWrong, acc = total ? Math.round((d.curRight / total) * 100) : 0;
-    const t = Math.round(d.curTime), time = Math.floor(t / 60) + ":" + String(t % 60).padStart(2, "0");
     G.persist(true);
     if (G.Bus) G.Bus.emit("story:done", { ch: id, time: d.curTime, right: d.curRight, wrong: d.curWrong });
+    const sum = () => {
+      if (G.StorySummary) G.StorySummary.show(game, { id, ch: c, d, found, test: r.test || null });
+      else summaryDialog(c, d);
+    };
+    if (G.StorySummary && c.finalTest !== false) G.StorySummary.test(game, r, (res) => { r.test = res; sum(); });
+    else sum();
+  }
+  // (without js/story/summary.js: the round 1 window)
+  function summaryDialog(c, d) {
+    const total = d.curRight + d.curWrong, acc = total ? Math.round((d.curRight / total) * 100) : 0;
+    const t = Math.round(d.curTime), time = Math.floor(t / 60) + ":" + String(t % 60).padStart(2, "0");
     const next = c.next && chapter(c.next);
-    // (the next chapter: named, and its button off while it is still to come)
     const buttons = [];
     if (next) buttons.push({ label: T(next.soon ? "story.end.nextSoon" : "story.end.next", { title: T(next.title) }), disabled: !!next.soon, action: () => { if (!next.soon) start(next.id, null); } });
     buttons.push({ label: T("story.menu"), primary: true, cancel: true, action: () => G.Game.quitToMainMenu() });
@@ -442,6 +489,8 @@ G.Story = (function () {
     if (G.StoryBoss) G.StoryBoss.reset(game);
     if (G.StoryEscort) G.StoryEscort.reset();
     if (G.StoryPA) G.StoryPA.reset(game);
+    if (G.StoryPrincipal) G.StoryPrincipal.reset(game);
+    if (G.StorySummary) G.StorySummary.reset();
     if (G.ViewModel && G.ViewModel.setVisible) G.ViewModel.setVisible(true);
     document.body.classList.remove("story-hands-free");
   }
@@ -451,8 +500,15 @@ G.Story = (function () {
     return { level: T("story.chapterN", { n: run.ch.n }), wave: sceneTitle(run.ch, run.sceneI), left: game.zombies.some((z) => z.alive) ? T("hud.zombiesLeft", { n: left }) : "" };
   }
   // (round 5: while the practice exam runs, its question and which one it is)
-  function idleMeaning() { const q = G.StoryQuiz && G.StoryQuiz.active ? G.StoryQuiz.line() : null; return q || (run && run.objective ? T(run.objective, vars()) : "-"); }
-  function idleLabel() { const l = G.StoryQuiz && G.StoryQuiz.active ? G.StoryQuiz.label() : null; return l || T("story.objective"); }
+  // (round 10: while the principal's shield is up, its sentence -- the plates' question)
+  function idleMeaning() {
+    const q = G.StoryQuiz && G.StoryQuiz.active ? G.StoryQuiz.line() : G.StoryPrincipal && G.StoryPrincipal.active ? G.StoryPrincipal.line() : null;
+    return q || (run && run.objective ? T(run.objective, vars()) : "-");
+  }
+  function idleLabel() {
+    const l = G.StoryQuiz && G.StoryQuiz.active ? G.StoryQuiz.label() : G.StoryPrincipal && G.StoryPrincipal.active ? G.StoryPrincipal.label() : null;
+    return l || T("story.objective");
+  }
   // the page going away mid-scene: the answers and the time so far into the chapter's
   // totals (the player comes back at the checkpoint; js/savemanager.js writes the save)
   window.addEventListener("pagehide", () => { if (run && !run.over && run.game) { commit(run.game); G.persist(true); } });
@@ -460,7 +516,7 @@ G.Story = (function () {
   return {
     on, chapters, chapter, data, status, entries, missing, pairs, plan, level, open, restart, start,
     beginRun, update, commit, checkpoint, prologueDone, sceneReached, died, finish, teardown, hudHead, idleMeaning, idleLabel,
-    vars, chose, onKey, arm, handsFree, onWrongShot, onShriek, sees,
+    vars, chose, onKey, arm, handsFree, onWrongShot, onShriek, sees, collect, noteWord, missedPairs,
     get run() { return run; }, get pending() { return pending; },
   };
 })();
